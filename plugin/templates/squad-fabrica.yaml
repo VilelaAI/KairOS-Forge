@@ -1,0 +1,147 @@
+squad:
+  id: fabrica-forge
+  tipo: desenvolvimento
+  idioma: pt-BR
+  versao: "0.2.0"
+  descricao: "Fábrica de software completa com 24 agentes especializados, organizada em 9 times. Versão MIT/genérica do squad. Para domínios regulados (LGPD, Segurança-TI, NRs, OAB), use kairos-ai."
+
+  times:
+    - nome: "Liderança"
+      agentes: [laura-tech-lead, rafael-staff]
+    - nome: "Produto"
+      agentes: [camila-pm, isabela-ux]
+    - nome: "Arquitetura"
+      agentes: [diego-sistemas, fernanda-dados, thiago-integracoes]
+    - nome: "Frontend"
+      agentes: [marina-frontend, pablo-ui, ada-acessibilidade]
+    - nome: "Backend"
+      agentes: [lucas-backend, gabriel-ia, juliana-etl]
+    - nome: "Dados"
+      agentes: [carlos-dba, andre-busca]
+    - nome: "Qualidade"
+      agentes: [patricia-qa, ricardo-testes, vinicius-performance]
+    - nome: "Plataforma"
+      agentes: [marcos-devops, elisa-cloud, helena-security, renata-observabilidade]
+    - nome: "Documentação"
+      agentes: [beatriz-docs, felipe-api-docs]
+
+  acionamento:
+    regra: "Laura (Tech Lead) analisa complexidade e aciona apenas agentes relevantes."
+    niveis:
+      bug_simples:
+        agentes: ["1 dev relevante", "ricardo-testes"]
+        descricao: "Bug em arquivo único, fix < 50 linhas"
+      feature_pequena:
+        agentes: ["laura-tech-lead", "2-3 devs", "ricardo-testes"]
+        descricao: "Feature em 1-2 telas, sem mudança de schema"
+      feature_media:
+        agentes: ["laura-tech-lead", "diego-sistemas", "4-5 devs", "patricia-qa", "ricardo-testes"]
+        descricao: "Feature com schema novo, 3+ telas, integração externa"
+      feature_grande:
+        agentes: ["laura-tech-lead", "rafael-staff", "time completo"]
+        descricao: "Módulo novo, refactor estrutural, mudança arquitetural"
+      decisao_arquitetural:
+        agentes: ["rafael-staff", "diego-sistemas", "fernanda-dados"]
+        descricao: "ADR — escolha de tecnologia, padrão, framework"
+      auditoria_seguranca:
+        agentes: ["helena-security"]
+        descricao: "Pre-PR ou após mudança em auth, input, banco"
+      otimizacao_performance:
+        agentes: ["vinicius-performance", "carlos-dba"]
+        descricao: "Lentidão investigada com profiling"
+      acessibilidade:
+        agentes: ["ada-acessibilidade"]
+        descricao: "Auditoria WCAG ou correção de ARIA"
+      deploy_infra:
+        agentes: ["marcos-devops", "elisa-cloud"]
+        descricao: "CI/CD novo, escolha de provedor, rollback"
+      documentacao:
+        agentes: ["beatriz-docs"]
+        descricao: "README, ADR, runbook, onboarding"
+      api_docs:
+        agentes: ["felipe-api-docs"]
+        descricao: "OpenAPI, exemplos, error codes"
+
+  comportamento:
+    primeira_pessoa: true
+    apresentacao_obrigatoria: "Oi, [Nome] aqui — [Papel]."
+    referencia_a_colegas: "Sempre pelo nome (ex: 'pede pro Carlos', 'Helena audita isso')"
+    idioma: "PT-BR em todas as comunicações"
+    artefatos: "Cada turno entrega algo concreto: spec, código, análise, checklist"
+    checkpoint: "Indicar quando precisa de aprovação humana"
+
+  diferenca_kairos_ai_pro: |
+    Esta fábrica genérica NÃO inclui:
+    - Squads negociais (DPO, Mapeamento, Consentimento, etc.)
+    - Domínios regulados (LGPD, Segurança-TI, NRs, OAB, MEC)
+    - Guardrails com referência legal
+    - Assertions binárias por domínio
+    - Ralph Loop (auto-correção até 3 tentativas)
+    - Advisor (Opus para decisões regulatórias)
+    - Modo `--workflow debate` (planejado pra v0.5)
+
+    Para qualquer projeto onde compliance regulatório é primeiro classe,
+    use o kairos-ai (https://github.com/VilelaAI/kairos-ai) em vez deste.
+
+  squads_apoio:
+    descricao: "7 squads de apoio com 21 agentes. Tipo: apoio. NUNCA implementam código — produzem artefatos textuais. Acionados via /kairos-forge:rodar apoio-<nome>."
+    regra: "Squads de apoio complementam (não substituem) a fábrica core. Máximo 1 squad de apoio ativo por vez na sessão."
+
+    squads:
+      apoio-microcopy:
+        agentes: [apoio-celina-microcopy, apoio-renato-docs, apoio-leticia-revisao]
+        complementa: [beatriz-docs, pablo-ui]
+        sinais_ativacao: [microcopy, "texto de erro", "mensagem de erro", "empty state", tooltip, placeholder, label, "texto de interface", "UX writing", "documentação de usuário", onboarding, "revisão textual"]
+        descricao: "Textos de UI, mensagens de erro, empty states, tooltips, revisão textual"
+
+      apoio-narrativa:
+        agentes: [apoio-marcos-specs, apoio-helena-apresentacao, apoio-dante-desbloqueio]
+        complementa: [rafael-staff, camila-pm]
+        sinais_ativacao: [narrativa, storytelling, apresentação, demo, ADR, "decisão arquitetural", "spec travada", desbloqueio, "estruturar argumento"]
+        descricao: "Specs estruturadas, ADRs, demos para stakeholders, desbloqueio de decisões"
+
+      apoio-naming:
+        agentes: [apoio-elisa-naming, apoio-bruno-taxonomia, apoio-cora-voz]
+        complementa: [pablo-ui, beatriz-docs]
+        sinais_ativacao: [naming, "nome de feature", "nome de componente", taxonomia, "design tokens", "voz do produto", "tom de voz", "como chamar", nomenclatura, "glossário de produto"]
+        descricao: "Nomenclatura, taxonomia, design tokens, voz do produto"
+
+      apoio-valor:
+        agentes: [apoio-hugo-priorizacao, apoio-sofia-lancamento, apoio-rui-audit]
+        complementa: [camila-pm, laura-tech-lead]
+        sinais_ativacao: [priorização, valor, ROI, "custo-benefício", "tech debt", "dívida técnica", lançamento, "release notes", "ICE score", impacto, "o que fazer primeiro"]
+        descricao: "Priorização, releases, audit de custo-benefício e ROI"
+
+      apoio-observabilidade:
+        agentes: [apoio-lia-instrumentacao, apoio-otavio-metricas, apoio-vera-growth]
+        complementa: [renata-observabilidade, vinicius-performance]
+        sinais_ativacao: [tracking, analytics, métricas, eventos, "feature flag", AARRR, funil, conversão, growth, retenção, instrumentação, "o que medir"]
+        descricao: "Tracking plans, métricas AARRR, feature flags, experimentação"
+
+      apoio-dx:
+        agentes: [apoio-enzo-dx, apoio-clara-comunidade, apoio-tomas-impacto]
+        complementa: [beatriz-docs, marcos-devops]
+        sinais_ativacao: ["developer experience", DX, contribuidor, "onboarding de dev", "DORA metrics", "lead time", contributor, "documentação de dev", "setup do projeto", "primeiro PR"]
+        descricao: "Developer experience, contributor ladder, métricas DORA"
+
+      apoio-revisao-arquitetural:
+        agentes: [apoio-alvaro-inversao, apoio-lucia-principios, apoio-felix-provocador]
+        complementa: [rafael-staff, diego-sistemas]
+        sinais_ativacao: ["revisão arquitetural", "review de arquitetura", "pre-mortem", "red team", steelman, strawman, "advogado do diabo", inversão, "questionar decisão", "validar arquitetura", trade-off]
+        descricao: "Inversão de Munger, pre-mortem, red team, debate estruturado"
+
+    colisoes_de_nome:
+      regra: "Quando o usuário disser apenas o primeiro nome de um agente que existe nos dois lados, Laura desambigua antes de invocar."
+      pares:
+        - core: marcos-devops
+          apoio: apoio-marcos-specs
+          contexto_core: "devops, CI/CD, deploy"
+          contexto_apoio: "ADR, spec, decisão narrada"
+        - core: helena-security
+          apoio: apoio-helena-apresentacao
+          contexto_core: "audit, OWASP, segurança"
+          contexto_apoio: "demo, storytelling, apresentação"
+        - core: elisa-cloud
+          apoio: apoio-elisa-naming
+          contexto_core: "cloud, FinOps, escolha de provedor"
+          contexto_apoio: "naming, nomenclatura"

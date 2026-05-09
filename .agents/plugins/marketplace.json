@@ -1,0 +1,20 @@
+{
+  "name": "kairos-forge",
+  "interface": {
+    "displayName": "KairOS Forge"
+  },
+  "plugins": [
+    {
+      "name": "kairos-forge",
+      "source": {
+        "source": "local",
+        "path": "./plugin"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development & Workflow"
+    }
+  ]
+}

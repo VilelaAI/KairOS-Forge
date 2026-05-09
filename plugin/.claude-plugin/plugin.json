@@ -1,0 +1,31 @@
+{
+  "name": "kairos-forge",
+  "version": "0.4.3",
+  "description": "Fábrica de software autônoma como plugin Claude Code, Codex CLI e OpenCode: 45 agentes em 16 times — 24 core (liderança, produto, arquitetura, frontend, backend, dados, qualidade, plataforma, documentação) coordenados por Laura, e 21 de apoio em 7 squads (microcopy, narrativa, naming, valor, observabilidade, DX, revisão arquitetural). 7 skills: onboardar, especificar, rodar, mobilizar, revisar, auditar, evoluir. Versão MIT/genérica — para domínios regulados use kairos-ai.",
+  "author": {
+    "name": "Allyson Bruno Campos Barros Vilela",
+    "email": "allyson@vilela.tech"
+  },
+  "homepage": "https://vilela.tech/kairos",
+  "repository": "https://github.com/vilelaai/kairos-forge",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "codex-cli",
+    "opencode",
+    "agents",
+    "agent-teams",
+    "software-factory",
+    "autonomous",
+    "multi-cli",
+    "tdd",
+    "spec-driven",
+    "naming",
+    "narrative",
+    "observability",
+    "developer-experience",
+    "pt-br",
+    "kairos",
+    "vilelaai"
+  ]
+}

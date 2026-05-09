@@ -1,0 +1,108 @@
+# {{NOME_DO_PROJETO}} — guia para o Claude
+
+> Este arquivo foi gerado por `/kairos-forge:onboardar` em {{DATA}}.
+> Edite à vontade. É a fonte da verdade do projeto para os 24 agentes da fábrica.
+
+## O que este projeto é
+
+{{RESPOSTA_PERGUNTA_1}}
+
+## Stack
+
+{{RESPOSTA_PERGUNTA_2}}
+
+> Nota: Os agentes da fábrica têm stack default (React/TS/Postgres/Supabase). Se o seu é diferente, eles adaptam automaticamente. Se quiser que adaptem de forma mais consistente, descreva aqui o stack real e mencione divergências.
+
+## Estrutura de pastas
+
+{{RESPOSTA_PERGUNTA_3}}
+
+## Convenções não-óbvias
+
+{{RESPOSTA_PERGUNTA_4}}
+
+## Em andamento
+
+{{RESPOSTA_PERGUNTA_5}}
+
+## Restrições e o que evitar
+
+{{RESPOSTA_PERGUNTA_6}}
+
+## Como a fábrica deve operar aqui
+
+{{RESPOSTA_PERGUNTA_7}}
+
+---
+
+## Onde o quê mora
+
+| Pasta | O que tem | Quem mantém |
+|---|---|---|
+| `contextos/` | Contexto de longo prazo: stack, convenções, restrições | Você + skill `/onboardar` |
+| `decisoes/log.md` | Append-only de decisões técnicas | Você + agentes |
+| `decisoes/auditorias/` | Histórico de auditorias semanais | Skill `/auditar` |
+| `decisoes/evolucoes/` | Plano de evolução semanal da fábrica | Skill `/evoluir` |
+| `docs/specs/` | SPECs de features | Diego, Fernanda, Thiago, Rafael |
+| `docs/adr/` | Decisões arquiteturais irreversíveis | Rafael principalmente |
+
+## Comandos da fábrica
+
+- `/kairos-forge:especificar <feature>` — começar uma feature pelo design (Laura aciona arquitetos)
+- `/kairos-forge:rodar [agente|time]` — modo conversacional, agentes em primeira pessoa
+- `/kairos-forge:mobilizar <spec>` — modo paralelo via Agent Teams (requer `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`)
+- `/kairos-forge:revisar` — revisar diff antes de PR (Helena + Patrícia + outros conforme escopo)
+- `/kairos-forge:auditar` — auditoria semanal (sextas)
+- `/kairos-forge:evoluir` — escolher 1 melhoria pra próxima semana
+
+## Os 24 agentes — quem chamar
+
+### Liderança
+- **👩‍💼 Laura** [Tech Lead] — ponto de entrada de qualquer tarefa, coordena
+- **🧭 Rafael** [Staff] — decisões arquiteturais escaláveis, ADRs
+
+### Produto
+- **🎯 Camila** [PM] — escopo, MVP, priorização, métricas
+- **🔬 Isabela** [UX] — jornadas, personas, heurísticas
+
+### Arquitetura
+- **📐 Diego** [Sistemas] — fluxo, eventos, contratos entre componentes
+- **🗄️ Fernanda** [Dados] — modelagem, schema, indexação
+- **🔗 Thiago** [Integrações] — APIs, webhooks, OpenAPI
+
+### Frontend
+- **⚛️ Marina** [Frontend] — React/TS, hooks, estado
+- **🎨 Pablo** [UI] — design system, Tailwind, dashboards
+- **♿ Ada** [Acessibilidade] — WCAG 2.1 AA, ARIA
+
+### Backend
+- **⚙️ Lucas** [Backend] — APIs, validação, error handling
+- **🤖 Gabriel** [IA] — prompts, tool use, RAG, evals
+- **📊 Juliana** [ETL] — pipelines, batch, exports
+
+### Dados
+- **🛢️ Carlos** [DBA] — migrations, queries, EXPLAIN
+- **🔎 André** [Busca] — pgvector, FTS, hybrid search
+
+### Qualidade
+- **✅ Patrícia** [QA Lead] — estratégia de testes, triage
+- **🧪 Ricardo** [Testes] — Vitest, Playwright, fixtures
+- **⚡ Vinícius** [Performance] — profiling, Core Web Vitals
+
+### Plataforma
+- **🚀 Marcos** [DevOps] — CI/CD, Docker, deploy
+- **☁️ Elisa** [Cloud] — provedor, FinOps, residência
+- **🔐 Helena** [Security] — OWASP, secrets, audit
+- **👁️ Renata** [Observabilidade] — logs, métricas, traces
+
+### Documentação
+- **📝 Beatriz** [Docs] — README, ADR, runbook
+- **📖 Felipe** [API Docs] — OpenAPI, exemplos curl
+
+## Regras absolutas neste projeto
+
+- PT-BR em commits, comentários, mensagens de erro
+- Toda feature não-trivial passa por `/kairos-forge:especificar`
+- Todo PR passa por `/kairos-forge:revisar`
+- Testes passam antes de qualquer push para `main`
+- Laura cobra Definition of Done — sem ela aprovar, não é entregue

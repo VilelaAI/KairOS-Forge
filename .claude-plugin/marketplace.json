@@ -1,0 +1,22 @@
+{
+  "name": "kairos-forge",
+  "owner": {
+    "name": "VilelaAI",
+    "url": "https://vilela.tech"
+  },
+  "plugins": [
+    {
+      "name": "kairos-forge",
+      "source": "./plugin",
+      "description": "Fábrica de software autônoma com 45 agentes (24 core + 21 apoio) coordenados por Laura (Tech Lead). 7 skills cobrindo onboarding, especificação, execução conversacional/paralela, revisão multi-agente, auditoria e evolução. PT-BR oficial. Para domínios regulados, use kairos-ai.",
+      "version": "0.4.3",
+      "author": {
+        "name": "Allyson Bruno Campos Barros Vilela",
+        "email": "allyson@vilela.tech"
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/VilelaAI/kairos-forge",
+      "category": "agents"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+# Segredos
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Memória local do plugin (cada usuário tem a sua)
+.kairos-forge/cache/
+.kairos-forge/sessions/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node (caso o usuário use)
+node_modules/
+npm-debug.log*
+
+# Python (caso o usuário use)
+__pycache__/
+*.pyc
+.venv/
+venv/

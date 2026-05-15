@@ -1,6 +1,6 @@
 ---
 name: auditar
-description: Audita o estado da fábrica no projeto atual. Use semanalmente (sugestão sexta-feira) ou quando sentir que o setup está estagnando. Pontua 0–100 em quatro dimensões — Fundação, Pipeline, Guardrails, Conhecimento — e devolve as 3 lacunas de maior alavancagem para corrigir na próxima semana. Read-only: não modifica nenhum arquivo.
+description: Audita o estado da fábrica no projeto atual. Use semanalmente (sugestão sexta-feira) ou quando sentir que o setup está estagnando. Pontua 0–100 em cinco dimensões — Fundação, Pipeline, Guardrails, Conhecimento, Estrutura — e devolve as 3 lacunas de maior alavancagem para corrigir na próxima semana. Read-only: não modifica nenhum arquivo.
 ---
 
 # Auditar — pontuação da fábrica
@@ -9,14 +9,15 @@ Você está sendo invocado para auditar quão bem a fábrica kairos-forge está 
 
 ## Como funciona
 
-Audita 4 dimensões. Cada uma vale 25 pontos. Total: 100.
+Audita 5 dimensões. Cada uma vale 20 pontos. Total: 100.
 
 | Dimensão | O que mede |
 |---|---|
 | **Fundação** | CLAUDE.md, contextos/, decisoes/, ADRs |
-| **Pipeline** | Skills, agentes, comandos disponíveis e em uso |
-| **Guardrails** | Hooks, lints, testes, CI, security checks |
-| **Conhecimento** | Wiki/memória persistente, references/, documentação |
+| **Pipeline** | Skills, SPECs rastreáveis, validações e agentes em uso |
+| **Guardrails** | Hooks, lints, testes, CI, gates e security checks |
+| **Conhecimento** | Wiki/memória persistente, estado operacional, references/, documentação |
+| **Estrutura** | Arquitetura modular, ownership, acoplamento, threat model |
 
 Read-only: você só lê arquivos. Não modifica nada.
 
@@ -34,42 +35,56 @@ Read-only: você só lê arquivos. Não modifica nada.
 
 ## Rubrica detalhada
 
-### Fundação (25 pts)
+### Fundação (20 pts)
 
 | Critério | Pontos |
 |---|---|
-| `CLAUDE.md` existe e tem ≥ 50 linhas de contexto real (não template) | 10 |
-| `contextos/` com pelo menos 3 arquivos de contexto preenchidos | 5 |
-| `decisoes/log.md` com pelo menos 3 entradas datadas | 5 |
-| `docs/adr/` com pelo menos 1 ADR escrito | 5 |
+| `CLAUDE.md` existe e tem ≥ 50 linhas de contexto real (não template) | 8 |
+| `contextos/` com pelo menos 3 arquivos de contexto preenchidos | 4 |
+| `decisoes/log.md` com pelo menos 3 entradas datadas | 4 |
+| `docs/adr/` com pelo menos 1 ADR escrito | 4 |
 
-### Pipeline (25 pts)
-
-| Critério | Pontos |
-|---|---|
-| Plugin kairos-forge instalado e ativo (este check é trivial: você está rodando) | 5 |
-| Pelo menos 1 SPEC criada em `docs/specs/` | 5 |
-| Histórico de uso de pelo menos 3 dos 5 agentes (verificar se há referências em decisões ou commits) | 10 |
-| Pelo menos 1 skill ou comando customizado criado para este projeto específico (em `.claude/skills/`) | 5 |
-
-### Guardrails (25 pts)
+### Pipeline (20 pts)
 
 | Critério | Pontos |
 |---|---|
-| Lint configurado e passando (procurar `.eslintrc`, `pyproject.toml [tool.ruff]`, etc.) | 5 |
-| Suite de testes existe e roda (`pytest`, `npm test`, `go test`) | 5 |
-| CI configurado (`.github/workflows/`, `.gitlab-ci.yml`) | 5 |
-| `.gitignore` cobre segredos e artefatos locais | 5 |
-| Hooks de pre-commit configurados (`.pre-commit-config.yaml` ou Husky) | 5 |
+| Plugin kairos-forge instalado e ativo (este check é trivial: você está rodando) | 4 |
+| Pelo menos 1 SPEC criada em `docs/specs/` com requisitos rastreáveis | 4 |
+| Pelo menos 1 relatório em `docs/specs/validacoes/` ou evidência de `/validar` | 4 |
+| Histórico de uso de pelo menos 3 agentes (verificar referências em decisões, specs ou commits) | 4 |
+| Pelo menos 1 skill ou comando customizado criado para este projeto específico (em `.claude/skills/`) | 4 |
 
-### Conhecimento (25 pts)
+### Guardrails (20 pts)
 
 | Critério | Pontos |
 |---|---|
-| `references/` ou `docs/references/` com material de apoio | 5 |
-| README do projeto cobre instalação, uso e contribuição | 5 |
-| Wiki/memória persistente configurada (Basic Memory, Obsidian vault, ou estrutura `wiki/` com `_index.md` e `_log.md`) | 10 |
-| Pelo menos 1 ADR explicando decisão arquitetural não-óbvia | 5 |
+| Lint configurado e passando (procurar `.eslintrc`, `pyproject.toml [tool.ruff]`, etc.) | 4 |
+| Suite de testes existe e roda (`pytest`, `npm test`, `go test`) | 4 |
+| CI configurado (`.github/workflows/`, `.gitlab-ci.yml`) | 4 |
+| `contextos/testes.md` documenta gates reais de lint/test/build | 4 |
+| Hooks de pre-commit ou guardrail equivalente configurado (`.pre-commit-config.yaml`, Husky, CI obrigatório) | 4 |
+
+### Conhecimento (20 pts)
+
+| Critério | Pontos |
+|---|---|
+| `references/` ou `docs/references/` com material de apoio | 4 |
+| README do projeto cobre instalação, uso e contribuição | 4 |
+| Wiki/memória persistente configurada (Basic Memory, Obsidian vault, `wiki/` ou `decisoes/estado-operacional.md`) | 8 |
+| Pelo menos 1 ADR explicando decisão arquitetural não-óbvia | 4 |
+
+### Estrutura (20 pts)
+
+Mede arquitetura modular, propriedade do código e antecipação de riscos. Em projetos brownfield, é normal esta dimensão começar baixa.
+
+| Critério | Pontos |
+|---|---|
+| `CODEOWNERS` (raiz ou `.github/`) existe e cobre as áreas críticas do código | 3 |
+| Mapa arquitetural recente em `docs/arquitetura/MAPA-*.md` (≤ 90 dias) | 4 |
+| Ao menos 1 modelo de ameaças em `docs/seguranca/AMEACAS-*.md` para áreas sensíveis (auth, PII, billing, multi-tenant) | 4 |
+| Hotspots de churn sem dono claro: verificar se top-10 arquivos mais alterados em 90d têm dono em CODEOWNERS. Pontuar 0 se mais de 3 ficam sem dono. | 3 |
+| Acoplamento documentado: alguma evidência de fronteiras de módulo (barril `index`/`mod`/`__init__`, camadas declaradas, ADR sobre estrutura) | 3 |
+| Ausência de duplicação grave de domínio (mesmo conceito modelado em 2+ módulos sem justificativa): pontuar 0 se houver caso evidente sem ADR | 3 |
 
 ## Formato do relatório
 
@@ -80,10 +95,11 @@ Read-only: você só lê arquivos. Não modifica nada.
 
 | Dimensão | Pontos | % |
 |---|---|---|
-| Fundação | NN/25 | NN% |
-| Pipeline | NN/25 | NN% |
-| Guardrails | NN/25 | NN% |
-| Conhecimento | NN/25 | NN% |
+| Fundação | NN/20 | NN% |
+| Pipeline | NN/20 | NN% |
+| Guardrails | NN/20 | NN% |
+| Conhecimento | NN/20 | NN% |
+| Estrutura | NN/20 | NN% |
 
 ## Top 3 lacunas (ranqueadas por alavancagem)
 
@@ -103,10 +119,31 @@ Read-only: você só lê arquivos. Não modifica nada.
 
 (Se houver auditorias anteriores em `decisoes/auditorias/`, listar pontuações para mostrar tendência)
 
-| Data | Total | Fundação | Pipeline | Guardrails | Conhecimento |
-|---|---|---|---|---|---|
-| YYYY-MM-DD | NN | NN | NN | NN | NN |
+| Data | Total | Fundação | Pipeline | Guardrails | Conhecimento | Estrutura |
+|---|---|---|---|---|---|---|
+| YYYY-MM-DD | NN | NN | NN | NN | NN | NN |
 ```
+
+## Coletar evidências para Estrutura
+
+Comandos sugeridos (read-only, sem dependências fora do projeto):
+
+- Existência de `CODEOWNERS`: `ls CODEOWNERS .github/CODEOWNERS docs/CODEOWNERS 2>/dev/null`.
+- Mapa recente: `ls docs/arquitetura/MAPA-*.md 2>/dev/null` e checar data no nome.
+- Modelo de ameaças: `ls docs/seguranca/AMEACAS-*.md 2>/dev/null`.
+- Top-10 churn 90d: `git log --since='90 days ago' --pretty=format: --name-only | sort | uniq -c | sort -rn | head -10`. Cruzar com `CODEOWNERS`.
+- Acoplamento e duplicação: amostragem manual. Marque como hipótese se não houver mapa.
+
+Helena, Rafael ou Diego podem ser citados no relatório como responsáveis sugeridos por fechar lacunas desta dimensão.
+
+## Lacunas de Estrutura: follow-ups típicos
+
+Se a dimensão Estrutura ficar baixa, as ações naturais costumam ser:
+
+- Sem mapa arquitetural ou acoplamento alto → rodar `/kairos-forge:mapear-arquitetura`.
+- Sem modelo de ameaças em área sensível → rodar `/kairos-forge:analisar-ameacas`.
+- Sem CODEOWNERS → abrir tarefa para Rafael/Diego definirem fronteiras de propriedade.
+- Hotspots órfãos → registrar em `decisoes/estado-operacional.md` e atribuir.
 
 ## Como ranquear lacunas por alavancagem
 

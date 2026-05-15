@@ -19,7 +19,7 @@ The two plugins are independent — one does not import from the other. The 24 c
 
 - `.claude-plugin/plugin.json` — Plugin manifest (Claude Code)
 - `agents/` — 45 subagents as `<id>.md` files (Claude Code format)
-- `skills/<name>/SKILL.md` — 7 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
+- `skills/<name>/SKILL.md` — 10 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
 - `hooks/hooks.json` — Claude Code hooks (SessionStart banner + PostToolUse pedagogical reminder)
 - `.agents/` — Same content as `agents/` and `skills/`, in Codex CLI format (`<id>/AGENT.md` for agents, `skills/<name>/SKILL.md` for skills)
 - `.codex/hooks.json` — Codex-specific hooks (no `Write|Edit` matcher; only Bash supported)
@@ -45,17 +45,22 @@ The two plugins are independent — one does not import from the other. The 24 c
 
 ### Skill availability per CLI
 
-All 7 skills live in `skills/` and are accessible to both Claude Code and Codex.
+All 10 skills live in `skills/` and are accessible to both Claude Code and Codex.
 
 | Skill | Claude Code | Codex CLI | OpenCode |
 |---|---|---|---|
 | `onboardar` | ✅ | ✅ | ✅ |
 | `especificar` | ✅ | ✅ | ✅ |
+| `mapear-arquitetura` | ✅ | ✅ | ✅ |
+| `analisar-ameacas` | ✅ | ✅ | ✅ |
+| `validar` | ✅ | ✅ | ✅ |
 | `rodar` | ✅ | ✅ | ✅ |
 | `mobilizar` | ✅ | ⚠️ skill loads but detects environment and redirects to `rodar` | ⚠️ same as Codex |
 | `revisar` | ✅ | ✅ | ✅ |
 | `auditar` | ✅ | ✅ | ✅ |
 | `evoluir` | ✅ | ✅ | ✅ |
+
+Natural flow ordering: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (sensitive features) → `mobilizar`/`rodar` → `validar` → `revisar` → `auditar` (weekly) → `evoluir`.
 
 For Codex/OpenCode users, `/kairos-forge:rodar` is the recommended fallback when `mobilizar` is unavailable — the conversational/sequential mode works on all three CLIs.
 
@@ -164,6 +169,8 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0002**: relationship with kairos-ai — Forge is lite/MIT, kairos-ai is regulated/PRO
 - **ADR-0003**: porting of the 21 support agents from kairos-ai
 - **ADR-0004**: multi-CLI compatibility — Claude Code canonical, Codex via `.agents/` mirror, OpenCode via fallback paths
+- **ADR-0005**: traceable SPEC and validation-against-contract step (v0.5.0)
+- **ADR-0006**: modular architecture, threat model, and the Estrutura dimension in `/auditar` (v0.6.0)
 
 ## Critical design constraints
 

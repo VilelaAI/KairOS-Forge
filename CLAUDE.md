@@ -4,7 +4,9 @@ Plugin Claude Code / Codex CLI / OpenCode que entrega uma fábrica de software d
 
 ## O que este projeto é
 
-Plugin multi-CLI (não runtime, não SDK). 45 agentes (24 core + 21 apoio em 7 squads), 7 skills, hooks por CLI, coordenação por Laura (Tech Lead).
+Plugin multi-CLI (não runtime, não SDK). 45 agentes (24 core + 21 apoio em 7 squads), 10 skills, hooks por CLI, coordenação por Laura (Tech Lead).
+
+Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `auditar` (semanal) → `evoluir`.
 
 ## Posicionamento vs kairos-ai
 
@@ -48,7 +50,7 @@ Sem o sync, usuários do Codex CLI pegam versão desatualizada.
 | `.agents/plugins/marketplace.json` | Catalog do marketplace Codex (mesmo conteúdo do Claude Code mas em path próprio) | manual |
 | `agents/<id>.md` | 45 subagentes (canônico Claude Code) | manual |
 | `.agents/<id>/AGENT.md` | Mirror Codex dos subagents | **gerado** por `scripts/sync-multi-cli.py` |
-| `skills/<verbo>/SKILL.md` | 7 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
+| `skills/<verbo>/SKILL.md` | 10 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
 | `hooks/hooks.json` | Hooks Claude Code (SessionStart + PostToolUse) | manual |
 | `.codex/hooks.json` | Hooks Codex (apenas SessionStart — Codex não suporta `Write\|Edit` matcher) | manual |
 | `AGENTS.md` | Espelho em inglês do CLAUDE.md raiz, para Codex/OpenCode | manual |
@@ -66,6 +68,8 @@ Sem o sync, usuários do Codex CLI pegam versão desatualizada.
 - **ADR-0002**: relação com kairos-ai — forge é lite/MIT, kairos-ai é regulado/PRO
 - **ADR-0003**: portagem dos 21 agentes de apoio
 - **ADR-0004**: compatibilidade multi-CLI (Claude Code + Codex + OpenCode)
+- **ADR-0005**: SPEC rastreável e validação contra contrato (v0.5.0)
+- **ADR-0006**: arquitetura modular, threat model e dimensão Estrutura na auditoria (v0.6.0)
 
 ## Limitações conhecidas por CLI
 

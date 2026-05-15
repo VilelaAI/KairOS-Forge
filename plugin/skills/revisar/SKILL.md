@@ -33,6 +33,12 @@ Em ordem de preferência:
 3. Arquivos específicos citados pelo usuário
 4. Caso contrário: pergunte ao usuário o que revisar
 
+Se o diff implementa uma SPEC em `docs/specs/` e não houver relatório correspondente em `docs/specs/validacoes/`, avise:
+
+> "Antes da revisão pré-PR, recomendo rodar `/kairos-forge:validar SPEC-NNN` para checar aceite contra a SPEC. Posso continuar a revisão mesmo assim, mas validação e revisão respondem perguntas diferentes."
+
+Continue se o usuário pediu revisão explicitamente.
+
 ### 2. Verificar tamanho do diff
 
 ```bash

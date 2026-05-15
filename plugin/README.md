@@ -48,17 +48,22 @@ Acionar:
 /kairos-forge:rodar apoio-revisao-arquitetural
 ```
 
-## As 7 skills
+## As 10 skills
 
 | Skill | Quando usar | Disponível em |
 |---|---|---|
 | `/kairos-forge:onboardar` | Primeira vez no projeto | Todos os CLIs |
-| `/kairos-forge:especificar <ideia>` | Antes de codar não-trivial | Todos os CLIs |
+| `/kairos-forge:mapear-arquitetura` | Brownfield: inventário, acoplamento e plano de decomposição | Todos os CLIs |
+| `/kairos-forge:especificar <ideia>` | Antes de codar não-trivial; gera SPEC rastreável | Todos os CLIs |
+| `/kairos-forge:analisar-ameacas <feature>` | Threat model antes de implementar feature sensível (auth, PII, billing, IA) | Todos os CLIs |
+| `/kairos-forge:validar <spec>` | Depois de implementar; valida aceite contra SPEC e gates | Todos os CLIs |
 | `/kairos-forge:rodar [agente\|time\|apoio-X]` | Conversacional/sequencial — modo padrão | Todos os CLIs |
 | `/kairos-forge:mobilizar <spec>` | Paralelo via Agent Teams | **Apenas Claude Code** |
 | `/kairos-forge:revisar` | Pré-PR. Helena + Patrícia + outros | Todos os CLIs |
-| `/kairos-forge:auditar` | Semanal. Pontuação 0–100 da fábrica | Todos os CLIs |
+| `/kairos-forge:auditar` | Semanal. Pontuação 0–100 em 5 dimensões (Fundação, Pipeline, Guardrails, Conhecimento, Estrutura) | Todos os CLIs |
 | `/kairos-forge:evoluir` | Semanal pós-auditoria | Todos os CLIs |
+
+Ordem natural: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `auditar` → `evoluir`.
 
 ## Compatibilidade entre plataformas
 
@@ -186,6 +191,9 @@ Depois (qualquer CLI):
 /kairos-forge:mobilizar SPEC-001
    └─ Carlos + Lucas + Marina + Ricardo em paralelo via Agent Teams
 
+/kairos-forge:validar SPEC-001
+   └─ Ricardo + Patrícia validam requisitos, critérios de aceite e gates
+
 /kairos-forge:rodar apoio-revisao-arquitetural
    └─ Álvaro faz pre-mortem da SPEC antes do merge
 
@@ -215,10 +223,10 @@ Sem o sync, usuários do Codex CLI ficam desatualizados.
 
 ## Roadmap
 
-- **v0.4** (atual) — multi-CLI (Claude Code + Codex + OpenCode), 45 agentes, 7 skills
-- **v0.5** — integração com Basic Memory para wiki persistente
-- **v0.6** — workflow stages YAML (feature-completa, bug-fix, evolucao-noturna)
-- **v0.7** — modo debate usando squad apoio-revisao-arquitetural
+- **v0.5** — SPEC rastreável, `/validar`, gates por tarefa, estado operacional
+- **v0.6** (atual) — `/mapear-arquitetura`, `/analisar-ameacas`, dimensão Estrutura em `/auditar` (5 dimensões)
+- **v0.7** — `/migrar`, modo RFC no `/especificar`, modo `/revisar web`
+- **v0.8** — diagramas Mermaid em ADR/SPEC, skill opcional de aprendizado, modo debate (apoio-revisao-arquitetural)
 
 ## Documentação
 
@@ -227,6 +235,8 @@ Sem o sync, usuários do Codex CLI ficam desatualizados.
 - [ADR-0002](docs/adr/0002-relacao-com-kairos-ai.md) — Forge vs kairos-ai
 - [ADR-0003](docs/adr/0003-portagem-squads-apoio.md) — squads de apoio
 - [ADR-0004](docs/adr/0004-multi-cli.md) — compatibilidade Claude Code/Codex/OpenCode
+- [ADR-0005](docs/adr/0005-spec-rastreavel-validacao.md) — SPEC rastreável e `/validar`
+- [ADR-0006](docs/adr/0006-arquitetura-modular-e-threat-model.md) — `/mapear-arquitetura`, `/analisar-ameacas` e dimensão Estrutura
 
 ## Licença
 

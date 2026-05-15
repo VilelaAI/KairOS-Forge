@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '🔥 kairos-forge v0.3 ativo — 45 agentes (24 core + 21 apoio em 7 squads) | skills: /kairos-forge:onboardar especificar rodar mobilizar revisar auditar evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1'"
+            "command": "echo '🔥 kairos-forge v0.5 ativo — 45 agentes (24 core + 21 apoio em 7 squads) | skills: /kairos-forge:onboardar especificar validar rodar mobilizar revisar auditar evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1'"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "FILE=$(jq -r '.tool_input.file_path // empty'); if echo \"$FILE\" | grep -qE '\\.(py|ts|tsx|js|jsx|go|rs|java)$' && ! echo \"$FILE\" | grep -qE '(test|spec|__tests__)'; then echo '💡 kairos-forge: arquivo de produção modificado. Lembre de chamar Ricardo (testes) e rodar /kairos-forge:revisar antes do PR.'; fi"
+            "command": "FILE=$(jq -r '.tool_input.file_path // empty'); if echo \"$FILE\" | grep -qE '\\.(py|ts|tsx|js|jsx|go|rs|java)$' && ! echo \"$FILE\" | grep -qE '(test|spec|__tests__)'; then echo '💡 kairos-forge: arquivo de produção modificado. Lembre de chamar Ricardo (testes), rodar /kairos-forge:validar se houver SPEC e /kairos-forge:revisar antes do PR.'; fi"
           }
         ]
       }

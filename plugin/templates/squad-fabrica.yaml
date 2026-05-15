@@ -2,7 +2,7 @@ squad:
   id: fabrica-forge
   tipo: desenvolvimento
   idioma: pt-BR
-  versao: "0.2.0"
+  versao: "0.5.0"
   descricao: "Fábrica de software completa com 24 agentes especializados, organizada em 9 times. Versão MIT/genérica do squad. Para domínios regulados (LGPD, Segurança-TI, NRs, OAB), use kairos-ai."
 
   times:

@@ -6,7 +6,7 @@ Este repositório é um **marketplace catalog** que distribui o plugin `kairos-f
 
 ## O plugin distribuído
 
-**`kairos-forge`** — 45 agentes (24 core + 21 apoio em 7 squads) coordenados por Laura (Tech Lead), 7 skills cobrindo o ciclo completo (onboarding → especificação → execução paralela → revisão → auditoria → evolução).
+**`kairos-forge`** — 45 agentes (24 core + 21 apoio em 7 squads) coordenados por Laura (Tech Lead), 10 skills cobrindo o ciclo completo (onboarding → mapa arquitetural brownfield → especificação rastreável → threat model → execução paralela/sequencial → validação contra SPEC → revisão → auditoria em 5 dimensões → evolução).
 
 Para projetos em **domínios regulados brasileiros** (LGPD, NRs, OAB, etc.), use [kairos-ai](https://github.com/VilelaAI/kairos-ai) em vez deste — adiciona squads negociais, guardrails legais, assertions binárias e advisor regulatório.
 
@@ -96,6 +96,7 @@ Entrevista de 7 perguntas que prepara seu projeto. Depois disso o ciclo padrão 
 /kairos-forge:especificar <ideia>     # Laura aciona arquitetos, produz SPEC
 /kairos-forge:rodar                   # execução conversacional sequencial
 /kairos-forge:mobilizar SPEC-NNN      # paralelo via Agent Teams (Claude Code)
+/kairos-forge:validar SPEC-NNN        # aceite contra requisitos/gates da SPEC
 /kairos-forge:revisar                 # Helena + Patrícia + outros
 /kairos-forge:auditar                 # semanal, pontuação 0–100
 /kairos-forge:evoluir                 # 1 capacidade nova/semana

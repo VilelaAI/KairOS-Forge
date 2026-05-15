@@ -1,6 +1,6 @@
 # Início rápido — kairos-forge em 15 minutos
 
-Este guia leva você de "acabei de ouvir falar de plugin" para "tenho a fábrica de 24 agentes rodando no meu projeto".
+Este guia leva você de "acabei de ouvir falar de plugin" para "tenho a fábrica de 45 agentes rodando no meu projeto".
 
 ## Pré-requisitos
 
@@ -30,7 +30,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver:
 
 ```
-🔥 kairos-forge v0.2 ativo — 24 agentes em 9 times | skills: ...
+🔥 kairos-forge v0.5 ativo — 45 agentes (24 core + 21 apoio em 7 squads) | skills: ...
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -44,13 +44,24 @@ Entrevista de 7 perguntas. Reserve 15 minutos. Use ditado por voz se ajudar — 
 Ao final você terá:
 
 - `CLAUDE.md` preenchido na raiz do projeto
-- `contextos/` com 4 arquivos
+- `contextos/` com contexto de projeto, stack, convenções, restrições e testes
 - `decisoes/log.md`
-- `docs/specs/` e `docs/adr/` vazios, prontos pros arquitetos popularem
+- `decisoes/estado-operacional.md`
+- `docs/specs/`, `docs/specs/validacoes/` e `docs/adr/` prontos pros arquitetos popularem
 
 ## Passo 3 — primeira feature pelo fluxo correto
 
-### 3a. Especificar antes de codar
+### 3a. (Brownfield) Mapear arquitetura antes de mexer
+
+Se o projeto já existe e tem dívida estrutural, comece por um mapa honesto:
+
+```
+/kairos-forge:mapear-arquitetura
+```
+
+Diego coordena (com Fernanda/Thiago/Rafael conforme dimensões). Saída: `docs/arquitetura/MAPA-YYYY-MM-DD.md` com inventário, acoplamento, duplicação, bounded contexts e plano incremental de decomposição. Pule este passo se for greenfield ou se você já conhece bem a estrutura.
+
+### 3b. Especificar antes de codar
 
 ```
 /kairos-forge:especificar quero exportar relatorios em CSV no dashboard
@@ -64,9 +75,19 @@ Laura entra como Tech Lead, classifica a feature, e aciona os arquitetos relevan
 >
 > **Camila:** "Camila aqui, PM. Fica como MVP só CSV mesmo? PDF fica pra V2?"
 
-Eles interrogam, propõem 2-3 abordagens, recomendam uma, e produzem `docs/specs/SPEC-001-exportar-relatorio-csv.md` com plano de implementação **agente por agente**.
+Eles interrogam, propõem 2-3 abordagens, recomendam uma, e produzem `docs/specs/SPEC-001-exportar-relatorio-csv.md` com requisitos rastreáveis, critérios de aceite, gates e plano de implementação **agente por agente**.
 
-### 3b. Implementar — escolha entre dois modos
+### 3c. (Feature sensível) Modelar ameaças antes de implementar
+
+Se a SPEC tocar auth, PII, billing, multi-tenant, upload, integração externa ou IA:
+
+```
+/kairos-forge:analisar-ameacas SPEC-001
+```
+
+Helena coordena (com Carlos/Marcos/Thiago/Gabriel/Renata conforme escopo). Saída: `docs/seguranca/AMEACAS-<slug>-YYYY-MM-DD.md` com ativos, trust boundaries, perfis realistas de atacante, abuse paths e mitigações priorizadas. Vira insumo direto para a SPEC e para o `/kairos-forge:revisar` depois.
+
+### 3d. Implementar — escolha entre dois modos
 
 #### Modo conversacional (sequencial)
 
@@ -86,7 +107,15 @@ Laura cria um Agent Team (`TeamCreate`), distribui as tarefas (`TaskCreate`), e 
 
 **Requer** `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` na sessão.
 
-### 3c. Revisar antes do PR
+### 3e. Validar contra a SPEC
+
+```
+/kairos-forge:validar SPEC-001
+```
+
+Ricardo e Patrícia validam se a implementação cumpre os requisitos P1, critérios de aceite e gates declarados na SPEC. Se tocar auth, PII, dados persistentes ou UI, Helena, Carlos e Ada entram conceitualmente no parecer.
+
+### 3f. Revisar antes do PR
 
 ```
 /kairos-forge:revisar

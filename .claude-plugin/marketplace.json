@@ -8,8 +8,8 @@
     {
       "name": "kairos-forge",
       "source": "./plugin",
-      "description": "Fábrica de software autônoma com 45 agentes (24 core + 21 apoio) coordenados por Laura (Tech Lead). 7 skills cobrindo onboarding, especificação, execução conversacional/paralela, revisão multi-agente, auditoria e evolução. PT-BR oficial. Para domínios regulados, use kairos-ai.",
-      "version": "0.4.3",
+      "description": "Fábrica de software autônoma com 45 agentes (24 core + 21 apoio) coordenados por Laura (Tech Lead). 10 skills cobrindo onboarding, especificação rastreável, mapa arquitetural, threat model, validação contra SPEC, execução conversacional/paralela, revisão multi-agente, auditoria (5 dimensões) e evolução. PT-BR oficial. Para domínios regulados, use kairos-ai.",
+      "version": "0.6.0",
       "author": {
         "name": "Allyson Bruno Campos Barros Vilela",
         "email": "allyson@vilela.tech"

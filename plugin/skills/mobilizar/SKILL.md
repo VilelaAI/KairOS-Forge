@@ -1,6 +1,6 @@
 ---
 name: mobilizar
-description: Monta um Agent Team paralelo do Claude Code para executar uma SPEC ou um conjunto de tarefas com múltiplos agentes da fábrica trabalhando em paralelo, cada um com file ownership próprio. Use quando o usuário disser "mobilizar time", "executar em paralelo", "rodar a fábrica", ou quando uma SPEC tem tarefas claramente independentes que podem rodar simultaneamente. Diferente do /rodar (sequencial/conversacional), esta skill cria isolamento real via worktrees nativos do Claude Code.
+description: Monta um Agent Team paralelo do Claude Code para executar uma SPEC rastreável ou um conjunto de tarefas com múltiplos agentes da fábrica trabalhando em paralelo, cada um com file ownership, requisitos, gates e Definition of Done próprios. Use quando a SPEC tem tarefas independentes que podem rodar simultaneamente.
 ---
 
 # Mobilizar — Agent Team paralelo
@@ -52,7 +52,19 @@ Você **DEVE** seguir esses passos exatamente, nesta ordem.
 
 ### Passo 1 — Analisar a tarefa
 
-Se for uma SPEC, leia `docs/specs/<spec>.md`. Identifique tarefas atômicas. Agrupe por domínio:
+Se for uma SPEC, leia `docs/specs/<spec>.md`. Também leia `contextos/testes.md` e `decisoes/estado-operacional.md` se existirem.
+
+Extraia:
+
+- Requisitos rastreáveis e prioridades
+- Tarefas `T1`, `T2`, etc.
+- Dependências entre tarefas
+- Gates de teste/lint/build
+- Perguntas abertas
+
+Se existir pergunta aberta que bloqueie requisito P1, pare e peça decisão ao usuário antes de mobilizar.
+
+Identifique tarefas atômicas. Agrupe por domínio:
 
 - **dados**: migrations, RLS, índices, schema (Carlos, Fernanda)
 - **backend**: APIs, services, validação (Lucas, Gabriel se IA)
@@ -61,7 +73,7 @@ Se for uma SPEC, leia `docs/specs/<spec>.md`. Identifique tarefas atômicas. Agr
 - **infra**: CI/CD, deploy, secrets (Marcos)
 - **docs**: README, OpenAPI, changelog (Beatriz, Felipe)
 
-Se não for SPEC, decomponha você (Laura) na hora.
+Se não for SPEC, decomponha você (Laura) na hora, mas ainda assim crie tarefas com requisito, Done when e gate. Para trabalho médio ou maior, recomende rodar `/kairos-forge:especificar` antes.
 
 ### Passo 2 — Selecionar teammates
 
@@ -89,27 +101,27 @@ Naming: sempre prefixado `forge-`. Slug em kebab-case. Sem espaços.
 
 ### Passo 4 — Criar as Tasks
 
-Use `TaskCreate` para cada tarefa atômica. **Defina dependências explícitas** entre elas:
+Use `TaskCreate` para cada tarefa atômica. **Defina dependências explícitas** entre elas e inclua requisito, Done when e gate na descrição:
 
 ```
 TaskCreate({
-  title: "Migration: criar tabela relatorios",
-  description: "Schema com id, created_at, conteudo (jsonb), user_id (fk + RLS)",
+  title: "T1: Migration para EXP-01",
+  description: "Requisito: EXP-01. Arquivos: migrations/. Done when: schema criado, RLS aplicada, rollback definido. Gate: npm test -- migrations.",
   team_name: "forge-export-relatorio"
 })
 
 TaskCreate({
-  title: "Endpoint: POST /relatorios",
-  description: "Recebe payload, valida com Zod, insere via RLS",
+  title: "T2: Endpoint POST /relatorios para EXP-01",
+  description: "Requisito: EXP-01. Arquivos: api/, services/. Done when: payload inválido retorna 400 e payload válido cria relatório. Gate: npm test -- relatorios.",
   team_name: "forge-export-relatorio",
-  depends_on: ["Migration: criar tabela relatorios"]
+  depends_on: ["T1: Migration para EXP-01"]
 })
 
 TaskCreate({
-  title: "Componente: RelatorioForm",
-  description: "Formulário com TanStack Form + Zod, chama POST /relatorios",
+  title: "T3: Componente RelatorioForm para EXP-01",
+  description: "Requisito: EXP-01. Arquivos: src/components/, src/hooks/. Done when: formulário chama endpoint e mostra erro. Gate: npm test -- RelatorioForm.",
   team_name: "forge-export-relatorio",
-  depends_on: ["Endpoint: POST /relatorios"]
+  depends_on: ["T2: Endpoint POST /relatorios para EXP-01"]
 })
 ```
 
@@ -132,6 +144,7 @@ Você é {Nome} ({Papel}).
 # Sua sessão
 Time: forge-<spec-slug>
 Tarefas atribuídas: <lista de IDs ou títulos>
+Requisitos cobertos: <IDs da SPEC>
 
 # File ownership — você SÓ pode modificar
 {lista de paths/globs do passo 6}
@@ -145,12 +158,20 @@ Tudo em PT-BR — código (nomes), commits, comentários, mensagens.
 
 # Definition of Done por tarefa
 1. Implementação completa segundo o description da task
-2. Teste mínimo (caminho feliz + 1 erro) se for código de produção
-3. Mensagem de commit no padrão Conventional Commits PT-BR
-4. TaskUpdate marcando como completed
+2. Critério "Done when" satisfeito com evidência
+3. Teste mínimo (caminho feliz + 1 erro) se for código de produção
+4. Gate da tarefa rodado ou justificativa registrada se não for possível
+5. Mensagem de commit no padrão Conventional Commits PT-BR
+6. TaskUpdate marcando como completed com resumo da evidência
 
 # Bloqueios
 Se travar, **não force**. Use SendMessage(team_lead) explicando o bloqueio.
+
+# Evidência obrigatória ao concluir
+- Arquivos alterados
+- Requisitos atendidos
+- Gate rodado e resultado
+- Pendências ou follow-ups
 ```
 
 ### Passo 6 — File ownership por agente
@@ -185,7 +206,7 @@ Você (Laura) fica monitorando enquanto o time trabalha:
 2. **Responda SendMessage.** Bloqueios reportados pelos teammates precisam de decisão.
 3. **Reatribua se necessário.** Se Marina trava em uma task, mude o assignee via TaskUpdate.
 4. **Checkpoint a cada 3 tasks.** Olhe o que foi entregue, valide alinhamento com a SPEC.
-5. **Encerramento.** Quando todas as tasks estiverem completed, envie `SendMessage` com `{type: "shutdown_request"}` para cada teammate. Reporte ao usuário:
+5. **Encerramento.** Quando todas as tasks estiverem completed, rode ou recomende `/kairos-forge:validar SPEC-NNN` antes de `/kairos-forge:revisar`. Envie `SendMessage` com `{type: "shutdown_request"}` para cada teammate. Reporte ao usuário:
 
    ```
    ✅ Time forge-<slug> concluiu N tarefas em M minutos.
@@ -198,7 +219,8 @@ Você (Laura) fica monitorando enquanto o time trabalha:
    - Docs: README atualizado (Beatriz)
 
    Pendências:
-   - Auditoria de segurança não rodou neste ciclo. Recomendo: /kairos-forge:revisar
+   - Validação contra SPEC ainda não rodou. Recomendo: /kairos-forge:validar SPEC-<NNN>
+   - Auditoria de segurança não rodou neste ciclo. Depois da validação, rode: /kairos-forge:revisar
    - PR ainda não aberto. Quer que eu chame o Marcos pra abrir?
    ```
 
@@ -212,6 +234,7 @@ Anti-drift:
 2. Você só toca os arquivos do seu file ownership. Tentar editar fora = bloqueio.
 3. Se uma decisão fora da sua tarefa parecer necessária, NÃO decida sozinho. SendMessage pra Laura.
 4. A cada 3 tasks completed, espere checkpoint da Laura antes de seguir.
+5. Requisito sem ID ou gate indefinido precisa de decisão da Laura antes de implementar.
 ```
 
 O conteúdo completo está em `${CLAUDE_PLUGIN_ROOT}/templates/anti-drift.md`.

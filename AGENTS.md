@@ -171,6 +171,7 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0004**: multi-CLI compatibility — Claude Code canonical, Codex via `.agents/` mirror, OpenCode via fallback paths
 - **ADR-0005**: traceable SPEC and validation-against-contract step (v0.5.0)
 - **ADR-0006**: modular architecture, threat model, and the Estrutura dimension in `/auditar` (v0.6.0)
+- **ADR-0007**: incremental map mode (`--incremental`), opt-in tree-sitter collection, and reading tour in brownfield onboarding (v0.7.0)
 
 ## Critical design constraints
 

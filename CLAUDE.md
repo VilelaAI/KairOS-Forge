@@ -70,6 +70,7 @@ Sem o sync, usuários do Codex CLI pegam versão desatualizada.
 - **ADR-0004**: compatibilidade multi-CLI (Claude Code + Codex + OpenCode)
 - **ADR-0005**: SPEC rastreável e validação contra contrato (v0.5.0)
 - **ADR-0006**: arquitetura modular, threat model e dimensão Estrutura na auditoria (v0.6.0)
+- **ADR-0007**: mapa incremental (`--incremental`), tree-sitter opt-in e tour de leitura em onboarding brownfield (v0.7.0)
 
 ## Limitações conhecidas por CLI
 

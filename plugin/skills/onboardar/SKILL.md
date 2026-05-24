@@ -13,7 +13,8 @@ Você está sendo invocado para preparar este projeto para a fábrica kairos-for
 2. Criar a estrutura de pastas mínima
 3. Gerar o `CLAUDE.md` do projeto preenchido com as respostas
 4. Criar `contextos/testes.md` e `decisoes/estado-operacional.md`
-5. Listar próximos passos para o usuário
+5. Em projeto brownfield com mapa arquitetural existente, gerar `docs/arquitetura/TOUR-LEITURA.md`
+6. Listar próximos passos para o usuário
 
 ## Antes de começar
 
@@ -124,7 +125,62 @@ Memória leve da fábrica neste projeto. Atualize quando uma execução revelar 
 ## Ideias adiadas
 ```
 
-5. **Confirmar para o usuário:**
+6. **Detectar brownfield e oferecer tour de leitura.**
+
+O projeto é brownfield se houver código real além de boilerplate. Heurística simples:
+
+- Conta arquivos de código (extensões da stack respondida): `find . -type f \( -name '*.ts' -o -name '*.py' -o -name '*.go' -o -name '*.rs' -o -name '*.java' \) -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/vendor/*' | wc -l`. Ajuste extensões conforme a stack.
+- Se > 30 arquivos de código **e** existe `docs/arquitetura/MAPA-*.md`, gere `docs/arquitetura/TOUR-LEITURA.md`.
+- Se > 30 arquivos de código **mas não há mapa**, recomende rodar `/kairos-forge:mapear-arquitetura` antes — não gere o tour sem mapa.
+- Se ≤ 30 arquivos, pule este passo silenciosamente (greenfield ou projeto pequeno demais).
+
+Conteúdo do `TOUR-LEITURA.md` (gerado a partir do mapa mais recente):
+
+```markdown
+# Tour de leitura — <projeto>
+
+**Gerado a partir de:** `docs/arquitetura/MAPA-YYYY-MM-DD.md`
+**Para:** dev novo no projeto. Leia nesta ordem.
+
+## Como usar
+
+Ordem é pedagógica: começa pelos módulos folha (sem dependências internas), sobe para orquestradores, termina nos entrypoints. Cada item tem tempo estimado para você escolher escopo.
+
+- **5 min** — só o cabeçalho e função principal
+- **15 min** — leitura completa do arquivo
+- **30 min** — arquivo + um teste relacionado
+
+## Passo 1 — Fundações (módulos folha)
+
+### `<caminho/arquivo>` — 15 min
+**O que é:** 1 frase.
+**Por que ler agora:** 1 frase (geralmente: "tudo o resto depende disto").
+
+## Passo 2 — Camada de domínio
+
+(idem)
+
+## Passo 3 — Orquestradores e serviços
+
+(idem)
+
+## Passo 4 — Entrypoints (API, CLI, jobs)
+
+(idem)
+
+## O que pular em primeira leitura
+
+- `<caminho>` — útil, mas não bloqueia entendimento.
+- `<caminho>` — config/infra, leia quando precisar mexer.
+
+## Próximo passo
+
+Depois do tour, rode `/kairos-forge:mapear-arquitetura --incremental` se algo mudou desde a base do mapa.
+```
+
+Se o mapa anterior não tiver inventário de imports suficiente para inferir ordem, marque os arquivos com `<ordem a refinar>` e avise no resumo final.
+
+7. **Confirmar para o usuário:**
 
 ```
 ✅ Onboarding concluído.
@@ -136,12 +192,14 @@ Estrutura criada:
 - decisoes/estado-operacional.md
 - docs/specs/ e docs/specs/validacoes/
 - docs/adr/ (vazio, será preenchido pelo arquiteto)
+<- docs/arquitetura/TOUR-LEITURA.md (se brownfield com mapa)>
 
 Próximos passos sugeridos:
 1. Revise o CLAUDE.md gerado e ajuste o que ficou impreciso
-2. Para a próxima feature, rode: /kairos-forge:especificar <descrição>
-3. Depois de implementar uma SPEC, rode: /kairos-forge:validar SPEC-NNN
-4. Sexta-feira, rode: /kairos-forge:auditar para ver pontuação inicial
+2. <Se brownfield sem mapa: rode /kairos-forge:mapear-arquitetura para gerar o mapa, depois re-rode /kairos-forge:onboardar para ganhar o TOUR-LEITURA.md>
+3. Para a próxima feature, rode: /kairos-forge:especificar <descrição>
+4. Depois de implementar uma SPEC, rode: /kairos-forge:validar SPEC-NNN
+5. Sexta-feira, rode: /kairos-forge:auditar para ver pontuação inicial
 ```
 
 ## Regras
@@ -151,3 +209,4 @@ Próximos passos sugeridos:
 - **PT-BR em tudo gerado.** Verifique acentuação antes de salvar.
 - **Não rode `git init` sem perguntar.** Alguns projetos já estão em monorepo.
 - **Não modifique `.gitignore` existente.** Apenas anexe linhas necessárias se faltar `.env`.
+- **TOUR-LEITURA.md só com mapa.** Não invente ordem de leitura sem o mapa como evidência. Se faltar, peça pra rodar `/kairos-forge:mapear-arquitetura` primeiro.

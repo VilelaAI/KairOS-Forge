@@ -80,7 +80,7 @@ Mede arquitetura modular, propriedade do código e antecipação de riscos. Em p
 | Critério | Pontos |
 |---|---|
 | `CODEOWNERS` (raiz ou `.github/`) existe e cobre as áreas críticas do código | 3 |
-| Mapa arquitetural recente em `docs/arquitetura/MAPA-*.md` (≤ 90 dias) | 4 |
+| Mapa arquitetural fresco: `docs/arquitetura/MAPA-*.md` ≤ 90 dias **OU** repo tem menos de 90 dias **OU** não houve commits relevantes desde o último mapa | 4 |
 | Ao menos 1 modelo de ameaças em `docs/seguranca/AMEACAS-*.md` para áreas sensíveis (auth, PII, billing, multi-tenant) | 4 |
 | Hotspots de churn sem dono claro: verificar se top-10 arquivos mais alterados em 90d têm dono em CODEOWNERS. Pontuar 0 se mais de 3 ficam sem dono. | 3 |
 | Acoplamento documentado: alguma evidência de fronteiras de módulo (barril `index`/`mod`/`__init__`, camadas declaradas, ADR sobre estrutura) | 3 |
@@ -129,7 +129,7 @@ Mede arquitetura modular, propriedade do código e antecipação de riscos. Em p
 Comandos sugeridos (read-only, sem dependências fora do projeto):
 
 - Existência de `CODEOWNERS`: `ls CODEOWNERS .github/CODEOWNERS docs/CODEOWNERS 2>/dev/null`.
-- Mapa recente: `ls docs/arquitetura/MAPA-*.md 2>/dev/null` e checar data no nome.
+- Mapa fresco: `ls docs/arquitetura/MAPA-*.md 2>/dev/null` e checar data no nome. Se mais antigo que 90d, verificar se `git log --since='<data-do-mapa>' --oneline | wc -l` é ~0 (nenhum commit) — nesse caso, o mapa ainda vale. Idade do repo: `git log --reverse --pretty=format:'%ad' --date=short | head -1`.
 - Modelo de ameaças: `ls docs/seguranca/AMEACAS-*.md 2>/dev/null`.
 - Top-10 churn 90d: `git log --since='90 days ago' --pretty=format: --name-only | sort | uniq -c | sort -rn | head -10`. Cruzar com `CODEOWNERS`.
 - Acoplamento e duplicação: amostragem manual. Marque como hipótese se não houver mapa.
@@ -140,7 +140,7 @@ Helena, Rafael ou Diego podem ser citados no relatório como responsáveis suger
 
 Se a dimensão Estrutura ficar baixa, as ações naturais costumam ser:
 
-- Sem mapa arquitetural ou acoplamento alto → rodar `/kairos-forge:mapear-arquitetura`.
+- Sem mapa arquitetural ou acoplamento alto → rodar `/kairos-forge:mapear-arquitetura` (ou `--incremental` se mapa anterior existe e é antigo).
 - Sem modelo de ameaças em área sensível → rodar `/kairos-forge:analisar-ameacas`.
 - Sem CODEOWNERS → abrir tarefa para Rafael/Diego definirem fronteiras de propriedade.
 - Hotspots órfãos → registrar em `decisoes/estado-operacional.md` e atribuir.

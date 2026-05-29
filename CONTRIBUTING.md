@@ -9,17 +9,23 @@
 ## Estrutura mínima de uma skill nova
 
 ```
-skills/<nome-no-infinitivo>/
+skills/<nome>/
 └── SKILL.md
 ```
 
 Material auxiliar pesado vai em `skills/<nome>/references/`.
 
+### Naming híbrido
+
+- **Skill temática** (ativa time de personas) → prefixo `squad-`. Ex.: `squad-backend`, `squad-qualidade`, `squad-arquitetura`.
+- **Skill de processo** (ritual ou artefato textual) → substantivo descritivo. Ex.: `spec-rastreavel`, `modelo-de-ameacas`, `revisao-pre-pr`, `auditoria-do-setup`.
+- **Evite verbo no infinitivo** (`especificar`, `validar`). Lovable e Replit descobrem skills pela `description`, e o `name` aparece em listas de catálogo — substantivo descreve melhor o que a skill É do que o que ela FAZ.
+
 ### Template de SKILL.md
 
 ```markdown
 ---
-name: <nome-no-infinitivo>
+name: <nome>
 description: Use when <gatilho concreto>. <O que produz>. <Quando NÃO usar>.
 ---
 

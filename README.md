@@ -18,16 +18,16 @@ Cada skill representa um time temático com personas especializadas. Use quando 
 
 | Skill | Personas embutidas | Quando usar |
 |---|---|---|
-| [`arquitetar-sistema`](skills/arquitetar-sistema/SKILL.md) | Laura, Rafael, Diego, Fernanda, Thiago | Desenhar feature antes de codar |
-| [`desenvolver-backend`](skills/desenvolver-backend/SKILL.md) | Lucas, Carlos, Vinícius, Juliana, Gabriel, André | Implementar API, banco, lógica de servidor |
-| [`desenvolver-frontend`](skills/desenvolver-frontend/SKILL.md) | Marina, Pablo, Isabela, Ada | Construir telas, componentes, UX |
-| [`operar-infraestrutura`](skills/operar-infraestrutura/SKILL.md) | Elisa, Marcos, Renata | Cloud, CI/CD, observabilidade |
-| [`garantir-qualidade`](skills/garantir-qualidade/SKILL.md) | Patrícia, Ricardo, Helena | Testes, segurança, regressão |
-| [`gerenciar-produto`](skills/gerenciar-produto/SKILL.md) | Camila, Hugo, Sofia, Rui | Escopo, priorização, lançamento |
-| [`documentar-software`](skills/documentar-software/SKILL.md) | Beatriz, Felipe, Marcos [Specs], Renato, Helena [Apresentação] | README, ADR, OpenAPI, demos |
-| [`comunicar-produto`](skills/comunicar-produto/SKILL.md) | Celina, Cora, Elisa [Naming], Bruno, Letícia | Microcopy, voz, naming, taxonomia |
-| [`medir-e-experimentar`](skills/medir-e-experimentar/SKILL.md) | Lia, Otávio, Vera, Tomás, Clara, Enzo | Tracking, KPIs, A/B, DORA |
-| [`revisar-decisoes`](skills/revisar-decisoes/SKILL.md) | Álvaro, Lúcia, Félix, Dante | Pre-mortem, red team, debate |
+| [`squad-arquitetura`](skills/squad-arquitetura/SKILL.md) | Laura, Rafael, Diego, Fernanda, Thiago | Desenhar feature antes de codar |
+| [`squad-backend`](skills/squad-backend/SKILL.md) | Lucas, Carlos, Vinícius, Juliana, Gabriel, André | Implementar API, banco, lógica de servidor |
+| [`squad-frontend`](skills/squad-frontend/SKILL.md) | Marina, Pablo, Isabela, Ada | Construir telas, componentes, UX |
+| [`squad-plataforma`](skills/squad-plataforma/SKILL.md) | Elisa, Marcos, Renata | Cloud, CI/CD, observabilidade |
+| [`squad-qualidade`](skills/squad-qualidade/SKILL.md) | Patrícia, Ricardo, Helena | Testes, segurança, regressão |
+| [`squad-produto`](skills/squad-produto/SKILL.md) | Camila, Hugo, Sofia, Rui | Escopo, priorização, lançamento |
+| [`squad-documentacao`](skills/squad-documentacao/SKILL.md) | Beatriz, Felipe, Marcos [Specs], Renato, Helena [Apresentação] | README, ADR, OpenAPI, demos |
+| [`squad-conteudo-ux`](skills/squad-conteudo-ux/SKILL.md) | Celina, Cora, Elisa [Naming], Bruno, Letícia | Microcopy, voz, naming, taxonomia |
+| [`squad-metricas`](skills/squad-metricas/SKILL.md) | Lia, Otávio, Vera, Tomás, Clara, Enzo | Tracking, KPIs, A/B, DORA |
+| [`squad-revisao-critica`](skills/squad-revisao-critica/SKILL.md) | Álvaro, Lúcia, Félix, Dante | Pre-mortem, red team, debate |
 
 ### 🛠️ 9 skills de processo (o fluxo)
 
@@ -35,15 +35,15 @@ Skills que organizam o ciclo de vida — onboarding, especificação, validaçã
 
 | Skill | Quando usar |
 |---|---|
-| [`onboardar`](skills/onboardar/SKILL.md) | Primeira vez em um projeto — gera CLAUDE.md e estrutura |
-| [`mapear-arquitetura`](skills/mapear-arquitetura/SKILL.md) | Antes de refatorações grandes em projeto brownfield |
-| [`especificar`](skills/especificar/SKILL.md) | Antes de codar feature não-trivial — produz SPEC rastreável |
-| [`analisar-ameacas`](skills/analisar-ameacas/SKILL.md) | Antes de feature sensível (auth, PII, billing) — threat model |
-| [`orquestrar-fabrica`](skills/orquestrar-fabrica/SKILL.md) | Tarefa que precisa de múltiplas personas conversando |
-| [`validar`](skills/validar/SKILL.md) | Depois de implementar — aceite contra SPEC |
-| [`revisar`](skills/revisar/SKILL.md) | Antes de PR — revisão multi-dimensão (segurança, QA, performance) |
-| [`auditar`](skills/auditar/SKILL.md) | Sexta-feira — pontua o setup do projeto em 5 dimensões |
-| [`evoluir`](skills/evoluir/SKILL.md) | Depois de auditar — escolhe UMA capacidade nova pra construir |
+| [`onboarding-de-projeto`](skills/onboarding-de-projeto/SKILL.md) | Primeira vez em um projeto — gera CLAUDE.md e estrutura |
+| [`mapa-arquitetural`](skills/mapa-arquitetural/SKILL.md) | Antes de refatorações grandes em projeto brownfield |
+| [`spec-rastreavel`](skills/spec-rastreavel/SKILL.md) | Antes de codar feature não-trivial — produz SPEC rastreável |
+| [`modelo-de-ameacas`](skills/modelo-de-ameacas/SKILL.md) | Antes de feature sensível (auth, PII, billing) — threat model |
+| [`mesa-de-personas`](skills/mesa-de-personas/SKILL.md) | Tarefa que precisa de múltiplas personas conversando |
+| [`aceite-contra-spec`](skills/aceite-contra-spec/SKILL.md) | Depois de implementar — aceite contra SPEC |
+| [`revisao-pre-pr`](skills/revisao-pre-pr/SKILL.md) | Antes de PR — revisão multi-dimensão (segurança, QA, performance) |
+| [`auditoria-do-setup`](skills/auditoria-do-setup/SKILL.md) | Sexta-feira — pontua o setup do projeto em 5 dimensões |
+| [`evolucao-semanal`](skills/evolucao-semanal/SKILL.md) | Depois de auditar — escolhe UMA capacidade nova pra construir |
 
 ## Como instalar
 
@@ -85,7 +85,7 @@ Estas ferramentas leem skills da raiz do projeto ou de plugins. Você pode:
 Todas as skills seguem 4 regras rígidas:
 
 1. **PT-BR.** Nomes, descrições, instruções, exemplos — tudo em português brasileiro.
-2. **Verbos no infinitivo no nome.** `especificar`, não `spec`.
+2. **Naming híbrido.** Skills temáticas (que ativam um time de personas) usam o prefixo `squad-` — ex.: `squad-backend`, `squad-qualidade`. Skills de processo (que conduzem um ritual ou produzem um artefato) usam substantivo descritivo — ex.: `spec-rastreavel`, `modelo-de-ameacas`, `revisao-pre-pr`. Verbo no infinitivo é evitado porque Lovable e Replit descobrem skills pelo `description`, e o `name` aparece em listas — substantivo descreve melhor.
 3. **`description` no formato "Use when..."** — é o que faz a skill ser descoberta automaticamente pelo agente.
 4. **Personas mantêm consistência.** Laura é sempre Laura, Marina é sempre Marina. Skills temáticas embutem personas, não inventam novas.
 
@@ -97,7 +97,7 @@ Veja [`CONTRIBUTING.md`](CONTRIBUTING.md) para adicionar uma skill nova, propor 
 
 Este pacote é derivado do [`kairos-forge`](https://github.com/VilelaAI/kairos-forge) (MIT, VilelaAI), curado pela Embratur para uso interno e disponibilizado publicamente sob a mesma licença MIT.
 
-A skill `mobilizar` do `kairos-forge` original **não foi portada** — ela depende de Agent Teams nativos do Claude Code e não funciona em Lovable nem em Replit. A skill `orquestrar-fabrica` substitui o caso de uso conversacional.
+A skill `mobilizar` do `kairos-forge` original **não foi portada** — ela depende de Agent Teams nativos do Claude Code e não funciona em Lovable nem em Replit. A skill `mesa-de-personas` substitui o caso de uso conversacional.
 
 ## Licença
 

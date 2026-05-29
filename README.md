@@ -93,6 +93,10 @@ Todas as skills seguem 4 regras rígidas:
 
 Veja [`CONTRIBUTING.md`](CONTRIBUTING.md) para adicionar uma skill nova, propor mudança ou reportar bug.
 
+## Guia operacional
+
+Para o manual de uso do dia a dia — classificação das skills (obrigatórias/essenciais/complementares), como conversar com Coding Agents, prompts prontos, cenários narrados e troubleshooting — veja [`GUIA.md`](GUIA.md). É a leitura recomendada antes de a equipe começar a usar.
+
 ## Atribuição
 
 Este pacote é derivado do [`kairos-forge`](https://github.com/VilelaAI/kairos-forge) (MIT, VilelaAI), curado pela Embratur para uso interno e disponibilizado publicamente sob a mesma licença MIT.

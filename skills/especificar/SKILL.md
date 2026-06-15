@@ -98,14 +98,19 @@ Use este template mínimo:
 
 ## Requisitos rastreáveis
 
-| ID | Requisito | Prioridade | Critério de aceite | Status |
-|---|---|---|---|---|
-| <SLUG>-01 | Como <persona>, quero <ação>, para <resultado>. | P1 | WHEN <evento> THEN <resultado> SHALL <comportamento verificável>. | Pendente |
+| ID | Requisito | Prioridade | Critério de aceite | Status | Verificação |
+|---|---|---|---|---|---|
+| <SLUG>-01 | Como <persona>, quero <ação>, para <resultado>. | P1 | WHEN <evento> THEN <resultado> SHALL <comportamento verificável>. | Pendente | — |
 
 Prioridades:
 - **P1**: necessário para entregar a mudança
 - **P2**: importante, mas pode sair em follow-up se explicitamente aprovado
 - **P3**: desejável, não bloqueia entrega
+
+Estados de Status × conteúdo obrigatório em Verificação:
+- **Pendente** → Verificação = `—` (ainda não iniciado).
+- **Em progresso** → Verificação começa com `em progresso: <o que ainda falta>`. Conta 0.5 no progresso da SPEC.
+- **Concluído** → Verificação começa com `verificado: <como confirmei> (<dd/mm>)`. Sem essa linha, a `/validar` trata como "sem evidência" e bloqueia P1.
 
 ## Plano de implementação
 
@@ -173,3 +178,4 @@ NÃO pule pra:
 - **Nomeie agentes específicos no plano de implementação.** Não escreva "developer" genérico — escreva "Marina" ou "Lucas".
 - **Todo requisito P1 precisa de critério de aceite verificável.** Se não dá para verificar, ainda não é requisito pronto.
 - **Todo item de implementação precisa de gate.** Pode ser teste automatizado, build, lint ou validação manual explícita.
+- **Status "Concluído" exige célula Verificação iniciando com `verificado:`.** A regra existe para impedir o anti-padrão de marcar pronto sem rodar nada. Inspirada no checklist do Replit-Orchestrator (`briefing.md`): só vale verificado depois que o agente rodou o comando, abriu a URL ou executou o teste. Confiança em "escrevi o código, deve funcionar" não conta.

@@ -68,10 +68,12 @@ Read-only: você só lê arquivos. Não modifica nada.
 
 | Critério | Pontos |
 |---|---|
-| `references/` ou `docs/references/` com material de apoio | 4 |
-| README do projeto cobre instalação, uso e contribuição | 4 |
-| Wiki/memória persistente configurada (Basic Memory, Obsidian vault, `wiki/` ou `decisoes/estado-operacional.md`) | 8 |
-| Pelo menos 1 ADR explicando decisão arquitetural não-óbvia | 4 |
+| `references/` ou `docs/references/` com material de apoio | 3 |
+| README do projeto cobre instalação, uso e contribuição | 3 |
+| `decisoes/estado-operacional.md` existe e tem ao menos uma seção preenchida (não só headers vazios) | 4 |
+| `.agents/memory/MEMORY.md` existe (índice de memórias de incidente — ADR-E003) | 2 |
+| Memórias de incidente em `.agents/memory/<slug>.md` com frontmatter `name`/`description` (escala): 1-2 = 2 pts, 3-5 = 4 pts, 6+ = 6 pts | 0-6 |
+| Pelo menos 1 ADR explicando decisão arquitetural não-óbvia | 2 |
 
 ### Estrutura (20 pts)
 

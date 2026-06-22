@@ -2,8 +2,8 @@ squad:
   id: fabrica-forge
   tipo: desenvolvimento
   idioma: pt-BR
-  versao: "0.5.0"
-  descricao: "Fábrica de software completa com 24 agentes especializados, organizada em 9 times. Versão MIT/genérica do squad. Para domínios regulados (LGPD, Segurança-TI, NRs, OAB), use kairos-ai."
+  versao: "0.8.0"
+  descricao: "Fábrica de software completa com 86 agentes: 24 core (9 times), 41 em 9 squads verticais (executores sob demanda por tipo de projeto, incluindo segurança) e 21 em 7 squads de apoio (artefatos textuais). Versão MIT/genérica do squad. Para domínios regulados (LGPD, Segurança-TI, NRs, OAB), use kairos-ai."
 
   times:
     - nome: "Liderança"
@@ -145,3 +145,87 @@ squad:
           apoio: apoio-elisa-naming
           contexto_core: "cloud, FinOps, escolha de provedor"
           contexto_apoio: "naming, nomenclatura"
+
+  squads_verticais:
+    descricao: "9 squads verticais com 41 agentes. Tipo: vertical. IMPLEMENTAM (código ou artefato técnico da disciplina), diferente do apoio. Carregados sob demanda por tipo de projeto. Acionados via /kairos-forge:rodar <squad>."
+    regra: "Squads verticais complementam (não substituem) a fábrica core. No modo conversacional rodar, máximo 1 squad vertical ativo por vez. No mobilizar, Laura puxa indivíduos de qualquer squad para o Agent Team."
+
+    squads:
+      mobile:
+        agentes: [mobile-teo-ios, mobile-bianca-android, mobile-igor-crossplatform, mobile-murilo-release, mobile-priscila-qa]
+        complementa: [marina-frontend, pablo-ui, ada-acessibilidade, patricia-qa]
+        sinais_ativacao: [iOS, Android, mobile, "app nativo", "React Native", Flutter, Swift, SwiftUI, Kotlin, "Jetpack Compose", fastlane, "App Store", "Play Store", TestFlight, XCUITest, Espresso]
+        descricao: "Apps iOS e Android (nativo e cross-platform), publicação em loja e QA de device"
+
+      bi:
+        agentes: [bi-caio-analytics-engineer, bi-larissa-dashboards, bi-taina-data-analyst, bi-henrique-dataviz]
+        complementa: [carlos-dba, fernanda-dados, pablo-ui, beatriz-docs]
+        sinais_ativacao: [BI, "business intelligence", dashboard, relatório, dbt, "analytics engineering", "modelagem dimensional", "Power BI", Looker, Metabase, Tableau, coorte, funil, "análise de dados", "data viz", "data storytelling"]
+        descricao: "Camada analítica (dbt), dashboards, análise exploratória e visualização de dados"
+
+      dataeng:
+        agentes: [dataeng-vitor-lakehouse, dataeng-sabrina-streaming, dataeng-rodrigo-orquestracao, dataeng-aline-qualidade, dataeng-gustavo-governanca]
+        complementa: [juliana-etl, fernanda-dados, carlos-dba]
+        sinais_ativacao: [Spark, Databricks, Snowflake, lakehouse, "Delta Lake", Iceberg, streaming, Kafka, Flink, CDC, Airflow, Dagster, orquestração, "qualidade de dados", "data quality", "governança de dados", lineage, "big data"]
+        descricao: "Plataforma de dados em escala: lakehouse, streaming, orquestração, qualidade e governança"
+
+      ml:
+        agentes: [ml-eduardo-engenharia, ml-natalia-data-science, ml-fabio-mlops, ml-yara-visao-nlp, ml-caetano-evals]
+        complementa: [gabriel-ia, andre-busca, vinicius-performance, carlos-dba]
+        sinais_ativacao: ["machine learning", ML, "feature engineering", "data science", estatística, experimento, "teste A/B", MLOps, drift, "model registry", "visão computacional", "computer vision", NLP, OCR, eval, "avaliação de modelo", benchmark]
+        descricao: "ML aplicado/clássico, ciência de dados, MLOps, visão/NLP e avaliação de IA (não-LLM; LLM é do Gabriel)"
+
+      web:
+        agentes: [web-sergio-portais, web-melissa-seo, web-joana-cms, web-davi-ecommerce]
+        complementa: [marina-frontend, lucas-backend, pablo-ui, vinicius-performance]
+        sinais_ativacao: [portal, "site institucional", "landing page", "Next.js", Astro, SSR, SSG, "Core Web Vitals", SEO, "dados estruturados", CMS, "headless CMS", Contentful, Strapi, Sanity, "e-commerce", "loja online", checkout, Shopify]
+        descricao: "Portais/sites SSR-SSG, SEO técnico, CMS headless e e-commerce"
+
+      design:
+        agentes: [design-manuela-produto, design-heloisa-design-system, design-marcela-pesquisa, design-nina-motion]
+        complementa: [isabela-ux, pablo-ui, ada-acessibilidade]
+        sinais_ativacao: ["design de produto", wireframe, protótipo, "design system", "design tokens", "biblioteca de componentes", "UX research", "pesquisa de usuário", entrevista, persona, JTBD, "motion design", animação, "micro-interação"]
+        descricao: "Product design, design system, pesquisa de UX e motion (disciplina de design, não só UI)"
+
+      sre:
+        agentes: [sre-leandro-confiabilidade, sre-wagner-plataforma, sre-tatiana-resiliencia, sre-silvio-incidentes]
+        complementa: [marcos-devops, renata-observabilidade, elisa-cloud, vinicius-performance]
+        sinais_ativacao: [SRE, SLO, SLI, "error budget", confiabilidade, "on-call", runbook, Kubernetes, k8s, Terraform, IaC, "platform engineering", "chaos engineering", "disaster recovery", DR, failover, incidente, postmortem]
+        descricao: "Confiabilidade (SLO), engenharia de plataforma, resiliência/chaos e comando de incidente"
+
+      gestao:
+        agentes: [gestao-cristina-eng-manager, gestao-joaquim-agile, gestao-adriana-solutions, gestao-renan-delivery]
+        complementa: [laura-tech-lead, camila-pm, rafael-staff]
+        sinais_ativacao: ["gestão de engenharia", "eng manager", "saúde do time", capacidade, ágil, scrum, kanban, retrospectiva, "solutions architect", "arquitetura de solução", proposta, RFP, delivery, roadmap, milestone, "status report"]
+        descricao: "Gestão de pessoas/entrega, processo ágil e arquitetura de solução voltada ao cliente"
+
+      seguranca:
+        agentes: [seguranca-icaro-appsec, seguranca-mauro-ofensiva, seguranca-nara-cloud, seguranca-ravi-devsecops, seguranca-cibele-deteccao, seguranca-bernardo-grc]
+        complementa: [helena-security, marcos-devops, renata-observabilidade]
+        coordenado_por: helena-security
+        sinais_ativacao: [segurança, AppSec, SAST, SCA, OWASP, pentest, ofensiva, DAST, CVE, "gestão de vulnerabilidades", "cloud security", CSPM, IAM, hardening, "segurança Kubernetes", DevSecOps, "supply chain", SBOM, SLSA, detecção, SIEM, "threat hunting", "MITRE ATT&CK", GRC, "NIST CSF", "CIS Controls", "controles mínimos", "postura de segurança", "resposta a incidente"]
+        descricao: "Profundidade de segurança (genérica/MIT): AppSec, ofensiva, cloud-sec, DevSecOps, detecção/resposta e GRC/controles. Coordenado pela Helena (core). Regulado BR (LGPD/ANPD/Lei de Cibersegurança/GSI) = kairos-ai."
+
+    fronteiras_vs_core:
+      regra: "Squads verticais complementam o core, não duplicam. Quando o sinal for ambíguo, prefira o core para o caso simples e o vertical para profundidade/escala."
+      pares:
+        - core: gabriel-ia
+          vertical: "squad ml"
+          contexto_core: "IA generativa, LLM, RAG, tool use, orquestração de agentes"
+          contexto_vertical: "ML aplicado/clássico, MLOps, visão/NLP, evals"
+        - core: juliana-etl
+          vertical: "squad dataeng"
+          contexto_core: "pipelines e jobs batch do dia a dia"
+          contexto_vertical: "compute distribuído, streaming, governança em escala"
+        - core: marina-frontend
+          vertical: "squad web"
+          contexto_core: "apps, SPAs, dashboards interativos"
+          contexto_vertical: "portais/marketing/e-commerce SSR-SSG SEO-crítico"
+        - core: marcos-devops
+          vertical: "squad sre"
+          contexto_core: "CI/CD, Dockerfile, deploy, rollback"
+          contexto_vertical: "SLO, plataforma K8s, chaos/DR, comando de incidente"
+        - core: helena-security
+          vertical: "squad seguranca"
+          contexto_core: "generalista de segurança, auditora pré-PR, coordena o squad"
+          contexto_vertical: "profundidade: AppSec, ofensiva, cloud-sec, DevSecOps, detecção/resposta, GRC"

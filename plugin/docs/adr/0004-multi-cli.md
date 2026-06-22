@@ -9,7 +9,6 @@
 - **v0.4.0** — primeira tentativa, com erros estruturais (documentou flag `--plugin-dir` inexistente e mirror `.agents/skills/` desnecessário)
 - **v0.4.1** — corrigiu o mirror duplicado e o nome do subcomando, mas ainda assumia `codex plugin install` como existente
 - **v0.4.2** — testado em ambiente real (macOS); corrige (a) `codex plugin install` não é subcomando da CLI — install acontece dentro da TUI; (b) `cp -T` é GNU coreutils-only, falha no macOS; (c) marketplace.json para Claude Code precisa estar em `.claude-plugin/marketplace.json`, separado do path do Codex (`.agents/plugins/marketplace.json`)
-- **v0.4.3** — testado em Codex CLI v0.129.0 real; descobriu que **plugin precisa estar em subdiretório, não na raiz do marketplace**. Reorganizou todo o repo: raiz vira marketplace catalog, conteúdo do plugin move para `plugin/`. Schema do `marketplace.json` Codex corrigido — `source` é objeto `{source: "local", path: "./plugin"}`, com `policy` e `category` obrigatórios.
 
 ## Contexto
 

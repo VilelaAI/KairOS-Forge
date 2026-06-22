@@ -22,6 +22,18 @@ A revisão é **multi-agente**, com cada especialista olhando sua dimensão:
 
 Helena e Patrícia são obrigatórios. Os demais entram conforme o escopo do diff.
 
+**Auto-escalação do squad de segurança.** Helena é generalista e coordenadora — quando o diff toca área sensível, ela **puxa o especialista certo do squad `seguranca`** (profundidade), sem precisar o usuário pedir:
+
+| Gatilho no diff | Especialista que Helena puxa |
+|---|---|
+| `auth`, `login`, `senha`/`password`, `jwt`, `crypto`, `session`, validação de input, deserialização | **Ícaro** (AppSec) |
+| `*.tf`, IaC, manifesto k8s, IAM, policy, `.env`, gestão de segredos | **Nara** (Cloud & Infra Security) |
+| `.github/workflows/`, `Dockerfile`, lockfile/dependências novas, imagem de container | **Ravi** (DevSecOps & Supply Chain) |
+| Endpoint público novo, upload, integração externa exposta | **Mauro** (Ofensiva — valida superfície) |
+| Logging/eventos de segurança, detecção, alerta | **Cibele** (Detecção & Resposta) |
+
+O parecer do especialista entra no mesmo formato (severidade 🔴🟠🟡🔵) e segue as regras de bloqueio. Achado de segurança nunca é suavizado por pressa.
+
 ## Fluxo
 
 ### 1. Detectar contexto de revisão
@@ -57,6 +69,14 @@ Use `git diff --name-only` e classifique os arquivos modificados:
 - `Dockerfile*`, `.github/`, `docker-compose*`, `scripts/deploy*` → +Marcos
 - `*.tsx`, `*.jsx` (componentes) → +Ada
 - Código de produção em geral → +Vinícius
+
+Sensível a segurança (Helena puxa o squad `seguranca`):
+
+- `auth`, `login`, `senha`/`password`, `jwt`, `crypto`, `session` → +Ícaro (AppSec)
+- `*.tf`, IaC, k8s, IAM, `.env`, segredos → +Nara (Cloud & Infra Security)
+- `.github/workflows/`, `Dockerfile`, lockfile/deps → +Ravi (DevSecOps)
+- endpoint público novo, upload, integração exposta → +Mauro (Ofensiva)
+- logging/eventos de segurança, detecção, alerta → +Cibele (Detecção & Resposta)
 
 ### 4. Acionar revisores em paralelo (se possível)
 

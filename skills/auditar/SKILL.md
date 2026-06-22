@@ -27,7 +27,7 @@ Read-only: você só lê arquivos. Não modifica nada.
 
 2. **Coletar evidências.** Para cada dimensão, rode os checks abaixo.
 
-3. **Pontuar 0–25 por dimensão** seguindo a rubrica.
+3. **Pontuar 0–20 por dimensão** seguindo a rubrica.
 
 4. **Salvar resultado** em `decisoes/auditorias/AUDIT-YYYY-MM-DD.md` no projeto.
 
@@ -62,7 +62,10 @@ Read-only: você só lê arquivos. Não modifica nada.
 | Suite de testes existe e roda (`pytest`, `npm test`, `go test`) | 4 |
 | CI configurado (`.github/workflows/`, `.gitlab-ci.yml`) | 4 |
 | `contextos/testes.md` documenta gates reais de lint/test/build | 4 |
-| Hooks de pre-commit ou guardrail equivalente configurado (`.pre-commit-config.yaml`, Husky, CI obrigatório) | 4 |
+| Hooks de pre-commit ou guardrail equivalente configurado (`.pre-commit-config.yaml`, Husky, CI obrigatório) | 2 |
+| Postura de segurança recente: relatório `docs/seguranca/POSTURA-SEG-*.md` ≤ 30 dias (via `/kairos-forge:auditar-seguranca`) **e** SAST/SCA com gate no CI | 2 |
+
+> A profundidade de segurança (controles mínimos NIST CSF/CIS, gestão de vulnerabilidades, detecção) é medida pela skill dedicada **`/kairos-forge:auditar-seguranca`**, coordenada por Helena + Bernardo. Aqui o `/auditar` só checa se essa postura existe e está fresca. Se a checagem acima pontuar 0, a ação natural é rodar `/kairos-forge:auditar-seguranca`.
 
 ### Conhecimento (20 pts)
 

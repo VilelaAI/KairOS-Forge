@@ -1,7 +1,7 @@
 # kairos-forge
 
 > Fábrica de software autônoma como plugin do **Claude Code**, **Codex CLI** e **OpenCode**.
-> **45 agentes em 16 times** (24 core + 21 apoio). PT-BR oficial. MIT.
+> **86 agentes** (24 core + 41 verticais em 9 squads + 21 apoio em 7 squads). PT-BR oficial. MIT.
 
 Plugin que transforma uma sessão genérica de qualquer CLI compatível em um time completo de desenvolvimento mais um time de apoio textual. Cada agente tem persona, comportamento, allow-list de ferramentas, e personalidade consistente em primeira pessoa. Eles colaboram via `/kairos-forge:rodar` (sequencial) em qualquer CLI ou trabalham em paralelo via Agent Teams nativos (`/kairos-forge:mobilizar`, exclusivo Claude Code).
 
@@ -48,7 +48,32 @@ Acionar:
 /kairos-forge:rodar apoio-revisao-arquitetural
 ```
 
-## As 10 skills
+## Os 41 agentes verticais (9 squads)
+
+Squads **executores** carregados sob demanda por tipo de projeto. Diferente do apoio, **implementam** (código ou o artefato técnico da disciplina). Complementam o core — não o substituem. No modo `rodar`, 1 squad vertical por vez; no `mobilizar`, Laura puxa indivíduos de qualquer squad.
+
+| Squad | Agentes | Quando |
+|---|---|---|
+| **Mobile** 📱 | Téo [iOS], Bianca [Android], Igor [Cross-platform], Murilo [Release], Priscila [QA Mobile] | App iOS/Android, RN/Flutter, loja |
+| **BI & Analytics** 📊 | Caio [Analytics Eng], Larissa [BI Dev], Tainá [Data Analyst], Henrique [Data Viz] | Dashboard, dbt, análise, data viz |
+| **Engenharia de Dados** 🏞️ | Vitor [Lakehouse], Sabrina [Streaming], Rodrigo [Orquestração], Aline [Data Quality], Gustavo [Governança] | Spark, streaming, Airflow, qualidade |
+| **IA & ML** 🧠 | Eduardo [ML Eng], Natália [Data Scientist], Fábio [MLOps], Yara [Visão & NLP], Caetano [AI Evals] | ML aplicado, MLOps, visão/NLP, evals |
+| **Web & Portais** 🌐 | Sérgio [Portais], Melissa [SEO], Joana [CMS], Davi [E-commerce] | SSR-SSG, SEO, CMS, e-commerce |
+| **Design & Produto** 🎨 | Manuela [Product Designer], Heloísa [Design System], Marcela [UX Research], Nina [Motion] | Design, design system, pesquisa, motion |
+| **SRE & Confiabilidade** 🛡️ | Leandro [SRE], Wagner [Platform Eng], Tatiana [Resiliência], Sílvio [Incident Commander] | SLO, K8s/IaC, chaos/DR, incidente |
+| **Gestão & Delivery** 🗺️ | Cristina [Eng Manager], Joaquim [Agile Coach], Adriana [Solutions Architect], Renan [Delivery] | Gestão de time, ágil, proposta, roadmap |
+| **Segurança** 🔐 | Ícaro [AppSec], Mauro [Ofensiva], Nara [Cloud Sec], Ravi [DevSecOps], Cibele [Detecção], Bernardo [GRC] | AppSec, pentest, cloud-sec, supply chain, detecção, controles — coordenado pela Helena |
+
+> **Fronteiras (não duplicam o core):** Gabriel [IA] = IA generativa/LLM (squad `ml` = ML aplicado); Juliana [ETL] = batch (squad `dataeng` = escala/plataforma); Marina [Frontend] = apps/SPAs (squad `web` = portais SEO); Marcos [DevOps] = CI/CD (squad `sre` = confiabilidade profunda). `design` e `gestao` produzem artefatos, não código.
+
+Acionar:
+
+```
+/kairos-forge:rodar mobile
+/kairos-forge:rodar dataeng
+```
+
+## As 11 skills
 
 | Skill | Quando usar | Disponível em |
 |---|---|---|
@@ -57,13 +82,14 @@ Acionar:
 | `/kairos-forge:especificar <ideia>` | Antes de codar não-trivial; gera SPEC rastreável | Todos os CLIs |
 | `/kairos-forge:analisar-ameacas <feature>` | Threat model antes de implementar feature sensível (auth, PII, billing, IA) | Todos os CLIs |
 | `/kairos-forge:validar <spec>` | Depois de implementar; valida aceite contra SPEC e gates | Todos os CLIs |
-| `/kairos-forge:rodar [agente\|time\|apoio-X]` | Conversacional/sequencial — modo padrão | Todos os CLIs |
+| `/kairos-forge:rodar [agente\|time\|squad-vertical\|apoio-X]` | Conversacional/sequencial — modo padrão | Todos os CLIs |
 | `/kairos-forge:mobilizar <spec>` | Paralelo via Agent Teams | **Apenas Claude Code** |
 | `/kairos-forge:revisar` | Pré-PR. Helena + Patrícia + outros | Todos os CLIs |
 | `/kairos-forge:auditar` | Semanal. Pontuação 0–100 em 5 dimensões (Fundação, Pipeline, Guardrails, Conhecimento, Estrutura) | Todos os CLIs |
+| `/kairos-forge:auditar-seguranca` | Postura/maturidade de segurança 0–100 (NIST CSF + CIS Controls). Semanal ou em CI. Helena + Bernardo | Todos os CLIs |
 | `/kairos-forge:evoluir` | Semanal pós-auditoria | Todos os CLIs |
 
-Ordem natural: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `auditar` → `evoluir`.
+Ordem natural: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `auditar` + `auditar-seguranca` → `evoluir`.
 
 ## Compatibilidade entre plataformas
 
@@ -224,9 +250,10 @@ Sem o sync, usuários do Codex CLI ficam desatualizados.
 ## Roadmap
 
 - **v0.5** — SPEC rastreável, `/validar`, gates por tarefa, estado operacional
-- **v0.6** (atual) — `/mapear-arquitetura`, `/analisar-ameacas`, dimensão Estrutura em `/auditar` (5 dimensões)
-- **v0.7** — `/migrar`, modo RFC no `/especificar`, modo `/revisar web`
-- **v0.8** — diagramas Mermaid em ADR/SPEC, skill opcional de aprendizado, modo debate (apoio-revisao-arquitetural)
+- **v0.6** — `/mapear-arquitetura`, `/analisar-ameacas`, dimensão Estrutura em `/auditar` (5 dimensões)
+- **v0.7** — squads verticais por tipo de projeto (8 squads, 35 agentes): mobile, BI, engenharia de dados, IA/ML, web/portais, design, SRE, gestão
+- **v0.8** (atual) — squad de segurança (9º vertical, 6 agentes) + automação: skill `/auditar-seguranca`, escalação do squad no `/revisar`, hook de segurança no PostToolUse
+- **v0.9** — `/migrar`, modo RFC no `/especificar`, diagramas Mermaid em ADR/SPEC, modo debate (apoio-revisao-arquitetural)
 
 ## Documentação
 
@@ -237,6 +264,8 @@ Sem o sync, usuários do Codex CLI ficam desatualizados.
 - [ADR-0004](docs/adr/0004-multi-cli.md) — compatibilidade Claude Code/Codex/OpenCode
 - [ADR-0005](docs/adr/0005-spec-rastreavel-validacao.md) — SPEC rastreável e `/validar`
 - [ADR-0006](docs/adr/0006-arquitetura-modular-e-threat-model.md) — `/mapear-arquitetura`, `/analisar-ameacas` e dimensão Estrutura
+- [ADR-0007](docs/adr/0007-squads-verticais.md) — squads verticais por tipo de projeto (3º tier, 8 squads, 35 agentes)
+- [ADR-0008](docs/adr/0008-squad-seguranca-e-automacao.md) — squad de segurança (9º vertical) + automação da verificação de segurança
 
 ## Licença
 

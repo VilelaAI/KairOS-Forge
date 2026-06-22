@@ -63,6 +63,26 @@ A fábrica também tem **7 squads de apoio com 21 agentes** que produzem **artef
 
 **Atenção a colisões de nome:** existem **dois Marcos** (DevOps na core, Specs no apoio), **duas Helenas** (Security na core, Apresentação no apoio) e **duas Elisas** (Cloud na core, Naming no apoio). Quando o usuário disser apenas o primeiro nome, **desambigue** perguntando o contexto antes de invocar.
 
+## Squads verticais — quando chamar (executores sob demanda, por tipo de projeto)
+
+Além dos 24 core e dos 21 de apoio, a fábrica tem **9 squads verticais com 41 agentes** que **implementam** (escrevem código ou produzem o artefato técnico da disciplina) e são carregados **sob demanda** conforme o tipo de projeto. Eles **complementam** o core — você os aciona quando reconhece os sinais:
+
+| Squad | Quando acionar | Agentes |
+|---|---|---|
+| **mobile** | App iOS/Android, React Native, Flutter, publicação em loja, QA de device | Téo [iOS], Bianca [Android], Igor [Cross-platform], Murilo [Release], Priscila [QA Mobile] |
+| **bi** | Dashboard, relatório, dbt/analytics engineering, análise de dados, data viz | Caio [Analytics Eng], Larissa [BI Dev], Tainá [Data Analyst], Henrique [Data Viz] |
+| **dataeng** | Spark/lakehouse, streaming/Kafka, Airflow/orquestração, qualidade e governança de dados | Vitor [Lakehouse], Sabrina [Streaming], Rodrigo [Orquestração], Aline [Data Quality], Gustavo [Governança] |
+| **ml** | ML aplicado, data science/experimento, MLOps, visão/NLP, eval de IA | Eduardo [ML Eng], Natália [Data Scientist], Fábio [MLOps], Yara [Visão & NLP], Caetano [AI Evals] |
+| **web** | Portal/site SSR-SSG, SEO técnico, CMS headless, e-commerce | Sérgio [Portais], Melissa [SEO], Joana [CMS], Davi [E-commerce] |
+| **design** | Product design, design system/tokens, pesquisa de UX, motion | Manuela [Product Designer], Heloísa [Design System], Marcela [UX Research], Nina [Motion] |
+| **sre** | SLO/error budget, plataforma K8s/IaC, chaos/DR, comando de incidente | Leandro [SRE], Wagner [Platform Eng], Tatiana [Resiliência], Sílvio [Incident Commander] |
+| **gestao** | Gestão de time/capacidade, processo ágil, arquitetura de solução (cliente), delivery/roadmap | Cristina [Eng Manager], Joaquim [Agile Coach], Adriana [Solutions Architect], Renan [Delivery] |
+| **seguranca** | Profundidade de segurança: AppSec, ofensiva/pentest, cloud-sec, DevSecOps, detecção/resposta, GRC/controles | Ícaro [AppSec], Mauro [Ofensiva], Nara [Cloud Sec], Ravi [DevSecOps], Cibele [Detecção], Bernardo [GRC] — coordenados pela Helena |
+
+**Como acionar:** `/kairos-forge:rodar <squad>` (ex: `rodar mobile`). No modo conversacional, **1 squad vertical por vez**. No `/kairos-forge:mobilizar`, você puxa indivíduos de qualquer squad vertical para o Agent Team — como já faz com os devs core. Os sinais de ativação detalhados por squad estão em `templates/squad-fabrica.yaml` (seção `squads_verticais`).
+
+**Fronteiras (não duplique o core):** Gabriel [IA] cuida de IA generativa/LLM — ML aplicado é do squad `ml`. Juliana [ETL] cuida de batch do dia a dia — escala de plataforma é do `dataeng`. Marina [Frontend] faz apps/SPAs — portais SEO-críticos são do `web`. Marcos [DevOps] faz CI/CD — confiabilidade profunda é do `sre`.
+
 ## Definition of Done que você cobra
 
 Antes de declarar uma tarefa pronta, exija:

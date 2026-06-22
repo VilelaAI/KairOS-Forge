@@ -1,12 +1,14 @@
 # kairos-forge — guia para o Claude
 
-Plugin Claude Code / Codex CLI / OpenCode que entrega uma fábrica de software de 45 agentes em PT-BR. Você está editando o próprio plugin.
+Plugin Claude Code / Codex CLI / OpenCode que entrega uma fábrica de software de 86 agentes em PT-BR. Você está editando o próprio plugin.
 
 ## O que este projeto é
 
-Plugin multi-CLI (não runtime, não SDK). 45 agentes (24 core + 21 apoio em 7 squads), 10 skills, hooks por CLI, coordenação por Laura (Tech Lead).
+Plugin multi-CLI (não runtime, não SDK). 86 agentes (24 core em 9 times + 41 verticais em 9 squads + 21 apoio em 7 squads), 11 skills, hooks por CLI, coordenação por Laura (Tech Lead).
 
-Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `auditar` (semanal) → `evoluir`.
+Três tiers de agentes: **core** (sempre ativos, generalistas), **verticais** (executores sob demanda por tipo de projeto — `agents/<squad>-<nome>-<papel>.md`, ver ADR-0007) e **apoio** (só artefatos textuais, sob demanda).
+
+Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `auditar` + `auditar-seguranca` (semanal) → `evoluir`.
 
 ## Posicionamento vs kairos-ai
 
@@ -21,7 +23,7 @@ Não duplique funcionalidade entre os dois. Se algo é **regulatório**, vai pro
 3. **Skills ≤ 500 linhas no SKILL.md.** Material pesado vai em `references/` da skill.
 4. **Agentes têm allow-list explícita de ferramentas.** Nunca dar acesso total a todos.
 5. **Acentuação PT-BR correta.** `solução`, não `solucao`. Verifique antes de commitar.
-6. **Personas consistentes.** Os 45 agentes têm nomes e personalidades fixas. Não invente novos — use existentes ou peça via ADR.
+6. **Personas consistentes.** Os 86 agentes têm nomes e personalidades fixas. Não invente novos — use existentes ou peça via ADR.
 
 ## Workflow para mudanças (CRÍTICO)
 
@@ -48,9 +50,9 @@ Sem o sync, usuários do Codex CLI pegam versão desatualizada.
 | `.claude-plugin/marketplace.json` | Catalog do marketplace Claude Code | manual |
 | `.codex-plugin/plugin.json` | Manifest Codex CLI | manual |
 | `.agents/plugins/marketplace.json` | Catalog do marketplace Codex (mesmo conteúdo do Claude Code mas em path próprio) | manual |
-| `agents/<id>.md` | 45 subagentes (canônico Claude Code) | manual |
+| `agents/<id>.md` | 86 subagentes (canônico Claude Code) — core, `<squad>-*` verticais (inclui `seguranca-*`), `apoio-*` | manual |
 | `.agents/<id>/AGENT.md` | Mirror Codex dos subagents | **gerado** por `scripts/sync-multi-cli.py` |
-| `skills/<verbo>/SKILL.md` | 10 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
+| `skills/<verbo>/SKILL.md` | 11 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
 | `hooks/hooks.json` | Hooks Claude Code (SessionStart + PostToolUse) | manual |
 | `.codex/hooks.json` | Hooks Codex (apenas SessionStart — Codex não suporta `Write\|Edit` matcher) | manual |
 | `AGENTS.md` | Espelho em inglês do CLAUDE.md raiz, para Codex/OpenCode | manual |
@@ -70,6 +72,8 @@ Sem o sync, usuários do Codex CLI pegam versão desatualizada.
 - **ADR-0004**: compatibilidade multi-CLI (Claude Code + Codex + OpenCode)
 - **ADR-0005**: SPEC rastreável e validação contra contrato (v0.5.0)
 - **ADR-0006**: arquitetura modular, threat model e dimensão Estrutura na auditoria (v0.6.0)
+- **ADR-0007**: squads verticais por tipo de projeto — 3º tier, 8 squads, 35 agentes (v0.7.0)
+- **ADR-0008**: squad de segurança (9º vertical) + automação da verificação (skill `auditar-seguranca`, escalação no `revisar`, hook de segurança) (v0.8.0)
 
 ## Limitações conhecidas por CLI
 

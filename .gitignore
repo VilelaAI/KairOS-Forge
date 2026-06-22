@@ -5,6 +5,10 @@
 *.key
 *.pem
 
+# Configuração local de MCP / Codex (pode conter chave de API — nunca commitar)
+.mcp.json
+**/.codex/config.toml
+
 # Memória local do plugin (cada usuário tem a sua)
 .kairos-forge/cache/
 .kairos-forge/sessions/

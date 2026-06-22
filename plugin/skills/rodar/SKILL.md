@@ -18,6 +18,7 @@ Diferente das outras skills, esta não cria SPECs nem audita o projeto. Ela ativ
 | `/kairos-forge:rodar` | Ativa Laura como ponto de entrada — ela ouve a tarefa e decide quem entra |
 | `/kairos-forge:rodar <nome>` | Ativa um agente específico em primeira pessoa (ex: `rodar marina`) |
 | `/kairos-forge:rodar <time>` | Ativa um time inteiro core (ex: `rodar arquitetura` ativa Diego, Fernanda, Thiago) |
+| `/kairos-forge:rodar <squad-vertical>` | Ativa um squad vertical executor (ex: `rodar mobile` ativa Téo, Bianca, Igor, Murilo, Priscila) |
 | `/kairos-forge:rodar apoio-<squad>` | Ativa um squad de apoio (ex: `rodar apoio-naming` ativa Elisa, Bruno e Cora) |
 | `/kairos-forge:rodar fabrica-completa` | Ativa todos os 24 agentes core em modo conversacional — uso raro |
 
@@ -38,6 +39,26 @@ Os 7 squads de apoio (21 agentes) são carregados sob demanda. **Apenas 1 squad 
 Quando rodar `apoio-<X>`, leia a definição em `${CLAUDE_PLUGIN_ROOT}/templates/squad-fabrica.yaml` (seção `squads_apoio.squads.apoio-<X>`) para identificar os 3 agentes do squad. Cada um se apresenta em primeira pessoa e contribui no seu framework.
 
 **Atenção: agentes de apoio nunca implementam código.** Produzem artefatos textuais (markdown, listas, planos, glossários, relatórios). Se a tarefa pedir implementação, encerre o squad de apoio e devolva para Laura acionar a fábrica core.
+
+## Squads verticais
+
+Os 9 squads verticais (41 agentes) são **executores** carregados sob demanda por tipo de projeto. Diferente do apoio, eles **implementam** (código ou o artefato técnico da disciplina). **No modo conversacional, 1 squad vertical ativo por vez.**
+
+| Squad | Comando | Quando |
+|---|---|---|
+| Mobile | `/kairos-forge:rodar mobile` | App iOS/Android, React Native, Flutter, publicação em loja |
+| BI & Analytics | `/kairos-forge:rodar bi` | Dashboard, dbt/analytics engineering, análise, data viz |
+| Engenharia de Dados | `/kairos-forge:rodar dataeng` | Spark/lakehouse, streaming, orquestração, qualidade/governança |
+| IA & ML | `/kairos-forge:rodar ml` | ML aplicado, data science, MLOps, visão/NLP, eval de IA |
+| Web & Portais | `/kairos-forge:rodar web` | Portal SSR-SSG, SEO, CMS headless, e-commerce |
+| Design & Produto | `/kairos-forge:rodar design` | Product design, design system, pesquisa de UX, motion |
+| SRE & Confiabilidade | `/kairos-forge:rodar sre` | SLO, plataforma K8s/IaC, chaos/DR, incidente |
+| Gestão & Delivery | `/kairos-forge:rodar gestao` | Gestão de time, ágil, solutions architect, delivery/roadmap |
+| Segurança | `/kairos-forge:rodar seguranca` | AppSec, pentest, cloud-sec, DevSecOps, detecção/resposta, GRC (coordenado pela Helena) |
+
+Quando rodar um squad vertical, leia a definição em `${CLAUDE_PLUGIN_ROOT}/templates/squad-fabrica.yaml` (seção `squads_verticais.squads.<squad>`) para identificar os agentes, os sinais de ativação e o que cada um **complementa** no core. Cada agente se apresenta em primeira pessoa.
+
+**Fronteiras (não duplique o core):** Gabriel [IA] = IA generativa/LLM (squad `ml` = ML aplicado); Juliana [ETL] = batch (squad `dataeng` = escala/plataforma); Marina [Frontend] = apps/SPAs (squad `web` = portais SEO); Marcos [DevOps] = CI/CD (squad `sre` = confiabilidade profunda). Os squads `design` e `gestao` produzem artefatos (specs, propostas, roadmaps), não código de produção.
 
 ## Fluxo padrão (modo Laura — recomendado)
 
@@ -73,7 +94,7 @@ Quando rodando neste modo, **todo agente DEVE**:
 
 ## Onde lê a definição dos agentes
 
-Os 24 agentes vivem em `${CLAUDE_PLUGIN_ROOT}/agents/*.md`, cada um com seu frontmatter (`name`, `description`, `tools`, `model`) e corpo (comportamento + limites). Esta skill não duplica o conteúdo — só coordena o fluxo entre eles.
+Os 86 agentes vivem em `${CLAUDE_PLUGIN_ROOT}/agents/*.md`, cada um com seu frontmatter (`name`, `description`, `tools`, `model`) e corpo (comportamento + limites). Esta skill não duplica o conteúdo — só coordena o fluxo entre eles.
 
 A definição de **times** e **regra de acionamento** está em `${CLAUDE_PLUGIN_ROOT}/templates/squad-fabrica.yaml`.
 

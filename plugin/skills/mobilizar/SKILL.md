@@ -73,6 +73,17 @@ Identifique tarefas atômicas. Agrupe por domínio:
 - **infra**: CI/CD, deploy, secrets (Marcos)
 - **docs**: README, OpenAPI, changelog (Beatriz, Felipe)
 
+Para projetos especializados, puxe também indivíduos dos **squads verticais** (`templates/squad-fabrica.yaml` → `squads_verticais`):
+
+- **mobile**: iOS/Android, cross-platform, release em loja (Téo, Bianca, Igor, Murilo, Priscila)
+- **bi**: dbt/analytics engineering, dashboards, análise (Caio, Larissa, Tainá, Henrique)
+- **dataeng**: lakehouse/Spark, streaming, orquestração, qualidade (Vitor, Sabrina, Rodrigo, Aline, Gustavo)
+- **ml**: ML aplicado, data science, MLOps, visão/NLP, evals (Eduardo, Natália, Fábio, Yara, Caetano)
+- **web**: portais SSR-SSG, SEO, CMS, e-commerce (Sérgio, Melissa, Joana, Davi)
+- **sre**: SLO, plataforma K8s/IaC, chaos/DR (Leandro, Wagner, Tatiana, Sílvio)
+
+Os squads **design** e **gestao** produzem artefatos (specs, propostas, roadmaps), não código — entram como consultores, sem file ownership de produção.
+
 Se não for SPEC, decomponha você (Laura) na hora, mas ainda assim crie tarefas com requisito, Done when e gate. Para trabalho médio ou maior, recomende rodar `/kairos-forge:especificar` antes.
 
 ### Passo 2 — Selecionar teammates

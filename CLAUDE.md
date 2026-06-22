@@ -4,9 +4,9 @@ Plugin Claude Code / Codex CLI / OpenCode que entrega uma fábrica de software d
 
 ## O que este projeto é
 
-Plugin multi-CLI (não runtime, não SDK). 45 agentes (24 core + 21 apoio em 7 squads), 10 skills, hooks por CLI, coordenação por Laura (Tech Lead).
+Plugin multi-CLI (não runtime, não SDK). 45 agentes (24 core + 21 apoio em 7 squads), 11 skills, hooks por CLI, coordenação por Laura (Tech Lead).
 
-Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `auditar` (semanal) → `evoluir`.
+Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `auditar` (semanal) → `evoluir`. Ao fim de uma sessão, `relatar` gera os entregáveis de telemetria (executivo + técnico + painel).
 
 ## Posicionamento vs kairos-ai
 
@@ -50,7 +50,8 @@ Sem o sync, usuários do Codex CLI pegam versão desatualizada.
 | `.agents/plugins/marketplace.json` | Catalog do marketplace Codex (mesmo conteúdo do Claude Code mas em path próprio) | manual |
 | `agents/<id>.md` | 45 subagentes (canônico Claude Code) | manual |
 | `.agents/<id>/AGENT.md` | Mirror Codex dos subagents | **gerado** por `scripts/sync-multi-cli.py` |
-| `skills/<verbo>/SKILL.md` | 10 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
+| `skills/<verbo>/SKILL.md` | 11 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
+| `scripts/coletar-metricas.py` | Telemetria de sessão: modo `--hook` (coleta passiva) e `--agregar` (relatório). Consumido pela skill `relatar` | manual |
 | `hooks/hooks.json` | Hooks Claude Code (SessionStart + PostToolUse) | manual |
 | `.codex/hooks.json` | Hooks Codex (apenas SessionStart — Codex não suporta `Write\|Edit` matcher) | manual |
 | `AGENTS.md` | Espelho em inglês do CLAUDE.md raiz, para Codex/OpenCode | manual |
@@ -70,6 +71,7 @@ Sem o sync, usuários do Codex CLI pegam versão desatualizada.
 - **ADR-0004**: compatibilidade multi-CLI (Claude Code + Codex + OpenCode)
 - **ADR-0005**: SPEC rastreável e validação contra contrato (v0.5.0)
 - **ADR-0006**: arquitetura modular, threat model e dimensão Estrutura na auditoria (v0.6.0)
+- **ADR-0007**: telemetria de sessão como entregável — skill `relatar`, núcleo no transcript (multi-CLI) + hooks de coleta passiva Claude Code only (v0.7.0)
 
 ## Limitações conhecidas por CLI
 
@@ -78,6 +80,8 @@ Sem o sync, usuários do Codex CLI pegam versão desatualizada.
 | `/kairos-forge:mobilizar` (Agent Teams) | ✅ | ❌ skill avisa e sugere `rodar` | ❌ skill avisa e sugere `rodar` |
 | Hook PostToolUse pedagógico | ✅ | ❌ | ❌ (sem `oh-my-opencode`) |
 | SessionStart banner | ✅ | ✅ | ❌ (sem `oh-my-opencode`) |
+| `/kairos-forge:relatar` (skill, núcleo via transcript/git) | ✅ | ✅ | ✅ |
+| Coleta passiva de telemetria por hook (`coletar-metricas.py --hook`) | ✅ | ❌ (só SessionStart) | ❌ (sem hooks) |
 
 A skill `mobilizar` tem detecção embutida — quando rodada em CLI sem suporte, ela orienta o usuário a usar `rodar` em vez disso.
 

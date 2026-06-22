@@ -9,6 +9,9 @@
 .kairos-forge/cache/
 .kairos-forge/sessions/
 
+# Telemetria de sessão: log cru efêmero (o entregável fica em decisoes/relatorios/)
+.agents/metricas/*.jsonl
+
 # Sistema
 .DS_Store
 Thumbs.db

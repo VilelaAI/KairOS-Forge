@@ -19,8 +19,9 @@ The two plugins are independent — one does not import from the other. The 24 c
 
 - `.claude-plugin/plugin.json` — Plugin manifest (Claude Code)
 - `agents/` — 45 subagents as `<id>.md` files (Claude Code format)
-- `skills/<name>/SKILL.md` — 10 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
-- `hooks/hooks.json` — Claude Code hooks (SessionStart banner + PostToolUse pedagogical reminder)
+- `skills/<name>/SKILL.md` — 11 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
+- `hooks/hooks.json` — Claude Code hooks (SessionStart banner + PostToolUse pedagogical reminder + passive session telemetry)
+- `scripts/coletar-metricas.py` — Session telemetry: `--hook` (passive collection) and `--agregar` (report aggregation), consumed by the `relatar` skill
 - `.agents/` — Same content as `agents/` and `skills/`, in Codex CLI format (`<id>/AGENT.md` for agents, `skills/<name>/SKILL.md` for skills)
 - `.codex/hooks.json` — Codex-specific hooks (no `Write|Edit` matcher; only Bash supported)
 - `templates/` — `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`
@@ -38,6 +39,7 @@ The two plugins are independent — one does not import from the other. The 24 c
 | Subagents | `agents/<id>.md` | `.agents/<id>/AGENT.md` | via copy of `agents/` |
 | SessionStart hook | `hooks/hooks.json` | `.codex/hooks.json` | via `oh-my-opencode` |
 | PostToolUse hook | `hooks/hooks.json` | ❌ (only Bash matcher) | via `oh-my-opencode` |
+| Passive session telemetry (`coletar-metricas.py --hook`) | ✅ | ❌ (SessionStart only) | ❌ (no hooks) |
 | Agent Teams (`/mobilizar`) | ✅ native (`TeamCreate`) | ❌ no equivalent | ❌ no equivalent |
 | Project instructions | `CLAUDE.md` | `AGENTS.md` | `CLAUDE.md` (fallback) or `AGENTS.md` |
 
@@ -45,7 +47,7 @@ The two plugins are independent — one does not import from the other. The 24 c
 
 ### Skill availability per CLI
 
-All 10 skills live in `skills/` and are accessible to both Claude Code and Codex.
+All 11 skills live in `skills/` and are accessible to both Claude Code and Codex.
 
 | Skill | Claude Code | Codex CLI | OpenCode |
 |---|---|---|---|
@@ -59,6 +61,9 @@ All 10 skills live in `skills/` and are accessible to both Claude Code and Codex
 | `revisar` | ✅ | ✅ | ✅ |
 | `auditar` | ✅ | ✅ | ✅ |
 | `evoluir` | ✅ | ✅ | ✅ |
+| `relatar` | ✅ | ✅ (core via transcript/git) | ✅ (core via transcript/git) |
+
+> `relatar` generates session-telemetry deliverables (executive + technical reports + cumulative panel). Its **passive collection** via hooks (`coletar-metricas.py --hook`) is Claude Code-only; on Codex/OpenCode the skill still works from the transcript + git, degrading gracefully.
 
 Natural flow ordering: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (sensitive features) → `mobilizar`/`rodar` → `validar` → `revisar` → `auditar` (weekly) → `evoluir`.
 
@@ -171,6 +176,7 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0004**: multi-CLI compatibility — Claude Code canonical, Codex via `.agents/` mirror, OpenCode via fallback paths
 - **ADR-0005**: traceable SPEC and validation-against-contract step (v0.5.0)
 - **ADR-0006**: modular architecture, threat model, and the Estrutura dimension in `/auditar` (v0.6.0)
+- **ADR-0007**: session telemetry as a deliverable — `relatar` skill, transcript-based core (multi-CLI) + passive hook collection (Claude Code-only) (v0.7.0)
 
 ## Critical design constraints
 

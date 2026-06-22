@@ -6,7 +6,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '🔥 kairos-forge v0.5 ativo — 45 agentes (24 core + 21 apoio em 7 squads) | skills: /kairos-forge:onboardar especificar validar rodar mobilizar revisar auditar evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1'"
+            "command": "echo '🔥 kairos-forge v0.7 ativo — 45 agentes (24 core + 21 apoio em 7 squads) | skills: /kairos-forge:onboardar especificar validar rodar mobilizar revisar auditar evoluir relatar | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1'"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/coletar-metricas.py\" --hook"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/coletar-metricas.py\" --hook"
           }
         ]
       }
@@ -18,6 +33,37 @@
           {
             "type": "command",
             "command": "FILE=$(jq -r '.tool_input.file_path // empty'); if echo \"$FILE\" | grep -qE '\\.(py|ts|tsx|js|jsx|go|rs|java)$' && ! echo \"$FILE\" | grep -qE '(test|spec|__tests__)'; then echo '💡 kairos-forge: arquivo de produção modificado. Lembre de chamar Ricardo (testes), rodar /kairos-forge:validar se houver SPEC e /kairos-forge:revisar antes do PR.'; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|Bash|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/coletar-metricas.py\" --hook"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/coletar-metricas.py\" --hook"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/coletar-metricas.py\" --hook"
           }
         ]
       }

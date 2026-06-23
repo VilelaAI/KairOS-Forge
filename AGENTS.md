@@ -181,7 +181,7 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 ## Critical design constraints
 
 - **All output in PT-BR**: agents communicate in Portuguese, even when invoked from English-language projects. The plugin itself is multilingual (English AGENTS.md, Portuguese CLAUDE.md), but agent personas are Portuguese-native.
-- **Squad agents speak in first person**: When running a squad (`/kairos-forge:rodar`), each agent introduces itself by name/role and stays in character.
+- **Squad agents speak in first person**: When running a squad (`/kairos-forge:rodar`), each turn opens with a canonical speaker header (`**Name — Role**`, or `**Name [Squad] — Role**` for support agents, mirroring the agent's H1). This both keeps personas in character and makes per-agent participation **measurable** by the `relatar` telemetry — without it, counts fall back to a regex estimate.
 - **Agent naming**: Format `Name [Role]` with emoji icon (e.g., 👩‍💼 Laura [Tech Lead], 🔐 Helena [Security]).
 - **Support squads are non-coding**: Squads with `tipo: apoio` NEVER implement code — they produce textual artifacts only.
 - **Name collisions are explicit**: Three pairs share first names across core/support (Marcos, Helena, Elisa). Laura disambiguates before invoking when the user mentions only the first name.

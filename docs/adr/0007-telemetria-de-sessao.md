@@ -55,8 +55,17 @@ A partir da v0.7.0:
   skill). Toda a lógica pesada vive no script; `hooks.json` e a skill ficam finos.
 - **Três níveis de confiabilidade, sempre rotulados:** **medido** (ferramentas,
   arquivos, commits, subagentes Task, tokens), **estimado** (personas
-  conversacionais do `/rodar`), **aproximado** (custo em USD = tokens × tabela de
+  conversacionais sem marcador), **aproximado** (custo em USD = tokens × tabela de
   preço embutida no script).
+- **Marcador de turno no `/rodar` (medido em vez de estimado).** O `/rodar` passa
+  a abrir cada turno com um cabeçalho de locutor canônico — `**Nome — Papel**`
+  (core) ou `**Nome [Squad] — Papel**` (apoio), espelhando o H1 de
+  `agents/<id>.md`. Com isso, `coletar-metricas.py` conta os **turnos por agente**
+  de forma determinística (`fonte_personas: "marcador"`), resolvendo as 3
+  colisões de primeiro nome (Marcos, Helena, Elisa) pelo `[Squad]`. Transcripts
+  antigos sem o cabeçalho caem para o regex `"Oi, <Nome> aqui"`
+  (`fonte_personas: "regex"`, rotulado estimado). Não há tokens/duração por
+  persona no modo conversacional — o contexto é compartilhado.
 - O log cru `.agents/metricas/*.jsonl` vai para o `.gitignore` (efêmero); o que
   se versiona é o relatório em `decisoes/relatorios/`.
 - Total de skills sobe de 10 para 11. Manifests e marketplaces vão a 0.7.0.
@@ -96,6 +105,14 @@ Custos:
 4. **Um único relatório.**
    Rejeitado: cliente e time querem coisas diferentes (valor entregue vs. custo e
    gargalos). Dois relatórios + painel atende ambos sem poluir nenhum.
+
+5. **Fazer o `/rodar` spawnar subagentes Task para medir cada persona com precisão.**
+   Rejeitado: quebraria o cross-talk de contexto compartilhado (a identidade do
+   `/rodar`), a portabilidade multi-CLI (Task subagente não existe no OpenCode) e
+   duplicaria o `/mobilizar` — que já spawna subagentes reais e já é medido com
+   precisão pela telemetria. Em vez disso, o `/rodar` ganha um marcador de turno
+   determinístico (acima): mede participação/turnos sem abrir mão do modo
+   conversacional. Quem precisa de métrica isolada por agente usa `/mobilizar`.
 
 ## Limitações por CLI
 

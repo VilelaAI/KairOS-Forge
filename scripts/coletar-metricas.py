@@ -146,23 +146,76 @@ def _parse_ts(valor) -> datetime | None:
         return None
 
 
-def _roster_primeiros_nomes() -> dict[str, str]:
-    """Mapeia primeiro nome (minúsculo) → id do agente, a partir de agents/."""
-    roster: dict[str, str] = {}
+def _carregar_roster() -> dict:
+    """Constrói o roster dos agentes a partir do H1 de cada agents/<id>.md.
+
+    Devolve:
+      - por_nome: primeiro_nome (minúsculo) → [ids]  (índice p/ desambiguação)
+      - apoio_squad: (primeiro_nome, squad_minúsculo) → id  (resolve colisões)
+      - rotulos: id → "Nome — Papel" (rótulo canônico de exibição)
+
+    O H1 tem o formato `# <emoji> Nome — Papel` (core) ou
+    `# <emoji> Nome [Squad] — Papel` (apoio).
+    """
+    por_nome: dict[str, list[str]] = defaultdict(list)
+    apoio_squad: dict[tuple, str] = {}
+    rotulos: dict[str, str] = {}
     agentes_dir = ROOT / "agents"
     if not agentes_dir.exists():
-        return roster
+        return {"por_nome": por_nome, "apoio_squad": apoio_squad, "rotulos": rotulos}
+
+    h1_re = re.compile(r"^#\s+(.*)$")
     for md in agentes_dir.glob("*.md"):
-        ident = md.stem  # ex.: marina-frontend, apoio-otavio-metricas
-        partes = ident.split("-")
-        if partes and partes[0] == "apoio" and len(partes) > 1:
-            primeiro = partes[1]
-        elif partes:
-            primeiro = partes[0]
-        else:
+        ident = md.stem
+        titulo = None
+        try:
+            with md.open(encoding="utf-8") as fh:
+                for linha in fh:
+                    m = h1_re.match(linha.strip())
+                    if m:
+                        titulo = m.group(1).strip()
+                        break
+        except OSError:
             continue
-        roster.setdefault(primeiro.lower(), ident)
-    return roster
+        if not titulo:
+            continue
+        # Remove emoji/símbolos iniciais até a primeira letra.
+        m = re.search(r"[A-Za-zÀ-ÿ].*$", titulo)
+        rotulo = m.group(0).strip() if m else titulo
+        rotulos[ident] = rotulo
+        # Primeiro nome = primeira palavra do rótulo.
+        primeiro = rotulo.split()[0].lower() if rotulo.split() else ident.split("-")[0]
+        por_nome[primeiro].append(ident)
+        # Squad entre colchetes (apoio).
+        sq = re.search(r"\[([^\]]+)\]", rotulo)
+        if sq:
+            apoio_squad[(primeiro, sq.group(1).strip().lower())] = ident
+    return {"por_nome": por_nome, "apoio_squad": apoio_squad, "rotulos": rotulos}
+
+
+def _resolver_agente(nome: str, squad: str | None, roster: dict) -> tuple[str | None, bool]:
+    """Resolve um cabeçalho de locutor para um id de agente.
+
+    Retorna (id_ou_None, ambiguo). Estratégia:
+      1. nome + squad (apoio) → id exato;
+      2. primeiro nome único → id;
+      3. ambíguo (colisão sem squad) → None + ambiguo=True.
+    """
+    nome = nome.strip().lower()
+    if squad:
+        ident = roster["apoio_squad"].get((nome, squad.strip().lower()))
+        if ident:
+            return ident, False
+    ids = roster["por_nome"].get(nome, [])
+    if len(ids) == 1:
+        return ids[0], False
+    if len(ids) > 1:
+        # Sem squad para desambiguar: prefere o core (id sem prefixo apoio-).
+        core = [i for i in ids if not i.startswith("apoio-")]
+        if not squad and len(core) == 1:
+            return core[0], True
+        return None, True
+    return None, False
 
 
 def _texto_assistant(msg: dict) -> str:
@@ -203,8 +256,16 @@ def agregar(
     tool_use_pendente: dict[str, tuple] = {}
     subagentes: list[dict] = []
 
-    roster = _roster_primeiros_nomes()
-    personas = Counter()
+    roster = _carregar_roster()
+    personas = Counter()           # id do agente → nº de turnos (marcador)
+    personas_regex = Counter()     # fallback estimado (transcript antigo)
+    personas_ambiguas = set()
+    # Cabeçalho de turno do /rodar: **Nome — Papel** ou **Nome [Squad] — Papel**
+    cabecalho_re = re.compile(
+        r"^\*\*\s*([A-ZÀ-Ý][\wÀ-ÿ.]*)\s*(?:\[([^\]]+)\])?\s*[—–-]\s*[^*]+\*\*",
+        re.MULTILINE,
+    )
+    regex_oi = re.compile(r"\b[Oo]i,?\s+([A-ZÀ-Ý][a-zà-ÿ]+)\s+aqui\b")
 
     # ---- Transcript (fonte principal) ----
     if transcript and transcript.exists():
@@ -259,13 +320,21 @@ def agregar(
                                     entr.get("description") or "",
                                     ts,
                                 )
-                # Personas conversacionais do /rodar (estimativa por regex).
+                # Personas conversacionais do /rodar.
+                # Preferência: cabeçalho de turno **Nome — Papel** (MEDIDO).
+                # Fallback: regex "Oi, <Nome> aqui" (ESTIMADO, transcript antigo).
                 texto = _texto_assistant(msg)
-                if texto and roster:
-                    for m in re.finditer(r"\b[Oo]i,?\s+([A-ZÀ-Ý][a-zà-ÿ]+)\s+aqui\b", texto):
-                        nome = m.group(1).lower()
-                        if nome in roster:
-                            personas[roster[nome]] += 1
+                if texto and roster["por_nome"]:
+                    for m in cabecalho_re.finditer(texto):
+                        ident, ambiguo = _resolver_agente(m.group(1), m.group(2), roster)
+                        if ident:
+                            personas[ident] += 1
+                            if ambiguo:
+                                personas_ambiguas.add(ident)
+                    for m in regex_oi.finditer(texto):
+                        ident, _ = _resolver_agente(m.group(1), None, roster)
+                        if ident:
+                            personas_regex[ident] += 1
 
             if tipo == "user" and isinstance(msg, dict):
                 conteudo = msg.get("content")
@@ -318,6 +387,26 @@ def agregar(
                 if ts and (ts_max is None or ts > ts_max):
                     ts_max = ts
 
+    # ---- Personas conversacionais: marcador (medido) vs regex (estimado) ----
+    if personas:
+        fonte_personas = "marcador"
+        personas_final = personas
+    elif personas_regex:
+        fonte_personas = "regex"
+        personas_final = personas_regex
+        avisos.append(
+            "Turnos do /rodar estimados por regex (transcript sem cabeçalho de "
+            "locutor): atualize o /rodar para marcadores e a contagem fica medida."
+        )
+    else:
+        fonte_personas = "nenhum"
+        personas_final = Counter()
+    if personas_ambiguas:
+        avisos.append(
+            "Agentes com primeiro nome ambíguo resolvidos pelo core (sem [Squad] "
+            "no cabeçalho): " + ", ".join(sorted(personas_ambiguas))
+        )
+
     # ---- Janela temporal efetiva (argumentos --inicio/--fim sobrescrevem) ----
     # Vale para git, artefatos e duração, para manter tudo coerente.
     ini_efetivo = _parse_ts(inicio_arg) or ts_min
@@ -361,8 +450,10 @@ def agregar(
         "subagentes_task": subagentes,
         "subagentes_task_total": len(subagentes),
         "personas_conversacionais": [
-            {"agente": ag, "mencoes": n} for ag, n in personas.most_common()
+            {"agente": ag, "turnos": n, "rotulo": roster["rotulos"].get(ag, ag)}
+            for ag, n in personas_final.most_common()
         ],
+        "fonte_personas": fonte_personas,
         "skills_rodadas": sorted(set(skills_rodadas)),
         "commits": commits,
         "commits_total": len(commits),

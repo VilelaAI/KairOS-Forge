@@ -62,7 +62,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/coletar-metricas.py \
 
 A saída é um JSON agregado com: `duracao_segundos`, `ferramentas`,
 `arquivos_escritos`, `comandos_bash_total`, `subagentes_task`,
-`personas_conversacionais`, `skills_rodadas`, `commits`, `artefatos`, `tokens`,
+`personas_conversacionais` (com `turnos` por agente) + `fonte_personas`
+(`marcador`/`regex`/`nenhum`), `skills_rodadas`, `commits`, `artefatos`, `tokens`,
 `custo_usd`, `modelos`, `fontes` e `avisos`. Use esse JSON como fonte única dos
 relatórios — não invente números que não estejam nele.
 
@@ -71,9 +72,14 @@ relatórios — não invente números que não estejam nele.
 Ao montar os relatórios, rotule cada bloco pela fonte:
 
 - **Medido** — ferramentas, arquivos, commits, subagentes **Task**, tokens (vêm do transcript/hook/git).
-- **Estimado** — personas conversacionais do `/rodar` ("Oi, <Nome> aqui"): o
-  modo conversacional **não** gera subagente Task e é invisível a hooks. Sempre
-  rotule "conversacional (estimado)" e **nunca** conte como Task.
+- **Medido (turnos)** — personas conversacionais do `/rodar` quando o JSON traz
+  `fonte_personas: "marcador"`: o `/rodar` abre cada turno com o cabeçalho de
+  locutor (`**Nome — Papel**`), então a contagem de turnos por agente é exata.
+  **Nunca** conte turno como subagente Task — são listas separadas. O modo
+  conversacional tem contexto compartilhado, então **não há** tokens/duração por
+  persona (quem precisa disso usa `/mobilizar`).
+- **Estimado** — personas quando `fonte_personas: "regex"` (transcript antigo,
+  sem cabeçalho de locutor): rotule "conversacional (estimado)".
 - **Aproximado** — custo em USD (tokens × tabela de preço do modelo).
 
 Repasse os `avisos` do JSON para a seção "Notas de precisão".
@@ -138,10 +144,11 @@ Espelha `auditar`/`validar`: tabela principal + detalhe + narrativa + próximos 
 | Custo estimado | US$ N,NN (aprox.) |
 
 ## Subagentes acionados
-| Agente | Modo | Duração | Sucesso |
+| Agente | Modo | Turnos/Duração | Sucesso |
 |---|---|---|---|
 | renata-observabilidade | Task | 1m12s | ✅ |
-| marina-frontend | conversacional (estimado) | — | — |
+| marina-frontend | conversacional (medido) | 3 turnos | — |
+| diego-sistemas | conversacional (estimado) | — | — |
 
 ## Artefatos produzidos
 - <lista de caminhos>
@@ -156,9 +163,9 @@ Espelha `auditar`/`validar`: tabela principal + detalhe + narrativa + próximos 
 1. ...
 
 ## Notas de precisão
-- Personas conversacionais (`/rodar`) são ESTIMADAS por parsing do transcript — não contadas como Task.
+- Turnos conversacionais (`/rodar`): MEDIDOS pelo cabeçalho de locutor quando `fonte_personas: marcador`; ESTIMADOS por regex quando `regex`. Nunca contados como Task. Sem tokens/duração por persona (contexto compartilhado).
 - Custo é APROXIMADO (tokens × tabela de preço do modelo).
-- <repasse os `avisos` do JSON agregado, ex.: indisponibilidades por CLI>
+- <repasse os `avisos` do JSON agregado, ex.: indisponibilidades por CLI, nomes ambíguos>
 ```
 
 ## Formato — painel acumulado (`PAINEL.md`)

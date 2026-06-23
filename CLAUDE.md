@@ -8,6 +8,8 @@ Plugin multi-CLI (não runtime, não SDK). 45 agentes (24 core + 21 apoio em 7 s
 
 Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `auditar` (semanal) → `evoluir`. Ao fim de uma sessão, `relatar` gera os entregáveis de telemetria (executivo + técnico + painel).
 
+> No `/rodar`, cada turno de agente abre com um cabeçalho de locutor canônico (`**Nome — Papel**`, espelhando o H1 de `agents/<id>.md`). É o que torna a participação por agente **medível** pela telemetria do `relatar` — sem ele, a contagem cai para estimativa.
+
 ## Posicionamento vs kairos-ai
 
 `kairos-forge` é a **versão MIT genérica** (qualquer projeto). O [`kairos-ai`](https://github.com/VilelaAI/kairos-ai) é a **versão regulada** (LGPD, NRs, OAB, etc.) com squads negociais, guardrails legais, assertions binárias, Ralph Loop e Advisor Opus.

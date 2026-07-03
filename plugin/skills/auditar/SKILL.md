@@ -58,11 +58,12 @@ Read-only: você só lê arquivos. Não modifica nada.
 
 | Critério | Pontos |
 |---|---|
-| Lint configurado e passando (procurar `.eslintrc`, `pyproject.toml [tool.ruff]`, etc.) | 4 |
+| Lint configurado e passando (procurar `.eslintrc`, `pyproject.toml [tool.ruff]`, etc.) | 3 |
 | Suite de testes existe e roda (`pytest`, `npm test`, `go test`) | 4 |
-| CI configurado (`.github/workflows/`, `.gitlab-ci.yml`) | 4 |
-| `contextos/testes.md` documenta gates reais de lint/test/build | 4 |
-| Hooks de pre-commit ou guardrail equivalente configurado (`.pre-commit-config.yaml`, Husky, CI obrigatório) | 4 |
+| CI configurado (`.github/workflows/`, `.gitlab-ci.yml`) | 3 |
+| `contextos/testes.md` documenta gates reais de lint/test/build | 3 |
+| Hooks de pre-commit ou guardrail equivalente configurado (`.pre-commit-config.yaml`, Husky, CI obrigatório) | 3 |
+| Setup de agentes/hooks customizados auditado: se o projeto definiu agentes em `.claude/agents/` ou hooks, eles têm allow-list de ferramentas explícita, sem segredos hardcoded, sem injeção em hook (rode `check-agent-security.py` apontando para `.claude`). Sem config customizada, pontue cheio. | 4 |
 
 ### Conhecimento (20 pts)
 
@@ -137,6 +138,16 @@ Comandos sugeridos (read-only, sem dependências fora do projeto):
 - Acoplamento e duplicação: amostragem manual. Marque como hipótese se não houver mapa.
 
 Helena, Rafael ou Diego podem ser citados no relatório como responsáveis sugeridos por fechar lacunas desta dimensão.
+
+## Coletar evidências para Guardrails: segurança do setup
+
+O kairos-forge embarca `scripts/check-agent-security.py`, que audita a *configuração de agentes/hooks* — não o código do produto. Para o critério de setup customizado, rode-o apontando para a config do projeto:
+
+- `python3 <plugin>/scripts/check-agent-security.py .claude` — varre `.claude/agents/`, hooks e segredos.
+- Exit 0 = pontue cheio (4). Achados ALTA (allow-list ausente/curinga, segredo hardcoded) = pontue 0 e liste no relatório.
+- Projeto sem agentes/hooks customizados em `.claude/` = pontue cheio (não há superfície de risco a auditar).
+
+Helena é a responsável sugerida por achados desta verificação.
 
 ## Lacunas de Estrutura: follow-ups típicos
 

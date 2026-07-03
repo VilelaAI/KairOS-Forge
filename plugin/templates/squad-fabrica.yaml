@@ -3,7 +3,7 @@ squad:
   tipo: desenvolvimento
   idioma: pt-BR
   versao: "0.5.0"
-  descricao: "Fábrica de software completa com 24 agentes especializados, organizada em 9 times. Versão MIT/genérica do squad. Para domínios regulados (LGPD, Segurança-TI, NRs, OAB), use kairos-ai."
+  descricao: "Fábrica de software completa com 28 agentes especializados, organizada em 9 times. Versão MIT/genérica do squad. Para domínios regulados (LGPD, Segurança-TI, NRs, OAB), use kairos-ai."
 
   times:
     - nome: "Liderança"
@@ -21,7 +21,7 @@ squad:
     - nome: "Qualidade"
       agentes: [patricia-qa, ricardo-testes, vinicius-performance]
     - nome: "Plataforma"
-      agentes: [marcos-devops, elisa-cloud, helena-security, renata-observabilidade]
+      agentes: [marcos-devops, elisa-cloud, helena-security, renata-observabilidade, igor-iac, kaique-kubernetes, gael-gitops, nina-redes]
     - nome: "Documentação"
       agentes: [beatriz-docs, felipe-api-docs]
 
@@ -55,6 +55,18 @@ squad:
       deploy_infra:
         agentes: ["marcos-devops", "elisa-cloud"]
         descricao: "CI/CD novo, escolha de provedor, rollback"
+      infra_como_codigo:
+        agentes: ["igor-iac", "elisa-cloud"]
+        descricao: "Provisionar/alterar infra via Terraform, módulos, state remoto, drift"
+      orquestracao_containers:
+        agentes: ["kaique-kubernetes", "marcos-devops"]
+        descricao: "Deploy em Kubernetes/EKS, Helm, autoscaling (HPA/Karpenter), Ingress"
+      entrega_continua:
+        agentes: ["gael-gitops", "marcos-devops"]
+        descricao: "GitOps, ArgoCD, Kustomize, deploy declarativo, progressive delivery"
+      rede_e_borda:
+        agentes: ["nina-redes", "elisa-cloud"]
+        descricao: "VPC, subnets, DNS, Load Balancer, CDN, WAF, TLS, security groups"
       documentacao:
         agentes: ["beatriz-docs"]
         descricao: "README, ADR, runbook, onboarding"

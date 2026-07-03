@@ -19,7 +19,7 @@ Diferente das outras skills, esta não cria SPECs nem audita o projeto. Ela ativ
 | `/kairos-forge:rodar <nome>` | Ativa um agente específico em primeira pessoa (ex: `rodar marina`) |
 | `/kairos-forge:rodar <time>` | Ativa um time inteiro core (ex: `rodar arquitetura` ativa Diego, Fernanda, Thiago) |
 | `/kairos-forge:rodar apoio-<squad>` | Ativa um squad de apoio (ex: `rodar apoio-naming` ativa Elisa, Bruno e Cora) |
-| `/kairos-forge:rodar fabrica-completa` | Ativa todos os 24 agentes core em modo conversacional — uso raro |
+| `/kairos-forge:rodar fabrica-completa` | Ativa todos os 28 agentes core em modo conversacional — uso raro |
 
 ## Squads de apoio
 
@@ -73,7 +73,7 @@ Quando rodando neste modo, **todo agente DEVE**:
 
 ## Onde lê a definição dos agentes
 
-Os 24 agentes vivem em `${CLAUDE_PLUGIN_ROOT}/agents/*.md`, cada um com seu frontmatter (`name`, `description`, `tools`, `model`) e corpo (comportamento + limites). Esta skill não duplica o conteúdo — só coordena o fluxo entre eles.
+Os 28 agentes vivem em `${CLAUDE_PLUGIN_ROOT}/agents/*.md`, cada um com seu frontmatter (`name`, `description`, `tools`, `model`) e corpo (comportamento + limites). Esta skill não duplica o conteúdo — só coordena o fluxo entre eles.
 
 A definição de **times** e **regra de acionamento** está em `${CLAUDE_PLUGIN_ROOT}/templates/squad-fabrica.yaml`.
 

@@ -1,6 +1,6 @@
 # Início rápido — kairos-forge em 15 minutos
 
-Este guia leva você de "acabei de ouvir falar de plugin" para "tenho a fábrica de 49 agentes rodando no meu projeto".
+Este guia leva você de "acabei de ouvir falar de plugin" para "tenho a fábrica de 51 agentes rodando no meu projeto".
 
 ## Pré-requisitos
 
@@ -30,7 +30,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver:
 
 ```
-🔥 kairos-forge v0.5 ativo — 49 agentes (28 core + 21 apoio em 7 squads) | skills: ...
+🔥 kairos-forge v0.5 ativo — 51 agentes (30 core + 21 apoio em 7 squads) | skills: ...
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -187,6 +187,6 @@ Não tem problema técnico, mas pense bem. Os dois sobrepõem o squad técnico. 
 
 - Leia [ADR-0001](adr/0001-plugin-em-vez-de-runtime.md) para entender por que isso é plugin
 - Leia [ADR-0002](adr/0002-relacao-com-kairos-ai.md) para entender quando migrar pro kairos-ai
-- Veja `templates/squad-fabrica.yaml` para entender como os 28 agentes são organizados
+- Veja `templates/squad-fabrica.yaml` para entender como os 30 agentes são organizados
 - Veja `templates/anti-drift.md` para o protocolo que mantém Agent Teams alinhados
 - Quando tiver dor recorrente, rode `/kairos-forge:evoluir` pra virar capacidade nova

@@ -3,7 +3,7 @@ squad:
   tipo: desenvolvimento
   idioma: pt-BR
   versao: "0.5.0"
-  descricao: "Fábrica de software completa com 28 agentes especializados, organizada em 9 times. Versão MIT/genérica do squad. Para domínios regulados (LGPD, Segurança-TI, NRs, OAB), use kairos-ai."
+  descricao: "Fábrica de software completa com 30 agentes especializados, organizada em 9 times. Versão MIT/genérica do squad. Para domínios regulados (LGPD, Segurança-TI, NRs, OAB), use kairos-ai."
 
   times:
     - nome: "Liderança"
@@ -21,7 +21,7 @@ squad:
     - nome: "Qualidade"
       agentes: [patricia-qa, ricardo-testes, vinicius-performance]
     - nome: "Plataforma"
-      agentes: [marcos-devops, elisa-cloud, helena-security, renata-observabilidade, igor-iac, kaique-kubernetes, gael-gitops, nina-redes]
+      agentes: [marcos-devops, elisa-cloud, helena-security, renata-observabilidade, igor-iac, kaique-kubernetes, gael-gitops, nina-redes, sergio-sre, aline-aiops]
     - nome: "Documentação"
       agentes: [beatriz-docs, felipe-api-docs]
 
@@ -67,6 +67,12 @@ squad:
       rede_e_borda:
         agentes: ["nina-redes", "elisa-cloud"]
         descricao: "VPC, subnets, DNS, Load Balancer, CDN, WAF, TLS, security groups"
+      resposta_a_incidente:
+        agentes: ["sergio-sre", "marcos-devops"]
+        descricao: "Incidente em produção: triagem por severidade, runbook, mitigação, postmortem, error budget"
+      aiops_deteccao:
+        agentes: ["aline-aiops", "renata-observabilidade"]
+        descricao: "Detecção de anomalia, correlação/redução de ruído de alertas, RCA assistida, observabilidade aumentada"
       documentacao:
         agentes: ["beatriz-docs"]
         descricao: "README, ADR, runbook, onboarding"

@@ -1,7 +1,7 @@
 # kairos-forge
 
 > Fábrica de software autônoma como plugin do **Claude Code**, **Codex CLI** e **OpenCode**.
-> **45 agentes em 16 times** (24 core + 21 apoio). PT-BR oficial. MIT.
+> **51 agentes em 16 times** (30 core + 21 apoio). PT-BR oficial. MIT.
 
 Plugin que transforma uma sessão genérica de qualquer CLI compatível em um time completo de desenvolvimento mais um time de apoio textual. Cada agente tem persona, comportamento, allow-list de ferramentas, e personalidade consistente em primeira pessoa. Eles colaboram via `/kairos-forge:rodar` (sequencial) em qualquer CLI ou trabalham em paralelo via Agent Teams nativos (`/kairos-forge:mobilizar`, exclusivo Claude Code).
 
@@ -11,7 +11,7 @@ Plugin que transforma uma sessão genérica de qualquer CLI compatível em um ti
 
 Para projetos em **domínios regulados brasileiros** (LGPD, Segurança-TI, NRs, OAB, MEC-LDB, ANVISA, BACEN), use o [kairos-ai](https://github.com/VilelaAI/kairos-ai) — que adiciona squads negociais, guardrails com referência legal, assertions binárias, Ralph Loop e Advisor regulatório.
 
-## Os 24 agentes core
+## Os 30 agentes core
 
 | Time | Agentes |
 |---|---|
@@ -22,7 +22,7 @@ Para projetos em **domínios regulados brasileiros** (LGPD, Segurança-TI, NRs, 
 | **Backend** | ⚙️ Lucas (Backend) · 🤖 Gabriel (IA) · 📊 Juliana (ETL) |
 | **Dados** | 🛢️ Carlos (DBA) · 🔎 André (Busca) |
 | **Qualidade** | ✅ Patrícia (QA Lead) · 🧪 Ricardo (Testes) · ⚡ Vinícius (Performance) |
-| **Plataforma** | 🚀 Marcos (DevOps) · ☁️ Elisa (Cloud) · 🔐 Helena (Security) · 👁️ Renata (Observabilidade) |
+| **Plataforma** | 🚀 Marcos (DevOps) · ☁️ Elisa (Cloud) · 🔐 Helena (Security) · 👁️ Renata (Observabilidade) · 🏗️ Igor (IaC) · ☸️ Kaique (Kubernetes) · 🔁 Gael (GitOps) · 🌐 Nina (Redes) · 🧯 Sérgio (SRE) · 🔮 Aline (AIOps) |
 | **Documentação** | 📝 Beatriz (Docs) · 📖 Felipe (API Docs) |
 
 ## Os 21 agentes de apoio (7 squads)
@@ -237,6 +237,8 @@ Sem o sync, usuários do Codex CLI ficam desatualizados.
 - [ADR-0004](docs/adr/0004-multi-cli.md) — compatibilidade Claude Code/Codex/OpenCode
 - [ADR-0005](docs/adr/0005-spec-rastreavel-validacao.md) — SPEC rastreável e `/validar`
 - [ADR-0006](docs/adr/0006-arquitetura-modular-e-threat-model.md) — `/mapear-arquitetura`, `/analisar-ameacas` e dimensão Estrutura
+- [ADR-0007](docs/adr/0007-especialistas-infra.md) — especialistas de infra no squad Plataforma (Igor, Kaique, Gael, Nina)
+- [ADR-0008](docs/adr/0008-especialistas-aiops.md) — SRE/Incident Commander (Sérgio) e Engenheiro AIOps (Aline)
 
 ## Licença
 

@@ -5,7 +5,7 @@
 
 ## Project Overview
 
-**kairos-forge** is a Claude Code / Codex CLI / OpenCode plugin that delivers a 45-agent software factory in Brazilian Portuguese. The factory consists of **24 core agents** organized in 9 teams (leadership, product, architecture, frontend, backend, data, quality, platform, docs) and **21 support agents** in 7 squads (microcopy, narrative, naming, value, observability, DX, architectural review).
+**kairos-forge** is a Claude Code / Codex CLI / OpenCode plugin that delivers a 51-agent software factory in Brazilian Portuguese. The factory consists of **30 core agents** organized in 9 teams (leadership, product, architecture, frontend, backend, data, quality, platform, docs) and **21 support agents** in 7 squads (microcopy, narrative, naming, value, observability, DX, architectural review).
 
 The factory is coordinated by **Laura (Tech Lead)** who analyzes task complexity and only mobilizes the relevant agents. Agents respond in the first person with consistent personas.
 
@@ -13,12 +13,12 @@ The factory is coordinated by **Laura (Tech Lead)** who analyzes task complexity
 
 `kairos-forge` is the **MIT generic** version of the KairOS factory. For projects in **Brazilian regulated domains** (LGPD, IT Security, NRs, OAB, MEC-LDB, ANVISA, BACEN), use [kairos-ai](https://github.com/VilelaAI/kairos-ai), which adds business squads, legal guardrails, binary assertions, Ralph Loop, and a regulatory advisor.
 
-The two plugins are independent — one does not import from the other. The 24 core agents are intentionally duplicated and may diverge over time.
+The two plugins are independent — one does not import from the other. The 30 core agents are intentionally duplicated and may diverge over time.
 
 ## Plugin Structure
 
 - `.claude-plugin/plugin.json` — Plugin manifest (Claude Code)
-- `agents/` — 45 subagents as `<id>.md` files (Claude Code format)
+- `agents/` — 51 subagents as `<id>.md` files (Claude Code format)
 - `skills/<name>/SKILL.md` — 10 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
 - `hooks/hooks.json` — Claude Code hooks (SessionStart banner + PostToolUse pedagogical reminder)
 - `.agents/` — Same content as `agents/` and `skills/`, in Codex CLI format (`<id>/AGENT.md` for agents, `skills/<name>/SKILL.md` for skills)
@@ -152,7 +152,7 @@ OpenCode reads `CLAUDE.md` as a fallback for `AGENTS.md`, so project instruction
 2. **Infinitive verbs in skill names.** `especificar`, not `spec`.
 3. **Skills ≤ 500 lines** in SKILL.md. Heavy reference material lives in skill `references/`.
 4. **Agents have explicit tool allow-lists.** Never give universal access.
-5. **Personas are fixed.** The 24 core agents and 21 support agents have stable names and personalities. Do not invent new ones — use existing or open an ADR for a new persona.
+5. **Personas are fixed.** The 30 core agents and 21 support agents have stable names and personalities. Do not invent new ones — use existing or open an ADR for a new persona.
 6. **Support agents never code.** They produce textual artifacts (Markdown, lists, tables, plans).
 
 ## Workflow for changes
@@ -171,6 +171,8 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0004**: multi-CLI compatibility — Claude Code canonical, Codex via `.agents/` mirror, OpenCode via fallback paths
 - **ADR-0005**: traceable SPEC and validation-against-contract step (v0.5.0)
 - **ADR-0006**: modular architecture, threat model, and the Estrutura dimension in `/auditar` (v0.6.0)
+- **ADR-0007**: infrastructure specialists in the Plataforma squad — Igor (IaC), Kaique (Kubernetes), Gael (GitOps), Nina (Networking) (v0.7.0)
+- **ADR-0008**: SRE/Incident Commander (Sérgio) and AIOps Engineer (Aline) in the Plataforma squad (v0.7.0)
 
 ## Critical design constraints
 

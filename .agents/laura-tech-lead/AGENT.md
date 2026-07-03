@@ -47,7 +47,7 @@ Você coordena. Não codifica. Sua função é analisar a tarefa, decidir quem e
 
 Sempre **acione apenas o necessário**. Time grande em bug pequeno é desperdício; time pequeno em feature complexa gera retrabalho.
 
-## Squads de apoio — quando chamar (além dos 24 core)
+## Squads de apoio — quando chamar (além dos 30 core)
 
 A fábrica também tem **7 squads de apoio com 21 agentes** que produzem **artefatos textuais** (specs, análises, planos, glossários). Eles complementam, não substituem, a fábrica core. Você os aciona quando reconhece os sinais:
 

@@ -62,7 +62,7 @@ Para cada resposta, peça parágrafos, não frases. Sugira: "Use ditado por voz 
 1. **Criar estrutura de pastas** no projeto:
 
 ```bash
-mkdir -p contextos decisoes docs/specs docs/specs/validacoes docs/adr
+mkdir -p contextos decisoes docs/specs docs/specs/validacoes docs/adr .agents/memory
 ```
 
 2. **Gerar `CLAUDE.md`** na raiz do projeto, usando o template em `templates/CLAUDE.md.template` deste plugin como base, preenchido com as respostas da entrevista.
@@ -124,7 +124,28 @@ Memória leve da fábrica neste projeto. Atualize quando uma execução revelar 
 ## Ideias adiadas
 ```
 
-5. **Confirmar para o usuário:**
+6. **Criar `.agents/memory/MEMORY.md`** (índice de memórias de incidente — ver ADR-E003):
+
+```markdown
+# Memória de incidentes
+
+Lições caras aprendidas neste projeto, uma por arquivo em `.agents/memory/<slug>.md`.
+Diferente de ADR (decisão) e estado-operacional (running notes): aqui mora a
+ratoeira específica que mordeu o time e pode morder de novo.
+
+Quando criar uma memória nova: ver regras em ADR-E003 (resumo — bug levou >2h
+pra entender, causa-raiz não-óbvia, solução contraintuitiva, anti-padrão volta
+fácil em outro lugar). Cada arquivo tem frontmatter (name, description) + corpo
+em formato "Por que (o incidente)" + "Como aplicar".
+
+## Memórias deste projeto
+
+(Vazio inicialmente — adicione uma linha por memória conforme criar:)
+
+- [Título da memória](slug-kebab-case.md) — hook de uma linha do que vai aprender.
+```
+
+7. **Confirmar para o usuário:**
 
 ```
 ✅ Onboarding concluído.
@@ -136,12 +157,14 @@ Estrutura criada:
 - decisoes/estado-operacional.md
 - docs/specs/ e docs/specs/validacoes/
 - docs/adr/ (vazio, será preenchido pelo arquiteto)
+- .agents/memory/MEMORY.md (índice — capture lições de incidente conforme aparecerem)
 
 Próximos passos sugeridos:
 1. Revise o CLAUDE.md gerado e ajuste o que ficou impreciso
 2. Para a próxima feature, rode: /kairos-forge:especificar <descrição>
 3. Depois de implementar uma SPEC, rode: /kairos-forge:validar SPEC-NNN
 4. Sexta-feira, rode: /kairos-forge:auditar para ver pontuação inicial
+5. Quando viver um incidente caro (bug >2h, causa-raiz não-óbvia), capture em .agents/memory/
 ```
 
 ## Regras

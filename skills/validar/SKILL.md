@@ -51,9 +51,9 @@ Extraia:
 
 Monte uma matriz:
 
-| Requisito | Prioridade | Evidência no diff | Teste/gate | Status |
-|---|---|---|---|---|
-| EXP-01 | P1 | arquivo/linha ou commit | comando rodado | aprovado/falhou/sem evidência |
+| Requisito | Prioridade | Evidência no diff | Teste/gate | Status SPEC | Verificação SPEC | Status validação |
+|---|---|---|---|---|---|---|
+| EXP-01 | P1 | arquivo/linha ou commit | comando rodado | Concluído | `verificado: pnpm test (12/06)` | aprovado/falhou/sem evidência |
 
 Regras:
 
@@ -62,6 +62,9 @@ Regras:
 - Pergunta aberta não resolvida bloqueia se impactar P1.
 - P2 pode virar follow-up se o relatório registrar a decisão.
 - P3 não bloqueia, mas deve aparecer como pendência.
+- **Status "Concluído" na SPEC sem célula Verificação iniciando com `verificado:` = "sem evidência" automático.** Não importa se o código está no diff: marcar pronto sem prova de execução é o anti-padrão que o ritual existe para impedir. Inspirado no `briefing.md` do Replit-Orchestrator.
+- **Status "Em progresso" sem célula Verificação iniciando com `em progresso:` = falha de contrato.** O autor da SPEC deve listar o que ainda falta. Conta 0.5 no percentual da SPEC se o conteúdo for plausível.
+- SPECs antigas (anteriores à coluna Verificação) ficam fora dessas duas últimas regras — registrar como "SPEC anterior ao ritual de verificação" no veredicto.
 
 ### 4. Rodar gates
 
@@ -142,4 +145,5 @@ Próximo passo: <corrigir com agente X | rodar /kairos-forge:revisar>.
 - **Não confunda validação com revisão.** Validação responde "cumpre a SPEC?". Revisão responde "o código está seguro, testado, performático e pronto para PR?".
 - **Não aprove no escuro.** Sem evidência, status é "sem evidência", não "aprovado".
 - **Não esconda P2/P3.** O usuário pode aceitar follow-up, mas precisa aparecer.
+- **Marca "Concluído" na SPEC só com `verificado:` na coluna Verificação.** Diff existe + teste passou + arquivo/comando/URL citado no `verificado:`. Confiança em "código está aí" não é evidência.
 - **PT-BR em tudo.**

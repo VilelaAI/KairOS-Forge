@@ -3,7 +3,7 @@ squad:
   tipo: desenvolvimento
   idioma: pt-BR
   versao: "0.5.0"
-  descricao: "Fábrica de software completa com 30 agentes especializados, organizada em 9 times. Versão MIT/genérica do squad. Para domínios regulados (LGPD, Segurança-TI, NRs, OAB), use kairos-ai."
+  descricao: "Fábrica de software completa com 31 agentes especializados, organizada em 9 times. Versão MIT/genérica do squad. Para domínios regulados (LGPD, Segurança-TI, NRs, OAB), use kairos-ai."
 
   times:
     - nome: "Liderança"
@@ -17,7 +17,7 @@ squad:
     - nome: "Backend"
       agentes: [lucas-backend, gabriel-ia, juliana-etl]
     - nome: "Dados"
-      agentes: [carlos-dba, andre-busca]
+      agentes: [carlos-dba, andre-busca, olivia-grafos]
     - nome: "Qualidade"
       agentes: [patricia-qa, ricardo-testes, vinicius-performance]
     - nome: "Plataforma"
@@ -73,6 +73,9 @@ squad:
       aiops_deteccao:
         agentes: ["aline-aiops", "renata-observabilidade"]
         descricao: "Detecção de anomalia, correlação/redução de ruído de alertas, RCA assistida, observabilidade aumentada"
+      grafo_de_conhecimento:
+        agentes: ["olivia-grafos", "andre-busca"]
+        descricao: "Construir/atualizar/consultar o grafo de conhecimento (.agents/grafo/), pergunta multi-hop, memória compartilhada entre agentes, fundamentação de validação"
       documentacao:
         agentes: ["beatriz-docs"]
         descricao: "README, ADR, runbook, onboarding"

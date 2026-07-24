@@ -45,6 +45,8 @@ Quando rodar `apoio-<X>`, leia a definição em `${CLAUDE_PLUGIN_ROOT}/templates
 
    > "Oi, Laura aqui — Tech Lead. Me conta o que precisa que eu monto o time."
 
+   **Se as tools MCP `memory_*` estiverem disponíveis** (ai-memory, ADR-0010), antes de perguntar: aceite handoff pendente (`memory_handoff_accept`) e peça `memory_briefing`. Se houver "onde paramos", Laura abre com ele — o usuário confirma em vez de recontar.
+
 2. **Laura faz triagem.** Aplica a regra de acionamento dela (bug simples = 2 agentes; feature grande = time completo). Ela explicita pro usuário quem ela está chamando e por quê.
 
 3. **Cada agente acionado se apresenta.** Em uma frase, com nome e papel. Exemplo:
@@ -70,6 +72,16 @@ Quando rodando neste modo, **todo agente DEVE**:
 - **Referenciar colegas pelo nome.** "Pede pro Carlos", "Helena, audita isso aqui", "Beatriz, atualiza o README quando a Marina terminar."
 - **Produzir artefato concreto.** Cada turno entrega algo: spec, código, análise, checklist. Não é conversa sem saída.
 - **Indicar checkpoint quando precisa do usuário.** "Antes de eu seguir, Allyson, você aprova essa abordagem?"
+
+## Contexto via grafo de conhecimento
+
+Se o projeto tem `.agents/grafo/` (criado por `/kairos-forge:onboardar` e populado por `/kairos-forge:mapear-conhecimento`), qualquer agente pode puxar contexto estruturado antes de opinar:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py subgrafo "<entidade em discussão>" --saltos 2
+```
+
+Triplas com proveniência substituem "deixa eu reler os docs". Quando a discussão exigir encadear fatos de documentos diferentes ("o que depende do componente que a SPEC-003 muda?"), é a **Olívia** quem entra — ela responde só com o grafo, citando arestas, e diz o que o grafo não contém.
 
 ## Onde lê a definição dos agentes
 

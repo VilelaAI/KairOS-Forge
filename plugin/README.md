@@ -1,7 +1,7 @@
 # kairos-forge
 
 > Fábrica de software autônoma como plugin do **Claude Code**, **Codex CLI** e **OpenCode**.
-> **51 agentes em 16 times** (30 core + 21 apoio). PT-BR oficial. MIT.
+> **52 agentes em 16 times** (31 core + 21 apoio). PT-BR oficial. MIT.
 
 Plugin que transforma uma sessão genérica de qualquer CLI compatível em um time completo de desenvolvimento mais um time de apoio textual. Cada agente tem persona, comportamento, allow-list de ferramentas, e personalidade consistente em primeira pessoa. Eles colaboram via `/kairos-forge:rodar` (sequencial) em qualquer CLI ou trabalham em paralelo via Agent Teams nativos (`/kairos-forge:mobilizar`, exclusivo Claude Code).
 
@@ -11,7 +11,7 @@ Plugin que transforma uma sessão genérica de qualquer CLI compatível em um ti
 
 Para projetos em **domínios regulados brasileiros** (LGPD, Segurança-TI, NRs, OAB, MEC-LDB, ANVISA, BACEN), use o [kairos-ai](https://github.com/VilelaAI/kairos-ai) — que adiciona squads negociais, guardrails com referência legal, assertions binárias, Ralph Loop e Advisor regulatório.
 
-## Os 30 agentes core
+## Os 31 agentes core
 
 | Time | Agentes |
 |---|---|
@@ -20,7 +20,7 @@ Para projetos em **domínios regulados brasileiros** (LGPD, Segurança-TI, NRs, 
 | **Arquitetura** | 📐 Diego (Sistemas) · 🗄️ Fernanda (Dados) · 🔗 Thiago (Integrações) |
 | **Frontend** | ⚛️ Marina (Frontend) · 🎨 Pablo (UI) · ♿ Ada (Acessibilidade) |
 | **Backend** | ⚙️ Lucas (Backend) · 🤖 Gabriel (IA) · 📊 Juliana (ETL) |
-| **Dados** | 🛢️ Carlos (DBA) · 🔎 André (Busca) |
+| **Dados** | 🛢️ Carlos (DBA) · 🔎 André (Busca) · 🕸️ Olívia (Conhecimento) |
 | **Qualidade** | ✅ Patrícia (QA Lead) · 🧪 Ricardo (Testes) · ⚡ Vinícius (Performance) |
 | **Plataforma** | 🚀 Marcos (DevOps) · ☁️ Elisa (Cloud) · 🔐 Helena (Security) · 👁️ Renata (Observabilidade) · 🏗️ Igor (IaC) · ☸️ Kaique (Kubernetes) · 🔁 Gael (GitOps) · 🌐 Nina (Redes) · 🧯 Sérgio (SRE) · 🔮 Aline (AIOps) |
 | **Documentação** | 📝 Beatriz (Docs) · 📖 Felipe (API Docs) |
@@ -48,7 +48,7 @@ Acionar:
 /kairos-forge:rodar apoio-revisao-arquitetural
 ```
 
-## As 10 skills
+## As 11 skills
 
 | Skill | Quando usar | Disponível em |
 |---|---|---|
@@ -60,10 +60,25 @@ Acionar:
 | `/kairos-forge:rodar [agente\|time\|apoio-X]` | Conversacional/sequencial — modo padrão | Todos os CLIs |
 | `/kairos-forge:mobilizar <spec>` | Paralelo via Agent Teams | **Apenas Claude Code** |
 | `/kairos-forge:revisar` | Pré-PR. Helena + Patrícia + outros | Todos os CLIs |
+| `/kairos-forge:mapear-conhecimento` | Grafo de conhecimento do projeto: construir, atualizar, consultar (multi-hop com citação de arestas) e diagnosticar | Todos os CLIs |
 | `/kairos-forge:auditar` | Semanal. Pontuação 0–100 em 5 dimensões (Fundação, Pipeline, Guardrails, Conhecimento, Estrutura) | Todos os CLIs |
 | `/kairos-forge:evoluir` | Semanal pós-auditoria | Todos os CLIs |
 
-Ordem natural: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `auditar` → `evoluir`.
+Ordem natural: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `mapear-conhecimento` (quando docs acumulam) → `auditar` → `evoluir`.
+
+### Grafo de conhecimento (Graph Engineering)
+
+A partir da v0.8.0, a fábrica mantém um **grafo de conhecimento por projeto** em `.agents/grafo/` (ADR-0009): entidades e relações com proveniência, extraídas de SPECs, ADRs, decisões e memórias — arquivos JSONL versionados no git, sem banco nem dependência externa. Ele resolve o problema estrutural de qualquer sistema multi-agente: **a memória de cada agente morre com a janela de contexto; o grafo não.**
+
+- `/mobilizar` usa o grafo como **memória compartilhada**: teammates recebem subgrafos em vez de contexto inteiro e devolvem fatos novos.
+- `/validar` usa o grafo como **base de fatos**: afirmações checadas contra arestas ("a tripla X não existe; o que existe é Y, da fonte Z"); fato ausente escala pro humano.
+- Perguntas **multi-hop** ("o que depende do componente que essa SPEC muda?") ganham resposta fundamentada, aresta por aresta.
+
+🕸️ Olívia (Engenheira de Conhecimento, time Dados) é a dona; `scripts/grafo.py` (stdlib-only) cuida da parte determinística (validar contrato, diagnosticar, serializar subgrafo, amostrar).
+
+### Memória persistente em camadas
+
+O grafo é a camada **estrutural** de um modelo de três camadas (ADR-0010): a camada **episódica** (sessões, handoffs entre CLIs) vem do companion externo opcional [ai-memory](https://github.com/akitaonrails/ai-memory) — detectado pelas tools MCP `memory_*`, nunca embarcado, com degradação graciosa na ausência; a camada **curada** são os arquivos do repo (`decisoes/`, `.agents/memory/`, `contextos/`). Com o ai-memory ativo, Laura abre `/rodar` e `/mobilizar` com o handoff "onde paramos", `/evoluir` usa a semana capturada como evidência, e dá pra sair do Claude Code no meio de uma SPEC e continuar no Codex. Guia completo: [`docs/memoria-persistente.md`](docs/memoria-persistente.md).
 
 ## Compatibilidade entre plataformas
 
@@ -224,9 +239,10 @@ Sem o sync, usuários do Codex CLI ficam desatualizados.
 ## Roadmap
 
 - **v0.5** — SPEC rastreável, `/validar`, gates por tarefa, estado operacional
-- **v0.6** (atual) — `/mapear-arquitetura`, `/analisar-ameacas`, dimensão Estrutura em `/auditar` (5 dimensões)
-- **v0.7** — `/migrar`, modo RFC no `/especificar`, modo `/revisar web`
-- **v0.8** — diagramas Mermaid em ADR/SPEC, skill opcional de aprendizado, modo debate (apoio-revisao-arquitetural)
+- **v0.6** — `/mapear-arquitetura`, `/analisar-ameacas`, dimensão Estrutura em `/auditar` (5 dimensões)
+- **v0.7** — 6 especialistas de plataforma/ops (Igor, Kaique, Gael, Nina, Sérgio, Aline)
+- **v0.8** (atual) — Graph Engineering: `/mapear-conhecimento`, Olívia, grafo em `.agents/grafo/`, fundamentação no `/validar` e memória compartilhada no `/mobilizar`
+- **v0.9** — `/migrar`, modo RFC no `/especificar`, diagramas Mermaid em ADR/SPEC, modo debate (apoio-revisao-arquitetural)
 
 ## Documentação
 
@@ -239,6 +255,9 @@ Sem o sync, usuários do Codex CLI ficam desatualizados.
 - [ADR-0006](docs/adr/0006-arquitetura-modular-e-threat-model.md) — `/mapear-arquitetura`, `/analisar-ameacas` e dimensão Estrutura
 - [ADR-0007](docs/adr/0007-especialistas-infra.md) — especialistas de infra no squad Plataforma (Igor, Kaique, Gael, Nina)
 - [ADR-0008](docs/adr/0008-especialistas-aiops.md) — SRE/Incident Commander (Sérgio) e Engenheiro AIOps (Aline)
+- [ADR-0009](docs/adr/0009-graph-engineering.md) — Graph Engineering: grafo de conhecimento como memória compartilhada da fábrica
+- [ADR-0010](docs/adr/0010-memoria-persistente-em-camadas.md) — memória persistente em camadas e integração opcional com ai-memory
+- [Memória persistente](docs/memoria-persistente.md) — guia das 3 camadas e instalação opcional do ai-memory
 
 ## Licença
 

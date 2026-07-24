@@ -1,7 +1,7 @@
 # {{NOME_DO_PROJETO}} — guia para o Claude
 
 > Este arquivo foi gerado por `/kairos-forge:onboardar` em {{DATA}}.
-> Edite à vontade. É a fonte da verdade do projeto para os 24 agentes da fábrica.
+> Edite à vontade. É a fonte da verdade do projeto para os 31 agentes core da fábrica.
 
 ## O que este projeto é
 
@@ -45,6 +45,7 @@
 | `decisoes/evolucoes/` | Plano de evolução semanal da fábrica | Skill `/evoluir` |
 | `docs/specs/` | SPECs de features | Diego, Fernanda, Thiago, Rafael |
 | `docs/adr/` | Decisões arquiteturais irreversíveis | Rafael principalmente |
+| `.agents/grafo/` | Grafo de conhecimento: entidades e relações com proveniência | Olívia + skill `/mapear-conhecimento` |
 
 ## Comandos da fábrica
 
@@ -52,10 +53,11 @@
 - `/kairos-forge:rodar [agente|time]` — modo conversacional, agentes em primeira pessoa
 - `/kairos-forge:mobilizar <spec>` — modo paralelo via Agent Teams (requer `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`)
 - `/kairos-forge:revisar` — revisar diff antes de PR (Helena + Patrícia + outros conforme escopo)
+- `/kairos-forge:mapear-conhecimento` — construir/atualizar/consultar o grafo de conhecimento (Olívia)
 - `/kairos-forge:auditar` — auditoria semanal (sextas)
 - `/kairos-forge:evoluir` — escolher 1 melhoria pra próxima semana
 
-## Os 24 agentes — quem chamar
+## Os 31 agentes core — quem chamar
 
 ### Liderança
 - **👩‍💼 Laura** [Tech Lead] — ponto de entrada de qualquer tarefa, coordena
@@ -83,6 +85,7 @@
 ### Dados
 - **🛢️ Carlos** [DBA] — migrations, queries, EXPLAIN
 - **🔎 André** [Busca] — pgvector, FTS, hybrid search
+- **🕸️ Olívia** [Conhecimento] — grafo de conhecimento, multi-hop, proveniência
 
 ### Qualidade
 - **✅ Patrícia** [QA Lead] — estratégia de testes, triage

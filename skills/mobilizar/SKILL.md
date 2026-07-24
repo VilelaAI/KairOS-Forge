@@ -54,6 +54,16 @@ Você **DEVE** seguir esses passos exatamente, nesta ordem.
 
 Se for uma SPEC, leia `docs/specs/<spec>.md`. Também leia `contextos/testes.md` e `decisoes/estado-operacional.md` se existirem.
 
+**Se o grafo de conhecimento existir** (`.agents/grafo/entidades.jsonl`), puxe o contexto estruturado das entidades centrais da SPEC em vez de reler documentos inteiros:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py subgrafo "<entidade da SPEC>" --saltos 2
+```
+
+O subgrafo serializado (triplas com proveniência) é contexto compacto: decisões, dependências e restrições já registradas sobre os componentes que a SPEC toca.
+
+**Se as tools MCP `memory_*` estiverem disponíveis** (ai-memory, ADR-0010): aceite handoff pendente (`memory_handoff_accept`) e peça briefing (`memory_briefing`) antes de decompor — "onde a última sessão parou" entra na sua triagem sem o usuário recontar.
+
 Extraia:
 
 - Requisitos rastreáveis e prioridades
@@ -101,7 +111,12 @@ Naming: sempre prefixado `forge-`. Slug em kebab-case. Sem espaços.
 
 ### Passo 4 — Criar as Tasks
 
-Use `TaskCreate` para cada tarefa atômica. **Defina dependências explícitas** entre elas e inclua requisito, Done when e gate na descrição:
+Use `TaskCreate` para cada tarefa atômica. **Defina dependências explícitas** entre elas e inclua requisito, Done when e gate na descrição.
+
+**Você está desenhando um grafo de dependências, não uma fila.** Duas regras separam grafo bom de cadeia disfarçada:
+
+1. **Teste da aresta real.** Para cada `depends_on` candidato, pergunte: *a próxima tarefa lê a saída da anterior?* Se sim, é aresta — mantenha. Se não, "e depois" não é dependência: **derrube o `depends_on` e deixe as duas rodarem em paralelo.** Cada par independente rodando em série é tempo jogado fora.
+2. **Independência falsa.** Duas tarefas sem dependência de dados podem ter **aresta oculta**: escrevem no mesmo arquivo, mexem na mesma migration, disputam o mesmo recurso limitado (API com rate limit, ambiente de teste único). Audite por **recurso compartilhado**, não só por dado compartilhado — conflito de escrita exige aresta (ou serialização via file ownership) mesmo com zero dado cruzando.
 
 ```
 TaskCreate({
@@ -172,6 +187,9 @@ Se travar, **não force**. Use SendMessage(team_lead) explicando o bloqueio.
 - Requisitos atendidos
 - Gate rodado e resultado
 - Pendências ou follow-ups
+- Fatos novos pro grafo (se o projeto tiver .agents/grafo/): entidades e relações
+  que seu trabalho criou ou revelou, no formato
+  (origem) --[predicado]--> (destino), com o arquivo-fonte
 ```
 
 ### Passo 6 — File ownership por agente
@@ -198,6 +216,14 @@ Para evitar conflitos de merge, cada teammate só modifica seus arquivos. Adapte
 
 Se dois agentes precisarem do mesmo arquivo, **serialize**: um termina, marca completed, outro entra. Nunca paralelize escrita no mesmo arquivo.
 
+### Passo 6.5 — Grafo como memória compartilhada (se existir)
+
+Se o projeto tem `.agents/grafo/`, o grafo é a memória compartilhada do time — o análogo estrutural do que o playbook de Graph Engineering chama de *shared memory* no padrão orquestrador–workers (ADR-0009):
+
+- **Na largada:** inclua no prompt de cada teammate o subgrafo k=2 das entidades que a tarefa dele toca (passo 1). Isso substitui parágrafos de contexto — o teammate recebe fatos com proveniência, não resumo de resumo.
+- **Durante:** teammate que precisa de fato fora do próprio contexto consulta o grafo (`grafo.py subgrafo`) em vez de pedir pra você repassar contexto de outro teammate. Seu contexto (Laura) fica pequeno; o estado compartilhado vive no grafo.
+- **No encerramento:** consolide os "fatos novos pro grafo" reportados pelos teammates e rode `/kairos-forge:mapear-conhecimento atualizar` (ou recomende ao usuário). Os fatos de um ciclo viram memória do próximo.
+
 ### Passo 7 — Coordenar como Tech Lead
 
 Você (Laura) fica monitorando enquanto o time trabalha:
@@ -206,10 +232,13 @@ Você (Laura) fica monitorando enquanto o time trabalha:
 2. **Responda SendMessage.** Bloqueios reportados pelos teammates precisam de decisão.
 3. **Reatribua se necessário.** Se Marina trava em uma task, mude o assignee via TaskUpdate.
 4. **Checkpoint a cada 3 tasks.** Olhe o que foi entregue, valide alinhamento com a SPEC.
-5. **Encerramento.** Quando todas as tasks estiverem completed, rode ou recomende `/kairos-forge:validar SPEC-NNN` antes de `/kairos-forge:revisar`. Envie `SendMessage` com `{type: "shutdown_request"}` para cada teammate. Reporte ao usuário:
+5. **Fan-in em camadas.** Com mais de ~6 teammates, não consolide todos os outputs crus de uma vez — isso estoura contexto antes da síntese começar. Agrupe por domínio (dados, backend, frontend…), resuma cada grupo, e sintetize **os resumos**.
+6. **Cheque contagem antes de declarar pronto.** Em cadeia, falha para tudo (chato, mas óbvio); em grafo, um nó que falhou some num relatório que parece completo. No encerramento, confira: tasks concluídas × tasks planejadas. Se faltar qualquer uma, **declare a lacuna explicitamente** — nunca sintetize por cima de resultado parcial em silêncio.
+7. **Encerramento.** Quando todas as tasks estiverem completed (ou as lacunas declaradas), rode ou recomende `/kairos-forge:validar SPEC-NNN` antes de `/kairos-forge:revisar`. Envie `SendMessage` com `{type: "shutdown_request"}` para cada teammate. Reporte ao usuário:
 
    ```
-   ✅ Time forge-<slug> concluiu N tarefas em M minutos.
+   ✅ Time forge-<slug>: N de N tarefas planejadas concluídas em M minutos.
+   (Se N < planejado: liste cada tarefa faltante e por quê — nunca omita lacuna.)
 
    Resumo:
    - Migrations: 1 nova (Carlos)
@@ -221,6 +250,7 @@ Você (Laura) fica monitorando enquanto o time trabalha:
    Pendências:
    - Validação contra SPEC ainda não rodou. Recomendo: /kairos-forge:validar SPEC-<NNN>
    - Auditoria de segurança não rodou neste ciclo. Depois da validação, rode: /kairos-forge:revisar
+   - Grafo de conhecimento sem os fatos deste ciclo. Recomendo: /kairos-forge:mapear-conhecimento atualizar
    - PR ainda não aberto. Quer que eu chame o Marcos pra abrir?
    ```
 

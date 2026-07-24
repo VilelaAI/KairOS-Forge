@@ -1,12 +1,14 @@
 # kairos-forge — guia para o Claude
 
-Plugin Claude Code / Codex CLI / OpenCode que entrega uma fábrica de software de 51 agentes em PT-BR. Você está editando o próprio plugin.
+Plugin Claude Code / Codex CLI / OpenCode que entrega uma fábrica de software de 52 agentes em PT-BR. Você está editando o próprio plugin.
 
 ## O que este projeto é
 
-Plugin multi-CLI (não runtime, não SDK). 51 agentes (30 core + 21 apoio em 7 squads), 10 skills, hooks por CLI, coordenação por Laura (Tech Lead).
+Plugin multi-CLI (não runtime, não SDK). 52 agentes (31 core + 21 apoio em 7 squads), 11 skills, hooks por CLI, coordenação por Laura (Tech Lead).
 
-Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `auditar` (semanal) → `evoluir`.
+Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `mapear-conhecimento` (quando docs acumulam; alimenta mobilizar/validar seguintes) → `auditar` (semanal) → `evoluir`.
+
+A memória da fábrica tem **três camadas** (ADR-0009/ADR-0010): **episódica** — sessões capturadas pelo [ai-memory](https://github.com/akitaonrails/ai-memory), companion externo opcional detectado pelas tools MCP `memory_*` (handoff entre CLIs, briefing, busca); **curada** — `decisoes/`, `.agents/memory/`, `contextos/` no repo; **estrutural** — `.agents/grafo/` com entidades e relações com proveniência, dona Olívia (`olivia-grafos`). `/mobilizar` usa o grafo como memória compartilhada entre teammates e `/validar` como base de fatos. O durável sobe de camada (sessão → arquivo → grafo); o repo é a fonte da verdade. Guia: `docs/memoria-persistente.md`.
 
 ## Posicionamento vs kairos-ai
 
@@ -21,7 +23,7 @@ Não duplique funcionalidade entre os dois. Se algo é **regulatório**, vai pro
 3. **Skills ≤ 500 linhas no SKILL.md.** Material pesado vai em `references/` da skill.
 4. **Agentes têm allow-list explícita de ferramentas.** Nunca dar acesso total a todos.
 5. **Acentuação PT-BR correta.** `solução`, não `solucao`. Verifique antes de commitar.
-6. **Personas consistentes.** Os 51 agentes têm nomes e personalidades fixas. Não invente novos — use existentes ou peça via ADR.
+6. **Personas consistentes.** Os 52 agentes têm nomes e personalidades fixas. Não invente novos — use existentes ou peça via ADR.
 
 ## Workflow para mudanças (CRÍTICO)
 
@@ -48,15 +50,16 @@ Sem o sync, usuários do Codex CLI pegam versão desatualizada.
 | `.claude-plugin/marketplace.json` | Catalog do marketplace Claude Code | manual |
 | `.codex-plugin/plugin.json` | Manifest Codex CLI | manual |
 | `.agents/plugins/marketplace.json` | Catalog do marketplace Codex (mesmo conteúdo do Claude Code mas em path próprio) | manual |
-| `agents/<id>.md` | 51 subagentes (canônico Claude Code) | manual |
+| `agents/<id>.md` | 52 subagentes (canônico Claude Code) | manual |
 | `.agents/<id>/AGENT.md` | Mirror Codex dos subagents | **gerado** por `scripts/sync-multi-cli.py` |
-| `skills/<verbo>/SKILL.md` | 10 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
+| `skills/<verbo>/SKILL.md` | 11 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
 | `hooks/hooks.json` | Hooks Claude Code (SessionStart + PostToolUse) | manual |
 | `.codex/hooks.json` | Hooks Codex (apenas SessionStart — Codex não suporta `Write\|Edit` matcher) | manual |
 | `AGENTS.md` | Espelho em inglês do CLAUDE.md raiz, para Codex/OpenCode | manual |
 | `templates/` | `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md` | manual |
 | `docs/adr/` | ADRs | manual |
 | `scripts/sync-multi-cli.py` | Regenera `.agents/<id>/AGENT.md` a partir de `agents/` | manual |
+| `scripts/grafo.py` | Parte determinística do grafo de conhecimento (validar, diagnosticar, subgrafo, amostrar) | manual |
 
 > **Importante: skills/ é compartilhada.** Tanto Claude Code quanto Codex CLI descobrem skills em `skills/<nome>/SKILL.md` quando empacotados como plugin. Não há duplicação. Apenas os subagents (`agents/<id>.md` no Claude Code, `.agents/<id>/AGENT.md` no Codex) é que precisam de mirror.
 
@@ -72,6 +75,8 @@ Sem o sync, usuários do Codex CLI pegam versão desatualizada.
 - **ADR-0006**: arquitetura modular, threat model e dimensão Estrutura na auditoria (v0.6.0)
 - **ADR-0007**: especialistas de infraestrutura no squad Plataforma — Igor (IaC), Kaique (Kubernetes), Gael (GitOps), Nina (Redes) (v0.7.0)
 - **ADR-0008**: SRE/Incident Commander (Sérgio) e Engenheiro AIOps (Aline) no squad Plataforma (v0.7.0)
+- **ADR-0009**: Graph Engineering — grafo de conhecimento como memória compartilhada da fábrica; skill `mapear-conhecimento` e Olívia (Conhecimento) no time Dados (v0.8.0)
+- **ADR-0010**: memória persistente em camadas — integração opcional com ai-memory via MCP (episódica/curada/estrutural) e disciplina de grafo de dependências no `/mobilizar` (v0.8.1)
 
 ## Limitações conhecidas por CLI
 

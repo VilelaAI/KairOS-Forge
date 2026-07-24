@@ -1,12 +1,12 @@
 # kairos-forge
 
-> Marketplace single-plugin do **kairos-forge**: fábrica de software autônoma com 51 agentes em PT-BR para Claude Code, Codex CLI e OpenCode. MIT.
+> Marketplace single-plugin do **kairos-forge**: fábrica de software autônoma com 52 agentes em PT-BR para Claude Code, Codex CLI e OpenCode. MIT.
 
 Este repositório é um **marketplace catalog** que distribui o plugin `kairos-forge`. Para a documentação completa do plugin (agentes, skills, comandos), veja [`plugin/README.md`](plugin/README.md).
 
 ## O plugin distribuído
 
-**`kairos-forge`** — 51 agentes (30 core + 21 apoio em 7 squads) coordenados por Laura (Tech Lead), 10 skills cobrindo o ciclo completo (onboarding → mapa arquitetural brownfield → especificação rastreável → threat model → execução paralela/sequencial → validação contra SPEC → revisão → auditoria em 5 dimensões → evolução).
+**`kairos-forge`** — 52 agentes (31 core + 21 apoio em 7 squads) coordenados por Laura (Tech Lead), 11 skills cobrindo o ciclo completo (onboarding → mapa arquitetural brownfield → especificação rastreável → threat model → execução paralela/sequencial → validação contra SPEC → revisão → grafo de conhecimento com proveniência → auditoria em 5 dimensões → evolução).
 
 Para projetos em **domínios regulados brasileiros** (LGPD, NRs, OAB, etc.), use [kairos-ai](https://github.com/VilelaAI/kairos-ai) em vez deste — adiciona squads negociais, guardrails legais, assertions binárias e advisor regulatório.
 
@@ -98,6 +98,7 @@ Entrevista de 7 perguntas que prepara seu projeto. Depois disso o ciclo padrão 
 /kairos-forge:mobilizar SPEC-NNN      # paralelo via Agent Teams (Claude Code)
 /kairos-forge:validar SPEC-NNN        # aceite contra requisitos/gates da SPEC
 /kairos-forge:revisar                 # Helena + Patrícia + outros
+/kairos-forge:mapear-conhecimento     # grafo de conhecimento: memória compartilhada da fábrica
 /kairos-forge:auditar                 # semanal, pontuação 0–100
 /kairos-forge:evoluir                 # 1 capacidade nova/semana
 ```

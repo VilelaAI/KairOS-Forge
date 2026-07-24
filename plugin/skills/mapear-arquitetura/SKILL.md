@@ -196,6 +196,7 @@ Liste decisões que merecem ADR formal antes de execução.
 - Discutir mapa com time
 - Abrir ADR para movimento grande #1
 - Rodar `/kairos-forge:especificar` para movimentos médios que viram features
+- Semear o grafo de conhecimento com componentes e contextos deste mapa: `/kairos-forge:mapear-conhecimento atualizar`
 ```
 
 ### 6. Responder ao usuário

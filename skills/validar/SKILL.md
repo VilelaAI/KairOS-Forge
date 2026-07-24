@@ -66,6 +66,18 @@ Regras:
 - **Status "Em progresso" sem célula Verificação iniciando com `em progresso:` = falha de contrato.** O autor da SPEC deve listar o que ainda falta. Conta 0.5 no percentual da SPEC se o conteúdo for plausível.
 - SPECs antigas (anteriores à coluna Verificação) ficam fora dessas duas últimas regras — registrar como "SPEC anterior ao ritual de verificação" no veredicto.
 
+### 3.5. Fundamentar afirmações no grafo (se existir)
+
+Se o projeto tem `.agents/grafo/entidades.jsonl`, use o grafo como base de fatos do avaliador (ADR-0009) — validação deixa de ser "parece certo" e vira checagem de fato:
+
+1. Para cada entidade central da SPEC, serialize o contexto: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py subgrafo "<entidade>" --saltos 2`.
+2. Cheque as afirmações da SPEC e das células `verificado:` contra as arestas. Afirmação confirmada cita a aresta: `(A) --[predicado]--> (B) [fonte: arquivo]`.
+3. Afirmação **contradita** pelo grafo entra nos achados com a evidência específica: "a tripla (X, depende de, Y) não existe no grafo; o que existe é (X, substitui, Z), da fonte W".
+4. Afirmação **ausente** do grafo não é aprovada nem rejeitada em silêncio: registre como "sem aresta no grafo" e **escale ao usuário** — pode ser erro da SPEC ou lacuna de cobertura do grafo (nesse caso, recomende `/kairos-forge:mapear-conhecimento atualizar`).
+5. Declare no relatório a data da última construção do grafo (de `.agents/grafo/GRAFO.md`) — fundamentação em grafo velho vale menos e o leitor precisa saber.
+
+Sem grafo no projeto, pule esta etapa sem penalizar o veredicto.
+
 ### 4. Rodar gates
 
 Rode apenas comandos relevantes e seguros:
@@ -111,6 +123,10 @@ Formato:
 ## Ressalvas
 
 ## Evidências de teste
+
+## Fundamentação no grafo
+
+(Se `.agents/grafo/` existir: afirmações confirmadas com aresta citada, contradições com a evidência do grafo, e afirmações sem aresta escaladas ao usuário. Data da última construção do grafo.)
 
 ## Follow-ups aceitos
 

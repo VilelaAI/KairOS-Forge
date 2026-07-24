@@ -1,6 +1,6 @@
 # kairos-forge
 
-> Fábrica de software autônoma como plugin do **Claude Code**, **Codex CLI** e **OpenCode**.
+> Fábrica de software autônoma como plugin do **Claude Code**, **Codex CLI**, **OpenCode** e **Cursor**.
 > **52 agentes em 16 times** (31 core + 21 apoio). PT-BR oficial. MIT.
 
 Plugin que transforma uma sessão genérica de qualquer CLI compatível em um time completo de desenvolvimento mais um time de apoio textual. Cada agente tem persona, comportamento, allow-list de ferramentas, e personalidade consistente em primeira pessoa. Eles colaboram via `/kairos-forge:rodar` (sequencial) em qualquer CLI ou trabalham em paralelo via Agent Teams nativos (`/kairos-forge:mobilizar`, exclusivo Claude Code).
@@ -82,23 +82,23 @@ O grafo é a camada **estrutural** de um modelo de três camadas (ADR-0010): a c
 
 ## Compatibilidade entre plataformas
 
-| Componente | Claude Code | Codex CLI | OpenCode |
-|---|---|---|---|
-| Manifest | `.claude-plugin/plugin.json` | `.codex-plugin/plugin.json` | n/a (lê como skills repo-locais) |
-| Marketplace catalog | `.claude-plugin/marketplace.json` | `.agents/plugins/marketplace.json` | n/a |
-| Comando de instalação | `/plugin marketplace add` (TUI) | `codex plugin marketplace add` + escolher na TUI | `cp -R skills/ .opencode/skills/` |
-| Skills | `skills/<nome>/SKILL.md` | mesma pasta `skills/` (compartilhada) | `.opencode/skills/` ou `.claude/skills/` |
-| Subagents | `agents/<id>.md` | `.agents/<id>/AGENT.md` | via copy de `agents/` |
-| SessionStart hook | `hooks/hooks.json` | `.codex/hooks.json` | via `oh-my-opencode` |
-| PostToolUse hook | ✅ | ❌ Codex só matcher Bash | via `oh-my-opencode` |
-| Agent Teams (`/mobilizar`) | ✅ nativo | ❌ sem `TeamCreate` | ❌ sem equivalente |
-| Instruções de projeto | `CLAUDE.md` | `AGENTS.md` | `CLAUDE.md` (fallback) ou `AGENTS.md` |
+| Componente | Claude Code | Codex CLI | OpenCode | Cursor |
+|---|---|---|---|---|
+| Manifest | `.claude-plugin/plugin.json` | `.codex-plugin/plugin.json` | n/a (lê como skills repo-locais) | n/a |
+| Marketplace catalog | `.claude-plugin/marketplace.json` | `.agents/plugins/marketplace.json` | n/a | n/a |
+| Comando de instalação | `/plugin marketplace add` (TUI) | `codex plugin marketplace add` + escolher na TUI | `cp -R skills/ .opencode/skills/` | `cp -R plugin/.cursor <projeto>/.cursor` (ou `~/.cursor/`) |
+| Skills | `skills/<nome>/SKILL.md` | mesma pasta `skills/` (compartilhada) | `.opencode/skills/` ou `.claude/skills/` | `.cursor/skills/` (mirror gerado, padrão Agent Skills) |
+| Subagents | `agents/<id>.md` | `.agents/<id>/AGENT.md` | via copy de `agents/` | `.cursor/agents/<id>.md` (gerado, frontmatter adaptado) |
+| SessionStart hook | `hooks/hooks.json` | `.codex/hooks.json` | via `oh-my-opencode` | rule `alwaysApply` (`.cursor/rules/kairos-forge.mdc`) |
+| PostToolUse hook | ✅ | ❌ Codex só matcher Bash | via `oh-my-opencode` | ❌ |
+| Agent Teams (`/mobilizar`) | ✅ nativo | ❌ sem `TeamCreate` | ❌ sem equivalente | ❌ (subagents paralelos existem, mas sem protocolo de Teams) |
+| Instruções de projeto | `CLAUDE.md` | `AGENTS.md` | `CLAUDE.md` (fallback) ou `AGENTS.md` | `AGENTS.md` |
 
 > **Nota sobre skills compartilhadas:** Tanto Claude Code quanto Codex descobrem skills em `skills/<nome>/SKILL.md` quando empacotados como plugin. Não há duplicação — a mesma pasta serve aos dois CLIs. Apenas os manifests (`.claude-plugin/` vs `.codex-plugin/`) e os subagents é que diferem.
 
-> **Nota sobre `mobilizar`:** Esta skill é exclusiva do Claude Code. Em Codex/OpenCode ela detecta o ambiente e orienta o usuário a usar `/kairos-forge:rodar` como alternativa.
+> **Nota sobre `mobilizar`:** Esta skill é exclusiva do Claude Code. Em Codex/OpenCode/Cursor ela detecta o ambiente e orienta o usuário a usar `/kairos-forge:rodar` como alternativa.
 
-> **Nota sobre `.agents/<id>/AGENT.md`:** O diretório é **gerado** a partir de `agents/` pelo script `scripts/sync-multi-cli.py`. Não edite arquivos lá — alterações são perdidas no próximo sync. Sempre edite o canônico (`agents/`) e rode o sync.
+> **Nota sobre `.agents/` e `.cursor/`:** Os dois diretórios são **gerados** a partir de `agents/` + `skills/` pelo script `scripts/sync-multi-cli.py`. Não edite arquivos lá — alterações são perdidas no próximo sync. Sempre edite o canônico e rode o sync.
 
 ## Instalação
 
@@ -170,6 +170,22 @@ Para ativar o hook de SessionStart no Codex, adicione ao seu `~/.codex/config.to
 codex_hooks = true
 ```
 
+### Cursor
+
+O Cursor não tem marketplace de plugins — a instalação é uma cópia única da distribuição gerada `.cursor/` (requer Cursor 2.4+ para subagents; skills a partir do 2.1):
+
+```bash
+git clone https://github.com/VilelaAI/kairos-forge.git
+
+# Por projeto:
+cp -R kairos-forge/plugin/.cursor /caminho/do/projeto/.cursor
+
+# Ou global (todos os projetos):
+cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
+```
+
+O que chega: 52 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 11 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, mais `scripts/grafo.py` e `templates/`. Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
+
 ### OpenCode
 
 ```bash
@@ -214,6 +230,9 @@ Depois (qualquer CLI):
 
 /kairos-forge:revisar
    └─ Helena + Patrícia + outros leem o diff
+
+/kairos-forge:mapear-conhecimento atualizar
+   └─ Olívia registra as entidades e decisões deste ciclo no grafo (.agents/grafo/)
 ```
 
 ## Para contribuidores
@@ -222,11 +241,11 @@ Quando alterar arquivos em `agents/` ou `skills/`, **sempre rode o sync** antes 
 
 ```bash
 python3 scripts/sync-multi-cli.py
-git add agents/ skills/ .agents/
+git add agents/ skills/ .agents/ .cursor/
 git commit -m "feat(<modulo>): <descrição>"
 ```
 
-Sem o sync, usuários do Codex CLI ficam desatualizados.
+Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 
 ## Convenções
 
@@ -241,8 +260,9 @@ Sem o sync, usuários do Codex CLI ficam desatualizados.
 - **v0.5** — SPEC rastreável, `/validar`, gates por tarefa, estado operacional
 - **v0.6** — `/mapear-arquitetura`, `/analisar-ameacas`, dimensão Estrutura em `/auditar` (5 dimensões)
 - **v0.7** — 6 especialistas de plataforma/ops (Igor, Kaique, Gael, Nina, Sérgio, Aline)
-- **v0.8** (atual) — Graph Engineering: `/mapear-conhecimento`, Olívia, grafo em `.agents/grafo/`, fundamentação no `/validar` e memória compartilhada no `/mobilizar`
-- **v0.9** — `/migrar`, modo RFC no `/especificar`, diagramas Mermaid em ADR/SPEC, modo debate (apoio-revisao-arquitetural)
+- **v0.8** — Graph Engineering: `/mapear-conhecimento`, Olívia, grafo em `.agents/grafo/`, fundamentação no `/validar` e memória compartilhada no `/mobilizar`; memória em camadas com ai-memory opcional (ADR-0010)
+- **v0.9** (atual) — suporte ao Cursor: `.cursor/` gerado com subagents, skills (Agent Skills), rule e suporte (ADR-0011)
+- **v0.10** — `/migrar`, modo RFC no `/especificar`, diagramas Mermaid em ADR/SPEC, modo debate (apoio-revisao-arquitetural)
 
 ## Documentação
 
@@ -257,6 +277,7 @@ Sem o sync, usuários do Codex CLI ficam desatualizados.
 - [ADR-0008](docs/adr/0008-especialistas-aiops.md) — SRE/Incident Commander (Sérgio) e Engenheiro AIOps (Aline)
 - [ADR-0009](docs/adr/0009-graph-engineering.md) — Graph Engineering: grafo de conhecimento como memória compartilhada da fábrica
 - [ADR-0010](docs/adr/0010-memoria-persistente-em-camadas.md) — memória persistente em camadas e integração opcional com ai-memory
+- [ADR-0011](docs/adr/0011-suporte-cursor.md) — suporte ao Cursor (subagents + Agent Skills + rules)
 - [Memória persistente](docs/memoria-persistente.md) — guia das 3 camadas e instalação opcional do ai-memory
 
 ## Licença

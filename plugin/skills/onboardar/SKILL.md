@@ -67,6 +67,8 @@ mkdir -p contextos decisoes docs/specs docs/specs/validacoes docs/adr .agents/me
 
 2. **Gerar `CLAUDE.md`** na raiz do projeto, usando o template em `templates/CLAUDE.md.template` deste plugin como base, preenchido com as respostas da entrevista.
 
+   Se o time também usa **Codex, Cursor ou OpenCode** (pergunte se não souber), gere junto um `AGENTS.md` na raiz com o mesmo conteúdo — esses CLIs leem `AGENTS.md` como instrução de projeto, não `CLAUDE.md`. Mantenha os dois em sincronia (uma linha no topo de cada um lembrando isso basta).
+
 3. **Criar arquivos iniciais em `contextos/`:**
    - `contextos/sobre-o-projeto.md` — resposta 1 expandida
    - `contextos/stack.md` — resposta 2 expandida
@@ -185,6 +187,7 @@ Cheque se as tools MCP `memory_*` (ai-memory) estão disponíveis na sessão.
 
 Estrutura criada:
 - CLAUDE.md (preenchido)
+- AGENTS.md (se o time usa Codex/Cursor/OpenCode — espelho do CLAUDE.md)
 - contextos/ (inclui testes e gates)
 - decisoes/log.md
 - decisoes/estado-operacional.md

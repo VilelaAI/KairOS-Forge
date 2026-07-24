@@ -1,6 +1,6 @@
 # kairos-forge — guia para o Claude
 
-Plugin Claude Code / Codex CLI / OpenCode que entrega uma fábrica de software de 52 agentes em PT-BR. Você está editando o próprio plugin.
+Plugin Claude Code / Codex CLI / OpenCode / Cursor que entrega uma fábrica de software de 52 agentes em PT-BR. Você está editando o próprio plugin.
 
 ## O que este projeto é
 
@@ -27,16 +27,16 @@ Não duplique funcionalidade entre os dois. Se algo é **regulatório**, vai pro
 
 ## Workflow para mudanças (CRÍTICO)
 
-Os arquivos canônicos são **`agents/`** e **`skills/`** (formato Claude Code). O diretório **`.agents/`** é GERADO automaticamente para Codex CLI.
+Os arquivos canônicos são **`agents/`** e **`skills/`** (formato Claude Code). Os diretórios **`.agents/`** (Codex) e **`.cursor/`** (Cursor) são GERADOS automaticamente.
 
 **Sempre que alterar agents/ ou skills/, rode antes de commitar:**
 
 ```bash
 python3 scripts/sync-multi-cli.py
-git add agents/ skills/ .agents/
+git add agents/ skills/ .agents/ .cursor/
 ```
 
-Sem o sync, usuários do Codex CLI pegam versão desatualizada.
+Sem o sync, usuários de Codex CLI e Cursor pegam versão desatualizada.
 
 - Mudar prompt de agente ou skill → bump patch (0.4.x) + rodar sync
 - Adicionar agente ou skill → bump minor (0.x.0) + ADR + rodar sync
@@ -52,13 +52,14 @@ Sem o sync, usuários do Codex CLI pegam versão desatualizada.
 | `.agents/plugins/marketplace.json` | Catalog do marketplace Codex (mesmo conteúdo do Claude Code mas em path próprio) | manual |
 | `agents/<id>.md` | 52 subagentes (canônico Claude Code) | manual |
 | `.agents/<id>/AGENT.md` | Mirror Codex dos subagents | **gerado** por `scripts/sync-multi-cli.py` |
+| `.cursor/` | Distribuição Cursor completa: agents adaptados (readonly quando consultivo), skills espelhadas, rule `alwaysApply`, `grafo.py`, templates (ADR-0011) | **gerado** por `scripts/sync-multi-cli.py` |
 | `skills/<verbo>/SKILL.md` | 11 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
 | `hooks/hooks.json` | Hooks Claude Code (SessionStart + PostToolUse) | manual |
 | `.codex/hooks.json` | Hooks Codex (apenas SessionStart — Codex não suporta `Write\|Edit` matcher) | manual |
 | `AGENTS.md` | Espelho em inglês do CLAUDE.md raiz, para Codex/OpenCode | manual |
 | `templates/` | `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md` | manual |
 | `docs/adr/` | ADRs | manual |
-| `scripts/sync-multi-cli.py` | Regenera `.agents/<id>/AGENT.md` a partir de `agents/` | manual |
+| `scripts/sync-multi-cli.py` | Regenera `.agents/` (Codex) e `.cursor/` (Cursor) a partir de `agents/` + `skills/` | manual |
 | `scripts/grafo.py` | Parte determinística do grafo de conhecimento (validar, diagnosticar, subgrafo, amostrar) | manual |
 
 > **Importante: skills/ é compartilhada.** Tanto Claude Code quanto Codex CLI descobrem skills em `skills/<nome>/SKILL.md` quando empacotados como plugin. Não há duplicação. Apenas os subagents (`agents/<id>.md` no Claude Code, `.agents/<id>/AGENT.md` no Codex) é que precisam de mirror.
@@ -77,14 +78,16 @@ Sem o sync, usuários do Codex CLI pegam versão desatualizada.
 - **ADR-0008**: SRE/Incident Commander (Sérgio) e Engenheiro AIOps (Aline) no squad Plataforma (v0.7.0)
 - **ADR-0009**: Graph Engineering — grafo de conhecimento como memória compartilhada da fábrica; skill `mapear-conhecimento` e Olívia (Conhecimento) no time Dados (v0.8.0)
 - **ADR-0010**: memória persistente em camadas — integração opcional com ai-memory via MCP (episódica/curada/estrutural) e disciplina de grafo de dependências no `/mobilizar` (v0.8.1)
+- **ADR-0011**: suporte ao Cursor — `.cursor/` gerado com subagents adaptados, skills (Agent Skills padrão), rule `alwaysApply` e suporte às skills (v0.9.0)
 
 ## Limitações conhecidas por CLI
 
-| Item | Claude Code | Codex CLI | OpenCode |
-|---|---|---|---|
-| `/kairos-forge:mobilizar` (Agent Teams) | ✅ | ❌ skill avisa e sugere `rodar` | ❌ skill avisa e sugere `rodar` |
-| Hook PostToolUse pedagógico | ✅ | ❌ | ❌ (sem `oh-my-opencode`) |
-| SessionStart banner | ✅ | ✅ | ❌ (sem `oh-my-opencode`) |
+| Item | Claude Code | Codex CLI | OpenCode | Cursor |
+|---|---|---|---|---|
+| `/kairos-forge:mobilizar` (Agent Teams) | ✅ | ❌ skill avisa e sugere `rodar` | ❌ skill avisa e sugere `rodar` | ❌ skill avisa e sugere `rodar` |
+| Hook PostToolUse pedagógico | ✅ | ❌ | ❌ (sem `oh-my-opencode`) | ❌ |
+| SessionStart banner | ✅ | ✅ | ❌ (sem `oh-my-opencode`) | ✅ via rule `alwaysApply` |
+| Subagents com persona | ✅ nativo | ✅ mirror `.agents/` | ⚠️ via cópia de `agents/` | ✅ `.cursor/agents/` (allow-list degrada pra `readonly`) |
 
 A skill `mobilizar` tem detecção embutida — quando rodada em CLI sem suporte, ela orienta o usuário a usar `rodar` em vez disso.
 

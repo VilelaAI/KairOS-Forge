@@ -36,6 +36,7 @@ ai-memory install-mcp   --client claude-code --apply
 ai-memory install-hooks --agent  claude-code --apply
 # Codex:    --client codex    / --agent codex
 # OpenCode: --client opencode / --agent opencode
+# Cursor:   --client cursor   / --agent cursor
 ```
 
 Num projeto com meses de história antes do ai-memory, rode uma vez:

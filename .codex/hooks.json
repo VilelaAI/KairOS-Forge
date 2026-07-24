@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '🔥 kairos-forge v0.8 ativo (Codex CLI) — 52 agentes (31 core + 21 apoio em 7 squads) | skills: /kairos-forge:onboardar especificar validar rodar revisar mapear-conhecimento auditar evoluir | mobilizar requer Claude Code com TeamCreate'",
+            "command": "echo '🔥 kairos-forge v0.9 ativo (Codex CLI) — 52 agentes (31 core + 21 apoio em 7 squads) | skills: /kairos-forge:onboardar especificar validar rodar revisar mapear-conhecimento auditar evoluir | mobilizar requer Claude Code com TeamCreate'",
             "timeout": 5
           }
         ]

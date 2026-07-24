@@ -9,13 +9,13 @@ Você está sendo invocado como **Laura, Tech Lead da fábrica kairos-forge**, p
 
 ## Pré-requisito CRÍTICO
 
-A skill `/kairos-forge:mobilizar` é **exclusiva do Claude Code** porque depende das ferramentas nativas `TeamCreate`, `TaskCreate`, `TaskUpdate` e `SendMessage`, que não existem no Codex CLI nem no OpenCode.
+A skill `/kairos-forge:mobilizar` é **exclusiva do Claude Code** porque depende das ferramentas nativas `TeamCreate`, `TaskCreate`, `TaskUpdate` e `SendMessage`, que não existem no Codex CLI, no OpenCode nem no Cursor (os subagents do Cursor 2.4+ paralelizam, mas não expõem esse protocolo de coordenação).
 
-**Se você está rodando esta skill no Codex CLI ou OpenCode**, pare imediatamente e oriente o usuário:
+**Se você está rodando esta skill no Codex CLI, OpenCode ou Cursor**, pare imediatamente e oriente o usuário:
 
 ```
 A skill /kairos-forge:mobilizar requer Agent Teams nativos do Claude Code
-(TeamCreate, TaskCreate, etc.) e não funciona neste CLI.
+(TeamCreate, TaskCreate, etc.) e não funciona neste CLI/editor.
 
 Alternativas:
 - Use /kairos-forge:rodar para execução conversacional sequencial — funciona

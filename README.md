@@ -1,6 +1,6 @@
 # kairos-forge
 
-> Marketplace single-plugin do **kairos-forge**: fábrica de software autônoma com 52 agentes em PT-BR para Claude Code, Codex CLI e OpenCode. MIT.
+> Marketplace single-plugin do **kairos-forge**: fábrica de software autônoma com 52 agentes em PT-BR para Claude Code, Codex CLI, OpenCode e Cursor. MIT.
 
 Este repositório é um **marketplace catalog** que distribui o plugin `kairos-forge`. Para a documentação completa do plugin (agentes, skills, comandos), veja [`plugin/README.md`](plugin/README.md).
 
@@ -71,6 +71,22 @@ Para ativar o hook de SessionStart, adicione ao `~/.codex/config.toml`:
 codex_hooks = true
 ```
 
+### Cursor
+
+Sem marketplace no Cursor — a instalação é uma cópia única da distribuição gerada `.cursor/` (requer Cursor 2.4+ para os subagents):
+
+```bash
+git clone https://github.com/VilelaAI/kairos-forge.git
+
+# Por projeto:
+cp -R kairos-forge/plugin/.cursor /caminho/do/projeto/.cursor
+
+# Ou global (todos os projetos):
+cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
+```
+
+Isso entrega os 52 subagents, as 11 skills no menu `/`, a rule com o banner da fábrica e os arquivos de suporte (`grafo.py`, templates). `mobilizar` detecta o Cursor e redireciona pra `rodar`.
+
 ### OpenCode
 
 ```bash
@@ -112,7 +128,7 @@ Quando alterar `plugin/agents/` ou `plugin/skills/`, rode o sync antes de commit
 ```bash
 cd plugin
 python3 scripts/sync-multi-cli.py
-git add agents/ .agents/
+git add agents/ skills/ .agents/ .cursor/
 ```
 
 Quando bumpar versão, atualize **todos** os 4 arquivos:

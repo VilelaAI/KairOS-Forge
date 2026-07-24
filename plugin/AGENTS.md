@@ -5,7 +5,7 @@
 
 ## Project Overview
 
-**kairos-forge** is a Claude Code / Codex CLI / OpenCode plugin that delivers a 52-agent software factory in Brazilian Portuguese. The factory consists of **31 core agents** organized in 9 teams (leadership, product, architecture, frontend, backend, data, quality, platform, docs) and **21 support agents** in 7 squads (microcopy, narrative, naming, value, observability, DX, architectural review).
+**kairos-forge** is a Claude Code / Codex CLI / OpenCode / Cursor plugin that delivers a 52-agent software factory in Brazilian Portuguese. The factory consists of **31 core agents** organized in 9 teams (leadership, product, architecture, frontend, backend, data, quality, platform, docs) and **21 support agents** in 7 squads (microcopy, narrative, naming, value, observability, DX, architectural review).
 
 The factory is coordinated by **Laura (Tech Lead)** who analyzes task complexity and only mobilizes the relevant agents. Agents respond in the first person with consistent personas.
 
@@ -22,45 +22,46 @@ The two plugins are independent — one does not import from the other. The core
 - `skills/<name>/SKILL.md` — 11 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
 - `hooks/hooks.json` — Claude Code hooks (SessionStart banner + PostToolUse pedagogical reminder)
 - `.agents/` — Same content as `agents/` and `skills/`, in Codex CLI format (`<id>/AGENT.md` for agents, `skills/<name>/SKILL.md` for skills)
+- `.cursor/` — Generated Cursor distribution (ADR-0011): adapted subagents in `agents/` (`tools:`/`model:` stripped; `readonly: true` when the original allow-list has no write-capable tool), mirrored skills (open Agent Skills format), an `alwaysApply` rule replacing the SessionStart banner, plus `scripts/grafo.py` and `templates/` so `${CLAUDE_PLUGIN_ROOT}` references resolve
 - `.codex/hooks.json` — Codex-specific hooks (no `Write|Edit` matcher; only Bash supported)
 - `templates/` — `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`
 - `docs/adr/` — Architecture Decision Records
-- `scripts/sync-multi-cli.py` — Regenerates `.agents/` from `agents/` + `skills/` whenever the canonical Claude Code sources change
+- `scripts/sync-multi-cli.py` — Regenerates `.agents/` (Codex) and `.cursor/` (Cursor) from `agents/` + `skills/` whenever the canonical Claude Code sources change
 - `scripts/grafo.py` — Deterministic side of the knowledge graph (validate, diagnose, k-hop subgraph, human sample); the graph itself lives in the user project at `.agents/grafo/`
 
 ## Cross-platform compatibility
 
-| Component | Claude Code | Codex CLI | OpenCode |
-|---|---|---|---|
-| Plugin manifest | `.claude-plugin/plugin.json` | `.codex-plugin/plugin.json` | n/a |
-| Marketplace catalog | `.claude-plugin/marketplace.json` | `.agents/plugins/marketplace.json` | n/a |
-| Install command | `/plugin marketplace add` (TUI) | `codex plugin marketplace add` + TUI selection | `cp -R skills/ .opencode/skills/` |
-| Skills | `skills/<name>/SKILL.md` | same `skills/` folder (shared) | `.opencode/skills/` or `.claude/skills/` |
-| Subagents | `agents/<id>.md` | `.agents/<id>/AGENT.md` | via copy of `agents/` |
-| SessionStart hook | `hooks/hooks.json` | `.codex/hooks.json` | via `oh-my-opencode` |
-| PostToolUse hook | `hooks/hooks.json` | ❌ (only Bash matcher) | via `oh-my-opencode` |
-| Agent Teams (`/mobilizar`) | ✅ native (`TeamCreate`) | ❌ no equivalent | ❌ no equivalent |
-| Project instructions | `CLAUDE.md` | `AGENTS.md` | `CLAUDE.md` (fallback) or `AGENTS.md` |
+| Component | Claude Code | Codex CLI | OpenCode | Cursor |
+|---|---|---|---|---|
+| Plugin manifest | `.claude-plugin/plugin.json` | `.codex-plugin/plugin.json` | n/a | n/a |
+| Marketplace catalog | `.claude-plugin/marketplace.json` | `.agents/plugins/marketplace.json` | n/a | n/a |
+| Install command | `/plugin marketplace add` (TUI) | `codex plugin marketplace add` + TUI selection | `cp -R skills/ .opencode/skills/` | `cp -R plugin/.cursor <project>/.cursor` (or `~/.cursor/`) |
+| Skills | `skills/<name>/SKILL.md` | same `skills/` folder (shared) | `.opencode/skills/` or `.claude/skills/` | `.cursor/skills/` (generated mirror, Agent Skills standard) |
+| Subagents | `agents/<id>.md` | `.agents/<id>/AGENT.md` | via copy of `agents/` | `.cursor/agents/<id>.md` (generated, adapted frontmatter) |
+| SessionStart hook | `hooks/hooks.json` | `.codex/hooks.json` | via `oh-my-opencode` | `.cursor/rules/kairos-forge.mdc` (`alwaysApply`) |
+| PostToolUse hook | `hooks/hooks.json` | ❌ (only Bash matcher) | via `oh-my-opencode` | ❌ |
+| Agent Teams (`/mobilizar`) | ✅ native (`TeamCreate`) | ❌ no equivalent | ❌ no equivalent | ❌ (parallel subagents exist, but no Teams protocol) |
+| Project instructions | `CLAUDE.md` | `AGENTS.md` | `CLAUDE.md` (fallback) or `AGENTS.md` | `AGENTS.md` |
 
-**Skills are shared, not duplicated.** Both Claude Code and Codex discover skills at `skills/<name>/SKILL.md` when packaged as plugin. Only the manifest, marketplace catalog, and the subagent format differ.
+**Skills are shared, not duplicated** between Claude Code and Codex — both discover skills at `skills/<name>/SKILL.md` when packaged as plugin. Cursor has no plugin/marketplace concept, so it receives a **generated** mirror under `.cursor/skills/` (same SKILL.md files, open Agent Skills standard — regenerated by the sync script, never edited by hand).
 
 ### Skill availability per CLI
 
 All 11 skills live in `skills/` and are accessible to both Claude Code and Codex.
 
-| Skill | Claude Code | Codex CLI | OpenCode |
-|---|---|---|---|
-| `onboardar` | ✅ | ✅ | ✅ |
-| `especificar` | ✅ | ✅ | ✅ |
-| `mapear-arquitetura` | ✅ | ✅ | ✅ |
-| `mapear-conhecimento` | ✅ | ✅ | ✅ |
-| `analisar-ameacas` | ✅ | ✅ | ✅ |
-| `validar` | ✅ | ✅ | ✅ |
-| `rodar` | ✅ | ✅ | ✅ |
-| `mobilizar` | ✅ | ⚠️ skill loads but detects environment and redirects to `rodar` | ⚠️ same as Codex |
-| `revisar` | ✅ | ✅ | ✅ |
-| `auditar` | ✅ | ✅ | ✅ |
-| `evoluir` | ✅ | ✅ | ✅ |
+| Skill | Claude Code | Codex CLI | OpenCode | Cursor |
+|---|---|---|---|---|
+| `onboardar` | ✅ | ✅ | ✅ | ✅ |
+| `especificar` | ✅ | ✅ | ✅ | ✅ |
+| `mapear-arquitetura` | ✅ | ✅ | ✅ | ✅ |
+| `mapear-conhecimento` | ✅ | ✅ | ✅ | ✅ |
+| `analisar-ameacas` | ✅ | ✅ | ✅ | ✅ |
+| `validar` | ✅ | ✅ | ✅ | ✅ |
+| `rodar` | ✅ | ✅ | ✅ | ✅ |
+| `mobilizar` | ✅ | ⚠️ skill loads but detects environment and redirects to `rodar` | ⚠️ same as Codex | ⚠️ same as Codex |
+| `revisar` | ✅ | ✅ | ✅ | ✅ |
+| `auditar` | ✅ | ✅ | ✅ | ✅ |
+| `evoluir` | ✅ | ✅ | ✅ | ✅ |
 
 Natural flow ordering: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (sensitive features) → `mobilizar`/`rodar` → `validar` → `revisar` → `mapear-conhecimento` (as docs accumulate; feeds later `mobilizar`/`validar` runs) → `auditar` (weekly) → `evoluir`.
 
@@ -140,6 +141,22 @@ To enable the SessionStart hook, add to `~/.codex/config.toml`:
 codex_hooks = true
 ```
 
+### Cursor
+
+Cursor has no plugin marketplace — install is a single copy of the generated `.cursor/` distribution (requires Cursor 2.4+ for subagents; skills need 2.1+):
+
+```bash
+git clone https://github.com/VilelaAI/kairos-forge.git
+
+# Per project:
+cp -R kairos-forge/plugin/.cursor /path/to/project/.cursor
+
+# Or globally, for all projects:
+cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
+```
+
+This delivers the 52 subagents (`.cursor/agents/`), the 11 skills in the `/` menu (`.cursor/skills/`), an `alwaysApply` rule with the factory banner and `${CLAUDE_PLUGIN_ROOT}` path resolution, plus `scripts/grafo.py` and `templates/`. Project instructions: Cursor reads `AGENTS.md` — `/kairos-forge:onboardar` offers to generate it alongside `CLAUDE.md`. `mobilizar` detects Cursor and redirects to `rodar`.
+
 ### OpenCode
 
 ```bash
@@ -181,6 +198,7 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0008**: SRE/Incident Commander (Sérgio) and AIOps Engineer (Aline) in the Plataforma squad (v0.7.0)
 - **ADR-0009**: Graph Engineering — knowledge graph as the factory's shared memory; `mapear-conhecimento` skill and Olívia (Knowledge) in the Dados team (v0.8.0)
 - **ADR-0010**: layered persistent memory — optional ai-memory integration via MCP (episodic/curated/structural) and dependency-graph discipline in `/mobilizar` (v0.8.1)
+- **ADR-0011**: Cursor support — generated `.cursor/` distribution with adapted subagents, mirrored skills (Agent Skills standard), `alwaysApply` rule, and skill-support files (v0.9.0)
 
 ## Critical design constraints
 
@@ -189,5 +207,5 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **Agent naming**: Format `Name [Role]` with emoji icon (e.g., 👩‍💼 Laura [Tech Lead], 🔐 Helena [Security]).
 - **Support squads are non-coding**: Squads with `tipo: apoio` NEVER implement code — they produce textual artifacts only.
 - **Name collisions are explicit**: Three pairs share first names across core/support (Marcos, Helena, Elisa). Laura disambiguates before invoking when the user mentions only the first name.
-- **`.agents/` is generated, not edited**: The Claude Code paths (`agents/`, `skills/`) are canonical. Edits to `.agents/` will be lost on next sync.
-- **mobilizar is Claude Code-exclusive**: Agent Teams require `TeamCreate`/`TaskCreate` which only exist in Claude Code. The skill is mirrored to `.agents/skills/` but informs the user when invoked under Codex/OpenCode.
+- **`.agents/` and `.cursor/` are generated, not edited**: The Claude Code paths (`agents/`, `skills/`) are canonical. Edits to `.agents/` or `.cursor/` will be lost on next sync.
+- **mobilizar is Claude Code-exclusive**: Agent Teams require `TeamCreate`/`TaskCreate` which only exist in Claude Code. The skill informs the user and redirects to `rodar` when invoked under Codex/OpenCode/Cursor.

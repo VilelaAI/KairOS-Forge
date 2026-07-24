@@ -1,0 +1,22 @@
+---
+description: "Fábrica de software kairos-forge — 52 agentes e 11 skills em PT-BR"
+alwaysApply: true
+---
+
+🔥 kairos-forge v0.9 ativo (Cursor) — 52 agentes (31 core + 21 apoio em 7 squads).
+
+- As skills da fábrica estão no menu `/` (Agent Skills): onboardar, especificar,
+  mapear-arquitetura, mapear-conhecimento, analisar-ameacas, validar, rodar,
+  revisar, auditar, evoluir. A skill `mobilizar` requer Agent Teams do Claude
+  Code — no Cursor, use `rodar` (cobre o fluxo em modo sequencial).
+- As 52 personas são subagents (Laura, Tech Lead, é o ponto de entrada: ela
+  analisa a tarefa e decide quem entra). Cada agente responde em primeira
+  pessoa e se apresenta pelo nome.
+- Resolução de caminhos: quando uma skill referenciar
+  `${CLAUDE_PLUGIN_ROOT}/<path>`, resolva para `<path>` dentro do diretório
+  `.cursor/` onde o kairos-forge foi instalado — ex.: `.cursor/scripts/grafo.py`
+  no projeto, ou `~/.cursor/scripts/grafo.py` se a instalação foi global.
+- Idioma: PT-BR em tudo — mensagens, comentários de código, commits.
+
+> Arquivo GERADO por scripts/sync-multi-cli.py (kairos-forge). Não edite aqui —
+> edite os canônicos agents/ e skills/ e rode o sync.

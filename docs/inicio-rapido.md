@@ -9,6 +9,8 @@ Este guia leva você de "acabei de ouvir falar de plugin" para "tenho a fábrica
 - Um projeto onde você queira aplicar a fábrica (qualquer linguagem, qualquer stack)
 - **Opcional, para `/mobilizar`**: `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`
 
+> Este guia segue o fluxo do **Claude Code**. Usa Codex CLI, OpenCode ou Cursor? A instalação por CLI está no [README do plugin](../README.md) — depois de instalado, as skills e o ciclo abaixo são os mesmos (exceto `/mobilizar`, exclusivo do Claude Code).
+
 ## Passo 1 — instalar o plugin
 
 ### Via marketplace
@@ -30,7 +32,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver:
 
 ```
-🔥 kairos-forge v0.8 ativo — 52 agentes (31 core + 21 apoio em 7 squads) | skills: ...
+🔥 kairos-forge v0.9 ativo — 52 agentes (31 core + 21 apoio em 7 squads) | skills: ...
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -43,11 +45,12 @@ Entrevista de 7 perguntas. Reserve 15 minutos. Use ditado por voz se ajudar — 
 
 Ao final você terá:
 
-- `CLAUDE.md` preenchido na raiz do projeto
+- `CLAUDE.md` preenchido na raiz do projeto (e `AGENTS.md`, se o time também usa Codex/Cursor/OpenCode)
 - `contextos/` com contexto de projeto, stack, convenções, restrições e testes
 - `decisoes/log.md`
 - `decisoes/estado-operacional.md`
 - `docs/specs/`, `docs/specs/validacoes/` e `docs/adr/` prontos pros arquitetos popularem
+- `.agents/memory/` (índice de memórias de incidente) e `.agents/grafo/` (esquema do grafo de conhecimento)
 
 ## Passo 3 — primeira feature pelo fluxo correto
 
@@ -169,6 +172,9 @@ Loop semanal é o que faz a fábrica ficar mais inteligente com o tempo.
 
 # QA review sem mexer em código
 /kairos-forge:rodar patricia
+
+# Pergunta multi-hop fundamentada no grafo de conhecimento
+/kairos-forge:mapear-conhecimento consultar "o que depende do módulo de billing?"
 ```
 
 ## Anti-padrões que matam o setup
@@ -197,6 +203,7 @@ Não tem problema técnico, mas pense bem. Os dois sobrepõem o squad técnico. 
 
 - Leia [ADR-0001](adr/0001-plugin-em-vez-de-runtime.md) para entender por que isso é plugin
 - Leia [ADR-0002](adr/0002-relacao-com-kairos-ai.md) para entender quando migrar pro kairos-ai
+- Leia [ADR-0009](adr/0009-graph-engineering.md) e [memória persistente](memoria-persistente.md) para as camadas de memória da fábrica (grafo + ai-memory opcional)
 - Veja `templates/squad-fabrica.yaml` para entender como os 31 agentes core são organizados
 - Veja `templates/anti-drift.md` para o protocolo que mantém Agent Teams alinhados
 - Quando tiver dor recorrente, rode `/kairos-forge:evoluir` pra virar capacidade nova

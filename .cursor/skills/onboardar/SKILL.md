@@ -187,6 +187,7 @@ Cheque se as tools MCP `memory_*` (ai-memory) estão disponíveis na sessão.
 
 Estrutura criada:
 - CLAUDE.md (preenchido)
+- AGENTS.md (se o time usa Codex/Cursor/OpenCode — espelho do CLAUDE.md)
 - contextos/ (inclui testes e gates)
 - decisoes/log.md
 - decisoes/estado-operacional.md

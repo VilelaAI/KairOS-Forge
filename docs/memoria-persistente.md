@@ -64,7 +64,7 @@ Frases que acionam naturalmente: "onde paramos?", "já discutimos X?", "o que de
 
 ## Continuidade entre CLIs
 
-O forge é multi-CLI por design (ADR-0004) e o ai-memory fecha o ciclo: saia do Claude Code no meio de uma SPEC, abra o Codex no mesmo diretório — o hook de SessionStart injeta o handoff ("onde você parou, perguntas abertas, próximos passos") antes do primeiro prompt. Para continuidade de maior fidelidade (retomada nativa de sessão por harness), existe o modo opcional `ai-memory run claude` / `ai-memory run codex` — decisão do usuário, fora do escopo do plugin.
+O forge é multi-CLI por design (ADR-0004/ADR-0011) e o ai-memory fecha o ciclo: saia do Claude Code no meio de uma SPEC, abra o Codex ou o Cursor no mesmo diretório — o hook de SessionStart injeta o handoff ("onde você parou, perguntas abertas, próximos passos") antes do primeiro prompt. Para continuidade de maior fidelidade (retomada nativa de sessão por harness), existe o modo opcional `ai-memory run claude` / `ai-memory run codex` — decisão do usuário, fora do escopo do plugin.
 
 ## Segurança
 

@@ -44,14 +44,19 @@
 | `decisoes/auditorias/` | Histórico de auditorias semanais | Skill `/auditar` |
 | `decisoes/evolucoes/` | Plano de evolução semanal da fábrica | Skill `/evoluir` |
 | `docs/specs/` | SPECs de features | Diego, Fernanda, Thiago, Rafael |
+| `docs/specs/validacoes/` | Relatórios de aceite contra SPEC | Skill `/validar` |
 | `docs/adr/` | Decisões arquiteturais irreversíveis | Rafael principalmente |
+| `.agents/memory/` | Memórias de incidente (lições caras, uma por arquivo) | Você + agentes |
 | `.agents/grafo/` | Grafo de conhecimento: entidades e relações com proveniência | Olívia + skill `/mapear-conhecimento` |
 
 ## Comandos da fábrica
 
 - `/kairos-forge:especificar <feature>` — começar uma feature pelo design (Laura aciona arquitetos)
+- `/kairos-forge:mapear-arquitetura` — inventário estrutural brownfield (Diego coordena)
+- `/kairos-forge:analisar-ameacas <spec|feature>` — threat model antes de feature sensível (Helena)
 - `/kairos-forge:rodar [agente|time]` — modo conversacional, agentes em primeira pessoa
 - `/kairos-forge:mobilizar <spec>` — modo paralelo via Agent Teams (requer `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`)
+- `/kairos-forge:validar <spec>` — aceite contra requisitos, critérios e gates da SPEC
 - `/kairos-forge:revisar` — revisar diff antes de PR (Helena + Patrícia + outros conforme escopo)
 - `/kairos-forge:mapear-conhecimento` — construir/atualizar/consultar o grafo de conhecimento (Olívia)
 - `/kairos-forge:auditar` — auditoria semanal (sextas)
@@ -97,6 +102,12 @@
 - **☁️ Elisa** [Cloud] — provedor, FinOps, residência
 - **🔐 Helena** [Security] — OWASP, secrets, audit
 - **👁️ Renata** [Observabilidade] — logs, métricas, traces
+- **🏗️ Igor** [IaC] — Terraform, módulos, state remoto, drift
+- **☸️ Kaique** [Kubernetes] — EKS, Helm, autoscaling, Ingress
+- **🔁 Gael** [GitOps] — ArgoCD, Kustomize, progressive delivery
+- **🌐 Nina** [Redes] — VPC, DNS, CDN, WAF, TLS
+- **🧯 Sérgio** [SRE] — incidente, runbooks, postmortem, error budget
+- **🔮 Aline** [AIOps] — detecção de anomalia, correlação de alertas, RCA
 
 ### Documentação
 - **📝 Beatriz** [Docs] — README, ADR, runbook

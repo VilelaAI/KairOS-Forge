@@ -28,7 +28,8 @@ kairos-forge/                          ← repo = MARKETPLACE
     ├── .claude-plugin/plugin.json     ← manifest Claude Code
     ├── .codex-plugin/plugin.json      ← manifest Codex CLI
     ├── skills/, agents/, hooks/
-    ├── .agents/, .codex/
+    ├── .agents/, .codex/               ← mirror Codex (gerado)
+    ├── .cursor/                        ← distribuição Cursor (gerada)
     ├── docs/, templates/, scripts/
     └── ...
 ```

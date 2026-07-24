@@ -230,6 +230,9 @@ Depois (qualquer CLI):
 
 /kairos-forge:revisar
    └─ Helena + Patrícia + outros leem o diff
+
+/kairos-forge:mapear-conhecimento atualizar
+   └─ Olívia registra as entidades e decisões deste ciclo no grafo (.agents/grafo/)
 ```
 
 ## Para contribuidores

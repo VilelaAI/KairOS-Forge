@@ -54,6 +54,14 @@ Você **DEVE** seguir esses passos exatamente, nesta ordem.
 
 Se for uma SPEC, leia `docs/specs/<spec>.md`. Também leia `contextos/testes.md` e `decisoes/estado-operacional.md` se existirem.
 
+**Se o grafo de conhecimento existir** (`.agents/grafo/entidades.jsonl`), puxe o contexto estruturado das entidades centrais da SPEC em vez de reler documentos inteiros:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py subgrafo "<entidade da SPEC>" --saltos 2
+```
+
+O subgrafo serializado (triplas com proveniência) é contexto compacto: decisões, dependências e restrições já registradas sobre os componentes que a SPEC toca.
+
 Extraia:
 
 - Requisitos rastreáveis e prioridades
@@ -172,6 +180,9 @@ Se travar, **não force**. Use SendMessage(team_lead) explicando o bloqueio.
 - Requisitos atendidos
 - Gate rodado e resultado
 - Pendências ou follow-ups
+- Fatos novos pro grafo (se o projeto tiver .agents/grafo/): entidades e relações
+  que seu trabalho criou ou revelou, no formato
+  (origem) --[predicado]--> (destino), com o arquivo-fonte
 ```
 
 ### Passo 6 — File ownership por agente
@@ -198,6 +209,14 @@ Para evitar conflitos de merge, cada teammate só modifica seus arquivos. Adapte
 
 Se dois agentes precisarem do mesmo arquivo, **serialize**: um termina, marca completed, outro entra. Nunca paralelize escrita no mesmo arquivo.
 
+### Passo 6.5 — Grafo como memória compartilhada (se existir)
+
+Se o projeto tem `.agents/grafo/`, o grafo é a memória compartilhada do time — o análogo estrutural do que o playbook de Graph Engineering chama de *shared memory* no padrão orquestrador–workers (ADR-0009):
+
+- **Na largada:** inclua no prompt de cada teammate o subgrafo k=2 das entidades que a tarefa dele toca (passo 1). Isso substitui parágrafos de contexto — o teammate recebe fatos com proveniência, não resumo de resumo.
+- **Durante:** teammate que precisa de fato fora do próprio contexto consulta o grafo (`grafo.py subgrafo`) em vez de pedir pra você repassar contexto de outro teammate. Seu contexto (Laura) fica pequeno; o estado compartilhado vive no grafo.
+- **No encerramento:** consolide os "fatos novos pro grafo" reportados pelos teammates e rode `/kairos-forge:mapear-conhecimento atualizar` (ou recomende ao usuário). Os fatos de um ciclo viram memória do próximo.
+
 ### Passo 7 — Coordenar como Tech Lead
 
 Você (Laura) fica monitorando enquanto o time trabalha:
@@ -221,6 +240,7 @@ Você (Laura) fica monitorando enquanto o time trabalha:
    Pendências:
    - Validação contra SPEC ainda não rodou. Recomendo: /kairos-forge:validar SPEC-<NNN>
    - Auditoria de segurança não rodou neste ciclo. Depois da validação, rode: /kairos-forge:revisar
+   - Grafo de conhecimento sem os fatos deste ciclo. Recomendo: /kairos-forge:mapear-conhecimento atualizar
    - PR ainda não aberto. Quer que eu chame o Marcos pra abrir?
    ```
 

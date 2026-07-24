@@ -71,6 +71,16 @@ Quando rodando neste modo, **todo agente DEVE**:
 - **Produzir artefato concreto.** Cada turno entrega algo: spec, código, análise, checklist. Não é conversa sem saída.
 - **Indicar checkpoint quando precisa do usuário.** "Antes de eu seguir, Allyson, você aprova essa abordagem?"
 
+## Contexto via grafo de conhecimento
+
+Se o projeto tem `.agents/grafo/` (criado por `/kairos-forge:onboardar` e populado por `/kairos-forge:mapear-conhecimento`), qualquer agente pode puxar contexto estruturado antes de opinar:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py subgrafo "<entidade em discussão>" --saltos 2
+```
+
+Triplas com proveniência substituem "deixa eu reler os docs". Quando a discussão exigir encadear fatos de documentos diferentes ("o que depende do componente que a SPEC-003 muda?"), é a **Olívia** quem entra — ela responde só com o grafo, citando arestas, e diz o que o grafo não contém.
+
 ## Onde lê a definição dos agentes
 
 Os 30 agentes vivem em `${CLAUDE_PLUGIN_ROOT}/agents/*.md`, cada um com seu frontmatter (`name`, `description`, `tools`, `model`) e corpo (comportamento + limites). Esta skill não duplica o conteúdo — só coordena o fluxo entre eles.

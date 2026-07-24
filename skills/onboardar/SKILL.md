@@ -62,7 +62,7 @@ Para cada resposta, peça parágrafos, não frases. Sugira: "Use ditado por voz 
 1. **Criar estrutura de pastas** no projeto:
 
 ```bash
-mkdir -p contextos decisoes docs/specs docs/specs/validacoes docs/adr .agents/memory
+mkdir -p contextos decisoes docs/specs docs/specs/validacoes docs/adr .agents/memory .agents/grafo/perfis
 ```
 
 2. **Gerar `CLAUDE.md`** na raiz do projeto, usando o template em `templates/CLAUDE.md.template` deste plugin como base, preenchido com as respostas da entrevista.
@@ -145,7 +145,33 @@ em formato "Por que (o incidente)" + "Como aplicar".
 - [Título da memória](slug-kebab-case.md) — hook de uma linha do que vai aprender.
 ```
 
-7. **Confirmar para o usuário:**
+7. **Criar `.agents/grafo/GRAFO.md`** (índice do grafo de conhecimento — ver ADR-0009) e o `esquema.md` inicial:
+
+```markdown
+# Grafo de conhecimento
+
+Modelo de mundo persistente da fábrica neste projeto: entidades e relações com
+proveniência, extraídas de SPECs, ADRs, decisões e memórias. A memória de cada
+agente morre com a janela de contexto — o grafo não.
+
+Construa/atualize com `/kairos-forge:mapear-conhecimento` (Olívia coordena).
+O grafo alimenta `/mobilizar` (memória compartilhada entre teammates),
+`/validar` (checagem de afirmações contra arestas) e consultas multi-hop.
+
+## Estado
+
+- Última construção: (ainda não construído)
+- Versão do esquema: 1
+- Diagnóstico: —
+
+## Amostras humanas
+
+(Registre aqui cada `grafo.py amostrar` conferida: data, nó, veredicto.)
+```
+
+Para o `esquema.md`, use o modelo da seção 2 de `${CLAUDE_PLUGIN_ROOT}/skills/mapear-conhecimento/references/playbook-grafo.md` (tipos e predicados default, `versão: 1`).
+
+8. **Confirmar para o usuário:**
 
 ```
 ✅ Onboarding concluído.
@@ -158,6 +184,7 @@ Estrutura criada:
 - docs/specs/ e docs/specs/validacoes/
 - docs/adr/ (vazio, será preenchido pelo arquiteto)
 - .agents/memory/MEMORY.md (índice — capture lições de incidente conforme aparecerem)
+- .agents/grafo/ (esquema + índice — o grafo em si nasce no primeiro mapear-conhecimento)
 
 Próximos passos sugeridos:
 1. Revise o CLAUDE.md gerado e ajuste o que ficou impreciso
@@ -165,6 +192,7 @@ Próximos passos sugeridos:
 3. Depois de implementar uma SPEC, rode: /kairos-forge:validar SPEC-NNN
 4. Sexta-feira, rode: /kairos-forge:auditar para ver pontuação inicial
 5. Quando viver um incidente caro (bug >2h, causa-raiz não-óbvia), capture em .agents/memory/
+6. Quando SPECs/ADRs/decisões acumularem, rode: /kairos-forge:mapear-conhecimento construir
 ```
 
 ## Regras

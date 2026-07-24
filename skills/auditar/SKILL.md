@@ -16,7 +16,7 @@ Audita 5 dimensões. Cada uma vale 20 pontos. Total: 100.
 | **Fundação** | CLAUDE.md, contextos/, decisoes/, ADRs |
 | **Pipeline** | Skills, SPECs rastreáveis, validações e agentes em uso |
 | **Guardrails** | Hooks, lints, testes, CI, gates e security checks |
-| **Conhecimento** | Wiki/memória persistente, estado operacional, references/, documentação |
+| **Conhecimento** | Grafo de conhecimento, memória persistente, estado operacional, references/, documentação |
 | **Estrutura** | Arquitetura modular, ownership, acoplamento, threat model |
 
 Read-only: você só lê arquivos. Não modifica nada.
@@ -69,12 +69,13 @@ Read-only: você só lê arquivos. Não modifica nada.
 
 | Critério | Pontos |
 |---|---|
-| `references/` ou `docs/references/` com material de apoio | 3 |
-| README do projeto cobre instalação, uso e contribuição | 3 |
-| `decisoes/estado-operacional.md` existe e tem ao menos uma seção preenchida (não só headers vazios) | 4 |
+| `references/` ou `docs/references/` com material de apoio | 2 |
+| README do projeto cobre instalação, uso e contribuição | 2 |
+| `decisoes/estado-operacional.md` existe e tem ao menos uma seção preenchida (não só headers vazios) | 3 |
 | `.agents/memory/MEMORY.md` existe (índice de memórias de incidente — ADR-E003) | 2 |
-| Memórias de incidente em `.agents/memory/<slug>.md` com frontmatter `name`/`description` (escala): 1-2 = 2 pts, 3-5 = 4 pts, 6+ = 6 pts | 0-6 |
+| Memórias de incidente em `.agents/memory/<slug>.md` com frontmatter `name`/`description` (escala): 1-2 = 2 pts, 3+ = 4 pts | 0-4 |
 | Pelo menos 1 ADR explicando decisão arquitetural não-óbvia | 2 |
+| Grafo de conhecimento (ADR-0009), em escala: `.agents/grafo/` com `entidades.jsonl` + `relacoes.jsonl` + `esquema.md` versionado = 2 pts; `grafo.py validar` sai limpo = +2 pts; construção/atualização ≤ 30 dias registrada em `GRAFO.md` = +1 pt | 0-5 |
 
 ### Estrutura (20 pts)
 
@@ -139,6 +140,17 @@ Comandos sugeridos (read-only, sem dependências fora do projeto):
 
 Helena, Rafael ou Diego podem ser citados no relatório como responsáveis sugeridos por fechar lacunas desta dimensão.
 
+## Coletar evidências para Conhecimento: grafo
+
+Para o critério do grafo de conhecimento (read-only, sem dependências):
+
+- Existência: `ls .agents/grafo/entidades.jsonl .agents/grafo/relacoes.jsonl .agents/grafo/esquema.md 2>/dev/null`.
+- Contrato: `python3 <plugin>/scripts/grafo.py validar` — exit 0 = +2 pts; erros = 0 nesse subcritério e liste os 3 primeiros no relatório.
+- Frescor: data de "Última construção" em `.agents/grafo/GRAFO.md` ≤ 30 dias = +1 pt.
+- Bônus de diagnóstico (não pontua, mas entra no relatório): `grafo.py diagnosticar` — mais de 1 componente conexo ou densidade < 0.5 são lacunas candidatas ao top 3.
+
+Olívia é a responsável sugerida por lacunas deste critério.
+
 ## Coletar evidências para Guardrails: segurança do setup
 
 O kairos-forge embarca `scripts/check-agent-security.py`, que audita a *configuração de agentes/hooks* — não o código do produto. Para o critério de setup customizado, rode-o apontando para a config do projeto:
@@ -155,6 +167,7 @@ Se a dimensão Estrutura ficar baixa, as ações naturais costumam ser:
 
 - Sem mapa arquitetural ou acoplamento alto → rodar `/kairos-forge:mapear-arquitetura`.
 - Sem modelo de ameaças em área sensível → rodar `/kairos-forge:analisar-ameacas`.
+- Sem grafo de conhecimento, grafo quebrando `validar` ou parado > 30 dias → rodar `/kairos-forge:mapear-conhecimento` (construir ou atualizar).
 - Sem CODEOWNERS → abrir tarefa para Rafael/Diego definirem fronteiras de propriedade.
 - Hotspots órfãos → registrar em `decisoes/estado-operacional.md` e atribuir.
 

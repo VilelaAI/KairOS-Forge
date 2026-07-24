@@ -50,6 +50,16 @@ Mapeamento que Laura usa:
 
 Se a tarefa for primariamente de produto (escopo, priorização, MVP), Laura aciona **Camila (PM)** antes ou junto.
 
+### 2.1. Consultar o grafo de conhecimento (se existir)
+
+Se o projeto tem `.agents/grafo/entidades.jsonl`, antes de interrogar o usuário o arquiteto puxa o que a fábrica já sabe sobre as entidades da feature:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py subgrafo "<componente/feature citado>" --saltos 2
+```
+
+Decisões, dependências e restrições já registradas (com fonte) entram na SPEC em vez de serem redescobertas — e conflito entre a feature nova e uma aresta existente ("X substitui Y", "X depende de Z") vira pergunta ao usuário antes de virar requisito.
+
 ### 3. Arquiteto(s) interrogam em primeira pessoa
 
 Perguntas típicas por agente:

@@ -76,6 +76,10 @@ A partir da v0.8.0, a fábrica mantém um **grafo de conhecimento por projeto** 
 
 🕸️ Olívia (Engenheira de Conhecimento, time Dados) é a dona; `scripts/grafo.py` (stdlib-only) cuida da parte determinística (validar contrato, diagnosticar, serializar subgrafo, amostrar).
 
+### Memória persistente em camadas
+
+O grafo é a camada **estrutural** de um modelo de três camadas (ADR-0010): a camada **episódica** (sessões, handoffs entre CLIs) vem do companion externo opcional [ai-memory](https://github.com/akitaonrails/ai-memory) — detectado pelas tools MCP `memory_*`, nunca embarcado, com degradação graciosa na ausência; a camada **curada** são os arquivos do repo (`decisoes/`, `.agents/memory/`, `contextos/`). Com o ai-memory ativo, Laura abre `/rodar` e `/mobilizar` com o handoff "onde paramos", `/evoluir` usa a semana capturada como evidência, e dá pra sair do Claude Code no meio de uma SPEC e continuar no Codex. Guia completo: [`docs/memoria-persistente.md`](docs/memoria-persistente.md).
+
 ## Compatibilidade entre plataformas
 
 | Componente | Claude Code | Codex CLI | OpenCode |
@@ -252,6 +256,8 @@ Sem o sync, usuários do Codex CLI ficam desatualizados.
 - [ADR-0007](docs/adr/0007-especialistas-infra.md) — especialistas de infra no squad Plataforma (Igor, Kaique, Gael, Nina)
 - [ADR-0008](docs/adr/0008-especialistas-aiops.md) — SRE/Incident Commander (Sérgio) e Engenheiro AIOps (Aline)
 - [ADR-0009](docs/adr/0009-graph-engineering.md) — Graph Engineering: grafo de conhecimento como memória compartilhada da fábrica
+- [ADR-0010](docs/adr/0010-memoria-persistente-em-camadas.md) — memória persistente em camadas e integração opcional com ai-memory
+- [Memória persistente](docs/memoria-persistente.md) — guia das 3 camadas e instalação opcional do ai-memory
 
 ## Licença
 

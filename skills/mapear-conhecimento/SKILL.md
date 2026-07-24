@@ -75,6 +75,7 @@ Corpus default (ajuste com o usuário se necessário):
 - `.agents/memory/*.md`
 - `docs/arquitetura/MAPA-*.md` e `docs/seguranca/AMEACAS-*.md`
 - `README.md`
+- **Opcional:** páginas da wiki do ai-memory (ADR-0010), se as tools MCP `memory_*` existirem — `memory_query` pelas entidades já conhecidas, `memory_read_page` nas páginas relevantes. Fonte registrada como `ai-memory:<workspace>/<projeto>/<path>`. Sessões antigas guardam decisões que nunca chegaram aos arquivos curados; o filtro de precisão continua o mesmo.
 
 **Cap de extração por rodada: 30 documentos.** Corpus maior → priorize SPECs/ADRs/decisões e rode `atualizar` nas rodadas seguintes. O cap impede que uma rodada vire custo sem fim (erro de ingestão, corpus duplicado).
 

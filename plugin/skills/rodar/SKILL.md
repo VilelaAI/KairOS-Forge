@@ -45,6 +45,8 @@ Quando rodar `apoio-<X>`, leia a definição em `${CLAUDE_PLUGIN_ROOT}/templates
 
    > "Oi, Laura aqui — Tech Lead. Me conta o que precisa que eu monto o time."
 
+   **Se as tools MCP `memory_*` estiverem disponíveis** (ai-memory, ADR-0010), antes de perguntar: aceite handoff pendente (`memory_handoff_accept`) e peça `memory_briefing`. Se houver "onde paramos", Laura abre com ele — o usuário confirma em vez de recontar.
+
 2. **Laura faz triagem.** Aplica a regra de acionamento dela (bug simples = 2 agentes; feature grande = time completo). Ela explicita pro usuário quem ela está chamando e por quê.
 
 3. **Cada agente acionado se apresenta.** Em uma frase, com nome e papel. Exemplo:

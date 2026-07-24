@@ -8,7 +8,7 @@ Plugin multi-CLI (não runtime, não SDK). 52 agentes (31 core + 21 apoio em 7 s
 
 Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `mapear-conhecimento` (quando docs acumulam; alimenta mobilizar/validar seguintes) → `auditar` (semanal) → `evoluir`.
 
-O grafo de conhecimento (ADR-0009) é a camada de memória da fábrica: `.agents/grafo/` no projeto do usuário guarda entidades e relações com proveniência; `/mobilizar` o usa como memória compartilhada entre teammates, `/validar` como base de fatos, e a Olívia (`olivia-grafos`) é a dona.
+A memória da fábrica tem **três camadas** (ADR-0009/ADR-0010): **episódica** — sessões capturadas pelo [ai-memory](https://github.com/akitaonrails/ai-memory), companion externo opcional detectado pelas tools MCP `memory_*` (handoff entre CLIs, briefing, busca); **curada** — `decisoes/`, `.agents/memory/`, `contextos/` no repo; **estrutural** — `.agents/grafo/` com entidades e relações com proveniência, dona Olívia (`olivia-grafos`). `/mobilizar` usa o grafo como memória compartilhada entre teammates e `/validar` como base de fatos. O durável sobe de camada (sessão → arquivo → grafo); o repo é a fonte da verdade. Guia: `docs/memoria-persistente.md`.
 
 ## Posicionamento vs kairos-ai
 
@@ -76,6 +76,7 @@ Sem o sync, usuários do Codex CLI pegam versão desatualizada.
 - **ADR-0007**: especialistas de infraestrutura no squad Plataforma — Igor (IaC), Kaique (Kubernetes), Gael (GitOps), Nina (Redes) (v0.7.0)
 - **ADR-0008**: SRE/Incident Commander (Sérgio) e Engenheiro AIOps (Aline) no squad Plataforma (v0.7.0)
 - **ADR-0009**: Graph Engineering — grafo de conhecimento como memória compartilhada da fábrica; skill `mapear-conhecimento` e Olívia (Conhecimento) no time Dados (v0.8.0)
+- **ADR-0010**: memória persistente em camadas — integração opcional com ai-memory via MCP (episódica/curada/estrutural) e disciplina de grafo de dependências no `/mobilizar` (v0.8.1)
 
 ## Limitações conhecidas por CLI
 

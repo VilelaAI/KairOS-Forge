@@ -148,6 +148,7 @@ Para o critério do grafo de conhecimento (read-only, sem dependências):
 - Contrato: `python3 <plugin>/scripts/grafo.py validar` — exit 0 = +2 pts; erros = 0 nesse subcritério e liste os 3 primeiros no relatório.
 - Frescor: data de "Última construção" em `.agents/grafo/GRAFO.md` ≤ 30 dias = +1 pt.
 - Bônus de diagnóstico (não pontua, mas entra no relatório): `grafo.py diagnosticar` — mais de 1 componente conexo ou densidade < 0.5 são lacunas candidatas ao top 3.
+- Memória de sessão (não pontua — ADR-0010): se as tools MCP `memory_*` (ai-memory) estiverem disponíveis, registre no relatório "memória de sessão ativa" (com `memory_status` se quiser detalhe); se não, registre "inativa — camada opcional, ver docs/memoria-persistente.md".
 
 Olívia é a responsável sugerida por lacunas deste critério.
 

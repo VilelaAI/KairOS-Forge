@@ -66,6 +66,8 @@ Natural flow ordering: `onboardar` → `mapear-arquitetura` (brownfield) → `es
 
 **Knowledge graph (Graph Engineering, ADR-0009).** The factory maintains a per-project knowledge graph at `.agents/grafo/` (JSONL entities/relations/aliases with provenance, versioned schema, hub profiles). It acts as shared memory for `mobilizar` teammates, as the grounding layer for `validar` (claims checked against edges; claims absent from the graph escalate to the human), and as the persistent world model that survives context-window flushes. 🕸️ Olívia (`olivia-grafos`, Dados team) owns it via the `mapear-conhecimento` skill; `scripts/grafo.py` handles the deterministic parts.
 
+**Layered persistent memory (ADR-0010).** Three layers: **episodic** (session capture + cross-CLI handoffs via the optional external [ai-memory](https://github.com/akitaonrails/ai-memory) companion, detected through its `memory_*` MCP tools — never bundled, graceful degradation when absent), **curated** (`decisoes/`, `.agents/memory/`, `contextos/` in the repo), and **structural** (the knowledge graph above). Durable facts flow upward (session → curated file → graph edge); the repo stays the source of truth, and skills never double-write. See `docs/memoria-persistente.md`.
+
 For Codex/OpenCode users, `/kairos-forge:rodar` is the recommended fallback when `mobilizar` is unavailable — the conversational/sequential mode works on all three CLIs.
 
 ## Installation per CLI
@@ -178,6 +180,7 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0007**: infrastructure specialists in the Plataforma squad — Igor (IaC), Kaique (Kubernetes), Gael (GitOps), Nina (Networking) (v0.7.0)
 - **ADR-0008**: SRE/Incident Commander (Sérgio) and AIOps Engineer (Aline) in the Plataforma squad (v0.7.0)
 - **ADR-0009**: Graph Engineering — knowledge graph as the factory's shared memory; `mapear-conhecimento` skill and Olívia (Knowledge) in the Dados team (v0.8.0)
+- **ADR-0010**: layered persistent memory — optional ai-memory integration via MCP (episodic/curated/structural) and dependency-graph discipline in `/mobilizar` (v0.8.1)
 
 ## Critical design constraints
 

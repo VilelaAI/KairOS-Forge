@@ -21,6 +21,10 @@ Idealmente o usuário acabou de rodar `/kairos-forge:auditar`. Se não rodou, su
 
 Se o usuário disser para seguir sem auditar, prossiga.
 
+## Antes da entrevista: evidência da semana (se houver memória de sessão)
+
+Se as tools MCP `memory_*` estiverem disponíveis (ai-memory, ADR-0010), colete evidência antes de perguntar: `memory_recent` e `memory_query` sobre a semana (prompts repetidos, tarefas que apareceram várias vezes, sessões longas no mesmo problema). Use como **provocação concreta** nas perguntas — "vi que você pediu geração de fixture 4 vezes esta semana; isso é a repetição?" — em vez de depender só da lembrança do usuário. A resposta continua sendo dele: evidência sugere, não decide.
+
 ## A entrevista — 5 perguntas
 
 Faça **uma pergunta por vez**. Sem enfileirar.

@@ -171,7 +171,14 @@ O grafo alimenta `/mobilizar` (memória compartilhada entre teammates),
 
 Para o `esquema.md`, use o modelo da seção 2 de `${CLAUDE_PLUGIN_ROOT}/skills/mapear-conhecimento/references/playbook-grafo.md` (tipos e predicados default, `versão: 1`).
 
-8. **Confirmar para o usuário:**
+8. **Verificar a camada de memória de sessão (opcional — ADR-0010):**
+
+Cheque se as tools MCP `memory_*` (ai-memory) estão disponíveis na sessão.
+
+- **Disponíveis:** informe que a memória de sessão está ativa e, se o projeto tem histórico, sugira rodar `ai-memory bootstrap` uma vez para semear a wiki.
+- **Ausentes:** mencione como opcional, em uma frase, apontando para `docs/memoria-persistente.md` do plugin ("captura automática de sessões + handoff entre CLIs; instalação em 3 comandos"). Não insista — a fábrica funciona sem.
+
+9. **Confirmar para o usuário:**
 
 ```
 ✅ Onboarding concluído.

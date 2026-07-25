@@ -32,7 +32,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver:
 
 ```
-🔥 kairos-forge v0.9 ativo — 52 agentes (31 core + 21 apoio em 7 squads) | skills: ...
+🔥 kairos-forge v0.10 ativo — 52 agentes (31 core + 21 apoio em 7 squads) | skills: ...
 ```
 
 ## Passo 2 — onboarding do projeto

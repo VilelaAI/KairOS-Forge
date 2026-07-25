@@ -1,6 +1,6 @@
 ---
 name: mapear-conhecimento
-description: Constrói, atualiza, consulta e diagnostica o grafo de conhecimento do projeto em .agents/grafo/ — entidades, relações com proveniência, perfis de hubs e respostas multi-hop que citam arestas. Use quando specs/ADRs/decisões acumularem, quando /mobilizar precisar de memória compartilhada entre agentes, quando /validar precisar fundamentar afirmações, ou quando uma pergunta exigir encadear fatos de documentos diferentes. Olívia coordena.
+description: Constrói, atualiza, consulta e diagnostica o grafo de conhecimento do projeto em .agents/grafo/ — entidades, relações com proveniência, perfis de hubs e respostas multi-hop que citam arestas. Use quando specs/ADRs/decisões acumularem, quando /mobilizar precisar de memória compartilhada entre agentes, quando /validar precisar fundamentar afirmações, ou quando uma pergunta exigir encadear fatos de documentos diferentes. Olívia coordena. Não use para achar um trecho por similaridade (busca é com o André) nem para inventário estrutural de código (use mapear-arquitetura).
 ---
 
 # Mapear conhecimento — grafo do projeto

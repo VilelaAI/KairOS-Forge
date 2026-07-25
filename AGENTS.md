@@ -19,7 +19,7 @@ The two plugins are independent — one does not import from the other. The core
 
 - `.claude-plugin/plugin.json` — Plugin manifest (Claude Code)
 - `agents/` — 52 subagents as `<id>.md` files (Claude Code format)
-- `skills/<name>/SKILL.md` — 11 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
+- `skills/<name>/SKILL.md` — 12 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
 - `hooks/hooks.json` — Claude Code hooks (SessionStart banner + PostToolUse pedagogical reminder)
 - `.agents/` — Same content as `agents/` and `skills/`, in Codex CLI format (`<id>/AGENT.md` for agents, `skills/<name>/SKILL.md` for skills)
 - `.cursor/` — Generated Cursor distribution (ADR-0011): adapted subagents in `agents/` (`tools:`/`model:` stripped; `readonly: true` when the original allow-list has no write-capable tool), mirrored skills (open Agent Skills format), an `alwaysApply` rule replacing the SessionStart banner, plus `scripts/grafo.py` and `templates/` so `${CLAUDE_PLUGIN_ROOT}` references resolve
@@ -47,7 +47,7 @@ The two plugins are independent — one does not import from the other. The core
 
 ### Skill availability per CLI
 
-All 11 skills live in `skills/` and are accessible to both Claude Code and Codex.
+All 12 skills live in `skills/` and are accessible to both Claude Code and Codex.
 
 | Skill | Claude Code | Codex CLI | OpenCode | Cursor |
 |---|---|---|---|---|
@@ -60,10 +60,11 @@ All 11 skills live in `skills/` and are accessible to both Claude Code and Codex
 | `rodar` | ✅ | ✅ | ✅ | ✅ |
 | `mobilizar` | ✅ | ⚠️ skill loads but detects environment and redirects to `rodar` | ⚠️ same as Codex | ⚠️ same as Codex |
 | `revisar` | ✅ | ✅ | ✅ | ✅ |
+| `otimizar` | ✅ | ✅ | ✅ | ✅ |
 | `auditar` | ✅ | ✅ | ✅ | ✅ |
 | `evoluir` | ✅ | ✅ | ✅ | ✅ |
 
-Natural flow ordering: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (sensitive features) → `mobilizar`/`rodar` → `validar` → `revisar` → `mapear-conhecimento` (as docs accumulate; feeds later `mobilizar`/`validar` runs) → `auditar` (weekly) → `evoluir`.
+Natural flow ordering: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (sensitive features) → `mobilizar`/`rodar` → `validar` → `revisar` → `mapear-conhecimento` (as docs accumulate; feeds later `mobilizar`/`validar` runs) → `auditar` (weekly) → `evoluir`. On demand, outside the flow: `otimizar` — a metric-driven ratchet loop (one change per round, measure, keep-or-revert via git, full lineage recorded; sentinels guard against Goodhart; explicit budget and exhaustion criteria — ADR-0012).
 
 **Knowledge graph (Graph Engineering, ADR-0009).** The factory maintains a per-project knowledge graph at `.agents/grafo/` (JSONL entities/relations/aliases with provenance, versioned schema, hub profiles). It acts as shared memory for `mobilizar` teammates, as the grounding layer for `validar` (claims checked against edges; claims absent from the graph escalate to the human), and as the persistent world model that survives context-window flushes. 🕸️ Olívia (`olivia-grafos`, Dados team) owns it via the `mapear-conhecimento` skill; `scripts/grafo.py` handles the deterministic parts.
 
@@ -199,6 +200,7 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0009**: Graph Engineering — knowledge graph as the factory's shared memory; `mapear-conhecimento` skill and Olívia (Knowledge) in the Dados team (v0.8.0)
 - **ADR-0010**: layered persistent memory — optional ai-memory integration via MCP (episodic/curated/structural) and dependency-graph discipline in `/mobilizar` (v0.8.1)
 - **ADR-0011**: Cursor support — generated `.cursor/` distribution with adapted subagents, mirrored skills (Agent Skills standard), `alwaysApply` rule, and skill-support files (v0.9.0)
+- **ADR-0012**: ratchet loop — `otimizar` skill (metric-driven keep-or-revert improvement), complexity budget in `/mobilizar`, structured reflection in the anti-drift DoD, and traceability bar in `/validar` (v0.10.0)
 
 ## Critical design constraints
 

@@ -50,11 +50,22 @@ Por que: drift acumula silenciosamente. Checkpoint frequente captura cedo.
 Você só marca uma task como `completed` se:
 
 1. ✅ Implementação corresponde ao description da task
-2. ✅ Teste mínimo escrito (caminho feliz + 1 erro) — se for código de produção
-3. ✅ Commit feito com mensagem PT-BR padronizada
-4. ✅ Não introduziu erro em CI (lint passa, type check passa, testes passam localmente)
+2. ✅ **Autocrítica estruturada feita** (ver abaixo)
+3. ✅ Teste mínimo escrito (caminho feliz + 1 erro) — se for código de produção
+4. ✅ Commit feito com mensagem PT-BR padronizada
+5. ✅ Não introduziu erro em CI (lint passa, type check passa, testes passam localmente)
 
 Se algum item não foi cumprido, **não marque completed**. Use `SendMessage` explicando o que falta.
+
+### 6.1. Autocrítica estruturada (reflexão antes do completed)
+
+Crítica é separada de reescrita. Antes de marcar `completed`:
+
+1. **Critique** o artefato contra o "Done when" da task, critério a critério, produzindo uma **lista de defeitos com evidência** (arquivo:linha, teste que falharia, caso não coberto). "Olhei e parece bom" não é crítica — se não achou nenhum defeito, diga qual critério verificou e como.
+2. **Corrija** os defeitos encontrados (rodada de revisão separada).
+3. Repita no máximo 2 vezes; se ainda houver defeito que você não consegue resolver, `SendMessage` pra Laura em vez de marcar completed.
+
+Por que: a primeira passada quase sempre tem defeito que a releitura contra critérios explícitos captura — e é muito mais barato capturar aqui do que na validação ou revisão.
 
 ## Quando bloquear
 

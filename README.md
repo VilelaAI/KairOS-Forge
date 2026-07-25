@@ -6,7 +6,7 @@ Este repositório é um **marketplace catalog** que distribui o plugin `kairos-f
 
 ## O plugin distribuído
 
-**`kairos-forge`** — 52 agentes (31 core + 21 apoio em 7 squads) coordenados por Laura (Tech Lead), 11 skills cobrindo o ciclo completo (onboarding → mapa arquitetural brownfield → especificação rastreável → threat model → execução paralela/sequencial → validação contra SPEC → revisão → grafo de conhecimento com proveniência → auditoria em 5 dimensões → evolução).
+**`kairos-forge`** — 52 agentes (31 core + 21 apoio em 7 squads) coordenados por Laura (Tech Lead), 12 skills cobrindo o ciclo completo (onboarding → mapa arquitetural brownfield → especificação rastreável → threat model → execução paralela/sequencial → validação contra SPEC → revisão → grafo de conhecimento com proveniência → auditoria em 5 dimensões → evolução).
 
 Para projetos em **domínios regulados brasileiros** (LGPD, NRs, OAB, etc.), use [kairos-ai](https://github.com/VilelaAI/kairos-ai) em vez deste — adiciona squads negociais, guardrails legais, assertions binárias e advisor regulatório.
 
@@ -86,7 +86,7 @@ cp -R kairos-forge/plugin/.cursor /caminho/do/projeto/.cursor
 cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
 ```
 
-Isso entrega os 52 subagents, as 11 skills no menu `/`, a rule com o banner da fábrica e os arquivos de suporte (`grafo.py`, templates). `mobilizar` detecta o Cursor e redireciona pra `rodar`.
+Isso entrega os 52 subagents, as 12 skills no menu `/`, a rule com o banner da fábrica e os arquivos de suporte (`grafo.py`, templates). `mobilizar` detecta o Cursor e redireciona pra `rodar`.
 
 ### OpenCode
 
@@ -116,6 +116,7 @@ Entrevista de 7 perguntas que prepara seu projeto. Depois disso o ciclo padrão 
 /kairos-forge:validar SPEC-NNN        # aceite contra requisitos/gates da SPEC
 /kairos-forge:revisar                 # Helena + Patrícia + outros
 /kairos-forge:mapear-conhecimento     # grafo de conhecimento: memória compartilhada da fábrica
+/kairos-forge:otimizar <métrica>      # ciclo de catraca: 1 mudança por rodada, manter ou reverter
 /kairos-forge:auditar                 # semanal, pontuação 0–100
 /kairos-forge:evoluir                 # 1 capacidade nova/semana
 ```

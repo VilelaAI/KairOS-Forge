@@ -1,6 +1,6 @@
 ---
 name: validar
-description: Valida uma implementação contra uma SPEC rastreável antes da revisão pré-PR. Use depois de /kairos-forge:mobilizar ou /kairos-forge:rodar e antes de /kairos-forge:revisar. Compara requisitos, tarefas, critérios de aceite, gates de teste e evidências. Produz relatório em docs/specs/validacoes/.
+description: Valida uma implementação contra uma SPEC rastreável antes da revisão pré-PR. Use depois de /kairos-forge:mobilizar ou /kairos-forge:rodar e antes de /kairos-forge:revisar. Compara requisitos, tarefas, critérios de aceite, gates de teste e evidências. Produz relatório em docs/specs/validacoes/. Não é code review — segurança, performance e qualidade do diff são o revisar; aqui a pergunta é só "cumpre o contrato da SPEC?".
 ---
 
 # Validar — aceite contra SPEC
@@ -162,4 +162,5 @@ Próximo passo: <corrigir com agente X | rodar /kairos-forge:revisar>.
 - **Não aprove no escuro.** Sem evidência, status é "sem evidência", não "aprovado".
 - **Não esconda P2/P3.** O usuário pode aceitar follow-up, mas precisa aparecer.
 - **Marca "Concluído" na SPEC só com `verificado:` na coluna Verificação.** Diff existe + teste passou + arquivo/comando/URL citado no `verificado:`. Confiança em "código está aí" não é evidência.
+- **Régua de rastreabilidade (ADR-0012).** Toda saída importante precisa rastrear a cadeia completa: requisito da SPEC → artefato/diff → fonte (gate executado, e aresta do grafo quando houver) → decisão de avaliador. Elo quebrado em requisito P1 = veredicto no máximo "aprovado com ressalvas", nunca "aprovado". É essa cadeia que separa validação de opinião.
 - **PT-BR em tudo.**

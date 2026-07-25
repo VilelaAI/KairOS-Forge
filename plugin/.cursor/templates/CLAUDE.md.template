@@ -43,6 +43,7 @@
 | `decisoes/log.md` | Append-only de decisões técnicas | Você + agentes |
 | `decisoes/auditorias/` | Histórico de auditorias semanais | Skill `/auditar` |
 | `decisoes/evolucoes/` | Plano de evolução semanal da fábrica | Skill `/evoluir` |
+| `decisoes/otimizacoes/` | Programas e linhagem dos ciclos de catraca | Skill `/otimizar` |
 | `docs/specs/` | SPECs de features | Diego, Fernanda, Thiago, Rafael |
 | `docs/specs/validacoes/` | Relatórios de aceite contra SPEC | Skill `/validar` |
 | `docs/adr/` | Decisões arquiteturais irreversíveis | Rafael principalmente |
@@ -59,6 +60,7 @@
 - `/kairos-forge:validar <spec>` — aceite contra requisitos, critérios e gates da SPEC
 - `/kairos-forge:revisar` — revisar diff antes de PR (Helena + Patrícia + outros conforme escopo)
 - `/kairos-forge:mapear-conhecimento` — construir/atualizar/consultar o grafo de conhecimento (Olívia)
+- `/kairos-forge:otimizar <métrica>` — ciclo de catraca guiado por métrica (especialista conforme a métrica)
 - `/kairos-forge:auditar` — auditoria semanal (sextas)
 - `/kairos-forge:evoluir` — escolher 1 melhoria pra próxima semana
 

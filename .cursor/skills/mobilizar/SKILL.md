@@ -98,6 +98,15 @@ Aplique a regra de acionamento de Laura (em `${CLAUDE_PLUGIN_ROOT}/agents/laura-
 
 Mais teammates ≠ melhor. Mais teammates = mais coordenação, mais tokens, mais chance de drift.
 
+**Declare o orçamento de complexidade antes de criar o time** (ADR-0012) e inclua no relatório de abertura pro usuário:
+
+- Máximo de teammates e de tasks.
+- Máximo de rodadas de correção por task (default: 2) e de checkpoints.
+- Evidência mínima para encerrar (gates verdes? validação contra SPEC?).
+- Teto de tempo/tokens se o usuário tiver um.
+
+**Orçamento esgotado → encerramento honesto:** entregue o melhor estado atual com as tasks incompletas e pendências **declaradas explicitamente**, e pare. Nunca esconda falha parcial atrás de um resumo fluente, e nunca estoure o orçamento em silêncio "pra terminar".
+
 ### Passo 3 — Criar o Team
 
 ```

@@ -68,6 +68,7 @@ Se houver: candidato a virar background task, scheduled job ou hook proativo.
    - Maior alavancagem (impacto x frequência)
    - Menor esforço de implementação
    - Empate? O que está há mais tempo sendo dor
+   - **Padrão contra modo de falha compreendido** (ADR-0012): só recomende capacidade nova se o modo de falha atual é claro e a capacidade o endereça diretamente — o padrão mais barato que resolve é o certo. Se o modo de falha ainda é incerto, a evolução da semana é **medir** (criar a métrica, o log ou o gate que vai revelá-lo), não construir. E se a dor é "temos métrica mas ela não melhora", a resposta pode não ser capacidade nova: rode `/kairos-forge:otimizar` sobre ela.
 
 3. **Especificar o item escolhido** com este formato, salvando em `decisoes/evolucoes/EVOL-YYYY-MM-DD.md`:
 

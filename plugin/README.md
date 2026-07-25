@@ -48,7 +48,7 @@ Acionar:
 /kairos-forge:rodar apoio-revisao-arquitetural
 ```
 
-## As 11 skills
+## As 12 skills
 
 | Skill | Quando usar | Disponível em |
 |---|---|---|
@@ -61,10 +61,11 @@ Acionar:
 | `/kairos-forge:mobilizar <spec>` | Paralelo via Agent Teams | **Apenas Claude Code** |
 | `/kairos-forge:revisar` | Pré-PR. Helena + Patrícia + outros | Todos os CLIs |
 | `/kairos-forge:mapear-conhecimento` | Grafo de conhecimento do projeto: construir, atualizar, consultar (multi-hop com citação de arestas) e diagnosticar | Todos os CLIs |
+| `/kairos-forge:otimizar <métrica>` | Ciclo de catraca: 1 mudança por rodada, medir, manter ou reverter via git, com sentinelas e orçamento | Todos os CLIs |
 | `/kairos-forge:auditar` | Semanal. Pontuação 0–100 em 5 dimensões (Fundação, Pipeline, Guardrails, Conhecimento, Estrutura) | Todos os CLIs |
 | `/kairos-forge:evoluir` | Semanal pós-auditoria | Todos os CLIs |
 
-Ordem natural: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `mapear-conhecimento` (quando docs acumulam) → `auditar` → `evoluir`.
+Ordem natural: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `mapear-conhecimento` (quando docs acumulam) → `auditar` → `evoluir`. Sob demanda, fora do fluxo: `otimizar` (quando houver métrica mensurável a melhorar).
 
 ### Grafo de conhecimento (Graph Engineering)
 
@@ -261,8 +262,9 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - **v0.6** — `/mapear-arquitetura`, `/analisar-ameacas`, dimensão Estrutura em `/auditar` (5 dimensões)
 - **v0.7** — 6 especialistas de plataforma/ops (Igor, Kaique, Gael, Nina, Sérgio, Aline)
 - **v0.8** — Graph Engineering: `/mapear-conhecimento`, Olívia, grafo em `.agents/grafo/`, fundamentação no `/validar` e memória compartilhada no `/mobilizar`; memória em camadas com ai-memory opcional (ADR-0010)
-- **v0.9** (atual) — suporte ao Cursor: `.cursor/` gerado com subagents, skills (Agent Skills), rule e suporte (ADR-0011)
-- **v0.10** — `/migrar`, modo RFC no `/especificar`, diagramas Mermaid em ADR/SPEC, modo debate (apoio-revisao-arquitetural)
+- **v0.9** — suporte ao Cursor: `.cursor/` gerado com subagents, skills (Agent Skills), rule e suporte (ADR-0011)
+- **v0.10** (atual) — ciclo de catraca: `/otimizar` guiado por métrica, orçamento de complexidade no `/mobilizar`, reflexão estruturada no anti-drift, régua de rastreabilidade no `/validar` (ADR-0012)
+- **v0.11** — `/migrar`, modo RFC no `/especificar`, diagramas Mermaid em ADR/SPEC, modo debate (apoio-revisao-arquitetural)
 
 ## Documentação
 
@@ -278,6 +280,7 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - [ADR-0009](docs/adr/0009-graph-engineering.md) — Graph Engineering: grafo de conhecimento como memória compartilhada da fábrica
 - [ADR-0010](docs/adr/0010-memoria-persistente-em-camadas.md) — memória persistente em camadas e integração opcional com ai-memory
 - [ADR-0011](docs/adr/0011-suporte-cursor.md) — suporte ao Cursor (subagents + Agent Skills + rules)
+- [ADR-0012](docs/adr/0012-ciclo-de-catraca.md) — ciclo de catraca: `/otimizar`, orçamento de complexidade, reflexão e rastreabilidade
 - [Memória persistente](docs/memoria-persistente.md) — guia das 3 camadas e instalação opcional do ai-memory
 
 ## Licença

@@ -57,7 +57,7 @@ Sem o sync, usuários de Codex CLI e Cursor pegam versão desatualizada.
 | `hooks/hooks.json` | Hooks Claude Code (SessionStart + PostToolUse) | manual |
 | `.codex/hooks.json` | Hooks Codex (apenas SessionStart — Codex não suporta `Write\|Edit` matcher) | manual |
 | `AGENTS.md` | Espelho em inglês do CLAUDE.md raiz, para Codex/OpenCode | manual |
-| `templates/` | `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md` | manual |
+| `templates/` | `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`, `trilhas/` (blueprints de SPEC por tema — ADR-0013) | manual |
 | `docs/adr/` | ADRs | manual |
 | `scripts/sync-multi-cli.py` | Regenera `.agents/` (Codex) e `.cursor/` (Cursor) a partir de `agents/` + `skills/` | manual |
 | `scripts/grafo.py` | Parte determinística do grafo de conhecimento (validar, diagnosticar, subgrafo, amostrar) | manual |
@@ -80,6 +80,7 @@ Sem o sync, usuários de Codex CLI e Cursor pegam versão desatualizada.
 - **ADR-0010**: memória persistente em camadas — integração opcional com ai-memory via MCP (episódica/curada/estrutural) e disciplina de grafo de dependências no `/mobilizar` (v0.8.1)
 - **ADR-0011**: suporte ao Cursor — `.cursor/` gerado com subagents adaptados, skills (Agent Skills padrão), rule `alwaysApply` e suporte às skills (v0.9.0)
 - **ADR-0012**: ciclo de catraca — skill `otimizar` (melhoria guiada por métrica com manter-ou-reverter), orçamento de complexidade no `/mobilizar`, reflexão estruturada no anti-drift e régua de rastreabilidade no `/validar` (v0.10.0)
+- **ADR-0013**: inspirações KodeOne — ledger de consumo e roteamento de modelo por tier no `/mobilizar`, quadro vivo nos checkpoints, trilhas por tema em `templates/trilhas/` (modo guiado no `/especificar` e `/rodar`) (v0.10.2)
 
 ## Limitações conhecidas por CLI
 

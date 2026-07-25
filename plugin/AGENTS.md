@@ -24,7 +24,7 @@ The two plugins are independent — one does not import from the other. The core
 - `.agents/` — Same content as `agents/` and `skills/`, in Codex CLI format (`<id>/AGENT.md` for agents, `skills/<name>/SKILL.md` for skills)
 - `.cursor/` — Generated Cursor distribution (ADR-0011): adapted subagents in `agents/` (`tools:`/`model:` stripped; `readonly: true` when the original allow-list has no write-capable tool), mirrored skills (open Agent Skills format), an `alwaysApply` rule replacing the SessionStart banner, plus `scripts/grafo.py` and `templates/` so `${CLAUDE_PLUGIN_ROOT}` references resolve
 - `.codex/hooks.json` — Codex-specific hooks (no `Write|Edit` matcher; only Bash supported)
-- `templates/` — `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`
+- `templates/` — `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`, `trilhas/` (theme-based SPEC blueprints — guided mode, ADR-0013)
 - `docs/adr/` — Architecture Decision Records
 - `scripts/sync-multi-cli.py` — Regenerates `.agents/` (Codex) and `.cursor/` (Cursor) from `agents/` + `skills/` whenever the canonical Claude Code sources change
 - `scripts/grafo.py` — Deterministic side of the knowledge graph (validate, diagnose, k-hop subgraph, human sample); the graph itself lives in the user project at `.agents/grafo/`
@@ -201,6 +201,7 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0010**: layered persistent memory — optional ai-memory integration via MCP (episodic/curated/structural) and dependency-graph discipline in `/mobilizar` (v0.8.1)
 - **ADR-0011**: Cursor support — generated `.cursor/` distribution with adapted subagents, mirrored skills (Agent Skills standard), `alwaysApply` rule, and skill-support files (v0.9.0)
 - **ADR-0012**: ratchet loop — `otimizar` skill (metric-driven keep-or-revert improvement), complexity budget in `/mobilizar`, structured reflection in the anti-drift DoD, and traceability bar in `/validar` (v0.10.0)
+- **ADR-0013**: KodeOne-inspired features — consumption ledger and model-tier routing in `/mobilizar`, live board rendering at checkpoints, theme trails in `templates/trilhas/` (guided mode in `/especificar` and `/rodar`) (v0.10.2)
 
 ## Critical design constraints
 

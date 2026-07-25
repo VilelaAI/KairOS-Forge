@@ -105,7 +105,11 @@ Mais teammates ≠ melhor. Mais teammates = mais coordenação, mais tokens, mai
 - Evidência mínima para encerrar (gates verdes? validação contra SPEC?).
 - Teto de tempo/tokens se o usuário tiver um.
 
+**Avisa-e-pausa (ADR-0013):** ao cruzar ~80% de qualquer limite do orçamento, avise o usuário no próximo checkpoint ("estamos em 8 de 10 rodadas de correção"). Ao atingir 100%, **pause** — não lance novas tasks — e pergunte: encerrar com as lacunas declaradas ou ampliar o orçamento? Sem susto.
+
 **Orçamento esgotado → encerramento honesto:** entregue o melhor estado atual com as tasks incompletas e pendências **declaradas explicitamente**, e pare. Nunca esconda falha parcial atrás de um resumo fluente, e nunca estoure o orçamento em silêncio "pra terminar".
+
+**Roteamento de modelo por teammate (ADR-0013):** defina e anuncie na largada o tier de cada um — **rápido** (trabalho mecânico: seeds, fixtures, docs de rotina), **padrão** (implementação) e **preciso** (arquitetura, segurança, revisão final; os agentes com `model: opus` no frontmatter já são este tier). Rodar o modelo certo em cada etapa em vez de jogar o mais caro em tudo é o que faz o orquestrador se pagar — mesmo princípio do modelo-por-etapa do grafo (ADR-0009).
 
 ### Passo 3 — Criar o Team
 
@@ -240,7 +244,14 @@ Você (Laura) fica monitorando enquanto o time trabalha:
 1. **Acompanhe TaskUpdate.** Tarefas marcadas completed → libera dependentes.
 2. **Responda SendMessage.** Bloqueios reportados pelos teammates precisam de decisão.
 3. **Reatribua se necessário.** Se Marina trava em uma task, mude o assignee via TaskUpdate.
-4. **Checkpoint a cada 3 tasks.** Olhe o que foi entregue, valide alinhamento com a SPEC.
+4. **Checkpoint a cada 3 tasks.** Olhe o que foi entregue, valide alinhamento com a SPEC — e **renderize o quadro vivo** (ADR-0013), uma linha por coluna:
+
+   ```
+   📋 Quadro — <SPEC/feature> (NN% — concluídas + 0.5×em progresso / planejadas)
+   A fazer: T5, T6 | Em progresso: T3 (Marina), T4 (Ricardo) | Pronto: T1 ✓gate, T2 ✓gate
+   ```
+
+   O quadro é **renderização** do estado canônico (tasks + coluna Status/Verificação da SPEC), nunca estado paralelo. Regra do "Pronto": card só entra com gate rodado (`verificado:`) — os cards andam porque os agentes construíram e provaram, não porque alguém arrastou. Progresso de verdade, não chute.
 5. **Fan-in em camadas.** Com mais de ~6 teammates, não consolide todos os outputs crus de uma vez — isso estoura contexto antes da síntese começar. Agrupe por domínio (dados, backend, frontend…), resuma cada grupo, e sintetize **os resumos**.
 6. **Cheque contagem antes de declarar pronto.** Em cadeia, falha para tudo (chato, mas óbvio); em grafo, um nó que falhou some num relatório que parece completo. No encerramento, confira: tasks concluídas × tasks planejadas. Se faltar qualquer uma, **declare a lacuna explicitamente** — nunca sintetize por cima de resultado parcial em silêncio.
 7. **Encerramento.** Quando todas as tasks estiverem completed (ou as lacunas declaradas), rode ou recomende `/kairos-forge:validar SPEC-NNN` antes de `/kairos-forge:revisar`. Envie `SendMessage` com `{type: "shutdown_request"}` para cada teammate. Reporte ao usuário:
@@ -248,6 +259,18 @@ Você (Laura) fica monitorando enquanto o time trabalha:
    ```
    ✅ Time forge-<slug>: N de N tarefas planejadas concluídas em M minutos.
    (Se N < planejado: liste cada tarefa faltante e por quê — nunca omita lacuna.)
+
+   📋 Quadro final: Pronto: N ✓gate | Em progresso: N | A fazer: N (NN%)
+
+   💳 Ledger da mobilização (ADR-0013):
+   | Teammate | Tier | Tasks | Rodadas de correção |
+   |---|---|---|---|
+   | Carlos   | rápido  | 1 | 0 |
+   | Lucas    | padrão  | 2 | 1 |
+   | Helena   | preciso | 1 (parecer) | 0 |
+   Orçamento usado: X de Y rodadas de correção · checkpoints: N de N.
+   (O plugin não mede tokens de dentro da sessão — o ledger registra o
+   que dá pra medir: tasks, rodadas e tier de modelo. Custo real: /cost.)
 
    Resumo:
    - Migrations: 1 nova (Carlos)

@@ -67,6 +67,8 @@ Acionar:
 
 Ordem natural: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `mapear-conhecimento` (quando docs acumulam) → `auditar` → `evoluir`. Sob demanda, fora do fluxo: `otimizar` (quando houver métrica mensurável a melhorar).
 
+**Modo guiado (trilhas por tema, ADR-0013):** quem não sabe por onde começar diz só o tema — "quero login", "preciso de checkout" — e a fábrica reconhece a trilha (`templates/trilhas/`: auth, pagamentos, painel-admin, api, seed-dados) e conduz: requisitos típicos prontos, perguntas certas, riscos pro threat model e plano de partida. No `/mobilizar`, o encerramento traz **ledger da execução** (tier de modelo, tasks e rodadas por teammate) e os checkpoints renderizam um **quadro vivo** — "Pronto" só com gate rodado.
+
 ### Grafo de conhecimento (Graph Engineering)
 
 A partir da v0.8.0, a fábrica mantém um **grafo de conhecimento por projeto** em `.agents/grafo/` (ADR-0009): entidades e relações com proveniência, extraídas de SPECs, ADRs, decisões e memórias — arquivos JSONL versionados no git, sem banco nem dependência externa. Ele resolve o problema estrutural de qualquer sistema multi-agente: **a memória de cada agente morre com a janela de contexto; o grafo não.**
@@ -281,6 +283,7 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - [ADR-0010](docs/adr/0010-memoria-persistente-em-camadas.md) — memória persistente em camadas e integração opcional com ai-memory
 - [ADR-0011](docs/adr/0011-suporte-cursor.md) — suporte ao Cursor (subagents + Agent Skills + rules)
 - [ADR-0012](docs/adr/0012-ciclo-de-catraca.md) — ciclo de catraca: `/otimizar`, orçamento de complexidade, reflexão e rastreabilidade
+- [ADR-0013](docs/adr/0013-ledger-quadro-trilhas.md) — ledger de consumo, quadro vivo e trilhas por tema (inspirações KodeOne)
 - [Memória persistente](docs/memoria-persistente.md) — guia das 3 camadas e instalação opcional do ai-memory
 
 ## Licença

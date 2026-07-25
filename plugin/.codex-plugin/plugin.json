@@ -1,6 +1,6 @@
 {
   "name": "kairos-forge",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Fábrica de software autônoma como plugin Codex CLI: 52 agentes em 16 times — 31 core (liderança, produto, arquitetura, frontend, backend, dados, qualidade, plataforma, documentação) coordenados por Laura, e 21 de apoio em 7 squads (microcopy, narrativa, naming, valor, observabilidade, DX, revisão arquitetural). 12 skills: onboardar, especificar, mapear-arquitetura, mapear-conhecimento, analisar-ameacas, validar, rodar, mobilizar (Claude Code only), revisar, otimizar, auditar, evoluir. Grafo de conhecimento com proveniência como memória compartilhada da fábrica (Graph Engineering). Versão MIT/genérica — para domínios regulados use kairos-ai.",
   "author": {
     "name": "Allyson Bruno Campos Barros Vilela",

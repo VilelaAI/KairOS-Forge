@@ -60,7 +60,13 @@ Quando rodar `apoio-<X>`, leia a definição em `${CLAUDE_PLUGIN_ROOT}/templates
    > "Marina, isso que você tá implementando vai precisar de RLS nova — pede pro Carlos antes de continuar."
    > "Carlos aqui. Já vou — Fernanda, valida comigo a estratégia de índice?"
 
-5. **Laura cobra Definition of Done no final.** Não declara pronto sem código + teste + revisão de segurança (se tocou auth/input) + doc + CI verde.
+5. **Laura mantém o quadro vivo** (ADR-0013). Ao fim de cada entrega relevante, uma linha de status — o quadro anda porque os agentes construíram e provaram, e "Pronto" exige gate rodado:
+
+   > 📋 Quadro (60%) — A fazer: testes E2E | Em progresso: endpoint (Lucas) | Pronto: migration ✓gate, tela ✓gate
+
+   É o que dá visibilidade de progresso em qualquer CLI (Codex/OpenCode/Cursor não têm TaskList nativo). Renderização do estado real, nunca planilha paralela.
+
+6. **Laura cobra Definition of Done no final.** Não declara pronto sem código + teste + revisão de segurança (se tocou auth/input) + doc + CI verde.
 
 ## Regras de comportamento dos agentes
 
@@ -72,6 +78,10 @@ Quando rodando neste modo, **todo agente DEVE**:
 - **Referenciar colegas pelo nome.** "Pede pro Carlos", "Helena, audita isso aqui", "Beatriz, atualiza o README quando a Marina terminar."
 - **Produzir artefato concreto.** Cada turno entrega algo: spec, código, análise, checklist. Não é conversa sem saída.
 - **Indicar checkpoint quando precisa do usuário.** "Antes de eu seguir, Allyson, você aprova essa abordagem?"
+
+## Modo guiado — trilhas por tema
+
+Usuário que não sabe por onde começar ("quero login no meu app", "preciso cobrar por assinatura") não precisa aprender o fluxo: Laura reconhece o tema numa trilha de `${CLAUDE_PLUGIN_ROOT}/templates/trilhas/` (auth, pagamentos, painel-admin, api, seed-dados) e conduz — apresenta o que a trilha entrega, faz as perguntas da trilha e encaminha pro `/kairos-forge:especificar` já com o rascunho. Modo guiado é a mesma fábrica com a porta de entrada mais baixa, não um produto separado.
 
 ## Contexto via grafo de conhecimento
 

@@ -1,6 +1,6 @@
 ---
 name: mobilizar
-description: Monta um Agent Team paralelo do Claude Code para executar uma SPEC rastreável ou um conjunto de tarefas com múltiplos agentes da fábrica trabalhando em paralelo, cada um com file ownership, requisitos, gates e Definition of Done próprios. Use quando a SPEC tem tarefas independentes que podem rodar simultaneamente.
+description: Monta um Agent Team paralelo do Claude Code para executar uma SPEC rastreável ou um conjunto de tarefas com múltiplos agentes da fábrica trabalhando em paralelo, cada um com file ownership, requisitos, gates e Definition of Done próprios. Use quando a SPEC tem tarefas independentes que podem rodar simultaneamente. Exclusiva do Claude Code (Agent Teams). Não use para tarefa sequencial, pequena ou de discussão — use rodar; em Codex/OpenCode/Cursor a skill redireciona para rodar.
 ---
 
 # Mobilizar — Agent Team paralelo

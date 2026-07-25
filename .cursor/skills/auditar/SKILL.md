@@ -1,6 +1,6 @@
 ---
 name: auditar
-description: Audita o estado da fábrica no projeto atual. Use semanalmente (sugestão sexta-feira) ou quando sentir que o setup está estagnando. Pontua 0–100 em cinco dimensões — Fundação, Pipeline, Guardrails, Conhecimento, Estrutura — e devolve as 3 lacunas de maior alavancagem para corrigir na próxima semana. Read-only: não modifica nenhum arquivo.
+description: Audita o estado da fábrica no projeto atual. Use semanalmente (sugestão sexta-feira) ou quando sentir que o setup está estagnando. Pontua 0–100 em cinco dimensões — Fundação, Pipeline, Guardrails, Conhecimento, Estrutura — e devolve as 3 lacunas de maior alavancagem para corrigir na próxima semana. Read-only: não modifica nenhum arquivo. Não audita o código do produto nem aceite de SPEC — para o diff use revisar, para aceite use validar.
 ---
 
 # Auditar — pontuação da fábrica

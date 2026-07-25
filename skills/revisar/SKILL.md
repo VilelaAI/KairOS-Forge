@@ -1,6 +1,6 @@
 ---
 name: revisar
-description: Revisa o diff atual da branch antes de PR ou push. Use sempre antes de abrir PR, antes de fazer push para branch protegida, ou quando quiser segunda opinião sobre código recém-escrito. Aciona equipe de revisão da fábrica — Helena (segurança), Patrícia (QA), Vinícius (performance) e Marcos (infra) conforme o que foi modificado. Cada uma produz parecer em primeira pessoa com severidade (crítico/alto/médio/baixo).
+description: Revisa o diff atual da branch antes de PR ou push. Use sempre antes de abrir PR, antes de fazer push para branch protegida, ou quando quiser segunda opinião sobre código recém-escrito. Aciona equipe de revisão da fábrica — Helena (segurança), Patrícia (QA), Vinícius (performance) e Marcos (infra) conforme o que foi modificado. Cada uma produz parecer em primeira pessoa com severidade (crítico/alto/médio/baixo). Não valida aceite contra SPEC — isso é validar, que roda antes desta.
 ---
 
 # Revisar — análise pré-PR pela equipe de qualidade

@@ -1,6 +1,6 @@
 ---
 name: otimizar
-description: Conduz um ciclo de catraca (ratchet) de otimização guiado por métrica — uma mudança por rodada, medir, manter se melhorou ou reverter via git, registrando a linhagem completa. Use quando houver uma métrica mensurável por comando a melhorar (latência, bundle, custo de query, F1 de extração, cobertura) dentro de um orçamento de rodadas. Requer métrica honesta, git limpo e arquivos mutáveis delimitados; a skill se recusa sem isso.
+description: Conduz um ciclo de catraca (ratchet) de otimização guiado por métrica — uma mudança por rodada, medir, manter se melhorou ou reverter via git, registrando a linhagem completa. Use quando houver uma métrica mensurável por comando a melhorar (latência, bundle, custo de query, F1 de extração, cobertura) dentro de um orçamento de rodadas. Requer métrica honesta, git limpo e arquivos mutáveis delimitados; a skill se recusa sem isso. Não use sem métrica ("deixar o código melhor" é revisar) nem para escolher a capacidade da semana (isso é evoluir).
 ---
 
 # Otimizar — ciclo de catraca guiado por métrica

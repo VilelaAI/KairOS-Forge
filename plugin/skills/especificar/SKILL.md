@@ -1,6 +1,6 @@
 ---
 name: especificar
-description: Inicia o fluxo de spec-driven development para uma feature ou mudança. Use no início de qualquer trabalho não-trivial — antes de escrever código. Aciona Laura (Tech Lead) que classifica complexidade, decide arquitetos, registra requisitos rastreáveis e gates. Resultado é uma SPEC em docs/specs/SPEC-NNN-slug.md pronta para /mobilizar, /rodar e /validar.
+description: Inicia o fluxo de spec-driven development para uma feature ou mudança. Use no início de qualquer trabalho não-trivial — antes de escrever código. Aciona Laura (Tech Lead) que classifica complexidade, decide arquitetos, registra requisitos rastreáveis e gates. Resultado é uma SPEC em docs/specs/SPEC-NNN-slug.md pronta para /mobilizar, /rodar e /validar. Não use para mudança trivial (1 arquivo, menos de 20 linhas) — nesse caso execute direto, sem SPEC.
 ---
 
 # Especificar — fluxo spec-driven

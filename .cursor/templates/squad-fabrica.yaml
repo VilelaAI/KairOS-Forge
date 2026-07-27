@@ -2,7 +2,7 @@ squad:
   id: fabrica-forge
   tipo: desenvolvimento
   idioma: pt-BR
-  versao: "0.10.0"
+  versao: "0.11.0"
   descricao: "Fábrica de software completa com 31 agentes especializados, organizada em 9 times. Versão MIT/genérica do squad. Para domínios regulados (LGPD, Segurança-TI, NRs, OAB), use kairos-ai."
 
   times:
@@ -105,7 +105,7 @@ squad:
     use o kairos-ai (https://github.com/VilelaAI/kairos-ai) em vez deste.
 
   squads_apoio:
-    descricao: "7 squads de apoio com 21 agentes. Tipo: apoio. NUNCA implementam código — produzem artefatos textuais. Acionados via /kairos-forge:rodar apoio-<nome>."
+    descricao: "9 squads de apoio com 27 agentes. Tipo: apoio. NUNCA implementam código — produzem artefatos textuais. Acionados via /kairos-forge:rodar apoio-<nome>."
     regra: "Squads de apoio complementam (não substituem) a fábrica core. Máximo 1 squad de apoio ativo por vez na sessão."
 
     squads:
@@ -150,6 +150,18 @@ squad:
         complementa: [rafael-staff, diego-sistemas]
         sinais_ativacao: ["revisão arquitetural", "review de arquitetura", "pre-mortem", "red team", steelman, strawman, "advogado do diabo", inversão, "questionar decisão", "validar arquitetura", trade-off]
         descricao: "Inversão de Munger, pre-mortem, red team, debate estruturado"
+
+      apoio-requisitos:
+        agentes: [apoio-joana-elicitacao, apoio-caio-aceite, apoio-norma-nfr]
+        complementa: [camila-pm, laura-tech-lead]
+        sinais_ativacao: [requisitos, elicitação, "levantamento de requisitos", "user story", "história de usuário", "critério de aceite", ambiguidade, "requisito não-funcional", NFR, stakeholder, "o que o cliente quer", "escopo confuso"]
+        descricao: "Engenharia de requisitos: elicitação da necessidade real (Joana), critérios de aceite verificáveis (Caio), NFRs e consistência (Norma)"
+
+      apoio-gestao:
+        agentes: [apoio-iara-planejamento, apoio-breno-riscos, apoio-talita-entregas]
+        complementa: [laura-tech-lead, camila-pm]
+        sinais_ativacao: ["gestão de projeto", cronograma, prazo, marco, milestone, estimativa, "caminho crítico", risco, RAID, "dependência externa", "status report", entrega, atraso, "plano de projeto", follow-up]
+        descricao: "Gestão de projetos e entregas: planejamento por marcos (Iara), riscos/RAID (Breno) e status honesto baseado em evidência (Talita)"
 
     colisoes_de_nome:
       regra: "Quando o usuário disser apenas o primeiro nome de um agente que existe nos dois lados, Laura desambigua antes de invocar."

@@ -48,7 +48,7 @@ Sempre **acione apenas o necessário**. Time grande em bug pequeno é desperdíc
 
 ## Squads de apoio — quando chamar (além dos 31 core)
 
-A fábrica também tem **7 squads de apoio com 21 agentes** que produzem **artefatos textuais** (specs, análises, planos, glossários). Eles complementam, não substituem, a fábrica core. Você os aciona quando reconhece os sinais:
+A fábrica também tem **9 squads de apoio com 27 agentes** que produzem **artefatos textuais** (specs, análises, planos, glossários). Eles complementam, não substituem, a fábrica core. Você os aciona quando reconhece os sinais:
 
 | Squad | Quando acionar | Agentes |
 |---|---|---|
@@ -59,6 +59,8 @@ A fábrica também tem **7 squads de apoio com 21 agentes** que produzem **artef
 | **apoio-observabilidade** | Tracking plan, métricas AARRR, design de experimento A/B | Lia, Otávio, Vera |
 | **apoio-dx** | Developer journey, contributor ladder, DORA metrics | Enzo, Clara, Tomás |
 | **apoio-revisao-arquitetural** | Pre-mortem, red team, inversão de Munger, debate estruturado | Álvaro, Lúcia, Félix |
+| **apoio-requisitos** | Pedido vago pra elicitar, critério de aceite verificável, NFRs e conflitos de requisito | Joana, Caio, Norma |
+| **apoio-gestao** | Plano por marcos, estimativas, riscos/RAID, status report, atraso pra comunicar | Iara, Breno, Talita |
 
 **Atenção a colisões de nome:** existem **dois Marcos** (DevOps na core, Specs no apoio), **duas Helenas** (Security na core, Apresentação no apoio) e **duas Elisas** (Cloud na core, Naming no apoio). Quando o usuário disser apenas o primeiro nome, **desambigue** perguntando o contexto antes de invocar.
 

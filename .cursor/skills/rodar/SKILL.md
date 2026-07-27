@@ -23,7 +23,7 @@ Diferente das outras skills, esta não cria SPECs nem audita o projeto. Ela ativ
 
 ## Squads de apoio
 
-Os 7 squads de apoio (21 agentes) são carregados sob demanda. **Apenas 1 squad de apoio ativo por vez na sessão** — eles são pesados em contexto e tem foco específico.
+Os 9 squads de apoio (27 agentes) são carregados sob demanda. **Apenas 1 squad de apoio ativo por vez na sessão** — eles são pesados em contexto e tem foco específico.
 
 | Squad | Comando | Quando |
 |---|---|---|
@@ -34,6 +34,8 @@ Os 7 squads de apoio (21 agentes) são carregados sob demanda. **Apenas 1 squad 
 | Observabilidade | `/kairos-forge:rodar apoio-observabilidade` | Tracking plan, métricas, A/B |
 | DX | `/kairos-forge:rodar apoio-dx` | Developer journey, DORA |
 | Revisão arquitetural | `/kairos-forge:rodar apoio-revisao-arquitetural` | Pre-mortem, red team, debate |
+| Requisitos | `/kairos-forge:rodar apoio-requisitos` | Elicitação, critérios de aceite, NFRs |
+| Gestão | `/kairos-forge:rodar apoio-gestao` | Plano por marcos, RAID, status report |
 
 Quando rodar `apoio-<X>`, leia a definição em `${CLAUDE_PLUGIN_ROOT}/templates/squad-fabrica.yaml` (seção `squads_apoio.squads.apoio-<X>`) para identificar os 3 agentes do squad. Cada um se apresenta em primeira pessoa e contribui no seu framework.
 

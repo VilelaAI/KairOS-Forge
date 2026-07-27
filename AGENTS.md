@@ -5,7 +5,7 @@
 
 ## Project Overview
 
-**kairos-forge** is a Claude Code / Codex CLI / OpenCode / Cursor plugin that delivers a 52-agent software factory in Brazilian Portuguese. The factory consists of **31 core agents** organized in 9 teams (leadership, product, architecture, frontend, backend, data, quality, platform, docs) and **21 support agents** in 7 squads (microcopy, narrative, naming, value, observability, DX, architectural review).
+**kairos-forge** is a Claude Code / Codex CLI / OpenCode / Cursor plugin that delivers a 58-agent software factory in Brazilian Portuguese. The factory consists of **31 core agents** organized in 9 teams (leadership, product, architecture, frontend, backend, data, quality, platform, docs) and **27 support agents** in 9 squads (microcopy, narrative, naming, value, observability, DX, architectural review, requirements engineering, project & delivery management).
 
 The factory is coordinated by **Laura (Tech Lead)** who analyzes task complexity and only mobilizes the relevant agents. Agents respond in the first person with consistent personas.
 
@@ -18,7 +18,7 @@ The two plugins are independent — one does not import from the other. The core
 ## Plugin Structure
 
 - `.claude-plugin/plugin.json` — Plugin manifest (Claude Code)
-- `agents/` — 52 subagents as `<id>.md` files (Claude Code format)
+- `agents/` — 58 subagents as `<id>.md` files (Claude Code format)
 - `skills/<name>/SKILL.md` — 12 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
 - `hooks/hooks.json` — Claude Code hooks (SessionStart banner + PostToolUse pedagogical reminder)
 - `.agents/` — Same content as `agents/` and `skills/`, in Codex CLI format (`<id>/AGENT.md` for agents, `skills/<name>/SKILL.md` for skills)
@@ -156,7 +156,7 @@ cp -R kairos-forge/plugin/.cursor /path/to/project/.cursor
 cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
 ```
 
-This delivers the 52 subagents (`.cursor/agents/`), the 11 skills in the `/` menu (`.cursor/skills/`), an `alwaysApply` rule with the factory banner and `${CLAUDE_PLUGIN_ROOT}` path resolution, plus `scripts/grafo.py` and `templates/`. Project instructions: Cursor reads `AGENTS.md` — `/kairos-forge:onboardar` offers to generate it alongside `CLAUDE.md`. `mobilizar` detects Cursor and redirects to `rodar`.
+This delivers the 58 subagents (`.cursor/agents/`), the 11 skills in the `/` menu (`.cursor/skills/`), an `alwaysApply` rule with the factory banner and `${CLAUDE_PLUGIN_ROOT}` path resolution, plus `scripts/grafo.py` and `templates/`. Project instructions: Cursor reads `AGENTS.md` — `/kairos-forge:onboardar` offers to generate it alongside `CLAUDE.md`. `mobilizar` detects Cursor and redirects to `rodar`.
 
 ### OpenCode
 
@@ -176,7 +176,7 @@ OpenCode reads `CLAUDE.md` as a fallback for `AGENTS.md`, so project instruction
 2. **Infinitive verbs in skill names.** `especificar`, not `spec`.
 3. **Skills ≤ 500 lines** in SKILL.md. Heavy reference material lives in skill `references/`.
 4. **Agents have explicit tool allow-lists.** Never give universal access.
-5. **Personas are fixed.** The 31 core agents and 21 support agents have stable names and personalities. Do not invent new ones — use existing or open an ADR for a new persona.
+5. **Personas are fixed.** The 31 core agents and 27 support agents have stable names and personalities. Do not invent new ones — use existing or open an ADR for a new persona.
 6. **Support agents never code.** They produce textual artifacts (Markdown, lists, tables, plans).
 
 ## Workflow for changes
@@ -202,6 +202,7 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0011**: Cursor support — generated `.cursor/` distribution with adapted subagents, mirrored skills (Agent Skills standard), `alwaysApply` rule, and skill-support files (v0.9.0)
 - **ADR-0012**: ratchet loop — `otimizar` skill (metric-driven keep-or-revert improvement), complexity budget in `/mobilizar`, structured reflection in the anti-drift DoD, and traceability bar in `/validar` (v0.10.0)
 - **ADR-0013**: KodeOne-inspired features — consumption ledger and model-tier routing in `/mobilizar`, live board rendering at checkpoints, theme trails in `templates/trilhas/` (guided mode in `/especificar` and `/rodar`) (v0.10.2)
+- **ADR-0014**: support squads for Requirements Engineering (Joana, Caio, Norma) and Project & Delivery Management (Iara, Breno, Talita) (v0.11.0)
 
 ## Critical design constraints
 

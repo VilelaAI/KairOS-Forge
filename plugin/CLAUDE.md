@@ -1,10 +1,10 @@
 # kairos-forge — guia para o Claude
 
-Plugin Claude Code / Codex CLI / OpenCode / Cursor que entrega uma fábrica de software de 52 agentes em PT-BR. Você está editando o próprio plugin.
+Plugin Claude Code / Codex CLI / OpenCode / Cursor que entrega uma fábrica de software de 58 agentes em PT-BR. Você está editando o próprio plugin.
 
 ## O que este projeto é
 
-Plugin multi-CLI (não runtime, não SDK). 52 agentes (31 core + 21 apoio em 7 squads), 12 skills, hooks por CLI, coordenação por Laura (Tech Lead).
+Plugin multi-CLI (não runtime, não SDK). 58 agentes (31 core + 27 apoio em 9 squads), 12 skills, hooks por CLI, coordenação por Laura (Tech Lead).
 
 Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `mapear-conhecimento` (quando docs acumulam; alimenta mobilizar/validar seguintes) → `auditar` (semanal) → `evoluir`. Fora do fluxo, sob demanda: `otimizar` (ciclo de catraca contra métrica mensurável — ADR-0012).
 
@@ -23,7 +23,7 @@ Não duplique funcionalidade entre os dois. Se algo é **regulatório**, vai pro
 3. **Skills ≤ 500 linhas no SKILL.md.** Material pesado vai em `references/` da skill.
 4. **Agentes têm allow-list explícita de ferramentas.** Nunca dar acesso total a todos.
 5. **Acentuação PT-BR correta.** `solução`, não `solucao`. Verifique antes de commitar.
-6. **Personas consistentes.** Os 52 agentes têm nomes e personalidades fixas. Não invente novos — use existentes ou peça via ADR.
+6. **Personas consistentes.** Os 58 agentes têm nomes e personalidades fixas. Não invente novos — use existentes ou peça via ADR.
 
 ## Workflow para mudanças (CRÍTICO)
 
@@ -50,7 +50,7 @@ Sem o sync, usuários de Codex CLI e Cursor pegam versão desatualizada.
 | `.claude-plugin/marketplace.json` | Catalog do marketplace Claude Code | manual |
 | `.codex-plugin/plugin.json` | Manifest Codex CLI | manual |
 | `.agents/plugins/marketplace.json` | Catalog do marketplace Codex (mesmo conteúdo do Claude Code mas em path próprio) | manual |
-| `agents/<id>.md` | 52 subagentes (canônico Claude Code) | manual |
+| `agents/<id>.md` | 58 subagentes (canônico Claude Code) | manual |
 | `.agents/<id>/AGENT.md` | Mirror Codex dos subagents | **gerado** por `scripts/sync-multi-cli.py` |
 | `.cursor/` | Distribuição Cursor completa: agents adaptados (readonly quando consultivo), skills espelhadas, rule `alwaysApply`, `grafo.py`, templates (ADR-0011) | **gerado** por `scripts/sync-multi-cli.py` |
 | `skills/<verbo>/SKILL.md` | 12 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
@@ -81,6 +81,7 @@ Sem o sync, usuários de Codex CLI e Cursor pegam versão desatualizada.
 - **ADR-0011**: suporte ao Cursor — `.cursor/` gerado com subagents adaptados, skills (Agent Skills padrão), rule `alwaysApply` e suporte às skills (v0.9.0)
 - **ADR-0012**: ciclo de catraca — skill `otimizar` (melhoria guiada por métrica com manter-ou-reverter), orçamento de complexidade no `/mobilizar`, reflexão estruturada no anti-drift e régua de rastreabilidade no `/validar` (v0.10.0)
 - **ADR-0013**: inspirações KodeOne — ledger de consumo e roteamento de modelo por tier no `/mobilizar`, quadro vivo nos checkpoints, trilhas por tema em `templates/trilhas/` (modo guiado no `/especificar` e `/rodar`) (v0.10.2)
+- **ADR-0014**: squads de apoio Requisitos (Joana, Caio, Norma) e Gestão de Projetos & Entregas (Iara, Breno, Talita) (v0.11.0)
 
 ## Limitações conhecidas por CLI
 

@@ -1,6 +1,6 @@
 # Início rápido — kairos-forge em 15 minutos
 
-Este guia leva você de "acabei de ouvir falar de plugin" para "tenho a fábrica de 52 agentes rodando no meu projeto".
+Este guia leva você de "acabei de ouvir falar de plugin" para "tenho a fábrica de 58 agentes rodando no meu projeto".
 
 ## Pré-requisitos
 
@@ -32,7 +32,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver:
 
 ```
-🔥 kairos-forge v0.10 ativo — 52 agentes (31 core + 21 apoio em 7 squads) | skills: ...
+🔥 kairos-forge v0.11 ativo — 58 agentes (31 core + 27 apoio em 9 squads) | skills: ...
 ```
 
 ## Passo 2 — onboarding do projeto

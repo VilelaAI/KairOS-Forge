@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '🔥 kairos-forge v0.14 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | 13 skills: /kairos-forge:onboardar mapear-arquitetura especificar analisar-ameacas mobilizar rodar validar revisar mapear-conhecimento otimizar migrar auditar evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1'"
+            "command": "echo '🔥 kairos-forge v0.16 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | 15 skills: /kairos-forge:onboardar mapear-arquitetura especificar analisar-ameacas desenhar mobilizar rodar validar revisar lancar mapear-conhecimento otimizar migrar auditar evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1'"
           }
         ]
       }

@@ -8,7 +8,7 @@ tools: Read, Grep, Glob, Write, Edit
 
 > **Time:** Apoio · Valor
 > **Complementa na fábrica:** Camila [PM], Laura [Tech Lead]
-> **Especialidade:** Preparação de releases, changelogs, comunicação de lançamento, rollout progressivo
+> **Especialidade:** Preparação de releases, changelogs, comunicação de lançamento, rollout progressivo. O `/kairos-forge:lancar` (Marcos) cuida do deploy técnico — o plano de comunicação e o changelog do release são artefatos seus
 
 ## Quando você é invocado
 

@@ -53,7 +53,7 @@ Acionar:
 /kairos-forge:rodar apoio-revisao-arquitetural
 ```
 
-## As 13 skills
+## As 15 skills
 
 | Skill | Quando usar | Disponível em |
 |---|---|---|
@@ -61,6 +61,7 @@ Acionar:
 | `/kairos-forge:mapear-arquitetura` | Brownfield: inventário, acoplamento e plano de decomposição | Todos os CLIs |
 | `/kairos-forge:especificar <ideia>` | Antes de codar não-trivial; gera SPEC rastreável | Todos os CLIs |
 | `/kairos-forge:analisar-ameacas <feature>` | Threat model antes de implementar feature sensível (auth, PII, billing, IA) | Todos os CLIs |
+| `/kairos-forge:desenhar <spec>` | Handoff de design: fluxos, cinco estados por view, acessibilidade; modo `verificar` inspeciona o implementado | Todos os CLIs |
 | `/kairos-forge:validar <spec>` | Depois de implementar; valida aceite contra SPEC e gates | Todos os CLIs |
 | `/kairos-forge:rodar [agente\|time\|apoio-X]` | Conversacional/sequencial — modo padrão | Todos os CLIs |
 | `/kairos-forge:mobilizar <spec>` | Paralelo via Agent Teams | **Apenas Claude Code** |
@@ -68,6 +69,7 @@ Acionar:
 | `/kairos-forge:mapear-conhecimento` | Grafo de conhecimento do projeto: construir, atualizar, consultar (multi-hop com citação de arestas) e diagnosticar | Todos os CLIs |
 | `/kairos-forge:otimizar <métrica>` | Ciclo de catraca: 1 mudança por rodada, medir, manter ou reverter via git, com sentinelas e orçamento | Todos os CLIs |
 | `/kairos-forge:migrar` | Modernização por estrangulamento com Ivan: fatias, testes de caracterização, rota de corte e manter-ou-reverter | Todos os CLIs |
+| `/kairos-forge:lancar` | Do merge à produção: checklist pré-deploy, aprovação explícita, health check em 3 camadas, rollback anotado | Todos os CLIs |
 | `/kairos-forge:auditar` | Semanal. Pontuação 0–100 em 5 dimensões (Fundação, Pipeline, Guardrails, Conhecimento, Estrutura) | Todos os CLIs |
 | `/kairos-forge:evoluir` | Semanal pós-auditoria | Todos os CLIs |
 
@@ -193,7 +195,15 @@ cp -R kairos-forge/plugin/.cursor /caminho/do/projeto/.cursor
 cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
 ```
 
-O que chega: 71 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 13 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, mais `scripts/grafo.py` e `templates/`. Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
+### Hermes Agent (bot 24/7 — ponte)
+
+Com o [Hermes Agent](https://hermes-agent.nousresearch.com) rodando num VPS, a ponte em [`hermes/`](hermes/README.md) instala as skills que roteiam engenharia estruturada pra fábrica: você manda "construir com a fábrica: …" no Telegram, o Hermes opera o ciclo e a fábrica especifica, constrói, valida e revisa dentro do Claude Code (ADR-0019).
+
+```bash
+bash hermes/install.sh
+```
+
+O que chega: 71 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 15 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, mais `scripts/grafo.py` e `templates/`. Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
 
 ### OpenCode
 
@@ -275,8 +285,10 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - **v0.11** — squads de apoio Requisitos e Gestão (ADR-0014); Pare e Pergunte (ADR-0015)
 - **v0.12** — time core Ciência de Dados (Davi, Milena, Heitor) e squad Governança (Vitor, Regina, Paula) (ADR-0016)
 - **v0.13** — sete perfis especializados: time Mobile (Yasmin, Théo), Ivan (Modernização), Alice (Evals de IA), Bento (Analytics), Murilo (Eventos) e Ingrid (Localização) (ADR-0017); infra de release: `scripts/release.py`, CI e eval de roteamento da Laura
-- **v0.14** (atual) — `/migrar` (estrangulamento com Ivan), modo RFC no `/especificar`, diagramas Mermaid via `grafo.py mermaid` em SPEC/RFC/ADR, modo debate no `/rodar` (ADR-0018)
-- **v0.15** — perfis Tier 3 sob demanda via `/evoluir` (SEO técnico, UX research, desktop, base de suporte), mais trilhas por tema
+- **v0.14** — `/migrar` (estrangulamento com Ivan), modo RFC no `/especificar`, diagramas Mermaid via `grafo.py mermaid` em SPEC/RFC/ADR, modo debate no `/rodar` (ADR-0018)
+- **v0.15** — ponte Hermes: a fábrica como motor de engenharia do Hermes Agent, operável 24/7 pelo Telegram (ADR-0019)
+- **v0.16** (atual) — skills `desenhar` e `lancar`: o ciclo de produto do oh-my-hermes nas partes compatíveis com plugin (ADR-0020)
+- **v0.17** — perfis Tier 3 sob demanda via `/evoluir` (SEO técnico, UX research, desktop, base de suporte), mais trilhas por tema
 
 ## Documentação
 
@@ -299,6 +311,8 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - [ADR-0016](docs/adr/0016-ciencia-de-dados-e-governanca.md) — time core Ciência de Dados e squad de apoio Governança
 - [ADR-0017](docs/adr/0017-mobile-evals-modernizacao.md) — sete perfis: Mobile, Modernização, Evals de IA, Analytics, Eventos e Localização
 - [ADR-0018](docs/adr/0018-migrar-rfc-mermaid-debate.md) — skill `migrar`, modo RFC, diagramas Mermaid e modo debate
+- [ADR-0019](docs/adr/0019-ponte-hermes.md) — ponte Hermes: a fábrica como motor de engenharia de um agente 24/7
+- [ADR-0020](docs/adr/0020-desenhar-e-lancar.md) — skills `desenhar` e `lancar`: o ciclo de produto nas partes compatíveis com plugin
 - [Memória persistente](docs/memoria-persistente.md) — guia das 3 camadas e instalação opcional do ai-memory
 
 ## Licença

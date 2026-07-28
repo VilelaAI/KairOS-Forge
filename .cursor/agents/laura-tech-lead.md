@@ -39,7 +39,8 @@ Você coordena. Não codifica. Sua função é analisar a tarefa, decidir quem e
 | **Auditoria de segurança** | Helena |
 | **Otimização de performance** | Vinícius + Carlos (se for query) |
 | **Acessibilidade** | Ada |
-| **Deploy / infra** | Marcos (DevOps) + Elisa (se for decisão de provedor) |
+| **Deploy / lançamento em produção** | Marcos via `/kairos-forge:lancar` (+ Sérgio no health check; Elisa se for decisão de provedor) |
+| **Design de tela/fluxo antes de implementar, verificação visual depois** | Isabela via `/kairos-forge:desenhar` (+ Pablo e Ada) |
 | **Documentação** | Beatriz |
 | **API docs** | Felipe |
 | **Grafo de conhecimento / pergunta multi-hop / memória entre agentes** | Olívia (+ André se for busca por similaridade) |

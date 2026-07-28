@@ -1,7 +1,7 @@
 # kairos-forge
 
 > Fábrica de software autônoma como plugin do **Claude Code**, **Codex CLI**, **OpenCode** e **Cursor**.
-> **52 agentes em 16 times** (31 core + 21 apoio). PT-BR oficial. MIT.
+> **71 agentes em 21 times** (40 core + 31 apoio). PT-BR oficial. MIT.
 
 Plugin que transforma uma sessão genérica de qualquer CLI compatível em um time completo de desenvolvimento mais um time de apoio textual. Cada agente tem persona, comportamento, allow-list de ferramentas, e personalidade consistente em primeira pessoa. Eles colaboram via `/kairos-forge:rodar` (sequencial) em qualquer CLI ou trabalham em paralelo via Agent Teams nativos (`/kairos-forge:mobilizar`, exclusivo Claude Code).
 
@@ -11,33 +11,38 @@ Plugin que transforma uma sessão genérica de qualquer CLI compatível em um ti
 
 Para projetos em **domínios regulados brasileiros** (LGPD, Segurança-TI, NRs, OAB, MEC-LDB, ANVISA, BACEN), use o [kairos-ai](https://github.com/VilelaAI/kairos-ai) — que adiciona squads negociais, guardrails com referência legal, assertions binárias, Ralph Loop e Advisor regulatório.
 
-## Os 31 agentes core
+## Os 40 agentes core
 
 | Time | Agentes |
 |---|---|
 | **Liderança** | 👩‍💼 Laura (Tech Lead) · 🧭 Rafael (Staff) |
 | **Produto** | 🎯 Camila (PM) · 🔬 Isabela (UX) |
-| **Arquitetura** | 📐 Diego (Sistemas) · 🗄️ Fernanda (Dados) · 🔗 Thiago (Integrações) |
+| **Arquitetura** | 📐 Diego (Sistemas) · 🗄️ Fernanda (Dados) · 🔗 Thiago (Integrações) · 🧱 Ivan (Modernização) · 📨 Murilo (Eventos) |
 | **Frontend** | ⚛️ Marina (Frontend) · 🎨 Pablo (UI) · ♿ Ada (Acessibilidade) |
+| **Mobile** | 📱 Yasmin (Mobile) · 🏪 Théo (Distribuição) |
 | **Backend** | ⚙️ Lucas (Backend) · 🤖 Gabriel (IA) · 📊 Juliana (ETL) |
-| **Dados** | 🛢️ Carlos (DBA) · 🔎 André (Busca) · 🕸️ Olívia (Conhecimento) |
-| **Qualidade** | ✅ Patrícia (QA Lead) · 🧪 Ricardo (Testes) · ⚡ Vinícius (Performance) |
+| **Dados** | 🛢️ Carlos (DBA) · 🔎 André (Busca) · 🕸️ Olívia (Conhecimento) · 📈 Bento (Analytics) |
+| **Ciência de Dados** | 🔬 Davi (Ciência de Dados) · 🧠 Milena (ML) · 🚢 Heitor (MLOps) |
+| **Qualidade** | ✅ Patrícia (QA Lead) · 🧪 Ricardo (Testes) · ⚡ Vinícius (Performance) · 🎯 Alice (Evals de IA) |
 | **Plataforma** | 🚀 Marcos (DevOps) · ☁️ Elisa (Cloud) · 🔐 Helena (Security) · 👁️ Renata (Observabilidade) · 🏗️ Igor (IaC) · ☸️ Kaique (Kubernetes) · 🔁 Gael (GitOps) · 🌐 Nina (Redes) · 🧯 Sérgio (SRE) · 🔮 Aline (AIOps) |
 | **Documentação** | 📝 Beatriz (Docs) · 📖 Felipe (API Docs) |
 
-## Os 21 agentes de apoio (7 squads)
+## Os 31 agentes de apoio (10 squads)
 
 Squads de apoio **nunca implementam código** — produzem artefatos textuais.
 
 | Squad | Agentes | Quando |
 |---|---|---|
-| **Microcopy** ✍️ | Celina, Renato, Letícia | Texto de UI, mensagem de erro, empty state |
+| **Microcopy** ✍️ | Celina, Renato, Letícia, Ingrid | Texto de UI, mensagem de erro, empty state, i18n/l10n |
 | **Narrativa** 📋 | Marcos [Specs], Helena [Apresentação], Dante | ADR, demo, decisão travada |
 | **Naming** 🏷️ | Elisa [Naming], Bruno, Cora | Nomenclatura, taxonomia, voz |
 | **Valor** ⚖️ | Hugo, Sofia, Rui | Priorização ICE, lançamento, audit ROI |
 | **Observabilidade** 📡 | Lia, Otávio, Vera | Tracking plan, AARRR, A/B |
 | **DX** 🛠️ | Enzo, Clara, Tomás | Developer journey, contributor ladder, DORA |
 | **Revisão Arquitetural** 🔄 | Álvaro, Lúcia, Félix | Pre-mortem, red team, Inversão de Munger |
+| **Requisitos** 🎤 | Joana, Caio, Norma | Elicitação, critérios de aceite, NFRs e consistência |
+| **Gestão** 🗓️ | Iara, Breno, Talita | Plano por marcos, riscos/RAID, status de entrega |
+| **Governança** 🗂️ | Vitor, Regina, Paula | Catálogo/linhagem, qualidade de dados, políticas de acesso |
 
 > ⚠️ **Atenção a colisões de nome:** existem dois Marcos (DevOps/Specs), duas Helenas (Security/Apresentação) e duas Elisas (Cloud/Naming). Quando você disser apenas o primeiro nome, Laura desambigua antes de invocar.
 
@@ -187,7 +192,7 @@ cp -R kairos-forge/plugin/.cursor /caminho/do/projeto/.cursor
 cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
 ```
 
-O que chega: 52 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 11 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, mais `scripts/grafo.py` e `templates/`. Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
+O que chega: 71 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 12 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, mais `scripts/grafo.py` e `templates/`. Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
 
 ### OpenCode
 
@@ -265,8 +270,11 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - **v0.7** — 6 especialistas de plataforma/ops (Igor, Kaique, Gael, Nina, Sérgio, Aline)
 - **v0.8** — Graph Engineering: `/mapear-conhecimento`, Olívia, grafo em `.agents/grafo/`, fundamentação no `/validar` e memória compartilhada no `/mobilizar`; memória em camadas com ai-memory opcional (ADR-0010)
 - **v0.9** — suporte ao Cursor: `.cursor/` gerado com subagents, skills (Agent Skills), rule e suporte (ADR-0011)
-- **v0.10** (atual) — ciclo de catraca: `/otimizar` guiado por métrica, orçamento de complexidade no `/mobilizar`, reflexão estruturada no anti-drift, régua de rastreabilidade no `/validar` (ADR-0012)
-- **v0.11** — `/migrar`, modo RFC no `/especificar`, diagramas Mermaid em ADR/SPEC, modo debate (apoio-revisao-arquitetural)
+- **v0.10** — ciclo de catraca (`/otimizar`, ADR-0012); ledger, quadro vivo e trilhas por tema (ADR-0013)
+- **v0.11** — squads de apoio Requisitos e Gestão (ADR-0014); Pare e Pergunte (ADR-0015)
+- **v0.12** — time core Ciência de Dados (Davi, Milena, Heitor) e squad Governança (Vitor, Regina, Paula) (ADR-0016)
+- **v0.13** (atual) — sete perfis especializados: time Mobile (Yasmin, Théo), Ivan (Modernização), Alice (Evals de IA), Bento (Analytics), Murilo (Eventos) e Ingrid (Localização) (ADR-0017)
+- **v0.14** — `/migrar` (com Ivan), modo RFC no `/especificar`, diagramas Mermaid em ADR/SPEC, modo debate (apoio-revisao-arquitetural)
 
 ## Documentação
 
@@ -284,6 +292,10 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - [ADR-0011](docs/adr/0011-suporte-cursor.md) — suporte ao Cursor (subagents + Agent Skills + rules)
 - [ADR-0012](docs/adr/0012-ciclo-de-catraca.md) — ciclo de catraca: `/otimizar`, orçamento de complexidade, reflexão e rastreabilidade
 - [ADR-0013](docs/adr/0013-ledger-quadro-trilhas.md) — ledger de consumo, quadro vivo e trilhas por tema (inspirações KodeOne)
+- [ADR-0014](docs/adr/0014-squads-requisitos-e-gestao.md) — squads de apoio Requisitos e Gestão de Projetos & Entregas
+- [ADR-0015](docs/adr/0015-pare-e-pergunte.md) — Pare e Pergunte: condições de parada contra invenção de conteúdo
+- [ADR-0016](docs/adr/0016-ciencia-de-dados-e-governanca.md) — time core Ciência de Dados e squad de apoio Governança
+- [ADR-0017](docs/adr/0017-mobile-evals-modernizacao.md) — sete perfis: Mobile, Modernização, Evals de IA, Analytics, Eventos e Localização
 - [Memória persistente](docs/memoria-persistente.md) — guia das 3 camadas e instalação opcional do ai-memory
 
 ## Licença

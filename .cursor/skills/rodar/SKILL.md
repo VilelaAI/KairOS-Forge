@@ -19,23 +19,26 @@ Diferente das outras skills, esta não cria SPECs nem audita o projeto. Ela ativ
 | `/kairos-forge:rodar <nome>` | Ativa um agente específico em primeira pessoa (ex: `rodar marina`) |
 | `/kairos-forge:rodar <time>` | Ativa um time inteiro core (ex: `rodar arquitetura` ativa Diego, Fernanda, Thiago) |
 | `/kairos-forge:rodar apoio-<squad>` | Ativa um squad de apoio (ex: `rodar apoio-naming` ativa Elisa, Bruno e Cora) |
-| `/kairos-forge:rodar fabrica-completa` | Ativa todos os 31 agentes core em modo conversacional — uso raro |
+| `/kairos-forge:rodar fabrica-completa` | Ativa todos os 40 agentes core em modo conversacional — uso raro |
 
 ## Squads de apoio
 
-Os 7 squads de apoio (21 agentes) são carregados sob demanda. **Apenas 1 squad de apoio ativo por vez na sessão** — eles são pesados em contexto e tem foco específico.
+Os 10 squads de apoio (31 agentes) são carregados sob demanda. **Apenas 1 squad de apoio ativo por vez na sessão** — eles são pesados em contexto e tem foco específico.
 
 | Squad | Comando | Quando |
 |---|---|---|
-| Microcopy | `/kairos-forge:rodar apoio-microcopy` | Texto de UI, mensagem de erro, empty state |
+| Microcopy | `/kairos-forge:rodar apoio-microcopy` | Texto de UI, mensagem de erro, i18n/tradução |
 | Narrativa | `/kairos-forge:rodar apoio-narrativa` | ADR, demo, decisão travada |
 | Naming | `/kairos-forge:rodar apoio-naming` | Nomenclatura, taxonomia, voz |
 | Valor | `/kairos-forge:rodar apoio-valor` | Priorização, lançamento, ROI |
 | Observabilidade | `/kairos-forge:rodar apoio-observabilidade` | Tracking plan, métricas, A/B |
 | DX | `/kairos-forge:rodar apoio-dx` | Developer journey, DORA |
 | Revisão arquitetural | `/kairos-forge:rodar apoio-revisao-arquitetural` | Pre-mortem, red team, debate |
+| Requisitos | `/kairos-forge:rodar apoio-requisitos` | Elicitação, critérios de aceite, NFRs |
+| Gestão | `/kairos-forge:rodar apoio-gestao` | Plano por marcos, RAID, status report |
+| Governança | `/kairos-forge:rodar apoio-governanca` | Catálogo/linhagem, qualidade de dados, políticas de acesso |
 
-Quando rodar `apoio-<X>`, leia a definição em `${CLAUDE_PLUGIN_ROOT}/templates/squad-fabrica.yaml` (seção `squads_apoio.squads.apoio-<X>`) para identificar os 3 agentes do squad. Cada um se apresenta em primeira pessoa e contribui no seu framework.
+Quando rodar `apoio-<X>`, leia a definição em `${CLAUDE_PLUGIN_ROOT}/templates/squad-fabrica.yaml` (seção `squads_apoio.squads.apoio-<X>`) para identificar os agentes do squad. Cada um se apresenta em primeira pessoa e contribui no seu framework.
 
 **Atenção: agentes de apoio nunca implementam código.** Produzem artefatos textuais (markdown, listas, planos, glossários, relatórios). Se a tarefa pedir implementação, encerre o squad de apoio e devolva para Laura acionar a fábrica core.
 
@@ -95,7 +98,7 @@ Triplas com proveniência substituem "deixa eu reler os docs". Quando a discuss�
 
 ## Onde lê a definição dos agentes
 
-Os 52 agentes (31 core + 21 apoio) vivem em `${CLAUDE_PLUGIN_ROOT}/agents/*.md`, cada um com seu frontmatter (`name`, `description`, `tools`, `model`) e corpo (comportamento + limites). Esta skill não duplica o conteúdo — só coordena o fluxo entre eles.
+Os 71 agentes (40 core + 31 apoio) vivem em `${CLAUDE_PLUGIN_ROOT}/agents/*.md`, cada um com seu frontmatter (`name`, `description`, `tools`, `model`) e corpo (comportamento + limites). Esta skill não duplica o conteúdo — só coordena o fluxo entre eles.
 
 A definição de **times** e **regra de acionamento** está em `${CLAUDE_PLUGIN_ROOT}/templates/squad-fabrica.yaml`.
 

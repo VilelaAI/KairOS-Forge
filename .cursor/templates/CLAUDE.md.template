@@ -1,7 +1,7 @@
 # {{NOME_DO_PROJETO}} — guia para o Claude
 
 > Este arquivo foi gerado por `/kairos-forge:onboardar` em {{DATA}}.
-> Edite à vontade. É a fonte da verdade do projeto para os 31 agentes core da fábrica.
+> Edite à vontade. É a fonte da verdade do projeto para os 40 agentes core da fábrica.
 
 ## O que este projeto é
 
@@ -64,7 +64,7 @@
 - `/kairos-forge:auditar` — auditoria semanal (sextas)
 - `/kairos-forge:evoluir` — escolher 1 melhoria pra próxima semana
 
-## Os 31 agentes core — quem chamar
+## Os 40 agentes core — quem chamar
 
 ### Liderança
 - **👩‍💼 Laura** [Tech Lead] — ponto de entrada de qualquer tarefa, coordena
@@ -78,6 +78,8 @@
 - **📐 Diego** [Sistemas] — fluxo, eventos, contratos entre componentes
 - **🗄️ Fernanda** [Dados] — modelagem, schema, indexação
 - **🔗 Thiago** [Integrações] — APIs, webhooks, OpenAPI
+- **🧱 Ivan** [Modernização] — strangler fig, migração de versão, legado
+- **📨 Murilo** [Eventos] — mensageria, outbox, idempotência, replay
 
 ### Frontend
 - **⚛️ Marina** [Frontend] — React/TS, hooks, estado
@@ -93,11 +95,22 @@
 - **🛢️ Carlos** [DBA] — migrations, queries, EXPLAIN
 - **🔎 André** [Busca] — pgvector, FTS, hybrid search
 - **🕸️ Olívia** [Conhecimento] — grafo de conhecimento, multi-hop, proveniência
+- **📈 Bento** [Analytics] — marts, camada semântica, métricas com definição única
+
+### Ciência de Dados
+- **🔬 Davi** [Ciência de Dados] — EDA, estatística, hipóteses, experimentos
+- **🧠 Milena** [ML] — features, treino, avaliação, versionamento de modelo
+- **🚢 Heitor** [MLOps] — deploy de modelo, drift, retraining, registry
+
+### Mobile
+- **📱 Yasmin** [Mobile] — React Native/Flutter, offline-first, push, deep links
+- **🏪 Théo** [Distribuição] — lojas, assinatura de builds, rollout gradual
 
 ### Qualidade
 - **✅ Patrícia** [QA Lead] — estratégia de testes, triage
 - **🧪 Ricardo** [Testes] — Vitest, Playwright, fixtures
 - **⚡ Vinícius** [Performance] — profiling, Core Web Vitals
+- **🎯 Alice** [Evals IA] — eval harness, red team de prompts, regressão de prompt
 
 ### Plataforma
 - **🚀 Marcos** [DevOps] — CI/CD, Docker, deploy

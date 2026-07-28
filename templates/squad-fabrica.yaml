@@ -2,8 +2,8 @@ squad:
   id: fabrica-forge
   tipo: desenvolvimento
   idioma: pt-BR
-  versao: "0.10.0"
-  descricao: "Fábrica de software completa com 31 agentes especializados, organizada em 9 times. Versão MIT/genérica do squad. Para domínios regulados (LGPD, Segurança-TI, NRs, OAB), use kairos-ai."
+  versao: "0.13.0"
+  descricao: "Fábrica de software completa com 40 agentes especializados, organizada em 11 times. Versão MIT/genérica do squad. Para domínios regulados (LGPD, Segurança-TI, NRs, OAB), use kairos-ai."
 
   times:
     - nome: "Liderança"
@@ -11,15 +11,19 @@ squad:
     - nome: "Produto"
       agentes: [camila-pm, isabela-ux]
     - nome: "Arquitetura"
-      agentes: [diego-sistemas, fernanda-dados, thiago-integracoes]
+      agentes: [diego-sistemas, fernanda-dados, thiago-integracoes, ivan-modernizacao, murilo-eventos]
     - nome: "Frontend"
       agentes: [marina-frontend, pablo-ui, ada-acessibilidade]
     - nome: "Backend"
       agentes: [lucas-backend, gabriel-ia, juliana-etl]
     - nome: "Dados"
-      agentes: [carlos-dba, andre-busca, olivia-grafos]
+      agentes: [carlos-dba, andre-busca, olivia-grafos, bento-analytics]
+    - nome: "Ciência de Dados"
+      agentes: [davi-ciencia-dados, milena-ml, heitor-mlops]
+    - nome: "Mobile"
+      agentes: [yasmin-mobile, theo-distribuicao]
     - nome: "Qualidade"
-      agentes: [patricia-qa, ricardo-testes, vinicius-performance]
+      agentes: [patricia-qa, ricardo-testes, vinicius-performance, alice-evals]
     - nome: "Plataforma"
       agentes: [marcos-devops, elisa-cloud, helena-security, renata-observabilidade, igor-iac, kaique-kubernetes, gael-gitops, nina-redes, sergio-sre, aline-aiops]
     - nome: "Documentação"
@@ -73,6 +77,27 @@ squad:
       aiops_deteccao:
         agentes: ["aline-aiops", "renata-observabilidade"]
         descricao: "Detecção de anomalia, correlação/redução de ruído de alertas, RCA assistida, observabilidade aumentada"
+      desenvolvimento_mobile:
+        agentes: ["yasmin-mobile", "theo-distribuicao"]
+        descricao: "App mobile: telas, offline-first, push, deep links — e o ciclo de release nas lojas (assinatura, review, rollout gradual)"
+      modernizacao_legado:
+        agentes: ["ivan-modernizacao", "diego-sistemas"]
+        descricao: "Strangler fig, migração de framework/versão, decomposição incremental com rollback por etapa (consome o /mapear-arquitetura)"
+      evals_de_ia:
+        agentes: ["alice-evals", "gabriel-ia"]
+        descricao: "Avaliação independente de sistemas de IA: eval harness, gold sets, red team de prompts, regressão de prompt como gate"
+      analytics:
+        agentes: ["bento-analytics", "juliana-etl"]
+        descricao: "Modelagem dimensional, marts, camada semântica, métricas com definição única e testada"
+      eventos_streaming:
+        agentes: ["murilo-eventos", "lucas-backend"]
+        descricao: "Mensageria, event-driven, outbox, idempotência, replay, contratos de evento, DLQs"
+      ciencia_de_dados:
+        agentes: ["davi-ciencia-dados", "milena-ml"]
+        descricao: "Análise exploratória, estatística, hipóteses, experimentos e modelos de ML clássico sobre dados do produto"
+      mlops:
+        agentes: ["heitor-mlops", "marcos-devops"]
+        descricao: "Deploy de modelo, monitoramento de drift, retraining, model registry e rollback de modelo"
       grafo_de_conhecimento:
         agentes: ["olivia-grafos", "andre-busca"]
         descricao: "Construir/atualizar/consultar o grafo de conhecimento (.agents/grafo/), pergunta multi-hop, memória compartilhada entre agentes, fundamentação de validação"
@@ -105,14 +130,14 @@ squad:
     use o kairos-ai (https://github.com/VilelaAI/kairos-ai) em vez deste.
 
   squads_apoio:
-    descricao: "7 squads de apoio com 21 agentes. Tipo: apoio. NUNCA implementam código — produzem artefatos textuais. Acionados via /kairos-forge:rodar apoio-<nome>."
+    descricao: "10 squads de apoio com 31 agentes. Tipo: apoio. NUNCA implementam código — produzem artefatos textuais. Acionados via /kairos-forge:rodar apoio-<nome>."
     regra: "Squads de apoio complementam (não substituem) a fábrica core. Máximo 1 squad de apoio ativo por vez na sessão."
 
     squads:
       apoio-microcopy:
-        agentes: [apoio-celina-microcopy, apoio-renato-docs, apoio-leticia-revisao]
+        agentes: [apoio-celina-microcopy, apoio-renato-docs, apoio-leticia-revisao, apoio-ingrid-localizacao]
         complementa: [beatriz-docs, pablo-ui]
-        sinais_ativacao: [microcopy, "texto de erro", "mensagem de erro", "empty state", tooltip, placeholder, label, "texto de interface", "UX writing", "documentação de usuário", onboarding, "revisão textual"]
+        sinais_ativacao: [microcopy, i18n, l10n, tradução, "multi-idioma", "texto de erro", "mensagem de erro", "empty state", tooltip, placeholder, label, "texto de interface", "UX writing", "documentação de usuário", onboarding, "revisão textual"]
         descricao: "Textos de UI, mensagens de erro, empty states, tooltips, revisão textual"
 
       apoio-narrativa:
@@ -150,6 +175,24 @@ squad:
         complementa: [rafael-staff, diego-sistemas]
         sinais_ativacao: ["revisão arquitetural", "review de arquitetura", "pre-mortem", "red team", steelman, strawman, "advogado do diabo", inversão, "questionar decisão", "validar arquitetura", trade-off]
         descricao: "Inversão de Munger, pre-mortem, red team, debate estruturado"
+
+      apoio-requisitos:
+        agentes: [apoio-joana-elicitacao, apoio-caio-aceite, apoio-norma-nfr]
+        complementa: [camila-pm, laura-tech-lead]
+        sinais_ativacao: [requisitos, elicitação, "levantamento de requisitos", "user story", "história de usuário", "critério de aceite", ambiguidade, "requisito não-funcional", NFR, stakeholder, "o que o cliente quer", "escopo confuso"]
+        descricao: "Engenharia de requisitos: elicitação da necessidade real (Joana), critérios de aceite verificáveis (Caio), NFRs e consistência (Norma)"
+
+      apoio-gestao:
+        agentes: [apoio-iara-planejamento, apoio-breno-riscos, apoio-talita-entregas]
+        complementa: [laura-tech-lead, camila-pm]
+        sinais_ativacao: ["gestão de projeto", cronograma, prazo, marco, milestone, estimativa, "caminho crítico", risco, RAID, "dependência externa", "status report", entrega, atraso, "plano de projeto", follow-up]
+        descricao: "Gestão de projetos e entregas: planejamento por marcos (Iara), riscos/RAID (Breno) e status honesto baseado em evidência (Talita)"
+
+      apoio-governanca:
+        agentes: [apoio-vitor-catalogo, apoio-regina-qualidade, apoio-paula-politicas]
+        complementa: [fernanda-dados, helena-security, juliana-etl]
+        sinais_ativacao: ["catálogo de dados", linhagem, "dicionário de dados", "qualidade de dados", "contrato de dados", freshness, "política de acesso", ownership, "menor privilégio", "quem pode ver", "de onde vem esse dado"]
+        descricao: "Governança técnica de dados: catálogo e linhagem (Vitor), qualidade com número (Regina), políticas de acesso e ownership (Paula). Regulatório (LGPD/DPO) é kairos-ai"
 
     colisoes_de_nome:
       regra: "Quando o usuário disser apenas o primeiro nome de um agente que existe nos dois lados, Laura desambigua antes de invocar."

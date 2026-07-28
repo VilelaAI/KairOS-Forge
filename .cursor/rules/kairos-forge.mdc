@@ -1,15 +1,15 @@
 ---
-description: "Fábrica de software kairos-forge — 52 agentes e 12 skills em PT-BR"
+description: "Fábrica de software kairos-forge — 71 agentes e 12 skills em PT-BR"
 alwaysApply: true
 ---
 
-🔥 kairos-forge v0.10 ativo (Cursor) — 52 agentes (31 core + 21 apoio em 7 squads).
+🔥 kairos-forge v0.13 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
 
 - As skills da fábrica estão no menu `/` (Agent Skills): onboardar, especificar,
   mapear-arquitetura, mapear-conhecimento, analisar-ameacas, validar, rodar,
   revisar, otimizar, auditar, evoluir. A skill `mobilizar` requer Agent Teams do Claude
   Code — no Cursor, use `rodar` (cobre o fluxo em modo sequencial).
-- As 52 personas são subagents (Laura, Tech Lead, é o ponto de entrada: ela
+- As 71 personas são subagents (Laura, Tech Lead, é o ponto de entrada: ela
   analisa a tarefa e decide quem entra). Cada agente responde em primeira
   pessoa e se apresenta pelo nome.
 - Resolução de caminhos: quando uma skill referenciar

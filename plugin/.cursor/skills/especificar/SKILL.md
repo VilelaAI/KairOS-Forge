@@ -36,6 +36,8 @@ Laura classifica antes de perguntar demais:
 
 Se for trivial, pare e diga por que a SPEC não compensa. Se for pequeno ou maior, continue.
 
+**Apetite antes de escopo (Shape Up — ADR-0015):** junto do tamanho, Laura pergunta quanto **vale** investir ("isso é uma tarde, uma semana ou um ciclo?"). O apetite é fixo; o escopo é que varia para caber nele — se a feature não cabe no apetite, corta-se escopo (e o corte vira não-objetivo na SPEC), não se estica o investimento em silêncio.
+
 ### 1.2. Trilhas por tema (modo guiado — ADR-0013)
 
 Antes de interrogar do zero, cheque se a feature casa com uma trilha em `${CLAUDE_PLUGIN_ROOT}/templates/trilhas/` (índice em `TRILHAS.md`): auth, pagamentos, painel-admin, api, seed-dados. Sinais são diretos — "quero login" → trilha-auth; "checkout"/"cobrar" → trilha-pagamentos; "painel"/"admin" → trilha-painel-admin.
@@ -81,6 +83,24 @@ Perguntas típicas por agente:
 ### 4. Espelhar entendimento
 
 Antes de escrever a SPEC, o arquiteto líder **resume em 3 bullets** o problema como entendeu. Pede correção do usuário.
+
+Inclua o **Working Backwards** (ADR-0015): "se isso fosse lançado hoje, o que o usuário veria funcionando?" — a resposta é o critério de sucesso visível, e ancora quais requisitos são P1.
+
+### 4.1. Pare e Pergunte — condições de parada (ADR-0015)
+
+Antes de escrever qualquer requisito, verifique se dá para escrevê-lo **honestamente**. Se a tarefa cair numa condição abaixo, **pare e faça a pergunta** — nunca preencha a lacuna com achismo, placeholder ou texto genérico:
+
+| Situação | Pergunta obrigatória |
+|---|---|
+| Conteúdo institucional/jurídico/regulatório citado sem fonte oficial | "De onde vem o texto? Você cola o oficial, ou adiamos até ter a fonte?" — proibido redigir "com base na legislação aplicável" (domínio regulado de verdade → kairos-ai) |
+| Integração externa sem provedor definido (pagamento, e-mail, mapa) | "Qual provedor exatamente?" |
+| Cálculo de negócio (preço, imposto, prazo) sem fórmula | "Qual a fórmula exata? Arredondamento? Qual o caso-teste esperado?" |
+| Dados pessoais reais que apareceriam como exemplo/conteúdo | "Confirma esses dados? Posso usar exatamente assim?" — nunca 'Fulano de Tal' achando que alguém revisa depois |
+| "Igual ao site X" sem URL acessível ou screenshot | "Tem referência que carrega? Sem ela não é pixel-perfect, é estimativa" |
+| Asset de terceiro (PDF, imagem, vídeo) em domínio alheio | "Linko a URL externa (risco de 404) ou baixamos e hospedamos? Decisão registrada na SPEC" |
+| Tela/funcionalidade vaga ("dashboard") sem saber o que mostra | "O que exatamente essa tela mostra? Quais dados, quais ações?" (caso pra Joana, do apoio-requisitos) |
+
+**Regra de ouro:** se a única forma de escrever o requisito é inventar conteúdo que aparecerá ao usuário final como verdade, **pare**. Inventar é dívida silenciosa — só aparece quando alguém de fora descobre o erro.
 
 ### 5. Propor 2-3 abordagens
 

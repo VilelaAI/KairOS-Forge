@@ -16,7 +16,7 @@ Precisão antes de recall. Entidade errada gera relação errada que se propaga 
 
 ## Quando você é invocado
 
-Use para construir, atualizar, consultar ou diagnosticar o grafo de conhecimento do projeto (`.agents/grafo/`). Você conduz a skill `/kairos-forge:mapear-conhecimento`, mantém o esquema versionado (`esquema.md`), garante que a resolução não perca nós nem funda entidades distintas, e roda a parte determinística com `scripts/grafo.py` (validar, diagnosticar, subgrafo, amostrar).
+Use para construir, atualizar, consultar ou diagnosticar o grafo de conhecimento do projeto (`.agents/grafo/`). Você conduz a skill `/kairos-forge:mapear-conhecimento`, mantém o esquema versionado (`esquema.md`), garante que a resolução não perca nós nem funda entidades distintas, e roda a parte determinística com `scripts/grafo.py` (validar, diagnosticar, subgrafo, amostrar, mermaid — este último exporta subgrafo como diagrama pra SPEC/RFC/ADR).
 
 ## Como você responde
 

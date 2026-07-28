@@ -19,7 +19,7 @@ The two plugins are independent — one does not import from the other. The core
 
 - `.claude-plugin/plugin.json` — Plugin manifest (Claude Code)
 - `agents/` — 71 subagents as `<id>.md` files (Claude Code format)
-- `skills/<name>/SKILL.md` — 12 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
+- `skills/<name>/SKILL.md` — 13 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
 - `hooks/hooks.json` — Claude Code hooks (SessionStart banner + PostToolUse pedagogical reminder)
 - `.agents/` — Same content as `agents/` and `skills/`, in Codex CLI format (`<id>/AGENT.md` for agents, `skills/<name>/SKILL.md` for skills)
 - `.cursor/` — Generated Cursor distribution (ADR-0011): adapted subagents in `agents/` (`tools:`/`model:` stripped; `readonly: true` when the original allow-list has no write-capable tool), mirrored skills (open Agent Skills format), an `alwaysApply` rule replacing the SessionStart banner, plus `scripts/grafo.py` and `templates/` so `${CLAUDE_PLUGIN_ROOT}` references resolve
@@ -27,7 +27,7 @@ The two plugins are independent — one does not import from the other. The core
 - `templates/` — `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`, `trilhas/` (theme-based SPEC blueprints — guided mode, ADR-0013)
 - `docs/adr/` — Architecture Decision Records
 - `scripts/sync-multi-cli.py` — Regenerates `.agents/` (Codex) and `.cursor/` (Cursor) from `agents/` + `skills/` whenever the canonical Claude Code sources change
-- `scripts/grafo.py` — Deterministic side of the knowledge graph (validate, diagnose, k-hop subgraph, human sample); the graph itself lives in the user project at `.agents/grafo/`
+- `scripts/grafo.py` — Deterministic side of the knowledge graph (validate, diagnose, k-hop subgraph, human sample, Mermaid export for SPEC/RFC/ADR); the graph itself lives in the user project at `.agents/grafo/`
 - `scripts/release.py` — Version bump with counts computed from the filesystem, plus a `check` mode run by CI (consistency of counts/version, root↔plugin parity, JSON validity, mirrors)
 - `evals/roteamento-laura/` — Gold set for Laura's routing regression eval, run by Alice (repo-root only, not distributed in `plugin/`)
 - `.github/workflows/ci.yml` — CI: sync with no pending diff, `release.py check`, agent security audit (repo-root only)
@@ -50,7 +50,7 @@ The two plugins are independent — one does not import from the other. The core
 
 ### Skill availability per CLI
 
-All 12 skills live in `skills/` and are accessible to both Claude Code and Codex.
+All 13 skills live in `skills/` and are accessible to both Claude Code and Codex.
 
 | Skill | Claude Code | Codex CLI | OpenCode | Cursor |
 |---|---|---|---|---|
@@ -64,10 +64,11 @@ All 12 skills live in `skills/` and are accessible to both Claude Code and Codex
 | `mobilizar` | ✅ | ⚠️ skill loads but detects environment and redirects to `rodar` | ⚠️ same as Codex | ⚠️ same as Codex |
 | `revisar` | ✅ | ✅ | ✅ | ✅ |
 | `otimizar` | ✅ | ✅ | ✅ | ✅ |
+| `migrar` | ✅ | ✅ | ✅ | ✅ |
 | `auditar` | ✅ | ✅ | ✅ | ✅ |
 | `evoluir` | ✅ | ✅ | ✅ | ✅ |
 
-Natural flow ordering: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (sensitive features) → `mobilizar`/`rodar` → `validar` → `revisar` → `mapear-conhecimento` (as docs accumulate; feeds later `mobilizar`/`validar` runs) → `auditar` (weekly) → `evoluir`. On demand, outside the flow: `otimizar` — a metric-driven ratchet loop (one change per round, measure, keep-or-revert via git, full lineage recorded; sentinels guard against Goodhart; explicit budget and exhaustion criteria — ADR-0012).
+Natural flow ordering: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (sensitive features) → `mobilizar`/`rodar` → `validar` → `revisar` → `mapear-conhecimento` (as docs accumulate; feeds later `mobilizar`/`validar` runs) → `auditar` (weekly) → `evoluir`. On demand, outside the flow: `otimizar` — a metric-driven ratchet loop (one change per round, measure, keep-or-revert via git, full lineage recorded; sentinels guard against Goodhart; explicit budget and exhaustion criteria — ADR-0012) — and `migrar` — strangler-fig legacy modernization owned by Ivan: characterization tests before touching anything, one slice at a time with a cut-over route and per-slice keep-or-revert (ADR-0018).
 
 **Knowledge graph (Graph Engineering, ADR-0009).** The factory maintains a per-project knowledge graph at `.agents/grafo/` (JSONL entities/relations/aliases with provenance, versioned schema, hub profiles). It acts as shared memory for `mobilizar` teammates, as the grounding layer for `validar` (claims checked against edges; claims absent from the graph escalate to the human), and as the persistent world model that survives context-window flushes. 🕸️ Olívia (`olivia-grafos`, Dados team) owns it via the `mapear-conhecimento` skill; `scripts/grafo.py` handles the deterministic parts.
 
@@ -159,7 +160,7 @@ cp -R kairos-forge/plugin/.cursor /path/to/project/.cursor
 cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
 ```
 
-This delivers the 71 subagents (`.cursor/agents/`), the 12 skills in the `/` menu (`.cursor/skills/`), an `alwaysApply` rule with the factory banner and `${CLAUDE_PLUGIN_ROOT}` path resolution, plus `scripts/grafo.py` and `templates/`. Project instructions: Cursor reads `AGENTS.md` — `/kairos-forge:onboardar` offers to generate it alongside `CLAUDE.md`. `mobilizar` detects Cursor and redirects to `rodar`.
+This delivers the 71 subagents (`.cursor/agents/`), the 13 skills in the `/` menu (`.cursor/skills/`), an `alwaysApply` rule with the factory banner and `${CLAUDE_PLUGIN_ROOT}` path resolution, plus `scripts/grafo.py` and `templates/`. Project instructions: Cursor reads `AGENTS.md` — `/kairos-forge:onboardar` offers to generate it alongside `CLAUDE.md`. `mobilizar` detects Cursor and redirects to `rodar`.
 
 ### OpenCode
 
@@ -211,6 +212,7 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0015**: Stop-and-Ask conditions against content invention (especificar, Joana, anti-drift), appetite-vs-scope and Working Backwards in `/especificar` (v0.11.1)
 - **ADR-0016**: core Data Science team (Davi, Milena, Heitor) and Governance support squad (Vitor, Regina, Paula) (v0.12.0)
 - **ADR-0017**: seven specialized profiles — Mobile team (Yasmin, Théo), Ivan (Legacy Modernization), Alice (AI Evals), Bento (Analytics), Murilo (Events & Streaming), Ingrid (Localization, in apoio-microcopy) (v0.13.0)
+- **ADR-0018**: `migrar` skill (strangler fig with Ivan), RFC mode in `/especificar`, `mermaid` subcommand in grafo.py and debate mode in `/rodar` (v0.14.0)
 
 ## Critical design constraints
 

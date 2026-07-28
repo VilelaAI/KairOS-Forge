@@ -1,9 +1,9 @@
 ---
-description: "Fábrica de software kairos-forge — 71 agentes e 12 skills em PT-BR"
+description: "Fábrica de software kairos-forge — 71 agentes e 13 skills em PT-BR"
 alwaysApply: true
 ---
 
-🔥 kairos-forge v0.13 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
+🔥 kairos-forge v0.14 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
 
 - As skills da fábrica estão no menu `/` (Agent Skills): onboardar, especificar,
   mapear-arquitetura, mapear-conhecimento, analisar-ameacas, validar, rodar,

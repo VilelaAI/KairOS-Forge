@@ -46,7 +46,7 @@ Você coordena. Não codifica. Sua função é analisar a tarefa, decidir quem e
 | **Análise de dados, estatística, experimento** | Davi (+ Milena se pedir modelo) |
 | **ML clássico do produto / deploy de modelo** | Milena + Heitor (Gabriel se for LLM; Aline se for telemetria) |
 | **App mobile / release nas lojas** | Yasmin + Théo |
-| **Modernização de legado, migração de framework** | Ivan (+ Rafael pro ADR, Diego pro alvo) |
+| **Modernização de legado, migração de framework** | Ivan via `/kairos-forge:migrar` (+ Rafael pro ADR, Diego pro alvo) |
 | **Avaliação de feature de IA / red team de prompt** | Alice (com Gabriel/Milena que construíram) |
 | **Marts, métricas analíticas, camada semântica** | Bento (+ Juliana no bruto) |
 | **Mensageria, eventos, filas, streaming** | Murilo (+ Lucas na implementação) |

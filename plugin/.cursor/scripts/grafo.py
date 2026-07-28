@@ -203,6 +203,47 @@ def cmd_subgrafo(g: Grafo, semente: str, saltos: int) -> int:
     return 0
 
 
+def cmd_mermaid(g: Grafo, semente: str, saltos: int) -> int:
+    """Exporta o subgrafo da semente como flowchart Mermaid (colável em SPEC/RFC/ADR)."""
+    centro = g.resolver(semente)
+    if centro not in g.nomes:
+        candidatos = [n for n in sorted(g.nomes) if semente.lower() in n.lower()]
+        print(f"Entidade '{semente}' não encontrada no grafo.")
+        if candidatos:
+            print("Parecidas: " + "; ".join(candidatos[:8]))
+        return 1
+    adj = g.vizinhos()
+    nos, fronteira = {centro}, {centro}
+    for _ in range(saltos):
+        proxima = set()
+        for n in fronteira:
+            proxima |= adj[n]
+        fronteira = proxima - nos
+        nos |= fronteira
+    arestas = dict.fromkeys(
+        (g.resolver(r["origem"]), r["predicado"], g.resolver(r["destino"]))
+        for r in g.relacoes
+        if g.resolver(r["origem"]) in nos and g.resolver(r["destino"]) in nos
+    )
+    if len(arestas) > 60:
+        print(f"Subgrafo com {len(arestas)} arestas — vira espaguete renderizado. "
+              f"Reduza --saltos ou escolha semente mais específica.")
+        return 1
+    ids = {nome: f"n{i}" for i, nome in enumerate(sorted(nos))}
+    print("```mermaid")
+    print("flowchart LR")
+    print(f'    {ids[centro]}["{centro}"]:::centro')
+    for nome in sorted(nos - {centro}):
+        print(f'    {ids[nome]}["{nome}"]')
+    for origem, predicado, destino in arestas:
+        print(f"    {ids[origem]} -->|{predicado}| {ids[destino]}")
+    print("    classDef centro stroke-width:3px")
+    print("```")
+    print(f"\n%% Subgrafo de '{centro}' ({saltos} salto(s)): {len(nos)} nós, "
+          f"{len(arestas)} arestas — gerado por grafo.py, fonte da verdade é o grafo.")
+    return 0
+
+
 def cmd_amostrar(g: Grafo) -> int:
     if not g.entidades:
         print("Grafo vazio — nada a amostrar.")
@@ -229,8 +270,8 @@ def cmd_amostrar(g: Grafo) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Parte determinística do grafo de conhecimento.")
-    parser.add_argument("comando", choices=["validar", "diagnosticar", "subgrafo", "amostrar"])
-    parser.add_argument("entidade", nargs="?", help="entidade-semente (só para subgrafo)")
+    parser.add_argument("comando", choices=["validar", "diagnosticar", "subgrafo", "amostrar", "mermaid"])
+    parser.add_argument("entidade", nargs="?", help="entidade-semente (para subgrafo e mermaid)")
     parser.add_argument("--saltos", type=int, default=2, help="raio do subgrafo (default 2)")
     parser.add_argument("--dir", default=".agents/grafo", help="diretório do grafo (default .agents/grafo)")
     args = parser.parse_args()
@@ -245,10 +286,12 @@ def main() -> int:
         return cmd_validar(g)
     if args.comando == "diagnosticar":
         return cmd_diagnosticar(g)
-    if args.comando == "subgrafo":
+    if args.comando in ("subgrafo", "mermaid"):
         if not args.entidade:
-            print("Informe a entidade-semente: grafo.py subgrafo \"<entidade>\" [--saltos 2]")
+            print(f"Informe a entidade-semente: grafo.py {args.comando} \"<entidade>\" [--saltos 2]")
             return 2
+        if args.comando == "mermaid":
+            return cmd_mermaid(g, args.entidade, args.saltos)
         return cmd_subgrafo(g, args.entidade, args.saltos)
     return cmd_amostrar(g)
 

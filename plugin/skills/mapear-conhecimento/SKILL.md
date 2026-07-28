@@ -47,6 +47,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py validar        # contrato dos JSO
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py diagnosticar   # componentes, densidade, compressão, hubs
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py subgrafo "<entidade>" --saltos 2
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py amostrar       # nó aleatório pra amostra humana
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py mermaid "<entidade>" --saltos 2   # subgrafo como diagrama, colável em SPEC/RFC/ADR
 ```
 
 Princípio: **modelo só onde há julgamento** (extrair, resolver, sintetizar, responder); **lógica determinística pro resto** (validar, contar, serializar).

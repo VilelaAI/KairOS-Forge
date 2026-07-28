@@ -4,9 +4,9 @@ Plugin Claude Code / Codex CLI / OpenCode / Cursor que entrega uma fábrica de s
 
 ## O que este projeto é
 
-Plugin multi-CLI (não runtime, não SDK). 71 agentes (40 core + 31 apoio em 10 squads), 12 skills, hooks por CLI, coordenação por Laura (Tech Lead).
+Plugin multi-CLI (não runtime, não SDK). 71 agentes (40 core + 31 apoio em 10 squads), 13 skills, hooks por CLI, coordenação por Laura (Tech Lead).
 
-Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `mapear-conhecimento` (quando docs acumulam; alimenta mobilizar/validar seguintes) → `auditar` (semanal) → `evoluir`. Fora do fluxo, sob demanda: `otimizar` (ciclo de catraca contra métrica mensurável — ADR-0012).
+Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `mapear-conhecimento` (quando docs acumulam; alimenta mobilizar/validar seguintes) → `auditar` (semanal) → `evoluir`. Fora do fluxo, sob demanda: `otimizar` (ciclo de catraca contra métrica mensurável — ADR-0012) e `migrar` (modernização de legado por estrangulamento, dono Ivan — ADR-0018).
 
 A memória da fábrica tem **três camadas** (ADR-0009/ADR-0010): **episódica** — sessões capturadas pelo [ai-memory](https://github.com/akitaonrails/ai-memory), companion externo opcional detectado pelas tools MCP `memory_*` (handoff entre CLIs, briefing, busca); **curada** — `decisoes/`, `.agents/memory/`, `contextos/` no repo; **estrutural** — `.agents/grafo/` com entidades e relações com proveniência, dona Olívia (`olivia-grafos`). `/mobilizar` usa o grafo como memória compartilhada entre teammates e `/validar` como base de fatos. O durável sobe de camada (sessão → arquivo → grafo); o repo é a fonte da verdade. Guia: `docs/memoria-persistente.md`.
 
@@ -38,9 +38,20 @@ git add agents/ skills/ .agents/ .cursor/
 
 Sem o sync, usuários de Codex CLI e Cursor pegam versão desatualizada.
 
+**Para bump de versão, use o script de release** — ele calcula as contagens
+(agentes/times/squads/skills) do filesystem, injeta versão+contagens em todos os
+manifests/banners/docs, roda os dois syncs e espelha em `plugin/`:
+
+```bash
+python3 scripts/release.py bump 0.14.0   # tudo de uma vez
+python3 scripts/release.py check         # o que o CI roda em todo PR
+```
+
 - Mudar prompt de agente ou skill → bump patch (0.4.x) + rodar sync
 - Adicionar agente ou skill → bump minor (0.x.0) + ADR + rodar sync
 - Mudar contrato fundamental → bump major (x.0.0) + ADR + rodar sync
+- Mudou prompt da Laura, `description` de agente ou roteamento → rodar o eval de
+  roteamento (`evals/roteamento-laura/`) com a Alice antes do commit
 
 ## Estrutura
 
@@ -53,18 +64,21 @@ Sem o sync, usuários de Codex CLI e Cursor pegam versão desatualizada.
 | `agents/<id>.md` | 71 subagentes (canônico Claude Code) | manual |
 | `.agents/<id>/AGENT.md` | Mirror Codex dos subagents | **gerado** por `scripts/sync-multi-cli.py` |
 | `.cursor/` | Distribuição Cursor completa: agents adaptados (readonly quando consultivo), skills espelhadas, rule `alwaysApply`, `grafo.py`, templates (ADR-0011) | **gerado** por `scripts/sync-multi-cli.py` |
-| `skills/<verbo>/SKILL.md` | 12 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
+| `skills/<verbo>/SKILL.md` | 13 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
 | `hooks/hooks.json` | Hooks Claude Code (SessionStart + PostToolUse) | manual |
 | `.codex/hooks.json` | Hooks Codex (apenas SessionStart — Codex não suporta `Write\|Edit` matcher) | manual |
 | `AGENTS.md` | Espelho em inglês do CLAUDE.md raiz, para Codex/OpenCode | manual |
 | `templates/` | `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`, `trilhas/` (blueprints de SPEC por tema — ADR-0013) | manual |
 | `docs/adr/` | ADRs | manual |
 | `scripts/sync-multi-cli.py` | Regenera `.agents/` (Codex) e `.cursor/` (Cursor) a partir de `agents/` + `skills/` | manual |
-| `scripts/grafo.py` | Parte determinística do grafo de conhecimento (validar, diagnosticar, subgrafo, amostrar) | manual |
+| `scripts/grafo.py` | Parte determinística do grafo de conhecimento (validar, diagnosticar, subgrafo, amostrar, mermaid) | manual |
+| `scripts/release.py` | Bump de versão com contagens calculadas do filesystem + `check` de consistência (CI) | manual |
+| `evals/roteamento-laura/` | Gold set do eval de roteamento da Laura (dogfooding — só na raiz, não distribui) | manual |
+| `.github/workflows/ci.yml` | CI: sync sem diff pendente, `release.py check`, segurança dos agentes (só na raiz) | manual |
 
 > **Importante: skills/ é compartilhada.** Tanto Claude Code quanto Codex CLI descobrem skills em `skills/<nome>/SKILL.md` quando empacotados como plugin. Não há duplicação. Apenas os subagents (`agents/<id>.md` no Claude Code, `.agents/<id>/AGENT.md` no Codex) é que precisam de mirror.
 
-> **Importante: dois marketplace.json.** Claude Code procura em `.claude-plugin/marketplace.json` e Codex em `.agents/plugins/marketplace.json`. Os dois têm o mesmo conteúdo. Quando bumpar versão, atualize ambos juntos (existe TODO de unificar via script de release).
+> **Importante: dois marketplace.json.** Claude Code procura em `.claude-plugin/marketplace.json` (com versão e descrição — o `release.py` atualiza) e Codex em `.agents/plugins/marketplace.json` (só aponta pra `./plugin`, sem versão — raramente muda).
 
 ## Decisões já tomadas
 
@@ -85,6 +99,7 @@ Sem o sync, usuários de Codex CLI e Cursor pegam versão desatualizada.
 - **ADR-0015**: Pare e Pergunte — condições de parada contra invenção de conteúdo (especificar, Joana, anti-drift), apetite vs escopo e Working Backwards no `/especificar` (v0.11.1)
 - **ADR-0016**: time core Ciência de Dados (Davi, Milena, Heitor) e squad de apoio Governança (Vitor, Regina, Paula) (v0.12.0)
 - **ADR-0017**: sete perfis especializados — time Mobile (Yasmin, Théo), Ivan (Modernização), Alice (Evals de IA), Bento (Analytics), Murilo (Eventos) e Ingrid (Localização, no apoio-microcopy) (v0.13.0)
+- **ADR-0018**: skill `migrar` (estrangulamento com Ivan), modo RFC no `/especificar`, subcomando `mermaid` no grafo.py e modo debate no `/rodar` (v0.14.0)
 
 ## Limitações conhecidas por CLI
 

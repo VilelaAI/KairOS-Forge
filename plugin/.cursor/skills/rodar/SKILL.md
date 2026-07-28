@@ -19,6 +19,7 @@ Diferente das outras skills, esta não cria SPECs nem audita o projeto. Ela ativ
 | `/kairos-forge:rodar <nome>` | Ativa um agente específico em primeira pessoa (ex: `rodar marina`) |
 | `/kairos-forge:rodar <time>` | Ativa um time inteiro core (ex: `rodar arquitetura` ativa Diego, Fernanda, Thiago) |
 | `/kairos-forge:rodar apoio-<squad>` | Ativa um squad de apoio (ex: `rodar apoio-naming` ativa Elisa, Bruno e Cora) |
+| `/kairos-forge:rodar debate <decisão>` | Confronto estruturado do apoio-revisao-arquitetural sobre uma decisão travada (ADR-0018) |
 | `/kairos-forge:rodar fabrica-completa` | Ativa todos os 40 agentes core em modo conversacional — uso raro |
 
 ## Squads de apoio
@@ -81,6 +82,20 @@ Quando rodando neste modo, **todo agente DEVE**:
 - **Referenciar colegas pelo nome.** "Pede pro Carlos", "Helena, audita isso aqui", "Beatriz, atualiza o README quando a Marina terminar."
 - **Produzir artefato concreto.** Cada turno entrega algo: spec, código, análise, checklist. Não é conversa sem saída.
 - **Indicar checkpoint quando precisa do usuário.** "Antes de eu seguir, Allyson, você aprova essa abordagem?"
+
+## Modo debate (ADR-0018)
+
+`/kairos-forge:rodar debate <decisão>` estrutura o confronto quando uma decisão está travada ou contestada (tipicamente um RFC "em discussão" do `/especificar`, ou o *porquê* de uma migração antes do `/migrar`). Não é conversa: é rodada com papéis fixos.
+
+1. **Enquadramento (Laura).** Reformula a decisão como pergunta fechada com 2-3 opções nomeadas ("Opção A: manter monolito modular; Opção B: extrair serviço"). Sem pergunta fechada não há debate — há reunião.
+2. **Rodada de ataque** — cada um no seu framework, um turno:
+   - **Álvaro** faz o pre-mortem da opção favorita: "é 2027 e isso falhou — eis o obituário".
+   - **Lúcia** faz red team com fatos e princípios: quais premissas não se sustentam (se o grafo existir, cita arestas — fato > opinião).
+   - **Félix** aplica a Inversão de Munger **defendendo a opção alternativa**: "como garantir o fracasso da opção A? Já estamos fazendo algo da lista?"
+3. **Réplica (opcional, 1 turno por posição).** Só entra **argumento novo** — repetir mais alto não conta. Máximo 2 rodadas no total; sem convergência, o dissenso vai pra síntese como dissenso.
+4. **Síntese (Laura).** Recomendação com: opção escolhida e por quê, **dissenso registrado** (quem discordou e o argumento que fica de sentinela), condições de reversão ("se X acontecer, revisitamos") e próximo passo.
+
+O artefato sai em `docs/decisoes/DEBATE-<slug>.md` — ou direto na seção de alternativas do RFC de origem. **Dissenso registrado não é derrota**: é o alarme que dispara primeiro se a decisão azedar. Agentes de apoio seguem sem implementar código; se a síntese exigir prova técnica (spike, benchmark), Laura encaminha pra fábrica core.
 
 ## Modo guiado — trilhas por tema
 

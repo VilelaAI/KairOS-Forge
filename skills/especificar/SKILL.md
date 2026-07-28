@@ -106,14 +106,49 @@ Antes de escrever qualquer requisito, verifique se dá para escrevê-lo **honest
 
 Cada uma com trade-offs explícitos (complexidade, custo, reversibilidade). Recomendar uma.
 
+### 5.1. Modo RFC — decisões arquiteturalmente significativas (ADR-0018)
+
+Quando a mudança for **Complexa**, cruzar **2+ times**, ter **reversibilidade baixa** (migração, troca de tecnologia, contrato público) — ou o usuário invocar `especificar rfc` — as abordagens do passo 5 não morrem no chat: viram RFC em `docs/rfcs/RFC-<NNN>-<slug>.md` ANTES da SPEC:
+
+```markdown
+# RFC-NNN — <decisão em uma frase>
+
+- **Status:** rascunho | em discussão | aceito | recusado
+- **Drivers:** o que pesa na decisão (custo, prazo, reversibilidade, time)
+
+## Contexto
+## Decisão proposta
+## Diagrama
+
+(bloco Mermaid do fluxo proposto — se o grafo existir, parta de
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py mermaid "<entidade>" --saltos 2`)
+
+## Alternativas consideradas
+
+| Alternativa | Por que não |
+|---|---|
+
+## Consequências
+
+Positivas e negativas — inclusive o que fica mais difícil.
+```
+
+Regras do modo RFC:
+
+- **Rafael revisa todo RFC.** Decisão de tecnologia/padrão é o território dele.
+- **RFC "em discussão" contestado** → `/kairos-forge:rodar debate` estrutura o confronto (Álvaro/Lúcia/Félix) e a síntese volta pro RFC.
+- **RFC aceito** → vira ADR curto em `decisoes/` (o porquê, permanente) e a SPEC referencia ambos (`RFC-NNN` no Contexto). SPEC continua sendo o contrato do *o quê* — o RFC guarda o *porquê*.
+- **RFC recusado fica no repo.** Alternativa descartada com o motivo registrado é o que impede a fábrica de redescobri-la daqui a 6 meses.
+
 ### 6. Após aprovação, escrever a SPEC
 
 Em `docs/specs/SPEC-<NNN>-<slug>.md` no projeto do usuário, com seções:
 
-- **Contexto e problema** — qual dor real
+- **Contexto e problema** — qual dor real (referencie o RFC, se houver)
 - **Objetivo** — uma frase
 - **Não-objetivos** — o que está fora
 - **Invariantes** — o que precisa ser verdade ao final
+- **Diagrama** — em SPEC Média+ com fluxo entre componentes, bloco Mermaid do desenho (à mão ou via `grafo.py mermaid`); o diagrama deriva do texto, nunca o substitui
 - **Requisitos rastreáveis** — IDs estáveis, prioridade, critério de aceite e status
 - **Plano de implementação** — tarefas atômicas, cada item ≤ 1 dia, com agente, arquivos, dependências e gates
 - **Matriz de testes** — tipo de teste por requisito/tarefa, comando esperado e responsável

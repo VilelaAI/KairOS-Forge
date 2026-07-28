@@ -8,8 +8,8 @@
     {
       "name": "kairos-forge",
       "source": "./plugin",
-      "description": "Fábrica de software autônoma com 71 agentes (40 core + 31 apoio) coordenados por Laura (Tech Lead). 12 skills cobrindo onboarding, especificação rastreável, mapa arquitetural, threat model, grafo de conhecimento (Graph Engineering), validação contra SPEC fundamentada em arestas, execução conversacional/paralela, revisão multi-agente, otimização por ciclo de catraca, auditoria (5 dimensões) e evolução. PT-BR oficial. Roda em Claude Code, Codex CLI, OpenCode e Cursor. Para domínios regulados, use kairos-ai.",
-      "version": "0.13.0",
+      "description": "Fábrica de software autônoma com 71 agentes (40 core + 31 apoio) coordenados por Laura (Tech Lead). 13 skills cobrindo onboarding, especificação rastreável, mapa arquitetural, threat model, grafo de conhecimento (Graph Engineering), validação contra SPEC fundamentada em arestas, execução conversacional/paralela, revisão multi-agente, otimização por ciclo de catraca, modernização por estrangulamento, auditoria (5 dimensões) e evolução. PT-BR oficial. Roda em Claude Code, Codex CLI, OpenCode e Cursor. Para domínios regulados, use kairos-ai.",
+      "version": "0.14.0",
       "author": {
         "name": "Allyson Bruno Campos Barros Vilela",
         "email": "allyson@vilela.tech"

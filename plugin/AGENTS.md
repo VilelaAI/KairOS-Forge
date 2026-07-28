@@ -203,6 +203,7 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0012**: ratchet loop — `otimizar` skill (metric-driven keep-or-revert improvement), complexity budget in `/mobilizar`, structured reflection in the anti-drift DoD, and traceability bar in `/validar` (v0.10.0)
 - **ADR-0013**: KodeOne-inspired features — consumption ledger and model-tier routing in `/mobilizar`, live board rendering at checkpoints, theme trails in `templates/trilhas/` (guided mode in `/especificar` and `/rodar`) (v0.10.2)
 - **ADR-0014**: support squads for Requirements Engineering (Joana, Caio, Norma) and Project & Delivery Management (Iara, Breno, Talita) (v0.11.0)
+- **ADR-0015**: Stop-and-Ask conditions against content invention (especificar, Joana, anti-drift), appetite-vs-scope and Working Backwards in `/especificar` (v0.11.1)
 
 ## Critical design constraints
 

@@ -288,6 +288,7 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - [ADR-0012](docs/adr/0012-ciclo-de-catraca.md) — ciclo de catraca: `/otimizar`, orçamento de complexidade, reflexão e rastreabilidade
 - [ADR-0013](docs/adr/0013-ledger-quadro-trilhas.md) — ledger de consumo, quadro vivo e trilhas por tema (inspirações KodeOne)
 - [ADR-0014](docs/adr/0014-squads-requisitos-e-gestao.md) — squads de apoio Requisitos e Gestão de Projetos & Entregas
+- [ADR-0015](docs/adr/0015-pare-e-pergunte.md) — Pare e Pergunte: condições de parada contra invenção de conteúdo
 - [Memória persistente](docs/memoria-persistente.md) — guia das 3 camadas e instalação opcional do ai-memory
 
 ## Licença

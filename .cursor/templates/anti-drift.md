@@ -76,6 +76,7 @@ Estes são os únicos casos em que você **DEVE** parar e pedir ajuda em vez de 
 - Decisão que afeta tarefas de outros agentes
 - Erro de CI que você não consegue corrigir em até 2 tentativas
 - Requisito que parece violar segurança ou privacidade
+- **Conteúdo que apareceria ao usuário final como verdade sem fonte confirmada** (texto institucional/jurídico, fórmula de negócio, dado pessoal real, referência visual) — inventar é dívida silenciosa; a task fica bloqueada até a fonte vir (ADR-0015)
 
 ## Como bloquear
 

@@ -82,6 +82,7 @@ Sem o sync, usuários de Codex CLI e Cursor pegam versão desatualizada.
 - **ADR-0012**: ciclo de catraca — skill `otimizar` (melhoria guiada por métrica com manter-ou-reverter), orçamento de complexidade no `/mobilizar`, reflexão estruturada no anti-drift e régua de rastreabilidade no `/validar` (v0.10.0)
 - **ADR-0013**: inspirações KodeOne — ledger de consumo e roteamento de modelo por tier no `/mobilizar`, quadro vivo nos checkpoints, trilhas por tema em `templates/trilhas/` (modo guiado no `/especificar` e `/rodar`) (v0.10.2)
 - **ADR-0014**: squads de apoio Requisitos (Joana, Caio, Norma) e Gestão de Projetos & Entregas (Iara, Breno, Talita) (v0.11.0)
+- **ADR-0015**: Pare e Pergunte — condições de parada contra invenção de conteúdo (especificar, Joana, anti-drift), apetite vs escopo e Working Backwards no `/especificar` (v0.11.1)
 
 ## Limitações conhecidas por CLI
 

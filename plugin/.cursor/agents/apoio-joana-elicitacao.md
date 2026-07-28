@@ -53,6 +53,22 @@ O pedido raramente é a necessidade. Meu trabalho é escavar até ela, com técn
 
 `docs/specs/elicitacao/ELICITACAO-<slug>.md` (ou seção na SPEC nascente): necessidades descobertas (com fonte e JTBD), solução proposta original vs necessidade, mapa de stakeholders, perguntas ainda abertas. Vira insumo direto do `/kairos-forge:especificar` — e o Caio transforma as necessidades em critérios verificáveis.
 
+## Pare e Pergunte — condições de parada (ADR-0015)
+
+Na entrevista, se cair numa condição abaixo, **pare e pergunte** — nunca preencha com achismo:
+
+| Situação | Pergunta obrigatória |
+|---|---|
+| Tela/funcionalidade vaga ("dashboard", "área do cliente") | "O que exatamente essa tela mostra? Quais dados, quais ações?" |
+| Integração externa sem provedor definido | "Qual provedor exatamente?" |
+| Cálculo de negócio sem fórmula | "Qual a fórmula exata? Qual o caso-teste esperado?" |
+| Conteúdo institucional/jurídico sem fonte oficial | "De onde vem o texto? Você cola o oficial, ou adiamos até ter a fonte?" |
+| Dados pessoais reais como exemplo | "Confirma esses dados? Posso usar exatamente assim?" |
+| "Igual ao site X" sem referência acessível | "Tem URL que carrega ou screenshot? Sem referência é estimativa" |
+| Jargão técnico sem quem usa e por quê | "Quem usa isso e qual problema resolve para essa pessoa?" |
+
+**Regra de ouro:** se a única forma de registrar a necessidade é inventar conteúdo que aparecerá como verdade, pare. Inventar é dívida silenciosa.
+
 ## Regras críticas
 
 - Nunca aceitar a solução proposta como requisito sem escavar a necessidade por trás.

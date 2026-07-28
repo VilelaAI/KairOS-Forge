@@ -1,0 +1,60 @@
+{"pedido": "Cria o endpoint de cadastro de usuário com validação e rate limit", "esperado": ["lucas-backend"]}
+{"pedido": "O layout da tela de checkout quebrou no Safari", "esperado": ["marina-frontend"]}
+{"pedido": "Refina o visual dos botões e cards pra seguir o design system", "esperado": ["pablo-ui"]}
+{"pedido": "O leitor de tela não anuncia a mensagem de erro do formulário", "esperado": ["ada-acessibilidade"]}
+{"pedido": "Modela o schema do módulo de pedidos com histórico de status", "esperado": ["fernanda-dados"]}
+{"pedido": "Desenha como o novo serviço de cobrança conversa com o resto do sistema", "esperado": ["diego-sistemas"]}
+{"pedido": "Integra a API do gateway de pagamento com webhook de confirmação", "esperado": ["thiago-integracoes"]}
+{"pedido": "A fila está entregando a mesma mensagem duas vezes e o pedido duplica", "esperado": ["murilo-eventos"]}
+{"pedido": "Escolhe entre fila e tópico pro fluxo de notificações e desenha o padrão outbox", "esperado": ["murilo-eventos"]}
+{"pedido": "A query do relatório mensal está lenta, revisa os índices", "esperado": ["carlos-dba"]}
+{"pedido": "Implementa busca full-text com filtros e ranking no catálogo", "esperado": ["andre-busca"]}
+{"pedido": "Extrai entidades e relações das SPECs e alimenta o grafo de conhecimento", "esperado": ["olivia-grafos"]}
+{"pedido": "Cria o mart de receita com definição única da métrica MRR", "esperado": ["bento-analytics"]}
+{"pedido": "O dashboard de vendas mostra número diferente do relatório financeiro pra mesma métrica", "esperado": ["bento-analytics"]}
+{"pedido": "Monta o pipeline que ingere e limpa o CSV diário do parceiro", "esperado": ["juliana-etl"]}
+{"pedido": "Adiciona a feature de resumo automático de tickets usando LLM", "esperado": ["gabriel-ia"]}
+{"pedido": "Monta os evals de regressão do prompt do resumo antes de ir pra produção", "esperado": ["alice-evals"]}
+{"pedido": "Testa se o chatbot alucina resposta quando não tem a informação na base", "esperado": ["alice-evals"]}
+{"pedido": "Analisa o churn dos últimos 6 meses num notebook e apresenta os fatores", "esperado": ["davi-ciencia-dados"]}
+{"pedido": "Treina um modelo de propensão de compra com os dados de navegação", "esperado": ["milena-ml"]}
+{"pedido": "Coloca o modelo em produção com versionamento e monitoramento de drift", "esperado": ["heitor-mlops"]}
+{"pedido": "Escreve os testes de integração do fluxo de checkout", "esperado": ["ricardo-testes"]}
+{"pedido": "Define a estratégia de qualidade e os critérios de saída da release", "esperado": ["patricia-qa"]}
+{"pedido": "A página de listagem demora 4 segundos pra carregar, investiga o gargalo", "esperado": ["vinicius-performance"]}
+{"pedido": "Revisa o diff da branch procurando SQL injection e XSS", "esperado": ["helena-security"]}
+{"pedido": "Configura o pipeline de CI/CD com stages de teste e deploy", "esperado": ["marcos-devops"]}
+{"pedido": "Provisiona o banco gerenciado e o object storage na AWS", "esperado": ["elisa-cloud"]}
+{"pedido": "Escreve o Terraform do ambiente de staging com módulos reutilizáveis", "esperado": ["igor-iac"]}
+{"pedido": "O pod fica em CrashLoopBackOff depois do último deploy", "esperado": ["kaique-kubernetes"]}
+{"pedido": "Configura o ArgoCD pra sincronizar os manifests do ambiente", "esperado": ["gael-gitops"]}
+{"pedido": "Desenha a VPC com subnets privadas e o peering entre contas", "esperado": ["nina-redes"]}
+{"pedido": "Produção fora do ar com erro 500 em cascata — conduz o incidente agora", "esperado": ["sergio-sre"]}
+{"pedido": "Os alertas disparam demais de madrugada, configura detecção de anomalia pra reduzir ruído", "esperado": ["aline-aiops"]}
+{"pedido": "Instrumenta o serviço com traces distribuídos e define os SLOs", "esperado": ["renata-observabilidade"]}
+{"pedido": "Escreve o guia de onboarding técnico do repositório", "esperado": ["beatriz-docs"]}
+{"pedido": "Documenta a API pública com exemplos de request e response", "esperado": ["felipe-api-docs"]}
+{"pedido": "Prioriza o backlog do trimestre e define o que corta do escopo", "esperado": ["camila-pm"]}
+{"pedido": "Roda entrevistas com usuários pra validar o fluxo novo de cadastro", "esperado": ["isabela-ux"]}
+{"pedido": "Dá um parecer sênior sobre a dívida técnica acumulada e pra onde evoluir a plataforma", "esperado": ["rafael-staff"]}
+{"pedido": "Adiciona push notification com deep link no app React Native", "esperado": ["yasmin-mobile"]}
+{"pedido": "O app funciona offline? Precisa sincronizar quando voltar a conexão", "esperado": ["yasmin-mobile"]}
+{"pedido": "Prepara o release do app na App Store e Play Store com rollout gradual", "esperado": ["theo-distribuicao"]}
+{"pedido": "Migra o monólito legado pra serviços sem parar a operação", "esperado": ["ivan-modernizacao"]}
+{"pedido": "Vamos lançar o produto em espanhol — o que precisa mudar?", "esperado": ["apoio-ingrid-localizacao"]}
+{"pedido": "Reescreve a mensagem de erro do pagamento recusado pra não culpar o usuário", "esperado": ["apoio-celina-microcopy"]}
+{"pedido": "Escreve o ADR da decisão de trocar REST por eventos nesse fluxo", "esperado": ["apoio-marcos-specs"]}
+{"pedido": "Monta a apresentação da demo da sprint pra diretoria", "esperado": ["apoio-helena-apresentacao"]}
+{"pedido": "Como devíamos chamar esse conceito novo no produto? Os nomes atuais confundem", "esperado": ["apoio-elisa-naming", "apoio-bruno-taxonomia"]}
+{"pedido": "Prioriza essas 8 ideias de feature por impacto e esforço", "esperado": ["apoio-hugo-priorizacao"]}
+{"pedido": "Define o tracking plan dos eventos de produto do funil de cadastro", "esperado": ["apoio-lia-instrumentacao"]}
+{"pedido": "Faz o pre-mortem dessa decisão de arquitetura antes de a gente se comprometer", "esperado": ["apoio-alvaro-inversao", "apoio-lucia-principios", "apoio-felix-provocador"]}
+{"pedido": "Entrevista o cliente e transforma o que ele pediu em requisitos claros", "esperado": ["apoio-joana-elicitacao"]}
+{"pedido": "Escreve os critérios de aceite verificáveis dessa história", "esperado": ["apoio-caio-aceite"]}
+{"pedido": "Quais requisitos não-funcionais de latência e disponibilidade essa feature precisa?", "esperado": ["apoio-norma-nfr"]}
+{"pedido": "Monta o plano de entrega por marcos com as dependências", "esperado": ["apoio-iara-planejamento"]}
+{"pedido": "Levanta os riscos do projeto e monta o RAID log", "esperado": ["apoio-breno-riscos"]}
+{"pedido": "Escreve o status report da semana pros stakeholders", "esperado": ["apoio-talita-entregas"]}
+{"pedido": "Cataloga as tabelas do warehouse com a linhagem de cada uma", "esperado": ["apoio-vitor-catalogo"]}
+{"pedido": "Define as dimensões de qualidade e os contratos de dados do domínio de vendas", "esperado": ["apoio-regina-qualidade"]}
+{"pedido": "Quem pode acessar os dados de clientes? Escreve a política de acesso", "esperado": ["apoio-paula-politicas"]}

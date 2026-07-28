@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verificar:
+    name: Consistência da fábrica
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Sync multi-CLI sem diff pendente
+        run: |
+          python3 scripts/sync-multi-cli.py
+          python3 plugin/scripts/sync-multi-cli.py
+          git diff --exit-code || {
+            echo "::error::.agents/ ou .cursor/ desatualizados — rode scripts/sync-multi-cli.py (raiz e plugin/) e commite"
+            exit 1
+          }
+
+      - name: Versão, contagens, paridade e mirrors
+        run: python3 scripts/release.py check
+
+      - name: Segurança dos agentes (allow-lists e segredos)
+        run: |
+          python3 scripts/check-agent-security.py agents
+          python3 scripts/check-agent-security.py plugin/agents
+
+      - name: Grafo de conhecimento válido (se existir)
+        run: |
+          if [ -d .agents/grafo ] && ls .agents/grafo/*.jsonl >/dev/null 2>&1; then
+            python3 scripts/grafo.py validar
+          else
+            echo "sem grafo no repo do plugin — ok"
+          fi

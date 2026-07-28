@@ -28,6 +28,9 @@ The two plugins are independent — one does not import from the other. The core
 - `docs/adr/` — Architecture Decision Records
 - `scripts/sync-multi-cli.py` — Regenerates `.agents/` (Codex) and `.cursor/` (Cursor) from `agents/` + `skills/` whenever the canonical Claude Code sources change
 - `scripts/grafo.py` — Deterministic side of the knowledge graph (validate, diagnose, k-hop subgraph, human sample); the graph itself lives in the user project at `.agents/grafo/`
+- `scripts/release.py` — Version bump with counts computed from the filesystem, plus a `check` mode run by CI (consistency of counts/version, root↔plugin parity, JSON validity, mirrors)
+- `evals/roteamento-laura/` — Gold set for Laura's routing regression eval, run by Alice (repo-root only, not distributed in `plugin/`)
+- `.github/workflows/ci.yml` — CI: sync with no pending diff, `release.py check`, agent security audit (repo-root only)
 
 ## Cross-platform compatibility
 
@@ -184,6 +187,8 @@ OpenCode reads `CLAUDE.md` as a fallback for `AGENTS.md`, so project instruction
 - Modify a skill or agent → run `python3 scripts/sync-multi-cli.py` → bump patch version
 - Add new agent or skill → run sync → bump minor version + new ADR
 - Change fundamental contract (e.g., file ownership protocol, SPEC format) → bump major + new ADR
+- Version bumps go through `python3 scripts/release.py bump X.Y.Z` — it computes agent/team/squad/skill counts from the filesystem, injects version+counts everywhere, runs both syncs and mirrors `plugin/`; `python3 scripts/release.py check` is what CI runs on every PR
+- Changed Laura's prompt, an agent `description` or routing → run the routing eval (`evals/roteamento-laura/`) with Alice before committing
 
 Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) after sync.
 

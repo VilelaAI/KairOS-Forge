@@ -38,9 +38,20 @@ git add agents/ skills/ .agents/ .cursor/
 
 Sem o sync, usuários de Codex CLI e Cursor pegam versão desatualizada.
 
+**Para bump de versão, use o script de release** — ele calcula as contagens
+(agentes/times/squads/skills) do filesystem, injeta versão+contagens em todos os
+manifests/banners/docs, roda os dois syncs e espelha em `plugin/`:
+
+```bash
+python3 scripts/release.py bump 0.14.0   # tudo de uma vez
+python3 scripts/release.py check         # o que o CI roda em todo PR
+```
+
 - Mudar prompt de agente ou skill → bump patch (0.4.x) + rodar sync
 - Adicionar agente ou skill → bump minor (0.x.0) + ADR + rodar sync
 - Mudar contrato fundamental → bump major (x.0.0) + ADR + rodar sync
+- Mudou prompt da Laura, `description` de agente ou roteamento → rodar o eval de
+  roteamento (`evals/roteamento-laura/`) com a Alice antes do commit
 
 ## Estrutura
 
@@ -61,10 +72,13 @@ Sem o sync, usuários de Codex CLI e Cursor pegam versão desatualizada.
 | `docs/adr/` | ADRs | manual |
 | `scripts/sync-multi-cli.py` | Regenera `.agents/` (Codex) e `.cursor/` (Cursor) a partir de `agents/` + `skills/` | manual |
 | `scripts/grafo.py` | Parte determinística do grafo de conhecimento (validar, diagnosticar, subgrafo, amostrar) | manual |
+| `scripts/release.py` | Bump de versão com contagens calculadas do filesystem + `check` de consistência (CI) | manual |
+| `evals/roteamento-laura/` | Gold set do eval de roteamento da Laura (dogfooding — só na raiz, não distribui) | manual |
+| `.github/workflows/ci.yml` | CI: sync sem diff pendente, `release.py check`, segurança dos agentes (só na raiz) | manual |
 
 > **Importante: skills/ é compartilhada.** Tanto Claude Code quanto Codex CLI descobrem skills em `skills/<nome>/SKILL.md` quando empacotados como plugin. Não há duplicação. Apenas os subagents (`agents/<id>.md` no Claude Code, `.agents/<id>/AGENT.md` no Codex) é que precisam de mirror.
 
-> **Importante: dois marketplace.json.** Claude Code procura em `.claude-plugin/marketplace.json` e Codex em `.agents/plugins/marketplace.json`. Os dois têm o mesmo conteúdo. Quando bumpar versão, atualize ambos juntos (existe TODO de unificar via script de release).
+> **Importante: dois marketplace.json.** Claude Code procura em `.claude-plugin/marketplace.json` (com versão e descrição — o `release.py` atualiza) e Codex em `.agents/plugins/marketplace.json` (só aponta pra `./plugin`, sem versão — raramente muda).
 
 ## Decisões já tomadas
 

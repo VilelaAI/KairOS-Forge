@@ -80,6 +80,8 @@ Perguntas típicas por agente:
 - **Rafael**: "Por que essa abordagem e não a alternativa óbvia? Trade-off de escala?"
 - **Camila**: "Isso é MVP ou V2? Qual métrica de sucesso?"
 
+**Pergunta com default recomendado (ADR-0019):** escolha **reversível** não trava o fluxo — o arquiteto declara o default ("recomendo X por Y; sigo com isso se você não disser o contrário"), registra a premissa na SPEC e continua. O Pare e Pergunte (ADR-0015) permanece absoluto no **irreversível e no conteúdo inventável**: lá não existe default, existe pergunta.
+
 ### 4. Espelhar entendimento
 
 Antes de escrever a SPEC, o arquiteto líder **resume em 3 bullets** o problema como entendeu. Pede correção do usuário.

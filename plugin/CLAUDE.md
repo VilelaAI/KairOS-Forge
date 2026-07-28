@@ -74,6 +74,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `scripts/grafo.py` | Parte determinística do grafo de conhecimento (validar, diagnosticar, subgrafo, amostrar, mermaid) | manual |
 | `scripts/release.py` | Bump de versão com contagens calculadas do filesystem + `check` de consistência (CI) | manual |
 | `evals/roteamento-laura/` | Gold set do eval de roteamento da Laura (dogfooding — só na raiz, não distribui) | manual |
+| `hermes/` | Ponte Hermes Agent: skills de roteamento/ciclo + workflow + install.sh — a fábrica como motor de engenharia de um agente 24/7 (ADR-0019) | manual |
 | `.github/workflows/ci.yml` | CI: sync sem diff pendente, `release.py check`, segurança dos agentes (só na raiz) | manual |
 
 > **Importante: skills/ é compartilhada.** Tanto Claude Code quanto Codex CLI descobrem skills em `skills/<nome>/SKILL.md` quando empacotados como plugin. Não há duplicação. Apenas os subagents (`agents/<id>.md` no Claude Code, `.agents/<id>/AGENT.md` no Codex) é que precisam de mirror.
@@ -100,6 +101,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 - **ADR-0016**: time core Ciência de Dados (Davi, Milena, Heitor) e squad de apoio Governança (Vitor, Regina, Paula) (v0.12.0)
 - **ADR-0017**: sete perfis especializados — time Mobile (Yasmin, Théo), Ivan (Modernização), Alice (Evals de IA), Bento (Analytics), Murilo (Eventos) e Ingrid (Localização, no apoio-microcopy) (v0.13.0)
 - **ADR-0018**: skill `migrar` (estrangulamento com Ivan), modo RFC no `/especificar`, subcomando `mermaid` no grafo.py e modo debate no `/rodar` (v0.14.0)
+- **ADR-0019**: ponte Hermes — a fábrica como motor de engenharia do Hermes Agent (24/7 via Telegram); pergunta com default recomendado no `/especificar` (v0.15.0)
 
 ## Limitações conhecidas por CLI
 

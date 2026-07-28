@@ -88,6 +88,10 @@ cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
 
 Isso entrega os 71 subagents, as 13 skills no menu `/`, a rule com o banner da fábrica e os arquivos de suporte (`grafo.py`, templates). `mobilizar` detecta o Cursor e redireciona pra `rodar`.
 
+### Hermes Agent (bot 24/7 — ponte)
+
+A fábrica também opera como **motor de engenharia do [Hermes Agent](https://hermes-agent.nousresearch.com)**: você pede pelo Telegram, o Hermes opera (kanban, aprovações) e a fábrica especifica/constrói/valida dentro do Claude Code. Instalação e arquitetura em [`hermes/README.md`](plugin/hermes/README.md) (ADR-0019).
+
 ### OpenCode
 
 ```bash

@@ -25,7 +25,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 # O que é espelhado root → plugin/ (diretórios inteiros e arquivos avulsos).
 DIRS_ESPELHADOS = [
     "agents", "skills", "templates", "hooks", ".codex", ".codex-plugin",
-    "scripts", "docs",
+    "scripts", "docs", "hermes",
 ]
 ARQUIVOS_ESPELHADOS = ["CLAUDE.md", "AGENTS.md", ".claude-plugin/plugin.json"]
 # Diferem por desenho entre root e plugin/ — nunca copiar nem comparar.
@@ -182,6 +182,10 @@ def padroes(n, versao):
             (r"com \d+ agentes especializados, organizada em \d+ times",
              f"com {c} agentes especializados, organizada em {tc} times"),
         ]),
+        ("hermes/README.md", [
+            (r"\d+ agentes \(\d+ core \+ \d+ apoio em \d+ squads\)", contagem_parens),
+            (r"As \d+ skills do ciclo", f"As {sk} skills do ciclo"),
+        ]),
     ]
 
 
@@ -269,7 +273,7 @@ def checar():
                 problemas.append(f"{rel}: skill '{skill}' não citada")
 
     # Sem cirílico nem replacement char nos fontes canônicos
-    for rel_dir in ["agents", "skills", "templates", "docs"]:
+    for rel_dir in ["agents", "skills", "templates", "docs", "hermes"]:
         for p in sorted((RAIZ / rel_dir).rglob("*.md")):
             texto = p.read_text(encoding="utf-8")
             if "�" in texto:

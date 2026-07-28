@@ -31,6 +31,7 @@ The two plugins are independent — one does not import from the other. The core
 - `scripts/release.py` — Version bump with counts computed from the filesystem, plus a `check` mode run by CI (consistency of counts/version, root↔plugin parity, JSON validity, mirrors)
 - `evals/roteamento-laura/` — Gold set for Laura's routing regression eval, run by Alice (repo-root only, not distributed in `plugin/`)
 - `.github/workflows/ci.yml` — CI: sync with no pending diff, `release.py check`, agent security audit (repo-root only)
+- `hermes/` — Hermes Agent bridge (ADR-0019): routing/cycle skills + workflow + install.sh that plug the factory into a 24/7 Hermes bot as its engineering engine (Hermes operates — kanban, cron, approvals; the factory specs, builds, validates and reviews inside Claude Code)
 
 ## Cross-platform compatibility
 
@@ -213,6 +214,7 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0016**: core Data Science team (Davi, Milena, Heitor) and Governance support squad (Vitor, Regina, Paula) (v0.12.0)
 - **ADR-0017**: seven specialized profiles — Mobile team (Yasmin, Théo), Ivan (Legacy Modernization), Alice (AI Evals), Bento (Analytics), Murilo (Events & Streaming), Ingrid (Localization, in apoio-microcopy) (v0.13.0)
 - **ADR-0018**: `migrar` skill (strangler fig with Ivan), RFC mode in `/especificar`, `mermaid` subcommand in grafo.py and debate mode in `/rodar` (v0.14.0)
+- **ADR-0019**: Hermes bridge — the factory as the engineering engine of Hermes Agent (24/7 via Telegram); recommended-default questions in `/especificar` (v0.15.0)
 
 ## Critical design constraints
 

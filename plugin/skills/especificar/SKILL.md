@@ -223,10 +223,13 @@ Plano tem N tarefas atribuídas a M agentes.
 
 Próximos passos:
 1. Revise a SPEC e ajuste se algo não bater
-2. Quando aprovada, rode: /kairos-forge:mobilizar SPEC-NNN
+2. Feature com UI? Rode antes: /kairos-forge:desenhar SPEC-NNN
+3. Quando aprovada, rode: /kairos-forge:mobilizar SPEC-NNN
    (ou execução sequencial: /kairos-forge:rodar)
-3. Após implementar: /kairos-forge:validar SPEC-NNN
-4. Antes do PR: /kairos-forge:revisar
+4. Após implementar: /kairos-forge:validar SPEC-NNN
+   (com UI: /kairos-forge:desenhar verificar DESIGN-NNN)
+5. Antes do PR: /kairos-forge:revisar
+6. Pra colocar em produção: /kairos-forge:lancar
 ```
 
 ## Quando NÃO escrever SPEC

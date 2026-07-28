@@ -69,7 +69,17 @@ Etapas em sequência — cada uma atualiza o card antes da próxima:
    Achado crítico 🔴 volta à etapa 3. Sem críticos → abrir PR com o resumo
    da revisão no corpo. Card → "aguardando merge" com o link do PR.
 
-6. **Encerrar.** Merge é decisão do fundador (ou do fluxo de PR do
+6. **Lançar (opcional, pós-merge).** Se o fundador pedir produção:
+
+   ```bash
+   claude -p "/kairos-forge:lancar — release da SPEC-NNN"
+   ```
+
+   O gate de aprovação do deploy chega ao fundador pelo chat (SIM explícito
+   — sem default). Health check em três camadas e rollback anotado fazem
+   parte da skill.
+
+7. **Encerrar.** Merge é decisão do fundador (ou do fluxo de PR do
    oh-my-hermes, se instalado). Após o merge: card → Done, salve na memória
    do Hermes `SPEC-NNN entregue em <data>, PR #N` e registre aprendizados
    relevantes.

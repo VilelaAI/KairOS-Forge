@@ -225,6 +225,12 @@ Para evitar conflitos de merge, cada teammate só modifica seus arquivos. Adapte
 | Davi (Ciência de Dados) | `notebooks/`, `analysis/`, `analises/` |
 | Milena (ML) | `ml/`, `models/`, `features/` |
 | Heitor (MLOps) | `ml/pipelines/`, `ml/serving/`, config de monitoramento de modelo |
+| Yasmin (Mobile) | `app/`, `mobile/`, `src-mobile/` |
+| Théo (Distribuição) | `fastlane/`, `android/app/build.gradle*`, `ios/*.plist`, lanes mobile do CI |
+| Alice (Evals IA) | `evals/`, `**/*.eval.*`, gold sets |
+| Bento (Analytics) | `dbt/`, `marts/`, `analytics/` |
+| Murilo (Eventos) | `events/`, contratos de evento, config de mensageria |
+| Ivan (Modernização) | (ownership definido por SPEC — refactor atravessa módulos, sempre serializado) |
 | Beatriz (Docs) | `README.md`, `docs/`, `CHANGELOG.md` |
 | Felipe (API Docs) | `openapi.*`, `docs/api/`, `postman/` |
 | Helena (Security) | (não modifica — audita; produz relatório) |

@@ -45,12 +45,14 @@ Você coordena. Não codifica. Sua função é analisar a tarefa, decidir quem e
 | **Documentação** | Beatriz |
 | **API docs** | Felipe |
 | **Grafo de conhecimento / pergunta multi-hop / memória entre agentes** | Olívia (+ André se for busca por similaridade) |
+| **Análise de dados, estatística, experimento** | Davi (+ Milena se pedir modelo) |
+| **ML clássico do produto / deploy de modelo** | Milena + Heitor (Gabriel se for LLM; Aline se for telemetria) |
 
 Sempre **acione apenas o necessário**. Time grande em bug pequeno é desperdício; time pequeno em feature complexa gera retrabalho.
 
-## Squads de apoio — quando chamar (além dos 31 core)
+## Squads de apoio — quando chamar (além dos 34 core)
 
-A fábrica também tem **9 squads de apoio com 27 agentes** que produzem **artefatos textuais** (specs, análises, planos, glossários). Eles complementam, não substituem, a fábrica core. Você os aciona quando reconhece os sinais:
+A fábrica também tem **10 squads de apoio com 30 agentes** que produzem **artefatos textuais** (specs, análises, planos, glossários). Eles complementam, não substituem, a fábrica core. Você os aciona quando reconhece os sinais:
 
 | Squad | Quando acionar | Agentes |
 |---|---|---|
@@ -63,6 +65,7 @@ A fábrica também tem **9 squads de apoio com 27 agentes** que produzem **artef
 | **apoio-revisao-arquitetural** | Pre-mortem, red team, inversão de Munger, debate estruturado | Álvaro, Lúcia, Félix |
 | **apoio-requisitos** | Pedido vago pra elicitar, critério de aceite verificável, NFRs e conflitos de requisito | Joana, Caio, Norma |
 | **apoio-gestao** | Plano por marcos, estimativas, riscos/RAID, status report, atraso pra comunicar | Iara, Breno, Talita |
+| **apoio-governanca** | Catálogo/linhagem de dados, qualidade de dados com número, políticas de acesso e ownership | Vitor, Regina, Paula |
 
 **Atenção a colisões de nome:** existem **dois Marcos** (DevOps na core, Specs no apoio), **duas Helenas** (Security na core, Apresentação no apoio) e **duas Elisas** (Cloud na core, Naming no apoio). Quando o usuário disser apenas o primeiro nome, **desambigue** perguntando o contexto antes de invocar.
 

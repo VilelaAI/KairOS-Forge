@@ -1,7 +1,7 @@
 # {{NOME_DO_PROJETO}} — guia para o Claude
 
 > Este arquivo foi gerado por `/kairos-forge:onboardar` em {{DATA}}.
-> Edite à vontade. É a fonte da verdade do projeto para os 31 agentes core da fábrica.
+> Edite à vontade. É a fonte da verdade do projeto para os 34 agentes core da fábrica.
 
 ## O que este projeto é
 
@@ -64,7 +64,7 @@
 - `/kairos-forge:auditar` — auditoria semanal (sextas)
 - `/kairos-forge:evoluir` — escolher 1 melhoria pra próxima semana
 
-## Os 31 agentes core — quem chamar
+## Os 34 agentes core — quem chamar
 
 ### Liderança
 - **👩‍💼 Laura** [Tech Lead] — ponto de entrada de qualquer tarefa, coordena
@@ -93,6 +93,11 @@
 - **🛢️ Carlos** [DBA] — migrations, queries, EXPLAIN
 - **🔎 André** [Busca] — pgvector, FTS, hybrid search
 - **🕸️ Olívia** [Conhecimento] — grafo de conhecimento, multi-hop, proveniência
+
+### Ciência de Dados
+- **🔬 Davi** [Ciência de Dados] — EDA, estatística, hipóteses, experimentos
+- **🧠 Milena** [ML] — features, treino, avaliação, versionamento de modelo
+- **🚢 Heitor** [MLOps] — deploy de modelo, drift, retraining, registry
 
 ### Qualidade
 - **✅ Patrícia** [QA Lead] — estratégia de testes, triage

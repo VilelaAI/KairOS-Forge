@@ -2,8 +2,8 @@ squad:
   id: fabrica-forge
   tipo: desenvolvimento
   idioma: pt-BR
-  versao: "0.11.0"
-  descricao: "Fábrica de software completa com 31 agentes especializados, organizada em 9 times. Versão MIT/genérica do squad. Para domínios regulados (LGPD, Segurança-TI, NRs, OAB), use kairos-ai."
+  versao: "0.12.0"
+  descricao: "Fábrica de software completa com 34 agentes especializados, organizada em 10 times. Versão MIT/genérica do squad. Para domínios regulados (LGPD, Segurança-TI, NRs, OAB), use kairos-ai."
 
   times:
     - nome: "Liderança"
@@ -18,6 +18,8 @@ squad:
       agentes: [lucas-backend, gabriel-ia, juliana-etl]
     - nome: "Dados"
       agentes: [carlos-dba, andre-busca, olivia-grafos]
+    - nome: "Ciência de Dados"
+      agentes: [davi-ciencia-dados, milena-ml, heitor-mlops]
     - nome: "Qualidade"
       agentes: [patricia-qa, ricardo-testes, vinicius-performance]
     - nome: "Plataforma"
@@ -73,6 +75,12 @@ squad:
       aiops_deteccao:
         agentes: ["aline-aiops", "renata-observabilidade"]
         descricao: "Detecção de anomalia, correlação/redução de ruído de alertas, RCA assistida, observabilidade aumentada"
+      ciencia_de_dados:
+        agentes: ["davi-ciencia-dados", "milena-ml"]
+        descricao: "Análise exploratória, estatística, hipóteses, experimentos e modelos de ML clássico sobre dados do produto"
+      mlops:
+        agentes: ["heitor-mlops", "marcos-devops"]
+        descricao: "Deploy de modelo, monitoramento de drift, retraining, model registry e rollback de modelo"
       grafo_de_conhecimento:
         agentes: ["olivia-grafos", "andre-busca"]
         descricao: "Construir/atualizar/consultar o grafo de conhecimento (.agents/grafo/), pergunta multi-hop, memória compartilhada entre agentes, fundamentação de validação"
@@ -105,7 +113,7 @@ squad:
     use o kairos-ai (https://github.com/VilelaAI/kairos-ai) em vez deste.
 
   squads_apoio:
-    descricao: "9 squads de apoio com 27 agentes. Tipo: apoio. NUNCA implementam código — produzem artefatos textuais. Acionados via /kairos-forge:rodar apoio-<nome>."
+    descricao: "10 squads de apoio com 30 agentes. Tipo: apoio. NUNCA implementam código — produzem artefatos textuais. Acionados via /kairos-forge:rodar apoio-<nome>."
     regra: "Squads de apoio complementam (não substituem) a fábrica core. Máximo 1 squad de apoio ativo por vez na sessão."
 
     squads:
@@ -162,6 +170,12 @@ squad:
         complementa: [laura-tech-lead, camila-pm]
         sinais_ativacao: ["gestão de projeto", cronograma, prazo, marco, milestone, estimativa, "caminho crítico", risco, RAID, "dependência externa", "status report", entrega, atraso, "plano de projeto", follow-up]
         descricao: "Gestão de projetos e entregas: planejamento por marcos (Iara), riscos/RAID (Breno) e status honesto baseado em evidência (Talita)"
+
+      apoio-governanca:
+        agentes: [apoio-vitor-catalogo, apoio-regina-qualidade, apoio-paula-politicas]
+        complementa: [fernanda-dados, helena-security, juliana-etl]
+        sinais_ativacao: ["catálogo de dados", linhagem, "dicionário de dados", "qualidade de dados", "contrato de dados", freshness, "política de acesso", ownership, "menor privilégio", "quem pode ver", "de onde vem esse dado"]
+        descricao: "Governança técnica de dados: catálogo e linhagem (Vitor), qualidade com número (Regina), políticas de acesso e ownership (Paula). Regulatório (LGPD/DPO) é kairos-ai"
 
     colisoes_de_nome:
       regra: "Quando o usuário disser apenas o primeiro nome de um agente que existe nos dois lados, Laura desambigua antes de invocar."

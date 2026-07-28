@@ -19,11 +19,11 @@ Diferente das outras skills, esta não cria SPECs nem audita o projeto. Ela ativ
 | `/kairos-forge:rodar <nome>` | Ativa um agente específico em primeira pessoa (ex: `rodar marina`) |
 | `/kairos-forge:rodar <time>` | Ativa um time inteiro core (ex: `rodar arquitetura` ativa Diego, Fernanda, Thiago) |
 | `/kairos-forge:rodar apoio-<squad>` | Ativa um squad de apoio (ex: `rodar apoio-naming` ativa Elisa, Bruno e Cora) |
-| `/kairos-forge:rodar fabrica-completa` | Ativa todos os 31 agentes core em modo conversacional — uso raro |
+| `/kairos-forge:rodar fabrica-completa` | Ativa todos os 34 agentes core em modo conversacional — uso raro |
 
 ## Squads de apoio
 
-Os 9 squads de apoio (27 agentes) são carregados sob demanda. **Apenas 1 squad de apoio ativo por vez na sessão** — eles são pesados em contexto e tem foco específico.
+Os 10 squads de apoio (30 agentes) são carregados sob demanda. **Apenas 1 squad de apoio ativo por vez na sessão** — eles são pesados em contexto e tem foco específico.
 
 | Squad | Comando | Quando |
 |---|---|---|
@@ -36,6 +36,7 @@ Os 9 squads de apoio (27 agentes) são carregados sob demanda. **Apenas 1 squad 
 | Revisão arquitetural | `/kairos-forge:rodar apoio-revisao-arquitetural` | Pre-mortem, red team, debate |
 | Requisitos | `/kairos-forge:rodar apoio-requisitos` | Elicitação, critérios de aceite, NFRs |
 | Gestão | `/kairos-forge:rodar apoio-gestao` | Plano por marcos, RAID, status report |
+| Governança | `/kairos-forge:rodar apoio-governanca` | Catálogo/linhagem, qualidade de dados, políticas de acesso |
 
 Quando rodar `apoio-<X>`, leia a definição em `${CLAUDE_PLUGIN_ROOT}/templates/squad-fabrica.yaml` (seção `squads_apoio.squads.apoio-<X>`) para identificar os 3 agentes do squad. Cada um se apresenta em primeira pessoa e contribui no seu framework.
 
@@ -97,7 +98,7 @@ Triplas com proveniência substituem "deixa eu reler os docs". Quando a discuss�
 
 ## Onde lê a definição dos agentes
 
-Os 52 agentes (31 core + 21 apoio) vivem em `${CLAUDE_PLUGIN_ROOT}/agents/*.md`, cada um com seu frontmatter (`name`, `description`, `tools`, `model`) e corpo (comportamento + limites). Esta skill não duplica o conteúdo — só coordena o fluxo entre eles.
+Os 64 agentes (34 core + 30 apoio) vivem em `${CLAUDE_PLUGIN_ROOT}/agents/*.md`, cada um com seu frontmatter (`name`, `description`, `tools`, `model`) e corpo (comportamento + limites). Esta skill não duplica o conteúdo — só coordena o fluxo entre eles.
 
 A definição de **times** e **regra de acionamento** está em `${CLAUDE_PLUGIN_ROOT}/templates/squad-fabrica.yaml`.
 

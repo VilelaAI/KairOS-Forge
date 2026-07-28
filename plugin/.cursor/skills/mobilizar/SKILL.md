@@ -222,6 +222,9 @@ Para evitar conflitos de merge, cada teammate só modifica seus arquivos. Adapte
 | Ricardo (Testes) | `**/*.test.*`, `**/*.spec.*`, `tests/`, `e2e/`, `playwright/` |
 | Marcos (DevOps) | `.github/`, `Dockerfile*`, `docker-compose*`, `scripts/deploy*` |
 | Renata (Observ) | `src/lib/logger.*`, `src/lib/metrics.*`, código de instrumentação |
+| Davi (Ciência de Dados) | `notebooks/`, `analysis/`, `analises/` |
+| Milena (ML) | `ml/`, `models/`, `features/` |
+| Heitor (MLOps) | `ml/pipelines/`, `ml/serving/`, config de monitoramento de modelo |
 | Beatriz (Docs) | `README.md`, `docs/`, `CHANGELOG.md` |
 | Felipe (API Docs) | `openapi.*`, `docs/api/`, `postman/` |
 | Helena (Security) | (não modifica — audita; produz relatório) |

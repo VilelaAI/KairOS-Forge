@@ -1,12 +1,12 @@
 # kairos-forge
 
-> Marketplace single-plugin do **kairos-forge**: fábrica de software autônoma com 58 agentes em PT-BR para Claude Code, Codex CLI, OpenCode e Cursor. MIT.
+> Marketplace single-plugin do **kairos-forge**: fábrica de software autônoma com 64 agentes em PT-BR para Claude Code, Codex CLI, OpenCode e Cursor. MIT.
 
 Este repositório é um **marketplace catalog** que distribui o plugin `kairos-forge`. Para a documentação completa do plugin (agentes, skills, comandos), veja [`plugin/README.md`](plugin/README.md).
 
 ## O plugin distribuído
 
-**`kairos-forge`** — 58 agentes (31 core + 27 apoio em 9 squads) coordenados por Laura (Tech Lead), 12 skills cobrindo o ciclo completo (onboarding → mapa arquitetural brownfield → especificação rastreável → threat model → execução paralela/sequencial → validação contra SPEC → revisão → grafo de conhecimento com proveniência → auditoria em 5 dimensões → evolução).
+**`kairos-forge`** — 64 agentes (34 core + 30 apoio em 10 squads) coordenados por Laura (Tech Lead), 12 skills cobrindo o ciclo completo (onboarding → mapa arquitetural brownfield → especificação rastreável → threat model → execução paralela/sequencial → validação contra SPEC → revisão → grafo de conhecimento com proveniência → auditoria em 5 dimensões → evolução).
 
 Para projetos em **domínios regulados brasileiros** (LGPD, NRs, OAB, etc.), use [kairos-ai](https://github.com/VilelaAI/kairos-ai) em vez deste — adiciona squads negociais, guardrails legais, assertions binárias e advisor regulatório.
 
@@ -86,7 +86,7 @@ cp -R kairos-forge/plugin/.cursor /caminho/do/projeto/.cursor
 cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
 ```
 
-Isso entrega os 58 subagents, as 12 skills no menu `/`, a rule com o banner da fábrica e os arquivos de suporte (`grafo.py`, templates). `mobilizar` detecta o Cursor e redireciona pra `rodar`.
+Isso entrega os 64 subagents, as 12 skills no menu `/`, a rule com o banner da fábrica e os arquivos de suporte (`grafo.py`, templates). `mobilizar` detecta o Cursor e redireciona pra `rodar`.
 
 ### OpenCode
 

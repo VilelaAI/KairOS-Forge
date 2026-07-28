@@ -46,17 +46,17 @@ FERRAMENTAS_ESCRITA = {"Write", "Edit", "NotebookEdit", "Bash"}
 
 RULE_KAIROS_FORGE = """\
 ---
-description: "Fábrica de software kairos-forge — 58 agentes e 12 skills em PT-BR"
+description: "Fábrica de software kairos-forge — 64 agentes e 12 skills em PT-BR"
 alwaysApply: true
 ---
 
-🔥 kairos-forge v0.11 ativo (Cursor) — 58 agentes (31 core + 27 apoio em 9 squads).
+🔥 kairos-forge v0.12 ativo (Cursor) — 64 agentes (34 core + 30 apoio em 10 squads).
 
 - As skills da fábrica estão no menu `/` (Agent Skills): onboardar, especificar,
   mapear-arquitetura, mapear-conhecimento, analisar-ameacas, validar, rodar,
   revisar, otimizar, auditar, evoluir. A skill `mobilizar` requer Agent Teams do Claude
   Code — no Cursor, use `rodar` (cobre o fluxo em modo sequencial).
-- As 58 personas são subagents (Laura, Tech Lead, é o ponto de entrada: ela
+- As 64 personas são subagents (Laura, Tech Lead, é o ponto de entrada: ela
   analisa a tarefa e decide quem entra). Cada agente responde em primeira
   pessoa e se apresenta pelo nome.
 - Resolução de caminhos: quando uma skill referenciar

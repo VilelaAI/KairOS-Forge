@@ -235,3 +235,43 @@ A distância até L4 não é de agentes, personas ou skills novas. É de **quatr
 
 > *"Generation is solved. Verification, judgment, and direction are the new craft."*
 > — conclusão do whitepaper, e a melhor descrição do que falta ao harness da fábrica.
+
+---
+
+## 9. Execução — o que foi construído (v0.17.0 → v0.19.0)
+
+As três ondas foram implementadas na mesma data desta análise. Registro do que cada lacuna
+virou, para este documento continuar servindo como leitura do "antes" sem induzir a erro
+sobre o estado atual.
+
+| Lacuna | Virou | Onde |
+|---|---|---|
+| G1 — Observabilidade | `execucao.py` (registro por hook em 4 pontos) + `telemetria.py` (`resumo`/`sessoes`/`corroborar`) + 6ª dimensão **Autonomia** no `/auditar` | ADR-0021, v0.17.0 |
+| G3 — Trajetória | Etapa 3.6 do `/validar`: cada `verificado:` é cruzado com a trajetória; não corroborado em P1 bloqueia | ADR-0021, v0.17.0 |
+| G4 — Hooks pedagógicos | `guardrail.py` bloqueando em `PreToolUse`/`PostToolUse` (comando destrutivo, caminho protegido, integridade da SPEC) + fallback CLI para os demais CLIs e o CI | ADR-0022, v0.18.0 |
+| G2 — Arco preso na ponte | Skill `entregar` — o loop promovido para dentro do plugin, com orçamento declarado e fronteira de aprovação intacta | ADR-0023, v0.18.0 |
+| G7 — Contenção de raio | Worktree por teammate quando a supervisão humana sai do caminho + reversibilidade declarada como critério de admissão da autonomia | ADR-0024, v0.18.0 |
+| G4 (evals) — Evals do usuário | Skill `avaliar` (Alice) com rubrica nos cinco eixos do paper; e o eval de roteamento do próprio plugin passa a rodar headless no CI | ADR-0025, v0.19.0 |
+| G6 — Gatilhos por evento | `templates/ci/` — revisar no PR, corrigir em CI vermelho (abre PR, nunca escreve na base), auditar por cron | ADR-0026, v0.19.0 |
+| G8 — Fronteira estático/dinâmico | Fronteira declarada e orçamento verificado no `release.py check`, incluindo o limite de 500 linhas por skill | ADR-0027, v0.19.0 |
+| G9 — Roteamento de modelo | Coberto pelo registro de execução (o tier entra na trajetória) | ADR-0021 |
+| G10 — MCP/A2A | **Não implementado** — segue como opcionalidade estratégica, não lacuna | — |
+
+Duas observações sobre o que a execução confirmou:
+
+**A ordem importava mesmo.** Instrumentar → conter → disparar não foi preferência estética:
+o `/auditar` agora recusa recomendar gatilho por evento a um projeto sem telemetria e sem
+guardrail, e a tabela de nível exige **todos** os critérios de L4, não a média. Uma fábrica
+com 90% de autonomia e nenhum guardrail determinístico é classificada como pipeline sem
+supervisão, com essas palavras.
+
+**A fronteira de aprovação não se mexeu.** Os cinco gates humanos — SPEC, Pare e Pergunte,
+deploy, irreversível, merge — atravessaram as três ondas intactos e estão em tabela no topo
+da skill `entregar`. O que saiu do caminho do humano foi a digitação do próximo comando e a
+leitura de cada diff. O julgamento ficou.
+
+**O que ainda falta para L4 não é código.** É **uso**: a dimensão Autonomia só produz número
+depois de algumas semanas de ciclos registrados, e a régua de L4 exige taxa ≥ 80%, gates
+verdes de primeira ≥ 70% e zero sessões com produção escrita sem gate. O harness agora
+consegue medir e sustentar isso; provar é a próxima etapa, e ela roda no calendário, não no
+editor.

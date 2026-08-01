@@ -40,3 +40,35 @@ jobs:
           else
             echo "sem grafo no repo do plugin — ok"
           fi
+
+      - name: Guardrails determinísticos (ADR-0022)
+        run: |
+          python3 scripts/guardrail.py verificar .
+          python3 plugin/scripts/guardrail.py verificar plugin
+
+  eval-roteamento:
+    name: Eval de roteamento da Laura
+    runs-on: ubuntu-latest
+    # Caro em tokens: não roda em todo PR. Manual, ou no merge para main.
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Rodar o gold set (limiar 90%)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        # Sem chave, o runner pula com exit 0 — falso vermelho treina o time a
+        # ignorar o vermelho (ADR-0025).
+        run: python3 evals/roteamento-laura/rodar.py --limiar 90

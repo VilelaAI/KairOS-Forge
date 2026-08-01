@@ -14,6 +14,29 @@ A fábrica kairos-forge trabalha com **três camadas de memória** (ADR-0010). E
 
 **Regra anti-duplicação:** as skills não fazem double-write. Captura de sessão é trabalho dos hooks do ai-memory (automática); escrita durável é nos arquivos do repo. A tool `memory_write_page` fica reservada para **preferências pessoais/globais do usuário** (`scope: global` — estilo de código, escolhas de stack pessoais), que não pertencem a nenhum repo.
 
+### Não confundir com a telemetria de execução
+
+A partir da v0.17 existe um quarto arquivo de natureza episódica, e ele **não** é
+memória: `.agents/execucoes/*.jsonl`, o registro de trajetória gravado pelos hooks
+do próprio plugin (ADR-0021).
+
+| | ai-memory (camada 1) | `.agents/execucoes/` (telemetria) |
+|---|---|---|
+| **Pergunta que responde** | "onde eu parei?" | "isso realmente rodou?" |
+| **Serve a** | continuidade entre sessões e CLIs | corroboração de evidência e medição de autonomia |
+| **Conteúdo** | conversa, tentativas, handoff — semântico | eventos determinísticos: comandos, gates, escritas, contagem de prompts |
+| **Origem** | hooks do ai-memory, externo e opcional | hooks do próprio plugin, embarcados |
+| **Quem lê** | Laura na abertura de `/rodar` e `/mobilizar`; `/evoluir` | `/validar` (corroborar) e `/auditar` (dimensão Autonomia) |
+| **Escrita pelo agente?** | sim, indiretamente | **nunca** — o caminho é bloqueado por guardrail (ADR-0022) |
+
+A última linha é a diferença que importa. Memória é o que o agente conta sobre o
+passado; telemetria é o que aconteceu, gravado por código que o agente não
+controla. É por isso que a telemetria pode servir de prova e a memória não.
+
+As duas são episódicas e as duas seguem a mesma regra de fluxo: o durável sobe de
+camada. A conclusão da telemetria vira número em `decisoes/auditorias/`; o bruto é
+descartável e apagar `.agents/execucoes/` é seguro a qualquer momento.
+
 ## Ativando a camada de sessão (opcional)
 
 O ai-memory é um projeto MIT independente: um binário Rust que roda servidor MCP/HTTP local (loopback por default) e instala hooks de ciclo de vida nos CLIs. O forge **não** o embarca — apenas o detecta e usa quando presente.

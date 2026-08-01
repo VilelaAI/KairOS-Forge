@@ -62,18 +62,22 @@ Acionar:
 | `/kairos-forge:especificar <ideia>` | Antes de codar não-trivial; gera SPEC rastreável | Todos os CLIs |
 | `/kairos-forge:analisar-ameacas <feature>` | Threat model antes de implementar feature sensível (auth, PII, billing, IA) | Todos os CLIs |
 | `/kairos-forge:desenhar <spec>` | Handoff de design: fluxos, cinco estados por view, acessibilidade; modo `verificar` inspeciona o implementado | Todos os CLIs |
-| `/kairos-forge:validar <spec>` | Depois de implementar; valida aceite contra SPEC e gates | Todos os CLIs |
+| `/kairos-forge:validar <spec>` | Depois de implementar; valida aceite contra SPEC e gates, corroborando a evidência contra a trajetória registrada | Todos os CLIs |
 | `/kairos-forge:rodar [agente\|time\|apoio-X]` | Conversacional/sequencial — modo padrão | Todos os CLIs |
 | `/kairos-forge:mobilizar <spec>` | Paralelo via Agent Teams | **Apenas Claude Code** |
+| `/kairos-forge:entregar <feature>` | **O ciclo inteiro sozinho**: especificar → aprovar → construir → validar ⇄ corrigir → revisar ⇄ corrigir → PR, com orçamento de rodadas declarado | Todos os CLIs |
 | `/kairos-forge:revisar` | Pré-PR. Helena + Patrícia + outros | Todos os CLIs |
+| `/kairos-forge:avaliar <comportamento>` | Eval de comportamento não-determinístico (LLM, agente, extração): gold set versionado, rubrica em 5 eixos, limiar de regressão, gate no CI | Todos os CLIs |
 | `/kairos-forge:mapear-conhecimento` | Grafo de conhecimento do projeto: construir, atualizar, consultar (multi-hop com citação de arestas) e diagnosticar | Todos os CLIs |
 | `/kairos-forge:otimizar <métrica>` | Ciclo de catraca: 1 mudança por rodada, medir, manter ou reverter via git, com sentinelas e orçamento | Todos os CLIs |
 | `/kairos-forge:migrar` | Modernização por estrangulamento com Ivan: fatias, testes de caracterização, rota de corte e manter-ou-reverter | Todos os CLIs |
 | `/kairos-forge:lancar` | Do merge à produção: checklist pré-deploy, aprovação explícita, health check em 3 camadas, rollback anotado | Todos os CLIs |
-| `/kairos-forge:auditar` | Semanal. Pontuação 0–100 em 5 dimensões (Fundação, Pipeline, Guardrails, Conhecimento, Estrutura) | Todos os CLIs |
+| `/kairos-forge:auditar` | Semanal. Pontuação 0–120 em 6 dimensões (Fundação, Pipeline, Guardrails, Conhecimento, Estrutura, **Autonomia**) | Todos os CLIs |
 | `/kairos-forge:evoluir` | Semanal pós-auditoria | Todos os CLIs |
 
-Ordem natural: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `mobilizar`/`rodar` → `validar` → `revisar` → `mapear-conhecimento` (quando docs acumulam) → `auditar` → `evoluir`. Sob demanda, fora do fluxo: `otimizar` (quando houver métrica mensurável a melhorar).
+Ordem natural: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `desenhar` (features com UI) → `mobilizar`/`rodar` → `validar` → `revisar` → `lancar` → `mapear-conhecimento` (quando docs acumulam) → `auditar` → `evoluir`.
+
+**Ou pule o encadeamento:** `/kairos-forge:entregar` percorre o trecho central sozinho — especificar → construir → validar ⇄ corrigir → revisar ⇄ corrigir → PR — roteando cada falha de volta ao agente responsável dentro de um orçamento declarado (ADR-0023). Sob demanda, fora do fluxo: `otimizar` (métrica mensurável a melhorar), `migrar` (legado) e `avaliar` (comportamento de IA).
 
 **Modo guiado (trilhas por tema, ADR-0013):** quem não sabe por onde começar diz só o tema — "quero login", "preciso de checkout" — e a fábrica reconhece a trilha (`templates/trilhas/`: auth, pagamentos, painel-admin, api, seed-dados) e conduz: requisitos típicos prontos, perguntas certas, riscos pro threat model e plano de partida. No `/mobilizar`, o encerramento traz **ledger da execução** (tier de modelo, tasks e rodadas por teammate) e os checkpoints renderizam um **quadro vivo** — "Pronto" só com gate rodado.
 
@@ -91,6 +95,79 @@ A partir da v0.8.0, a fábrica mantém um **grafo de conhecimento por projeto** 
 
 O grafo é a camada **estrutural** de um modelo de três camadas (ADR-0010): a camada **episódica** (sessões, handoffs entre CLIs) vem do companion externo opcional [ai-memory](https://github.com/akitaonrails/ai-memory) — detectado pelas tools MCP `memory_*`, nunca embarcado, com degradação graciosa na ausência; a camada **curada** são os arquivos do repo (`decisoes/`, `.agents/memory/`, `contextos/`). Com o ai-memory ativo, Laura abre `/rodar` e `/mobilizar` com o handoff "onde paramos", `/evoluir` usa a semana capturada como evidência, e dá pra sair do Claude Code no meio de uma SPEC e continuar no Codex. Guia completo: [`docs/memoria-persistente.md`](docs/memoria-persistente.md).
 
+## O harness: autonomia medida, contida e disparável
+
+A partir da v0.17, a fábrica instrumenta e contém a si mesma. A referência é o
+whitepaper [*The New SDLC With Vibe Coding*](https://addyosmani.com/blog/agentic-engineering/)
+(Google, 2026), que define o harness como o que cerca o modelo — instruções,
+tools, sandbox, orquestração, **guardrails** e **observabilidade** — e resume:
+*"most agent failures, examined honestly, are configuration failures."*
+
+Três peças, nesta ordem, porque cada uma torna a seguinte segura:
+
+### 1. Telemetria — a autonomia vira número (ADR-0021)
+
+Os hooks gravam a **trajetória** em `.agents/execucoes/*.jsonl`, por código, não
+pelo modelo. O evento-chave é o prompt: **cada prompt humano depois do primeiro é
+uma intervenção**; um ciclo com zero intervenções rodou sozinho.
+
+```bash
+python3 scripts/telemetria.py resumo --dias 30
+#  Autonomia:            72.0%  (18/25 ciclos sem intervenção)
+#  Gates verdes de 1ª:   81.0%
+#  Rodadas de correção:  9
+```
+
+Isso alimenta a 6ª dimensão do `/auditar` e responde a única pergunta que define
+o nível de autonomia da fábrica. Sem instrumento, qualquer afirmação sobre o
+nível é opinião — inclusive a otimista, que é como se produz um pipeline sem
+supervisão achando que se produziu autonomia.
+
+O `/validar` usa a mesma trajetória para **corroborar**: a célula `verificado:` da
+SPEC é escrita pelo agente que fez o trabalho, então passa a ser alegação a
+conferir, não fato a aceitar. Alegação sem lastro bloqueia P1 igual a "sem
+evidência".
+
+### 2. Guardrails determinísticos — o que não pode falhar sai da prosa (ADR-0022)
+
+`scripts/guardrail.py` roda em `PreToolUse`/`PostToolUse` e **bloqueia**:
+
+- **comando destrutivo** — `rm -rf /`, force-push em branch protegida, `DROP`/`TRUNCATE`, `DELETE` sem `WHERE`, `curl | sh`, exfiltração de `.env`;
+- **caminho protegido** — segredos, chaves, configuração de CI;
+- **SPEC inconsistente** — status "Concluído" sem célula `verificado:`, recusado no momento da escrita.
+
+Dois caminhos são **inegociáveis**: `.agents/execucoes/` e
+`.agents/guardrails.json`. O agente não escreve o próprio medidor nem a própria
+regra — corroboração que ele reescreve não corrobora, e guardrail que ele afrouxa
+não guarda. É o mesmo princípio que o `/otimizar` já aplicava ao comando da
+métrica, agora no harness.
+
+Nos CLIs sem `PreToolUse`, o mesmo contrato roda como CLI:
+`guardrail.py verificar .` — checa depois em vez de antes, e vale no CI.
+
+### 3. Gatilhos por evento — a fábrica acorda sozinha (ADR-0026)
+
+`templates/ci/` traz workflows prontos para **o seu projeto**: revisar no PR,
+corrigir em CI vermelho (abre PR, **nunca** escreve na base) e auditar por cron.
+
+```bash
+cp <plugin>/templates/ci/kairos-forge-*.yml .github/workflows/
+```
+
+> **Instale nesta ordem.** Gatilho por evento sem telemetria e sem guardrail não
+> é autonomia — é pipeline sem supervisão. O `/auditar` recomenda as lacunas
+> nessa ordem de propósito.
+
+### O que a autonomia **não** inclui
+
+Cinco gates humanos atravessam tudo isso intactos e estão em tabela no topo da
+skill `entregar`: aprovação da SPEC, Pare e Pergunte (conteúdo inventável),
+deploy de produção, mudança irreversível e merge do PR.
+
+O que sai do caminho do humano é a digitação do próximo comando e a leitura de
+cada diff. O julgamento fica. É a diferença entre "o time confia no harness" e
+"ninguém revisa nada".
+
 ## Compatibilidade entre plataformas
 
 | Componente | Claude Code | Codex CLI | OpenCode | Cursor |
@@ -102,12 +179,16 @@ O grafo é a camada **estrutural** de um modelo de três camadas (ADR-0010): a c
 | Subagents | `agents/<id>.md` | `.agents/<id>/AGENT.md` | via copy de `agents/` | `.cursor/agents/<id>.md` (gerado, frontmatter adaptado) |
 | SessionStart hook | `hooks/hooks.json` | `.codex/hooks.json` | via `oh-my-opencode` | rule `alwaysApply` (`.cursor/rules/kairos-forge.mdc`) |
 | PostToolUse hook | ✅ | ❌ Codex só matcher Bash | via `oh-my-opencode` | ❌ |
+| Telemetria de execução (ADR-0021) | ✅ completa (4 pontos do ciclo) | ⚠️ só SessionStart — sem trajetória útil | ❌ | ❌ |
+| Guardrails que bloqueiam (ADR-0022) | ✅ `PreToolUse` | ⚠️ via `guardrail.py verificar` no CI | ⚠️ idem | ⚠️ idem |
 | Agent Teams (`/mobilizar`) | ✅ nativo | ❌ sem `TeamCreate` | ❌ sem equivalente | ❌ (subagents paralelos existem, mas sem protocolo de Teams) |
 | Instruções de projeto | `CLAUDE.md` | `AGENTS.md` | `CLAUDE.md` (fallback) ou `AGENTS.md` | `AGENTS.md` |
 
 > **Nota sobre skills compartilhadas:** Tanto Claude Code quanto Codex descobrem skills em `skills/<nome>/SKILL.md` quando empacotados como plugin. Não há duplicação — a mesma pasta serve aos dois CLIs. Apenas os manifests (`.claude-plugin/` vs `.codex-plugin/`) e os subagents é que diferem.
 
 > **Nota sobre `mobilizar`:** Esta skill é exclusiva do Claude Code. Em Codex/OpenCode/Cursor ela detecta o ambiente e orienta o usuário a usar `/kairos-forge:rodar` como alternativa.
+
+> **Nota sobre telemetria fora do Claude Code:** sem hooks completos, `.agents/execucoes/` fica vazio, a dimensão **Autonomia** do `/auditar` pontua 0 e o `/validar` pula a corroboração de trajetória. Isso é honesto, não bug: sem hook não há trajetória. O caminho nesses CLIs é `templates/ci/` — os mesmos checks rodando no pipeline do projeto.
 
 > **Nota sobre `.agents/` e `.cursor/`:** Os dois diretórios são **gerados** a partir de `agents/` + `skills/` pelo script `scripts/sync-multi-cli.py`. Não edite arquivos lá — alterações são perdidas no próximo sync. Sempre edite o canônico e rode o sync.
 
@@ -203,7 +284,7 @@ Com o [Hermes Agent](https://hermes-agent.nousresearch.com) rodando num VPS, a p
 bash hermes/install.sh
 ```
 
-O que chega: 71 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 17 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, mais `scripts/grafo.py` e `templates/`. Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
+O que chega: 71 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 17 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, mais os scripts de suporte (`grafo.py`, `telemetria.py`, `guardrail.py`, `execucao.py`) e `templates/`. Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
 
 ### OpenCode
 
@@ -225,7 +306,16 @@ OpenCode lê `CLAUDE.md` ou `AGENTS.md` automaticamente. Para hooks, instale [oh
 /kairos-forge:onboardar
 ```
 
-Depois (qualquer CLI):
+Depois, o caminho curto — a fábrica percorre o ciclo e volta com o PR:
+
+```
+/kairos-forge:entregar exportar relatorios em CSV no dashboard
+   └─ Laura declara o orçamento, especifica, PARA para você aprovar a SPEC,
+      constrói, valida, corrige o que bloqueou, revisa, corrige o que era 🔴,
+      abre o PR — e encerra honesto se o orçamento acabar antes
+```
+
+Ou etapa por etapa, quando você quer ver cada passo (qualquer CLI):
 
 ```
 /kairos-forge:especificar quero exportar relatorios em CSV
@@ -252,6 +342,12 @@ Depois (qualquer CLI):
 
 /kairos-forge:mapear-conhecimento atualizar
    └─ Olívia registra as entidades e decisões deste ciclo no grafo (.agents/grafo/)
+
+/kairos-forge:avaliar o resumo automatico de tickets
+   └─ Alice monta gold set, rubrica nos 5 eixos e instala o gate no CI
+
+/kairos-forge:auditar
+   └─ 6 dimensões, incluindo Autonomia medida da telemetria — com o nível (L2/L3/L4)
 ```
 
 ## Para contribuidores
@@ -287,8 +383,11 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - **v0.13** — sete perfis especializados: time Mobile (Yasmin, Théo), Ivan (Modernização), Alice (Evals de IA), Bento (Analytics), Murilo (Eventos) e Ingrid (Localização) (ADR-0017); infra de release: `scripts/release.py`, CI e eval de roteamento da Laura
 - **v0.14** — `/migrar` (estrangulamento com Ivan), modo RFC no `/especificar`, diagramas Mermaid via `grafo.py mermaid` em SPEC/RFC/ADR, modo debate no `/rodar` (ADR-0018)
 - **v0.15** — ponte Hermes: a fábrica como motor de engenharia do Hermes Agent, operável 24/7 pelo Telegram (ADR-0019)
-- **v0.16** (atual) — skills `desenhar` e `lancar`: o ciclo de produto do oh-my-hermes nas partes compatíveis com plugin (ADR-0020)
-- **v0.17** — perfis Tier 3 sob demanda via `/evoluir` (SEO técnico, UX research, desktop, base de suporte), mais trilhas por tema
+- **v0.16** — skills `desenhar` e `lancar`: o ciclo de produto do oh-my-hermes nas partes compatíveis com plugin (ADR-0020)
+- **v0.17** — observabilidade do harness: registro determinístico por hook, `telemetria.py`, corroboração de trajetória no `/validar` e 6ª dimensão **Autonomia** no `/auditar` (ADR-0021)
+- **v0.18** — o arco fechado: guardrails que bloqueiam (ADR-0022), skill `entregar` (ADR-0023) e contenção de raio com worktree e reversibilidade declarada (ADR-0024)
+- **v0.19** (atual) — provar e disparar: skill `avaliar` com rubrica como gate (ADR-0025), gatilhos por evento em `templates/ci/` (ADR-0026) e orçamento de contexto estático (ADR-0027)
+- **v0.20** — perfis Tier 3 sob demanda via `/evoluir` (SEO técnico, UX research, desktop, base de suporte), mais trilhas por tema
 
 ## Documentação
 
@@ -313,7 +412,15 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - [ADR-0018](docs/adr/0018-migrar-rfc-mermaid-debate.md) — skill `migrar`, modo RFC, diagramas Mermaid e modo debate
 - [ADR-0019](docs/adr/0019-ponte-hermes.md) — ponte Hermes: a fábrica como motor de engenharia de um agente 24/7
 - [ADR-0020](docs/adr/0020-desenhar-e-lancar.md) — skills `desenhar` e `lancar`: o ciclo de produto nas partes compatíveis com plugin
+- [ADR-0021](docs/adr/0021-observabilidade-do-harness.md) — observabilidade do harness: registro de execução, telemetria e dimensão Autonomia
+- [ADR-0022](docs/adr/0022-guardrails-deterministicos.md) — guardrails determinísticos: hooks que bloqueiam, com fallback por script
+- [ADR-0023](docs/adr/0023-skill-entregar-arco-fechado.md) — skill `entregar`: o arco fechado dentro do plugin
+- [ADR-0024](docs/adr/0024-contencao-de-raio.md) — contenção de raio: worktree por teammate e reversibilidade declarada
+- [ADR-0025](docs/adr/0025-skill-avaliar.md) — skill `avaliar`: eval com rubrica como gate, no projeto e no próprio plugin
+- [ADR-0026](docs/adr/0026-gatilhos-por-evento.md) — gatilhos por evento: a fábrica acorda sem ninguém digitar
+- [ADR-0027](docs/adr/0027-fronteira-estatico-dinamico.md) — fronteira estático/dinâmico e orçamento de contexto
 - [Memória persistente](docs/memoria-persistente.md) — guia das 3 camadas e instalação opcional do ai-memory
+- [Análise: o novo SDLC e o caminho até L4](docs/revisoes/2026-08-01-analise-whitepaper-novo-sdlc-e-caminho-l4.md) — o harness da fábrica medido contra o whitepaper Day-1 do Google, com as lacunas e o que cada uma virou
 
 ## Licença
 

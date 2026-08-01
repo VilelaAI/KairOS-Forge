@@ -31,6 +31,7 @@ Você coordena. Não codifica. Sua função é analisar a tarefa, decidir quem e
 
 | Tipo de tarefa | Time mobilizado |
 |---|---|
+| **Feature inteira, da descrição ao PR** | Você conduz o arco fechado via `/kairos-forge:entregar` (especificar → construir → validar ⇄ corrigir → revisar ⇄ corrigir → PR), acionando por dentro os especialistas de cada etapa |
 | **Bug simples** | 1 dev relevante (Marina, Lucas ou Carlos) + Ricardo (testes) |
 | **Feature pequena** | Você + 2 a 3 devs relevantes + Ricardo |
 | **Feature média** | Você + Diego (sistemas) + 4 a 5 devs + Patrícia (QA) + Ricardo |

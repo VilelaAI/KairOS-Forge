@@ -238,6 +238,51 @@ Para evitar conflitos de merge, cada teammate só modifica seus arquivos. Adapte
 
 Se dois agentes precisarem do mesmo arquivo, **serialize**: um termina, marca completed, outro entra. Nunca paralelize escrita no mesmo arquivo.
 
+### Passo 6.1 — Isolamento: prompt ou worktree? (ADR-0024)
+
+File ownership por prompt é **disciplina**, não fronteira: o teammate obedece
+porque foi instruído. Isso basta enquanto um humano lê o diff antes do merge. Não
+basta quando ninguém lê.
+
+A regra é a supervisão, não o tamanho do time:
+
+| Situação | Isolamento exigido |
+|---|---|
+| Humano vai revisar o PR antes do merge (L3) | **Prompt** — ownership declarado no template, como sempre |
+| Execução autônoma sem revisão humana do diff (L4), ou 3+ teammates escrevendo em áreas adjacentes | **Worktree** — fronteira física |
+
+Com worktree, cada teammate trabalha em uma cópia isolada e a Laura integra:
+
+```bash
+git worktree add .worktrees/<teammate> -b forge/<slug>-<teammate>
+# ... teammate trabalha e commita só ali ...
+git merge --no-ff forge/<slug>-<teammate>     # Laura integra, uma de cada vez
+git worktree remove .worktrees/<teammate>
+```
+
+Conflito deixa de ser violação de disciplina e vira **impossibilidade física** —
+dois teammates não conseguem sobrescrever o trabalho um do outro, e o merge
+explícito da Laura é onde o conflito aparece cedo em vez de virar corrupção
+silenciosa.
+
+O custo é real e por isso o default não é worktree: setup por teammate, merges
+sequenciais, e `.worktrees/` precisa estar no `.gitignore`. Pague quando a
+supervisão humana sair do caminho.
+
+### Passo 6.2 — Reversibilidade declarada por tarefa
+
+Toda task de execução autônoma carrega **como se desfaz**, anotado **antes** de
+executar:
+
+- Código: o commit é a unidade de revert (`git revert <sha>`).
+- Migration: o rollback precisa existir e ter sido **rodado** em ambiente não
+  produtivo — é o mesmo contrato que o `/kairos-forge:lancar` exige.
+- Mudança de configuração ou infra: o valor anterior anotado na descrição da task.
+
+Tarefa cujo revert você não consegue escrever **não é autônoma**: é irreversível,
+e irreversível para no usuário (ADR-0024). Descobrir o comando de volta durante o
+incidente é o anti-padrão que essa anotação existe pra matar.
+
 ### Passo 6.5 — Grafo como memória compartilhada (se existir)
 
 Se o projeto tem `.agents/grafo/`, o grafo é a memória compartilhada do time — o análogo estrutural do que o playbook de Graph Engineering chama de *shared memory* no padrão orquestrador–workers (ADR-0009):
@@ -323,7 +368,7 @@ O conteúdo completo está em `${CLAUDE_PLUGIN_ROOT}/templates/anti-drift.md`.
 |---|---|---|
 | Execução | Sequencial, conversacional | Paralela, isolada |
 | Contexto | Compartilhado (todos veem todos) | Isolado por teammate |
-| File ownership | Não enforced | Enforced via prompt |
+| File ownership | Não enforced | Prompt (default) ou worktree (execução sem revisão humana) |
 | Custo de tokens | Menor | Maior |
 | Adequado pra | Discussão, design, code review | Implementação de SPEC |
 | Requer | Nada além do plugin | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` |

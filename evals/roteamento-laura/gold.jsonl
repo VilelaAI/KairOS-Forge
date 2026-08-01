@@ -58,3 +58,8 @@
 {"pedido": "Cataloga as tabelas do warehouse com a linhagem de cada uma", "esperado": ["apoio-vitor-catalogo"]}
 {"pedido": "Define as dimensões de qualidade e os contratos de dados do domínio de vendas", "esperado": ["apoio-regina-qualidade"]}
 {"pedido": "Quem pode acessar os dados de clientes? Escreve a política de acesso", "esperado": ["apoio-paula-politicas"]}
+{"pedido": "Constrói a exportação de relatórios do começo ao fim e me avisa quando o PR estiver pronto", "esperado": ["laura-tech-lead"]}
+{"pedido": "Roda o ciclo inteiro dessa feature sem eu ter que ficar digitando comando a cada etapa", "esperado": ["laura-tech-lead"]}
+{"pedido": "A validação bloqueou dois requisitos P1 por falta de teste, resolve isso", "esperado": ["ricardo-testes"]}
+{"pedido": "Quanto da nossa entrega está rodando sem intervenção humana?", "esperado": ["renata-observabilidade", "laura-tech-lead"]}
+{"pedido": "Preciso saber se aquele teste que a SPEC diz que passou realmente rodou", "esperado": ["patricia-qa", "ricardo-testes"]}

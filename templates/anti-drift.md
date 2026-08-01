@@ -67,6 +67,27 @@ Crítica é separada de reescrita. Antes de marcar `completed`:
 
 Por que: a primeira passada quase sempre tem defeito que a releitura contra critérios explícitos captura — e é muito mais barato capturar aqui do que na validação ou revisão.
 
+### 7. Guardrails determinísticos não se negociam
+
+Alguns limites não dependem de você lembrar — eles são código que roda antes da sua
+ferramenta (ADR-0022). Se um deles bloquear, a resposta **nunca** é procurar o
+caminho de volta:
+
+- **Comando destrutivo bloqueado** → não reescreva o comando para escapar do padrão.
+  Se a ação é mesmo necessária, é irreversível, e irreversível passa pelo usuário.
+- **Escrita bloqueada em caminho protegido** → não copie o arquivo para outro lugar
+  nem gere um script que o edite. Explique o que precisa mudar e peça.
+- **`.agents/execucoes/` e `.agents/guardrails.json`** → você **nunca** escreve nesses
+  dois. O primeiro é a trajetória que prova o seu trabalho; o segundo é a regra que
+  te limita. Agente que edita o próprio medidor não tem medidor — é o mesmo Goodhart
+  que a catraca do `/otimizar` evita protegendo o comando da métrica.
+- **SPEC com "Concluído" sem `verificado:`** → o bloqueio está certo e você está
+  errado. Rode o gate e escreva a evidência, ou volte o status para "Em progresso"
+  com o que falta.
+
+Contornar guardrail é o comportamento mais grave desta lista. Ele existe porque, em
+execução autônoma, ninguém vai ler o diff a tempo de pegar o erro.
+
 ## Quando bloquear
 
 Estes são os únicos casos em que você **DEVE** parar e pedir ajuda em vez de tentar resolver:

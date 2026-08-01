@@ -60,11 +60,11 @@ def montar_rule(skills: list[str]) -> str:
     lista = ", ".join(sem_mobilizar)
     return f"""\
 ---
-description: "Fábrica de software kairos-forge — 71 agentes e 15 skills em PT-BR"
+description: "Fábrica de software kairos-forge — 71 agentes e 16 skills em PT-BR"
 alwaysApply: true
 ---
 
-🔥 kairos-forge v0.17 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
+🔥 kairos-forge v0.18 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
 
 - As skills da fábrica estão no menu `/` (Agent Skills): {lista}. A skill
   `mobilizar` requer Agent Teams do Claude Code — no Cursor, use `rodar` (cobre

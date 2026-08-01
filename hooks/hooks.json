@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '🔥 kairos-forge v0.17 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | 15 skills: /kairos-forge:onboardar mapear-arquitetura especificar analisar-ameacas desenhar mobilizar rodar validar revisar lancar mapear-conhecimento otimizar migrar auditar evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1'"
+            "command": "echo '🔥 kairos-forge v0.18 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | 16 skills: /kairos-forge:onboardar mapear-arquitetura especificar analisar-ameacas desenhar mobilizar rodar validar revisar entregar lancar mapear-conhecimento otimizar migrar auditar evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1'"
           },
           {
             "type": "command",
@@ -26,6 +26,26 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail.py\" comando"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail.py\" escrita"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit|Bash",
@@ -33,6 +53,15 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/execucao.py\" ferramenta 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail.py\" spec"
           }
         ]
       },

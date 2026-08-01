@@ -72,6 +72,8 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `docs/adr/` | ADRs | manual |
 | `scripts/sync-multi-cli.py` | Regenera `.agents/` (Codex) e `.cursor/` (Cursor) a partir de `agents/` + `skills/` | manual |
 | `scripts/grafo.py` | Parte determinística do grafo de conhecimento (validar, diagnosticar, subgrafo, amostrar, mermaid) | manual |
+| `scripts/execucao.py` | Registro determinístico de execução, chamado pelos hooks — escreve `.agents/execucoes/*.jsonl` (ADR-0021) | manual |
+| `scripts/telemetria.py` | Agrega o registro: `resumo` (números do `/auditar`), `sessoes`, `corroborar` (usado pelo `/validar`) | manual |
 | `scripts/release.py` | Bump de versão com contagens calculadas do filesystem + `check` de consistência (CI) | manual |
 | `evals/roteamento-laura/` | Gold set do eval de roteamento da Laura (dogfooding — só na raiz, não distribui) | manual |
 | `hermes/` | Ponte Hermes Agent: skills de roteamento/ciclo + workflow + install.sh — a fábrica como motor de engenharia de um agente 24/7 (ADR-0019) | manual |
@@ -103,6 +105,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 - **ADR-0018**: skill `migrar` (estrangulamento com Ivan), modo RFC no `/especificar`, subcomando `mermaid` no grafo.py e modo debate no `/rodar` (v0.14.0)
 - **ADR-0019**: ponte Hermes — a fábrica como motor de engenharia do Hermes Agent (24/7 via Telegram); pergunta com default recomendado no `/especificar` (v0.15.0)
 - **ADR-0020**: skills `desenhar` (handoff de design + verificação visual, Isabela) e `lancar` (deploy com gates e health check em camadas, Marcos) — o ciclo de produto do oh-my-hermes nas partes compatíveis com plugin (v0.16.0)
+- **ADR-0021**: observabilidade do harness — registro determinístico de execução por hook, `telemetria.py`, corroboração de trajetória no `/validar` e 6ª dimensão **Autonomia** no `/auditar` (v0.17.0)
 
 ## Limitações conhecidas por CLI
 
@@ -112,6 +115,9 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | Hook PostToolUse pedagógico | ✅ | ❌ | ❌ (sem `oh-my-opencode`) | ❌ |
 | SessionStart banner | ✅ | ✅ | ❌ (sem `oh-my-opencode`) | ✅ via rule `alwaysApply` |
 | Subagents com persona | ✅ nativo | ✅ mirror `.agents/` | ⚠️ via cópia de `agents/` | ✅ `.cursor/agents/` (allow-list degrada pra `readonly`) |
+| Telemetria de execução (ADR-0021) | ✅ completa (4 pontos do ciclo) | ⚠️ só SessionStart — sem trajetória útil | ❌ | ❌ |
+
+Nos CLIs sem hooks completos, a dimensão **Autonomia** do `/auditar` pontua 0 e o `/validar` pula a corroboração de trajetória — comportamento honesto, não bug: sem hook não há trajetória. O caminho nesses CLIs é rodar os checks equivalentes no CI do projeto (`templates/ci/`).
 
 A skill `mobilizar` tem detecção embutida — quando rodada em CLI sem suporte, ela orienta o usuário a usar `rodar` em vez disso.
 

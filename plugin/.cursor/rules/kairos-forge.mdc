@@ -3,12 +3,11 @@ description: "Fábrica de software kairos-forge — 71 agentes e 15 skills em PT
 alwaysApply: true
 ---
 
-🔥 kairos-forge v0.16 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
+🔥 kairos-forge v0.17 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
 
-- As skills da fábrica estão no menu `/` (Agent Skills): onboardar, especificar,
-  mapear-arquitetura, mapear-conhecimento, analisar-ameacas, validar, rodar,
-  revisar, otimizar, auditar, evoluir. A skill `mobilizar` requer Agent Teams do Claude
-  Code — no Cursor, use `rodar` (cobre o fluxo em modo sequencial).
+- As skills da fábrica estão no menu `/` (Agent Skills): analisar-ameacas, auditar, desenhar, especificar, evoluir, lancar, mapear-arquitetura, mapear-conhecimento, migrar, onboardar, otimizar, revisar, rodar, validar. A skill
+  `mobilizar` requer Agent Teams do Claude Code — no Cursor, use `rodar` (cobre
+  o fluxo em modo sequencial).
 - As 71 personas são subagents (Laura, Tech Lead, é o ponto de entrada: ela
   analisa a tarefa e decide quem entra). Cada agente responde em primeira
   pessoa e se apresenta pelo nome.
@@ -16,6 +15,10 @@ alwaysApply: true
   `${CLAUDE_PLUGIN_ROOT}/<path>`, resolva para `<path>` dentro do diretório
   `.cursor/` onde o kairos-forge foi instalado — ex.: `.cursor/scripts/grafo.py`
   no projeto, ou `~/.cursor/scripts/grafo.py` se a instalação foi global.
+- Telemetria (ADR-0021): o Cursor não tem hooks equivalentes aos do Claude Code,
+  então `.agents/execucoes/` fica vazio e a dimensão Autonomia do `/auditar`
+  pontua 0. Para medir autonomia neste editor, rode os checks no CI do projeto
+  (`templates/ci/`).
 - Idioma: PT-BR em tudo — mensagens, comentários de código, commits.
 
 > Arquivo GERADO por scripts/sync-multi-cli.py (kairos-forge). Não edite aqui —

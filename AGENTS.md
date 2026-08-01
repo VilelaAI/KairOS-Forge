@@ -20,7 +20,7 @@ The two plugins are independent — one does not import from the other. The core
 - `.claude-plugin/plugin.json` — Plugin manifest (Claude Code)
 - `agents/` — 71 subagents as `<id>.md` files (Claude Code format)
 - `skills/<name>/SKILL.md` — 15 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
-- `hooks/hooks.json` — Claude Code hooks (SessionStart banner + PostToolUse pedagogical reminder)
+- `hooks/hooks.json` — Claude Code hooks (SessionStart banner, PostToolUse pedagogical reminder, and the deterministic execution recorder wired at four lifecycle points — ADR-0021)
 - `.agents/` — Same content as `agents/` and `skills/`, in Codex CLI format (`<id>/AGENT.md` for agents, `skills/<name>/SKILL.md` for skills)
 - `.cursor/` — Generated Cursor distribution (ADR-0011): adapted subagents in `agents/` (`tools:`/`model:` stripped; `readonly: true` when the original allow-list has no write-capable tool), mirrored skills (open Agent Skills format), an `alwaysApply` rule replacing the SessionStart banner, plus `scripts/grafo.py` and `templates/` so `${CLAUDE_PLUGIN_ROOT}` references resolve
 - `.codex/hooks.json` — Codex-specific hooks (no `Write|Edit` matcher; only Bash supported)
@@ -28,6 +28,8 @@ The two plugins are independent — one does not import from the other. The core
 - `docs/adr/` — Architecture Decision Records
 - `scripts/sync-multi-cli.py` — Regenerates `.agents/` (Codex) and `.cursor/` (Cursor) from `agents/` + `skills/` whenever the canonical Claude Code sources change
 - `scripts/grafo.py` — Deterministic side of the knowledge graph (validate, diagnose, k-hop subgraph, human sample, Mermaid export for SPEC/RFC/ADR); the graph itself lives in the user project at `.agents/grafo/`
+- `scripts/execucao.py` — Deterministic execution recorder called by hooks; appends one event per lifecycle point to `.agents/execucoes/*.jsonl` in the user project. Never blocks, never writes to stdout, never records secrets (ADR-0021)
+- `scripts/telemetria.py` — Aggregates that record: `resumo` (the numbers behind the `/auditar` Autonomy dimension), `sessoes`, and `corroborar` (used by `/validar` to check a `verificado:` claim against what actually ran)
 - `scripts/release.py` — Version bump with counts computed from the filesystem, plus a `check` mode run by CI (consistency of counts/version, root↔plugin parity, JSON validity, mirrors)
 - `evals/roteamento-laura/` — Gold set for Laura's routing regression eval, run by Alice (repo-root only, not distributed in `plugin/`)
 - `.github/workflows/ci.yml` — CI: sync with no pending diff, `release.py check`, agent security audit (repo-root only)
@@ -44,6 +46,7 @@ The two plugins are independent — one does not import from the other. The core
 | Subagents | `agents/<id>.md` | `.agents/<id>/AGENT.md` | via copy of `agents/` | `.cursor/agents/<id>.md` (generated, adapted frontmatter) |
 | SessionStart hook | `hooks/hooks.json` | `.codex/hooks.json` | via `oh-my-opencode` | `.cursor/rules/kairos-forge.mdc` (`alwaysApply`) |
 | PostToolUse hook | `hooks/hooks.json` | ❌ (only Bash matcher) | via `oh-my-opencode` | ❌ |
+| Execution telemetry (ADR-0021) | ✅ full (4 lifecycle points) | ⚠️ SessionStart only — no usable trajectory | ❌ | ❌ |
 | Agent Teams (`/mobilizar`) | ✅ native (`TeamCreate`) | ❌ no equivalent | ❌ no equivalent | ❌ (parallel subagents exist, but no Teams protocol) |
 | Project instructions | `CLAUDE.md` | `AGENTS.md` | `CLAUDE.md` (fallback) or `AGENTS.md` | `AGENTS.md` |
 
@@ -218,6 +221,7 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0018**: `migrar` skill (strangler fig with Ivan), RFC mode in `/especificar`, `mermaid` subcommand in grafo.py and debate mode in `/rodar` (v0.14.0)
 - **ADR-0019**: Hermes bridge — the factory as the engineering engine of Hermes Agent (24/7 via Telegram); recommended-default questions in `/especificar` (v0.15.0)
 - **ADR-0020**: `desenhar` (design handoff + visual verification, Isabela) and `lancar` (gated deploy with layered health check, Marcos) — the oh-my-hermes product cycle, plugin-compatible parts only (v0.16.0)
+- **ADR-0021**: Harness observability — deterministic per-hook execution record, `telemetria.py`, trajectory corroboration in `/validar`, and a sixth **Autonomy** dimension in `/auditar`. Autonomy without an instrument is a guess; this is what makes L4 a verifiable target (v0.17.0)
 
 ## Critical design constraints
 

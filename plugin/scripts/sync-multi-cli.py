@@ -44,25 +44,42 @@ PRESERVAR = {"plugins"}  # subdir mantido (marketplace.json fica em .agents/plug
 
 FERRAMENTAS_ESCRITA = {"Write", "Edit", "NotebookEdit", "Bash"}
 
-RULE_KAIROS_FORGE = """\
+# Scripts referenciados pelas skills via ${CLAUDE_PLUGIN_ROOT}/scripts/ — o Cursor
+# precisa deles ao lado das skills. Copiados se existirem (a lista tolera ausência
+# para que o sync funcione em qualquer ponto do histórico).
+SCRIPTS_DE_SUPORTE = ["grafo.py", "telemetria.py", "execucao.py", "guardrail.py"]
+
+
+def montar_rule(skills: list[str]) -> str:
+    """Rule do Cursor com a lista de skills DERIVADA do filesystem.
+
+    Derivar em vez de digitar elimina a classe de bug "lista de skills desatualizada"
+    — mesma disciplina que o release.py aplica às contagens.
+    """
+    sem_mobilizar = [s for s in skills if s != "mobilizar"]
+    lista = ", ".join(sem_mobilizar)
+    return f"""\
 ---
 description: "Fábrica de software kairos-forge — 71 agentes e 15 skills em PT-BR"
 alwaysApply: true
 ---
 
-🔥 kairos-forge v0.16 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
+🔥 kairos-forge v0.17 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
 
-- As skills da fábrica estão no menu `/` (Agent Skills): onboardar, especificar,
-  mapear-arquitetura, mapear-conhecimento, analisar-ameacas, validar, rodar,
-  revisar, otimizar, auditar, evoluir. A skill `mobilizar` requer Agent Teams do Claude
-  Code — no Cursor, use `rodar` (cobre o fluxo em modo sequencial).
+- As skills da fábrica estão no menu `/` (Agent Skills): {lista}. A skill
+  `mobilizar` requer Agent Teams do Claude Code — no Cursor, use `rodar` (cobre
+  o fluxo em modo sequencial).
 - As 71 personas são subagents (Laura, Tech Lead, é o ponto de entrada: ela
   analisa a tarefa e decide quem entra). Cada agente responde em primeira
   pessoa e se apresenta pelo nome.
 - Resolução de caminhos: quando uma skill referenciar
-  `${CLAUDE_PLUGIN_ROOT}/<path>`, resolva para `<path>` dentro do diretório
+  `${{CLAUDE_PLUGIN_ROOT}}/<path>`, resolva para `<path>` dentro do diretório
   `.cursor/` onde o kairos-forge foi instalado — ex.: `.cursor/scripts/grafo.py`
   no projeto, ou `~/.cursor/scripts/grafo.py` se a instalação foi global.
+- Telemetria (ADR-0021): o Cursor não tem hooks equivalentes aos do Claude Code,
+  então `.agents/execucoes/` fica vazio e a dimensão Autonomia do `/auditar`
+  pontua 0. Para medir autonomia neste editor, rode os checks no CI do projeto
+  (`templates/ci/`).
 - Idioma: PT-BR em tudo — mensagens, comentários de código, commits.
 
 > Arquivo GERADO por scripts/sync-multi-cli.py (kairos-forge). Não edite aqui —
@@ -138,13 +155,19 @@ def sincronizar_cursor():
     shutil.copytree(SKILLS_SRC, CURSOR_DIR / "skills")
     n_skills = sum(1 for _ in (CURSOR_DIR / "skills").glob("*/SKILL.md"))
 
-    # 3. Rule alwaysApply (papel do banner de SessionStart)
+    # 3. Rule alwaysApply (papel do banner de SessionStart) — lista derivada
+    nomes_skills = sorted(p.parent.name for p in SKILLS_SRC.glob("*/SKILL.md"))
     (CURSOR_DIR / "rules").mkdir()
-    (CURSOR_DIR / "rules" / "kairos-forge.mdc").write_text(RULE_KAIROS_FORGE, encoding="utf-8")
+    (CURSOR_DIR / "rules" / "kairos-forge.mdc").write_text(
+        montar_rule(nomes_skills), encoding="utf-8"
+    )
 
     # 4. Suporte referenciado pelas skills via ${CLAUDE_PLUGIN_ROOT}
     (CURSOR_DIR / "scripts").mkdir()
-    shutil.copy2(ROOT / "scripts" / "grafo.py", CURSOR_DIR / "scripts" / "grafo.py")
+    for nome in SCRIPTS_DE_SUPORTE:
+        origem = ROOT / "scripts" / nome
+        if origem.exists():
+            shutil.copy2(origem, CURSOR_DIR / "scripts" / nome)
     shutil.copytree(ROOT / "templates", CURSOR_DIR / "templates")
 
     return n_agents, n_skills

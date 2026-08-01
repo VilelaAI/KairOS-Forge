@@ -53,7 +53,7 @@ Acionar:
 /kairos-forge:rodar apoio-revisao-arquitetural
 ```
 
-## As 15 skills
+## As 17 skills
 
 | Skill | Quando usar | Disponível em |
 |---|---|---|
@@ -203,7 +203,7 @@ Com o [Hermes Agent](https://hermes-agent.nousresearch.com) rodando num VPS, a p
 bash hermes/install.sh
 ```
 
-O que chega: 71 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 15 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, mais `scripts/grafo.py` e `templates/`. Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
+O que chega: 71 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 17 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, mais `scripts/grafo.py` e `templates/`. Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
 
 ### OpenCode
 

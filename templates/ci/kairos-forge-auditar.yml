@@ -1,0 +1,104 @@
+# kairos-forge — auditoria semanal da fábrica
+#
+# O ritual de sexta-feira sem depender de alguém lembrar. Roda o
+# /kairos-forge:auditar (read-only, 6 dimensões incluindo Autonomia) e abre uma
+# issue com as 3 lacunas de maior alavancagem.
+#
+# É o mais barato dos três gatilhos e o melhor ponto de partida: uma execução
+# por semana, nenhuma escrita em código.
+
+name: kairos-forge — auditar
+
+on:
+  schedule:
+    - cron: "0 12 * * 1" # segunda-feira, 09:00 em UTC-3
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: forge-auditar
+  cancel-in-progress: true
+
+jobs:
+  auditar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # o critério de churn do /auditar precisa de histórico
+
+      - name: Verificar credencial
+        id: cred
+        env:
+          CHAVE: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$CHAVE" ]; then
+            echo "⏭️  ANTHROPIC_API_KEY não configurado — auditoria pulada."
+            echo "ativo=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ativo=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.cred.outputs.ativo == 'true'
+        with:
+          node-version: "20"
+
+      - name: Instalar Claude Code e a fábrica
+        if: steps.cred.outputs.ativo == 'true'
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          git clone --depth 1 https://github.com/VilelaAI/kairos-forge /tmp/forge
+          mkdir -p .claude
+          cp -R /tmp/forge/plugin/skills .claude/skills
+          cp -R /tmp/forge/plugin/agents .claude/agents
+
+      - name: Telemetria da semana (dimensão Autonomia)
+        if: steps.cred.outputs.ativo == 'true'
+        run: |
+          python3 /tmp/forge/scripts/telemetria.py resumo --dias 30 > telemetria.txt 2>&1 || \
+            echo "sem registro de execução neste runner" > telemetria.txt
+          cat telemetria.txt
+
+      - name: Rodar a auditoria
+        if: steps.cred.outputs.ativo == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude -p "Use a skill kairos-forge:auditar neste projeto. A telemetria \
+            desta máquina está em telemetria.txt — se estiver vazia, pontue a \
+            dimensão Autonomia como 'não medida' e diga isso, sem estimar. \
+            Produza APENAS o relatório em markdown, em PT-BR, com a pontuação por \
+            dimensão, o nível estimado (L2/L3/L4) e as 3 lacunas de maior \
+            alavancagem. Não modifique nenhum arquivo — a skill é read-only." \
+            > auditoria.md || true
+          test -s auditoria.md || echo "A auditoria não produziu saída." > auditoria.md
+
+      - name: Abrir issue com as lacunas
+        if: steps.cred.outputs.ativo == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "Auditoria automática da fábrica — semana de $(date -u +%d/%m/%Y)."
+            echo
+            cat auditoria.md
+            echo
+            echo "<details><summary>Telemetria bruta</summary>"
+            echo
+            echo '```'
+            cat telemetria.txt
+            echo '```'
+            echo
+            echo "</details>"
+            echo
+            echo "---"
+            echo "_Próximo passo sugerido: rodar \`/kairos-forge:evoluir\` e escolher **uma** capacidade para a semana._"
+          } > corpo.md
+          gh issue create \
+            --title "🔥 Auditoria da fábrica — $(date -u +%Y-%m-%d)" \
+            --body-file corpo.md

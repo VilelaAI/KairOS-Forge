@@ -78,6 +78,32 @@ Se o projeto tem `.agents/grafo/entidades.jsonl`, use o grafo como base de fatos
 
 Sem grafo no projeto, pule esta etapa sem penalizar o veredicto.
 
+### 3.6. Corroborar a evidência contra a trajetória (ADR-0021)
+
+A célula `verificado:` é escrita **pelo mesmo agente que fez o trabalho**. Isso é auto-relato, e o modo de falha mais perigoso de agente não é o erro visível — é a saída fluente que pulou a etapa de verificação e diz que não pulou. Se o projeto tem `.agents/execucoes/`, você não precisa acreditar: dá para conferir.
+
+Para cada requisito com Status **Concluído**, extraia o comando citado na célula `verificado:` e cheque contra a trajetória registrada pelos hooks:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/telemetria.py corroborar "<comando citado no verificado:>"
+```
+
+Os quatro veredictos e o que cada um faz com a linha da matriz:
+
+| Veredicto | Significado | Efeito na validação |
+|---|---|---|
+| `corroborado` | O comando rodou e passou | Evidência confirmada — o mais forte que existe aqui |
+| `corroborado_com_falha` | Rodou e **falhou** em todas as execuções registradas | **Bloqueia.** A SPEC afirma verificado sobre um gate vermelho |
+| `corroborado_indeterminado` | Rodou, saída não permite afirmar resultado | Vale como "gate executado", mas cite a incerteza na ressalva |
+| `nao_corroborado` | Nenhuma execução registrada daquele comando | **Evidência não corroborada** — trata como "sem evidência" para P1 |
+
+Regras:
+
+- **`nao_corroborado` em requisito P1 bloqueia**, exatamente como "sem evidência". A alegação pode até ser verdadeira (rodou em outra máquina, antes dos hooks, no CI), mas então a prova está fora do alcance da validação — e o autor precisa dizer onde. Registre a alegação e o que falta.
+- **Você ainda roda os gates do passo 4.** A corroboração olha para trás (o que aconteceu); rodar o gate olha para agora. As duas coisas respondem perguntas diferentes e nenhuma substitui a outra.
+- **Trajetória parcial não penaliza retroativamente.** Se o registro começa depois da data citada no `verificado:`, ou se a telemetria foi instalada no meio do trabalho, registre "fora da janela de telemetria" e não bloqueie por isso. Diga a janela coberta no relatório.
+- **Sem `.agents/execucoes/` no projeto**, pule esta etapa inteira sem penalizar o veredicto — e recomende instalar a telemetria (ADR-0021), porque sem ela a fábrica não consegue medir a própria autonomia.
+
 ### 4. Rodar gates
 
 Rode apenas comandos relevantes e seguros:
@@ -115,8 +141,10 @@ Formato:
 
 ## Matriz de rastreabilidade
 
-| Requisito | Prioridade | Evidência | Gate | Status |
-|---|---|---|---|---|
+| Requisito | Prioridade | Evidência | Gate | Corroboração | Status |
+|---|---|---|---|---|---|
+
+(Coluna Corroboração: `corroborado` / `não corroborado` / `fora da janela` / `sem telemetria`.)
 
 ## Achados bloqueantes
 
@@ -162,5 +190,6 @@ Próximo passo: <corrigir com agente X | rodar /kairos-forge:revisar>.
 - **Não aprove no escuro.** Sem evidência, status é "sem evidência", não "aprovado".
 - **Não esconda P2/P3.** O usuário pode aceitar follow-up, mas precisa aparecer.
 - **Marca "Concluído" na SPEC só com `verificado:` na coluna Verificação.** Diff existe + teste passou + arquivo/comando/URL citado no `verificado:`. Confiança em "código está aí" não é evidência.
+- **Evidência auto-relatada vale menos que evidência corroborada.** Quando houver trajetória, o `verificado:` é uma alegação a conferir, não um fato a aceitar. Alegação sem lastro na trajetória é "não corroborada" — e em P1 isso bloqueia.
 - **Régua de rastreabilidade (ADR-0012).** Toda saída importante precisa rastrear a cadeia completa: requisito da SPEC → artefato/diff → fonte (gate executado, e aresta do grafo quando houver) → decisão de avaliador. Elo quebrado em requisito P1 = veredicto no máximo "aprovado com ressalvas", nunca "aprovado". É essa cadeia que separa validação de opinião.
 - **PT-BR em tudo.**

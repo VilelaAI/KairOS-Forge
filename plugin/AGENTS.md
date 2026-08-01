@@ -19,8 +19,8 @@ The two plugins are independent — one does not import from the other. The core
 
 - `.claude-plugin/plugin.json` — Plugin manifest (Claude Code)
 - `agents/` — 71 subagents as `<id>.md` files (Claude Code format)
-- `skills/<name>/SKILL.md` — 15 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
-- `hooks/hooks.json` — Claude Code hooks (SessionStart banner + PostToolUse pedagogical reminder)
+- `skills/<name>/SKILL.md` — 17 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
+- `hooks/hooks.json` — Claude Code hooks (SessionStart banner, PostToolUse pedagogical reminder, and the deterministic execution recorder wired at four lifecycle points — ADR-0021)
 - `.agents/` — Same content as `agents/` and `skills/`, in Codex CLI format (`<id>/AGENT.md` for agents, `skills/<name>/SKILL.md` for skills)
 - `.cursor/` — Generated Cursor distribution (ADR-0011): adapted subagents in `agents/` (`tools:`/`model:` stripped; `readonly: true` when the original allow-list has no write-capable tool), mirrored skills (open Agent Skills format), an `alwaysApply` rule replacing the SessionStart banner, plus `scripts/grafo.py` and `templates/` so `${CLAUDE_PLUGIN_ROOT}` references resolve
 - `.codex/hooks.json` — Codex-specific hooks (no `Write|Edit` matcher; only Bash supported)
@@ -28,8 +28,12 @@ The two plugins are independent — one does not import from the other. The core
 - `docs/adr/` — Architecture Decision Records
 - `scripts/sync-multi-cli.py` — Regenerates `.agents/` (Codex) and `.cursor/` (Cursor) from `agents/` + `skills/` whenever the canonical Claude Code sources change
 - `scripts/grafo.py` — Deterministic side of the knowledge graph (validate, diagnose, k-hop subgraph, human sample, Mermaid export for SPEC/RFC/ADR); the graph itself lives in the user project at `.agents/grafo/`
+- `scripts/execucao.py` — Deterministic execution recorder called by hooks; appends one event per lifecycle point to `.agents/execucoes/*.jsonl` in the user project. Never blocks, never writes to stdout, never records secrets (ADR-0021)
+- `scripts/telemetria.py` — Aggregates that record: `resumo` (the numbers behind the `/auditar` Autonomy dimension), `sessoes`, and `corroborar` (used by `/validar` to check a `verificado:` claim against what actually ran)
 - `scripts/release.py` — Version bump with counts computed from the filesystem, plus a `check` mode run by CI (consistency of counts/version, root↔plugin parity, JSON validity, mirrors)
-- `evals/roteamento-laura/` — Gold set for Laura's routing regression eval, run by Alice (repo-root only, not distributed in `plugin/`)
+- `evals/roteamento-laura/` — Gold set plus `rodar.py`, a headless runner for Laura's routing regression eval (repo-root only, not distributed in `plugin/`). Skips cleanly with exit 0 when no API key is present — a false red trains the team to ignore red
+- `templates/ci/` — Event-driven workflow recipes for the **user's** project (ADR-0026): review-on-PR, fix-on-red-CI, audit-on-cron
+- `scripts/guardrail.py` — Deterministic guardrails: destructive commands, protected paths, SPEC integrity. Hook mode (exit 2 blocks) and CLI mode for CLIs without `PreToolUse` and for CI (ADR-0022)
 - `.github/workflows/ci.yml` — CI: sync with no pending diff, `release.py check`, agent security audit (repo-root only)
 - `hermes/` — Hermes Agent bridge (ADR-0019): routing/cycle skills + workflow + install.sh that plug the factory into a 24/7 Hermes bot as its engineering engine (Hermes operates — kanban, cron, approvals; the factory specs, builds, validates and reviews inside Claude Code)
 
@@ -44,6 +48,7 @@ The two plugins are independent — one does not import from the other. The core
 | Subagents | `agents/<id>.md` | `.agents/<id>/AGENT.md` | via copy of `agents/` | `.cursor/agents/<id>.md` (generated, adapted frontmatter) |
 | SessionStart hook | `hooks/hooks.json` | `.codex/hooks.json` | via `oh-my-opencode` | `.cursor/rules/kairos-forge.mdc` (`alwaysApply`) |
 | PostToolUse hook | `hooks/hooks.json` | ❌ (only Bash matcher) | via `oh-my-opencode` | ❌ |
+| Execution telemetry (ADR-0021) | ✅ full (4 lifecycle points) | ⚠️ SessionStart only — no usable trajectory | ❌ | ❌ |
 | Agent Teams (`/mobilizar`) | ✅ native (`TeamCreate`) | ❌ no equivalent | ❌ no equivalent | ❌ (parallel subagents exist, but no Teams protocol) |
 | Project instructions | `CLAUDE.md` | `AGENTS.md` | `CLAUDE.md` (fallback) or `AGENTS.md` | `AGENTS.md` |
 
@@ -51,7 +56,7 @@ The two plugins are independent — one does not import from the other. The core
 
 ### Skill availability per CLI
 
-All 15 skills live in `skills/` and are accessible to both Claude Code and Codex.
+All 17 skills live in `skills/` and are accessible to both Claude Code and Codex.
 
 | Skill | Claude Code | Codex CLI | OpenCode | Cursor |
 |---|---|---|---|---|
@@ -63,6 +68,8 @@ All 15 skills live in `skills/` and are accessible to both Claude Code and Codex
 | `validar` | ✅ | ✅ | ✅ | ✅ |
 | `rodar` | ✅ | ✅ | ✅ | ✅ |
 | `mobilizar` | ✅ | ⚠️ skill loads but detects environment and redirects to `rodar` | ⚠️ same as Codex | ⚠️ same as Codex |
+| `entregar` | ✅ | ✅ (builds via `rodar`) | ✅ (builds via `rodar`) | ✅ (builds via `rodar`) |
+| `avaliar` | ✅ | ✅ | ✅ | ✅ |
 | `revisar` | ✅ | ✅ | ✅ | ✅ |
 | `otimizar` | ✅ | ✅ | ✅ | ✅ |
 | `migrar` | ✅ | ✅ | ✅ | ✅ |
@@ -71,7 +78,7 @@ All 15 skills live in `skills/` and are accessible to both Claude Code and Codex
 | `auditar` | ✅ | ✅ | ✅ | ✅ |
 | `evoluir` | ✅ | ✅ | ✅ | ✅ |
 
-Natural flow ordering: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (sensitive features) → `desenhar` (UI features — ADR-0020) → `mobilizar`/`rodar` → `validar` → `revisar` → `lancar` (gated deploy — ADR-0020) → `mapear-conhecimento` (as docs accumulate; feeds later `mobilizar`/`validar` runs) → `auditar` (weekly) → `evoluir`. On demand, outside the flow: `otimizar` — a metric-driven ratchet loop (one change per round, measure, keep-or-revert via git, full lineage recorded; sentinels guard against Goodhart; explicit budget and exhaustion criteria — ADR-0012) — and `migrar` — strangler-fig legacy modernization owned by Ivan: characterization tests before touching anything, one slice at a time with a cut-over route and per-slice keep-or-revert (ADR-0018).
+Natural flow ordering: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (sensitive features) → `desenhar` (UI features — ADR-0020) → `mobilizar`/`rodar` → `validar` → `revisar` → `lancar` (gated deploy — ADR-0020) → `mapear-conhecimento` (as docs accumulate; feeds later `mobilizar`/`validar` runs) → `auditar` (weekly) → `evoluir`. The `entregar` skill (ADR-0023) walks that central stretch on its own — specify → build → validate ⇄ fix → review ⇄ fix → PR — routing each failure back to the responsible agent inside a declared budget instead of the user chaining commands by hand. On demand, outside the flow: `otimizar` — a metric-driven ratchet loop (one change per round, measure, keep-or-revert via git, full lineage recorded; sentinels guard against Goodhart; explicit budget and exhaustion criteria — ADR-0012) — and `migrar` — strangler-fig legacy modernization owned by Ivan: characterization tests before touching anything, one slice at a time with a cut-over route and per-slice keep-or-revert (ADR-0018).
 
 **Knowledge graph (Graph Engineering, ADR-0009).** The factory maintains a per-project knowledge graph at `.agents/grafo/` (JSONL entities/relations/aliases with provenance, versioned schema, hub profiles). It acts as shared memory for `mobilizar` teammates, as the grounding layer for `validar` (claims checked against edges; claims absent from the graph escalate to the human), and as the persistent world model that survives context-window flushes. 🕸️ Olívia (`olivia-grafos`, Dados team) owns it via the `mapear-conhecimento` skill; `scripts/grafo.py` handles the deterministic parts.
 
@@ -163,7 +170,7 @@ cp -R kairos-forge/plugin/.cursor /path/to/project/.cursor
 cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
 ```
 
-This delivers the 71 subagents (`.cursor/agents/`), the 15 skills in the `/` menu (`.cursor/skills/`), an `alwaysApply` rule with the factory banner and `${CLAUDE_PLUGIN_ROOT}` path resolution, plus `scripts/grafo.py` and `templates/`. Project instructions: Cursor reads `AGENTS.md` — `/kairos-forge:onboardar` offers to generate it alongside `CLAUDE.md`. `mobilizar` detects Cursor and redirects to `rodar`.
+This delivers the 71 subagents (`.cursor/agents/`), the 17 skills in the `/` menu (`.cursor/skills/`), an `alwaysApply` rule with the factory banner and `${CLAUDE_PLUGIN_ROOT}` path resolution, plus `scripts/grafo.py` and `templates/`. Project instructions: Cursor reads `AGENTS.md` — `/kairos-forge:onboardar` offers to generate it alongside `CLAUDE.md`. `mobilizar` detects Cursor and redirects to `rodar`.
 
 ### OpenCode
 
@@ -218,6 +225,13 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0018**: `migrar` skill (strangler fig with Ivan), RFC mode in `/especificar`, `mermaid` subcommand in grafo.py and debate mode in `/rodar` (v0.14.0)
 - **ADR-0019**: Hermes bridge — the factory as the engineering engine of Hermes Agent (24/7 via Telegram); recommended-default questions in `/especificar` (v0.15.0)
 - **ADR-0020**: `desenhar` (design handoff + visual verification, Isabela) and `lancar` (gated deploy with layered health check, Marcos) — the oh-my-hermes product cycle, plugin-compatible parts only (v0.16.0)
+- **ADR-0021**: Harness observability — deterministic per-hook execution record, `telemetria.py`, trajectory corroboration in `/validar`, and a sixth **Autonomy** dimension in `/auditar`. Autonomy without an instrument is a guess; this is what makes L4 a verifiable target (v0.17.0)
+- **ADR-0022**: Deterministic guardrails — `guardrail.py` on `PreToolUse`/`PostToolUse` (destructive commands, protected files, SPEC integrity). `.agents/execucoes/` and `.agents/guardrails.json` are non-negotiable: the agent never writes its own measuring instrument. CLI fallback (`guardrail.py verificar`) for CLIs without `PreToolUse` (v0.18.0)
+- **ADR-0023**: `entregar` skill — the closed arc (specify → build → validate ⇄ fix → review ⇄ fix → PR), promoted from the Hermes bridge into the plugin. Failures route back to the responsible agent within a declared round budget; the human approval frontier stays intact (v0.18.0)
+- **ADR-0024**: Blast-radius containment — git worktree per teammate when human review leaves the loop, and declared reversibility as the admission test for autonomy: a task whose revert you cannot write is not autonomous (v0.18.0)
+- **ADR-0025**: `avaliar` skill — evals with a versioned gold set and an explicit rubric across the paper's five axes (task success, tool use quality, trajectory compliance, hallucination, response quality) as a CI gate, owned by Alice. The plugin's own routing eval becomes headless-runnable, so the factory stops preaching what it measured by hand (v0.19.0)
+- **ADR-0026**: Event-driven triggers — `templates/ci/` ships review-on-PR, fix-on-red-CI (opens a PR, never writes to the base branch) and audit-on-cron for the user's project. Install only after telemetry and guardrails are in place (v0.19.0)
+- **ADR-0027**: Static/dynamic context boundary declared and budgeted, enforced by `release.py check` — including the 500-line-per-skill rule that was convention until now (v0.19.0)
 
 ## Critical design constraints
 

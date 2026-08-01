@@ -33,6 +33,17 @@ EXCECOES_ESPELHO = {"docs/adr/0004-multi-cli.md"}
 # Gerados pelo sync — paridade é verificada, cópia é via sync de cada lado.
 DIRS_GERADOS = [".agents", ".cursor"]
 
+# Orçamento de contexto ESTÁTICO (ADR-0027) — o que é pago em toda interação,
+# independente de relevância. Teto em chars, com folga sobre o estado atual.
+# Contexto dinâmico (SKILL.md, references/, subgrafo) não entra aqui: ele só
+# custa quando a tarefa casa, que é o ponto do disclosure progressivo.
+ORCAMENTO_ESTATICO = {
+    "banner SessionStart": 600,
+    "rule Cursor (alwaysApply)": 2500,
+    "templates/CLAUDE.md.template": 8000,
+}
+LIMITE_LINHAS_SKILL = 500  # regra 3 do CLAUDE.md, agora verificada
+
 
 def derivar():
     """Extrai as contagens reais do filesystem."""
@@ -282,6 +293,33 @@ def checar():
                 if ch.isalpha() and "CYRILLIC" in unicodedata.name(ch, ""):
                     problemas.append(f"{p.relative_to(RAIZ)}: caractere cirílico {ch!r}")
                     break
+
+    # Orçamento de contexto estático (ADR-0027)
+    try:
+        banner = json.loads((RAIZ / "hooks/hooks.json").read_text(encoding="utf-8"))
+        estatico = {
+            "banner SessionStart": banner["hooks"]["SessionStart"][0]["hooks"][0]["command"],
+            "rule Cursor (alwaysApply)": (RAIZ / ".cursor/rules/kairos-forge.mdc").read_text(encoding="utf-8"),
+            "templates/CLAUDE.md.template": (RAIZ / "templates/CLAUDE.md.template").read_text(encoding="utf-8"),
+        }
+        for nome, texto in estatico.items():
+            teto = ORCAMENTO_ESTATICO[nome]
+            if len(texto) > teto:
+                problemas.append(
+                    f"contexto estático: {nome} tem {len(texto)} chars, teto {teto} "
+                    "— mova o detalhe para contexto dinâmico (skill ou references/)"
+                )
+    except Exception as e:
+        problemas.append(f"contexto estático: não foi possível medir — {e}")
+
+    # Skills dentro do limite de linhas (regra 3 do CLAUDE.md)
+    for p in sorted((RAIZ / "skills").glob("*/SKILL.md")):
+        n_linhas = len(p.read_text(encoding="utf-8").splitlines())
+        if n_linhas > LIMITE_LINHAS_SKILL:
+            problemas.append(
+                f"{p.relative_to(RAIZ)}: {n_linhas} linhas, limite {LIMITE_LINHAS_SKILL} "
+                "— material pesado vai em references/ da skill"
+            )
 
     # Gold set do eval de roteamento cita só agentes que existem
     gold = RAIZ / "evals/roteamento-laura/gold.jsonl"

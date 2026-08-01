@@ -9,6 +9,11 @@
 .kairos-forge/cache/
 .kairos-forge/sessions/
 
+# Telemetria de execução — camada episódica (ADR-0021).
+# O bruto é local e descartável; o durável sobe de camada e vira número
+# agregado em decisoes/auditorias/. Apagar é seguro a qualquer momento.
+.agents/execucoes/
+
 # Sistema
 .DS_Store
 Thumbs.db

@@ -1,0 +1,90 @@
+# kairos-forge — revisão multi-agente automática no PR
+#
+# Helena (segurança), Patrícia (QA), Vinícius (performance) e os demais conforme
+# o escopo do diff leem o PR e comentam o parecer consolidado. Não bloqueia o
+# merge: informa. Quem bloqueia é o CI de testes do projeto.
+#
+# Instale em .github/workflows/ e crie o secret ANTHROPIC_API_KEY.
+
+name: kairos-forge — revisar PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: forge-revisar-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  revisar:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verificar credencial
+        id: cred
+        env:
+          CHAVE: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$CHAVE" ]; then
+            echo "⏭️  ANTHROPIC_API_KEY não configurado — revisão pulada."
+            echo "ativo=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ativo=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.cred.outputs.ativo == 'true'
+        with:
+          node-version: "20"
+
+      - name: Instalar Claude Code e a fábrica
+        if: steps.cred.outputs.ativo == 'true'
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          git clone --depth 1 https://github.com/VilelaAI/kairos-forge /tmp/forge
+          mkdir -p .claude
+          cp -R /tmp/forge/plugin/skills .claude/skills
+          cp -R /tmp/forge/plugin/agents .claude/agents
+
+      - name: Guardrail (o CI não tem PreToolUse — o contrato roda depois)
+        if: steps.cred.outputs.ativo == 'true'
+        run: python3 /tmp/forge/scripts/guardrail.py verificar . || true
+
+      - name: Rodar a revisão da fábrica
+        if: steps.cred.outputs.ativo == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          claude -p "Use a skill kairos-forge:revisar. Revise o diff entre \
+            $BASE e $HEAD. Produza APENAS o relatório consolidado em markdown, \
+            em PT-BR, com o veredicto agregado e os achados por severidade. \
+            Não altere nenhum arquivo." > revisao.md || true
+          test -s revisao.md || echo "A revisão não produziu saída." > revisao.md
+
+      - name: Comentar no PR
+        if: steps.cred.outputs.ativo == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "## 🔥 Revisão da fábrica kairos-forge"
+            echo
+            cat revisao.md
+            echo
+            echo "---"
+            echo "_Parecer automático — não substitui julgamento humano em decisão de design._"
+          } > comentario.md
+          gh pr comment "$PR" --body-file comentario.md

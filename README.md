@@ -6,7 +6,7 @@ Este repositório é um **marketplace catalog** que distribui o plugin `kairos-f
 
 ## O plugin distribuído
 
-**`kairos-forge`** — 71 agentes (40 core + 31 apoio em 10 squads) coordenados por Laura (Tech Lead), 15 skills cobrindo o ciclo completo (onboarding → mapa arquitetural brownfield → especificação rastreável → threat model → execução paralela/sequencial → validação contra SPEC → revisão → grafo de conhecimento com proveniência → auditoria em 5 dimensões → evolução).
+**`kairos-forge`** — 71 agentes (40 core + 31 apoio em 10 squads) coordenados por Laura (Tech Lead), 17 skills cobrindo o ciclo completo (onboarding → mapa arquitetural brownfield → especificação rastreável → threat model → execução paralela/sequencial → validação contra SPEC → revisão → grafo de conhecimento com proveniência → auditoria em 5 dimensões → evolução).
 
 Para projetos em **domínios regulados brasileiros** (LGPD, NRs, OAB, etc.), use [kairos-ai](https://github.com/VilelaAI/kairos-ai) em vez deste — adiciona squads negociais, guardrails legais, assertions binárias e advisor regulatório.
 
@@ -86,7 +86,7 @@ cp -R kairos-forge/plugin/.cursor /caminho/do/projeto/.cursor
 cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
 ```
 
-Isso entrega os 71 subagents, as 15 skills no menu `/`, a rule com o banner da fábrica e os arquivos de suporte (`grafo.py`, templates). `mobilizar` detecta o Cursor e redireciona pra `rodar`.
+Isso entrega os 71 subagents, as 17 skills no menu `/`, a rule com o banner da fábrica e os arquivos de suporte (`grafo.py`, templates). `mobilizar` detecta o Cursor e redireciona pra `rodar`.
 
 ### Hermes Agent (bot 24/7 — ponte)
 

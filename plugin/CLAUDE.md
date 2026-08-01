@@ -4,9 +4,9 @@ Plugin Claude Code / Codex CLI / OpenCode / Cursor que entrega uma fábrica de s
 
 ## O que este projeto é
 
-Plugin multi-CLI (não runtime, não SDK). 71 agentes (40 core + 31 apoio em 10 squads), 15 skills, hooks por CLI, coordenação por Laura (Tech Lead).
+Plugin multi-CLI (não runtime, não SDK). 71 agentes (40 core + 31 apoio em 10 squads), 17 skills, hooks por CLI, coordenação por Laura (Tech Lead).
 
-Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `desenhar` (features com UI — ADR-0020) → `mobilizar`/`rodar` → `validar` → `revisar` → `lancar` (deploy com gates — ADR-0020) → `mapear-conhecimento` (quando docs acumulam; alimenta mobilizar/validar seguintes) → `auditar` (semanal) → `evoluir`. Fora do fluxo, sob demanda: `otimizar` (ciclo de catraca contra métrica mensurável — ADR-0012) e `migrar` (modernização de legado por estrangulamento, dono Ivan — ADR-0018).
+Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `desenhar` (features com UI — ADR-0020) → `mobilizar`/`rodar` → `validar` → `revisar` → `lancar` (deploy com gates — ADR-0020) → `mapear-conhecimento` (quando docs acumulam; alimenta mobilizar/validar seguintes) → `auditar` (semanal) → `evoluir`. A skill `entregar` (ADR-0023) **percorre esse trecho central sozinha** — especificar → construir → validar ⇄ corrigir → revisar ⇄ corrigir → PR, roteando cada falha de volta ao agente responsável dentro de um orçamento declarado, em vez de o usuário encadear os comandos à mão. Fora do fluxo, sob demanda: `otimizar` (ciclo de catraca contra métrica mensurável — ADR-0012) e `migrar` (modernização de legado por estrangulamento, dono Ivan — ADR-0018).
 
 A memória da fábrica tem **três camadas** (ADR-0009/ADR-0010): **episódica** — sessões capturadas pelo [ai-memory](https://github.com/akitaonrails/ai-memory), companion externo opcional detectado pelas tools MCP `memory_*` (handoff entre CLIs, briefing, busca); **curada** — `decisoes/`, `.agents/memory/`, `contextos/` no repo; **estrutural** — `.agents/grafo/` com entidades e relações com proveniência, dona Olívia (`olivia-grafos`). `/mobilizar` usa o grafo como memória compartilhada entre teammates e `/validar` como base de fatos. O durável sobe de camada (sessão → arquivo → grafo); o repo é a fonte da verdade. Guia: `docs/memoria-persistente.md`.
 
@@ -63,17 +63,20 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `.agents/plugins/marketplace.json` | Catalog do marketplace Codex (mesmo conteúdo do Claude Code mas em path próprio) | manual |
 | `agents/<id>.md` | 71 subagentes (canônico Claude Code) | manual |
 | `.agents/<id>/AGENT.md` | Mirror Codex dos subagents | **gerado** por `scripts/sync-multi-cli.py` |
-| `.cursor/` | Distribuição Cursor completa: agents adaptados (readonly quando consultivo), skills espelhadas, rule `alwaysApply`, `grafo.py`, templates (ADR-0011) | **gerado** por `scripts/sync-multi-cli.py` |
-| `skills/<verbo>/SKILL.md` | 15 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
-| `hooks/hooks.json` | Hooks Claude Code (SessionStart + PostToolUse) | manual |
+| `.cursor/` | Distribuição Cursor completa: agents adaptados (readonly quando consultivo), skills espelhadas, rule `alwaysApply` (lista de skills derivada), scripts de suporte, templates (ADR-0011) | **gerado** por `scripts/sync-multi-cli.py` |
+| `skills/<verbo>/SKILL.md` | 17 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
+| `hooks/hooks.json` | Hooks Claude Code: banner, telemetria em 4 pontos do ciclo (ADR-0021) e guardrails que bloqueiam em `PreToolUse`/`PostToolUse` (ADR-0022) | manual |
 | `.codex/hooks.json` | Hooks Codex (apenas SessionStart — Codex não suporta `Write\|Edit` matcher) | manual |
 | `AGENTS.md` | Espelho em inglês do CLAUDE.md raiz, para Codex/OpenCode | manual |
-| `templates/` | `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`, `trilhas/` (blueprints de SPEC por tema — ADR-0013) | manual |
+| `templates/` | `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`, `trilhas/` (blueprints de SPEC por tema — ADR-0013), `ci/` (gatilhos por evento pro projeto do usuário — ADR-0026) | manual |
 | `docs/adr/` | ADRs | manual |
 | `scripts/sync-multi-cli.py` | Regenera `.agents/` (Codex) e `.cursor/` (Cursor) a partir de `agents/` + `skills/` | manual |
 | `scripts/grafo.py` | Parte determinística do grafo de conhecimento (validar, diagnosticar, subgrafo, amostrar, mermaid) | manual |
+| `scripts/execucao.py` | Registro determinístico de execução, chamado pelos hooks — escreve `.agents/execucoes/*.jsonl` (ADR-0021) | manual |
+| `scripts/telemetria.py` | Agrega o registro: `resumo` (números do `/auditar`), `sessoes`, `corroborar` (usado pelo `/validar`) | manual |
+| `scripts/guardrail.py` | Guardrails determinísticos: comando destrutivo, arquivo protegido, integridade da SPEC. Modo hook (exit 2 bloqueia) e modo CLI para os demais CLIs e o CI (ADR-0022) | manual |
 | `scripts/release.py` | Bump de versão com contagens calculadas do filesystem + `check` de consistência (CI) | manual |
-| `evals/roteamento-laura/` | Gold set do eval de roteamento da Laura (dogfooding — só na raiz, não distribui) | manual |
+| `evals/roteamento-laura/` | Gold set + `rodar.py` headless do eval de roteamento da Laura (dogfooding — só na raiz, não distribui) | manual |
 | `hermes/` | Ponte Hermes Agent: skills de roteamento/ciclo + workflow + install.sh — a fábrica como motor de engenharia de um agente 24/7 (ADR-0019) | manual |
 | `.github/workflows/ci.yml` | CI: sync sem diff pendente, `release.py check`, segurança dos agentes (só na raiz) | manual |
 
@@ -103,6 +106,13 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 - **ADR-0018**: skill `migrar` (estrangulamento com Ivan), modo RFC no `/especificar`, subcomando `mermaid` no grafo.py e modo debate no `/rodar` (v0.14.0)
 - **ADR-0019**: ponte Hermes — a fábrica como motor de engenharia do Hermes Agent (24/7 via Telegram); pergunta com default recomendado no `/especificar` (v0.15.0)
 - **ADR-0020**: skills `desenhar` (handoff de design + verificação visual, Isabela) e `lancar` (deploy com gates e health check em camadas, Marcos) — o ciclo de produto do oh-my-hermes nas partes compatíveis com plugin (v0.16.0)
+- **ADR-0021**: observabilidade do harness — registro determinístico de execução por hook, `telemetria.py`, corroboração de trajetória no `/validar` e 6ª dimensão **Autonomia** no `/auditar` (v0.17.0)
+- **ADR-0022**: guardrails determinísticos — `guardrail.py` em `PreToolUse`/`PostToolUse` (comando destrutivo, arquivo protegido, integridade da SPEC), com `.agents/execucoes/` e `.agents/guardrails.json` inegociáveis (o agente não escreve o próprio medidor) e fallback CLI para os demais CLIs (v0.18.0)
+- **ADR-0023**: skill `entregar` — o arco fechado (especificar → construir → validar ⇄ corrigir → revisar ⇄ corrigir → PR) promovido da ponte Hermes para dentro do plugin, com orçamento declarado e fronteira de aprovação preservada (v0.18.0)
+- **ADR-0024**: contenção de raio — worktree por teammate quando a supervisão humana sai do caminho, e reversibilidade declarada como critério de admissão da autonomia (v0.18.0)
+- **ADR-0025**: skill `avaliar` — evals com gold set versionado e rubrica nos cinco eixos como gate, dona Alice; e o eval de roteamento do próprio plugin passa a rodar headless no CI (v0.19.0)
+- **ADR-0026**: gatilhos por evento — `templates/ci/` com revisar no PR, corrigir em CI vermelho (abre PR, nunca escreve na base) e auditar por cron. Instalar só depois de telemetria e guardrails (v0.19.0)
+- **ADR-0027**: fronteira estático/dinâmico declarada e orçamento de contexto verificado no `release.py check`, incluindo o limite de 500 linhas por skill (v0.19.0)
 
 ## Limitações conhecidas por CLI
 
@@ -112,6 +122,9 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | Hook PostToolUse pedagógico | ✅ | ❌ | ❌ (sem `oh-my-opencode`) | ❌ |
 | SessionStart banner | ✅ | ✅ | ❌ (sem `oh-my-opencode`) | ✅ via rule `alwaysApply` |
 | Subagents com persona | ✅ nativo | ✅ mirror `.agents/` | ⚠️ via cópia de `agents/` | ✅ `.cursor/agents/` (allow-list degrada pra `readonly`) |
+| Telemetria de execução (ADR-0021) | ✅ completa (4 pontos do ciclo) | ⚠️ só SessionStart — sem trajetória útil | ❌ | ❌ |
+
+Nos CLIs sem hooks completos, a dimensão **Autonomia** do `/auditar` pontua 0 e o `/validar` pula a corroboração de trajetória — comportamento honesto, não bug: sem hook não há trajetória. O caminho nesses CLIs é rodar os checks equivalentes no CI do projeto (`templates/ci/`).
 
 A skill `mobilizar` tem detecção embutida — quando rodada em CLI sem suporte, ela orienta o usuário a usar `rodar` em vez disso.
 

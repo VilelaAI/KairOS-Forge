@@ -1,0 +1,142 @@
+# kairos-forge — correção automática de CI vermelho
+#
+# É o gatilho que mais se aproxima do L4 da imagem: "pipelines autônomos cuidam
+# de correções, QA, protótipos e fluxos repetíveis". Também é o mais perigoso —
+# por isso as travas abaixo NÃO são opcionais.
+#
+# Contrato de segurança (ADR-0026):
+#   · nunca escreve na branch protegida — cria branch e abre PR
+#   · UMA tentativa por execução falha; sem loop de auto-disparo
+#   · ignora falha que já tem PR de correção aberto
+#   · timeout curto, permissão mínima
+#
+# AJUSTE `workflows:` abaixo para o nome do SEU workflow de CI.
+
+name: kairos-forge — corrigir CI
+
+on:
+  workflow_run:
+    workflows: ["CI"] # ← troque pelo nome do seu workflow de testes
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: forge-corrigir-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  corrigir:
+    # Só falha real, só branch que não é a protegida, e nunca reagindo a si mesmo.
+    if: >
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_branch != github.event.repository.default_branch &&
+      !startsWith(github.event.workflow_run.head_branch, 'forge/corrige-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+
+      - name: Verificar credencial
+        id: cred
+        env:
+          CHAVE: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$CHAVE" ]; then
+            echo "⏭️  ANTHROPIC_API_KEY não configurado — correção pulada."
+            echo "ativo=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ativo=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Já existe PR de correção para esta branch?
+        if: steps.cred.outputs.ativo == 'true'
+        id: dedup
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          ABERTOS=$(gh pr list --state open --search "forge/corrige- in:head" --json headRefName --jq \
+            "[.[] | select(.headRefName | startswith(\"forge/corrige-$BRANCH\"))] | length")
+          if [ "${ABERTOS:-0}" -gt 0 ]; then
+            echo "⏭️  já existe PR de correção aberto — não empilho outro."
+            echo "seguir=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "seguir=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.dedup.outputs.seguir == 'true'
+        with:
+          node-version: "20"
+
+      - name: Instalar Claude Code e a fábrica
+        if: steps.dedup.outputs.seguir == 'true'
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          git clone --depth 1 https://github.com/VilelaAI/kairos-forge /tmp/forge
+          mkdir -p .claude
+          cp -R /tmp/forge/plugin/skills .claude/skills
+          cp -R /tmp/forge/plugin/agents .claude/agents
+
+      - name: Baixar o log da execução que falhou
+        if: steps.dedup.outputs.seguir == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.event.workflow_run.id }}
+        run: gh run view "$RUN" --log-failed > falha.log 2>/dev/null || echo "log indisponível" > falha.log
+
+      - name: Corrigir — uma rodada, sem insistir
+        if: steps.dedup.outputs.seguir == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          git config user.name "kairos-forge"
+          git config user.email "forge@users.noreply.github.com"
+          git checkout -b "forge/corrige-${{ github.event.workflow_run.head_branch }}-${{ github.event.workflow_run.id }}"
+          claude -p "O CI falhou. Log dos jobs que falharam em falha.log. \
+            Use a fábrica kairos-forge: a Laura roteia para o especialista certo. \
+            Diagnostique a causa raiz e corrija APENAS o que causou a falha — \
+            não refatore, não mude escopo, não toque em .github/workflows/. \
+            UMA rodada: se depois de corrigir o gate ainda falhar pelo mesmo \
+            motivo, PARE e explique — duas falhas materialmente iguais nunca \
+            viram terceira tentativa. Ao final, rode o gate para provar. \
+            Responda em PT-BR com o que mudou e a evidência." > diagnostico.md || true
+
+      - name: Guardrail antes de propor
+        if: steps.dedup.outputs.seguir == 'true'
+        run: python3 /tmp/forge/scripts/guardrail.py verificar .
+
+      - name: Abrir PR (nunca push na base)
+        if: steps.dedup.outputs.seguir == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          rm -f falha.log
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "Nenhuma mudança produzida — nada a propor."
+            exit 0
+          fi
+          git add -A
+          git commit -m "fix(ci): corrige falha da execução ${{ github.event.workflow_run.id }}
+
+          Correção automática da fábrica kairos-forge, uma rodada.
+          Diagnóstico no corpo do PR. Revisão e merge são humanos."
+          git push -u origin HEAD
+          {
+            echo "## 🔧 Correção automática de CI"
+            echo
+            echo "O CI da branch \`$BRANCH\` falhou e a fábrica tentou **uma** rodada de correção."
+            echo
+            cat diagnostico.md
+            echo
+            echo "---"
+            echo "_Uma tentativa, sem insistência. Se ainda estiver vermelho, o problema pede decisão humana._"
+          } > corpo.md
+          gh pr create --base "$BRANCH" --title "fix(ci): correção automática da fábrica" --body-file corpo.md

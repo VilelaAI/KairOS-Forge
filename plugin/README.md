@@ -67,7 +67,7 @@ Acionar:
 | `/kairos-forge:rodar [agente\|time\|apoio-X]` | Conversacional/sequencial — modo padrão | Todos os CLIs |
 | `/kairos-forge:mobilizar <spec>` | Paralelo via Agent Teams | **Apenas Claude Code** |
 | `/kairos-forge:entregar <feature>` | **O ciclo inteiro sozinho**: especificar → aprovar → construir → validar ⇄ corrigir → revisar ⇄ corrigir → PR, com orçamento de rodadas declarado | Todos os CLIs |
-| `/kairos-forge:revisar` | Pré-PR. Helena + Patrícia + outros | Todos os CLIs |
+| `/kairos-forge:revisar` | Pré-PR. Helena + Patrícia + outros, com faixa de raio de explosão decidindo o rigor | Todos os CLIs |
 | `/kairos-forge:avaliar <comportamento>` | Eval de comportamento não-determinístico (LLM, agente, extração): gold set versionado, rubrica em 5 eixos, limiar de regressão, gate no CI | Todos os CLIs |
 | `/kairos-forge:mapear-conhecimento` | Grafo de conhecimento do projeto: construir, atualizar, consultar (multi-hop com citação de arestas) e diagnosticar | Todos os CLIs |
 | `/kairos-forge:otimizar <métrica>` | Ciclo de catraca: 1 mudança por rodada, medir, manter ou reverter via git, com sentinelas e orçamento | Todos os CLIs |
@@ -388,8 +388,11 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - **v0.17** — observabilidade do harness: registro determinístico por hook, `telemetria.py`, corroboração de trajetória no `/validar` e 6ª dimensão **Autonomia** no `/auditar` (ADR-0021)
 - **v0.18** — o arco fechado: guardrails que bloqueiam (ADR-0022), skill `entregar` (ADR-0023) e contenção de raio com worktree e reversibilidade declarada (ADR-0024)
 - **v0.19** — provar e disparar: skill `avaliar` com rubrica como gate (ADR-0025), gatilhos por evento em `templates/ci/` (ADR-0026) e orçamento de contexto estático (ADR-0027)
-- **v0.20** (atual) — skill `diagnosticar`: a porta de entrada de sistema existente, com escada de evidência declarada e `diagnostico.py` como camada medida (ADR-0028)
-- **v0.20** — perfis Tier 3 sob demanda via `/evoluir` (SEO técnico, UX research, desktop, base de suporte), mais trilhas por tema
+- **v0.20** — skill `diagnosticar`: a porta de entrada de sistema existente, com escada de evidência declarada e `diagnostico.py` como camada medida (ADR-0028)
+- **v0.21** — máquina de estados do arco: `ciclo.py` decide transição, orçamento e escalação por código; `corrigindo_revisao` só sai para `validando` e o veredicto vem do relatório em disco (ADR-0029)
+- **v0.22** — artefato ajustado ao resultado (conjunto selado + digest no `/avaliar`), ergonomia de guardrail (recusa na trajetória, modo `aviso`) e detecção de patinação em voo (ADR-0030)
+- **v0.23** (atual) — higiene do juiz no `/avaliar`, gold set de comportamento da fábrica, faixa de raio de explosão no `/revisar`+`/entregar` e taxa de reversão no `diagnostico.py` (ADR-0031)
+- **v0.24** (planejado) — perfis Tier 3 sob demanda via `/evoluir` (SEO técnico, UX research, desktop, base de suporte), mais trilhas por tema
 
 ## Documentação
 
@@ -422,6 +425,9 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - [ADR-0026](docs/adr/0026-gatilhos-por-evento.md) — gatilhos por evento: a fábrica acorda sem ninguém digitar
 - [ADR-0027](docs/adr/0027-fronteira-estatico-dinamico.md) — fronteira estático/dinâmico e orçamento de contexto
 - [ADR-0028](docs/adr/0028-skill-diagnosticar.md) — skill `diagnosticar`: a porta de entrada de sistema existente
+- [ADR-0029](docs/adr/0029-maquina-de-estados-do-arco.md) — máquina de estados do arco: a transição decidida por código
+- [ADR-0030](docs/adr/0030-artefato-ergonomia-e-deteccao.md) — artefato ajustado ao resultado, ergonomia de guardrail e detecção em voo
+- [ADR-0031](docs/adr/0031-higiene-de-juiz-e-faixa-de-raio.md) — higiene do juiz e faixa de raio de explosão: o gate pergunta quanto custa desfazer
 - [Memória persistente](docs/memoria-persistente.md) — guia das 3 camadas e instalação opcional do ai-memory
 - [Análise: o novo SDLC e o caminho até L4](docs/revisoes/2026-08-01-analise-whitepaper-novo-sdlc-e-caminho-l4.md) — o harness da fábrica medido contra o whitepaper Day-1 do Google, com as lacunas e o que cada uma virou
 

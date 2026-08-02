@@ -58,6 +58,30 @@ Use `git diff --name-only` e classifique os arquivos modificados:
 - `*.tsx`, `*.jsx` (componentes) → +Ada
 - Código de produção em geral → +Vinícius
 
+### 3.5. Classificar a faixa de raio de explosão (ADR-0031)
+
+Antes de acionar ninguém, classifique o diff pela pergunta que decide o rigor:
+**quanto custa desfazer se estiver errado?** Confiança é a variável fraca dessa decisão;
+custo do erro é a forte.
+
+| Faixa | O que é | O que a revisão exige |
+|---|---|---|
+| **1 — reversível e contido** | Texto de UI, teste, função isolada com cobertura, doc | Gates verdes. Um merge ruim custa um revert |
+| **2 — reversível mas amplo** | Utilitário compartilhado, adição de schema, contrato interno, qualquer coisa com muitos chamadores | Gates verdes **mais** trajetória limpa: sem patinação registrada, sem recusa de guardrail, evidência corroborada |
+| **3 — difícil de reverter** | Migration destrutiva, deleção de dados, mudança que escreve em produção, dinheiro, credencial | **Humano decide, sempre** — independente de score, de gates verdes e de histórico |
+
+A faixa 3 é a mesma regra do ADR-0024 vista pelo outro lado: lá, tarefa cujo revert você
+não consegue escrever não é autônoma; aqui, mudança cuja reversão é cara não fecha por
+evidência. Mesmo critério, momentos diferentes.
+
+Declare a faixa no topo do relatório. Um diff de 20 linhas na faixa 3 recebe mais escrutínio
+que um de 400 na faixa 1 — e o revisor precisa saber disso antes de começar a ler.
+
+**O histórico entra aqui, não a impressão.** Se o projeto tem `diagnostico.py`, a taxa de
+reversão da área tocada é evidência: área que já voltou atrás três vezes neste trimestre
+sobe de faixa. É o sinal que o modelo não consegue influenciar — e por isso vale mais que
+a autoavaliação dele, que é o input que deve pesar **menos**.
+
 ### 4. Acionar revisores em paralelo (se possível)
 
 Cada revisor lê o diff **na sua dimensão** e produz parecer em primeira pessoa:
@@ -80,6 +104,7 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
 ```markdown
 # Revisão pré-PR — <branch>
 
+**Faixa de raio de explosão:** 1 (contida) / 2 (ampla) / 3 (difícil de reverter)
 **Escopo:** N arquivos, M linhas adicionadas, K linhas removidas
 **Revisores acionados:** Helena, Patrícia[, Vinícius, Marcos, Carlos, Ada conforme]
 **Veredicto agregado:** ✅ aprovado / ⚠️ aprovado com ressalvas / ❌ bloqueado
@@ -118,6 +143,8 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
 - **Não revise você mesmo.** Delegue aos agentes especialistas. Esta skill é orquestradora.
 - **Não suprima achados.** Se Helena marcou 🔴, não suavize pra 🟡 porque o usuário tem pressa.
 - **Não aprove cegamente.** Mesmo PR pequeno passa por Helena + Patrícia.
+- **Faixa 3 nunca fecha por evidência.** Gates verdes e histórico limpo não substituem a
+  decisão humana quando desfazer é caro.
 - **Não sugira workaround pra 🔴.** Sugira correção. Workaround vira dívida.
 
 ## Quando NÃO usar esta skill

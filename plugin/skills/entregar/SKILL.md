@@ -171,6 +171,19 @@ Depois de corrigir um 🔴, `registrar pronto` leva a **`validando`**, não a
 silencioso deste arco — e agora ele está fechado por construção, não por
 lembrança.
 
+### 5.5. Evidência proporcional à faixa (ADR-0031)
+
+O `/revisar` classificou o diff em faixa de raio de explosão. A faixa decide o que basta:
+
+- **Faixa 1** — gates verdes fecham.
+- **Faixa 2** — gates verdes **e** trajetória limpa: sem alerta de patinação, sem recusa
+  de guardrail registrada, `verificado:` corroborado (`telemetria.py`).
+- **Faixa 3** — **para e pergunta.** Escale com `ciclo.py escalar --motivo "faixa 3:
+  <o que é irreversível>"`. Não existe pontuação que abra essa faixa; é a mesma fronteira
+  do ADR-0024.
+
+Diga a faixa no corpo do PR. Quem revisa precisa saber onde olhar antes de abrir o diff.
+
 ### 6. `pronto_para_pr` — abrir o PR
 
 Com validação sem bloqueio em P1 e revisão sem 🔴:

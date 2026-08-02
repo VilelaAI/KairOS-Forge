@@ -10,6 +10,8 @@ Este repositório é um **marketplace catalog** que distribui o plugin `kairos-f
 
 A partir da v0.17 o harness se instrumenta e se contém: **telemetria de execução** gravada por hook (a autonomia da fábrica vira número), **guardrails determinísticos** que bloqueiam comando destrutivo e SPEC sem evidência, o **arco fechado** do `/kairos-forge:entregar` (a falha volta ao agente responsável, não ao usuário) e **gatilhos por evento** prontos para o CI do seu projeto.
 
+E a partir da v0.23 o gate decide pela variável certa: a **faixa de raio de explosão** do `/kairos-forge:revisar` pergunta *quanto custa desfazer*, não *quão confiante estou* — confiança é a variável fraca, e é justamente a que o modelo controla. Mudança contida fecha com gate verde; mudança difícil de reverter é do humano, sempre.
+
 Para projetos em **domínios regulados brasileiros** (LGPD, NRs, OAB, etc.), use [kairos-ai](https://github.com/VilelaAI/kairos-ai) em vez deste — adiciona squads negociais, guardrails legais, assertions binárias e advisor regulatório.
 
 ## Estrutura deste repositório

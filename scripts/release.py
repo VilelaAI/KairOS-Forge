@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import unicodedata
+from collections import Counter
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -43,6 +44,14 @@ ORCAMENTO_ESTATICO = {
     "templates/CLAUDE.md.template": 8000,
 }
 LIMITE_LINHAS_SKILL = 500  # regra 3 do CLAUDE.md, agora verificada
+
+# Vocabulário fechado do gold set de comportamento da fábrica (ADR-0031).
+# Fechado de propósito: capacidade nova entra por ADR, não por linha nova no JSONL.
+CAPACIDADES_FABRICA = {
+    "ferramenta-vazia", "chamada-repetida", "recusa-de-fronteira",
+    "integridade-de-handoff", "conclusao-verificada",
+}
+VERIFICACOES_EVAL = {"deterministica", "juiz", "parcial"}
 
 
 def derivar():
@@ -335,6 +344,38 @@ def checar():
             for aid in caso.get("esperado", []):
                 if aid not in n["ids_agentes"]:
                     problemas.append(f"gold.jsonl linha {i}: agente '{aid}' não existe")
+
+    # Gold set de comportamento da fábrica bem formado (ADR-0031).
+    # O eval em si precisa de modelo; a integridade do conjunto não — e é ela que
+    # apodrece em silêncio se ninguém olhar.
+    comp = RAIZ / "evals/comportamento-fabrica/gold.jsonl"
+    if comp.exists():
+        vistos, capacidades = set(), Counter()
+        for i, linha in enumerate(comp.read_text(encoding="utf-8").splitlines(), 1):
+            if not linha.strip():
+                continue
+            rel = "comportamento-fabrica/gold.jsonl"
+            try:
+                caso = json.loads(linha)
+            except Exception as e:
+                problemas.append(f"{rel} linha {i}: JSON inválido — {e}")
+                continue
+            for campo in ("id", "capacidade", "verificacao", "cenario", "esperado", "falha_se"):
+                if not str(caso.get(campo, "")).strip():
+                    problemas.append(f"{rel} linha {i}: campo '{campo}' ausente ou vazio")
+            if caso.get("id") in vistos:
+                problemas.append(f"{rel} linha {i}: id '{caso['id']}' duplicado")
+            vistos.add(caso.get("id"))
+            if caso.get("capacidade") not in CAPACIDADES_FABRICA:
+                problemas.append(f"{rel} linha {i}: capacidade '{caso.get('capacidade')}' "
+                                 f"fora das cinco — {', '.join(sorted(CAPACIDADES_FABRICA))}")
+            else:
+                capacidades[caso["capacidade"]] += 1
+            if caso.get("verificacao") not in VERIFICACOES_EVAL:
+                problemas.append(f"{rel} linha {i}: verificacao '{caso.get('verificacao')}' "
+                                 f"inválida — {', '.join(sorted(VERIFICACOES_EVAL))}")
+        for cap in sorted(CAPACIDADES_FABRICA - set(capacidades)):
+            problemas.append(f"comportamento-fabrica: capacidade '{cap}' sem nenhum caso")
 
     if problemas:
         print(f"\n❌ {len(problemas)} problema(s):")

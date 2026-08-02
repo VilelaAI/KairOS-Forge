@@ -25,13 +25,19 @@ jobs:
             exit 1
           }
 
-      - name: Versão, contagens, paridade e mirrors
+      - name: Versão, contagens, paridade, mirrors e integridade dos gold sets
+        # Inclui a boa-formação de evals/comportamento-fabrica/gold.jsonl (ADR-0031):
+        # o eval precisa de modelo para rodar, mas a integridade do conjunto não —
+        # e é ela que apodrece em silêncio.
         run: python3 scripts/release.py check
 
-      - name: Segurança dos agentes (allow-lists e segredos)
+      - name: Segurança dos agentes (allow-lists, hooks e segredos)
+        # O argumento é a RAIZ DA ÁRVORE, não a pasta de agentes. Passar `agents`
+        # fazia o script procurar `agents/agents/` e reportar verde sobre 0 agentes
+        # e 0 hooks — instrumento que mede nada e diz que está tudo bem.
         run: |
-          python3 scripts/check-agent-security.py agents
-          python3 scripts/check-agent-security.py plugin/agents
+          python3 scripts/check-agent-security.py .
+          python3 plugin/scripts/check-agent-security.py plugin
 
       - name: Grafo de conhecimento válido (se existir)
         run: |

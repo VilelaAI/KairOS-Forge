@@ -67,6 +67,13 @@ Crítica é separada de reescrita. Antes de marcar `completed`:
 
 Por que: a primeira passada quase sempre tem defeito que a releitura contra critérios explícitos captura — e é muito mais barato capturar aqui do que na validação ou revisão.
 
+**Por que "contra critérios explícitos" e não "revise seu trabalho":** autocorreção
+intrínseca — pedir ao modelo que revise o próprio trabalho **sem fundamentação externa** —
+não ajuda de forma confiável e frequentemente piora o resultado (Huang et al., ICLR 2024).
+O que faz esta etapa funcionar é a âncora fora do modelo: o "Done when" da task, o gate que
+roda, o `arquivo:linha` que você cita. Tire a âncora e sobra ruído com aparência de rigor —
+por isso "olhei e parece bom" é explicitamente recusado acima.
+
 ### 7. Guardrails determinísticos não se negociam
 
 Alguns limites não dependem de você lembrar — eles são código que roda antes da sua

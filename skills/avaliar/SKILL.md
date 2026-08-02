@@ -69,8 +69,16 @@ Regras de composição:
   outro idioma. O caminho feliz sozinho sempre passa.
 - **Inclua o "deve recusar".** Casos onde a resposta certa é não responder são os
   que mais separam sistema bom de sistema confiante.
-- **Tamanho mínimo útil: ~30 casos.** Abaixo disso, uma resposta muda o percentual
-  em mais de 3 pontos e a métrica vira ruído.
+- **Tamanho mínimo útil: ~30 casos** para ter sinal. Abaixo disso, uma resposta muda o
+  percentual em mais de 3 pontos e a métrica vira ruído.
+- **Para confiar no número agregado, ~500 casos.** Entre 30 e 500 o resultado orienta
+  decisão pontual ("esse caso quebrou"), não conclusão sobre o comportamento inteiro.
+  Diga qual dos dois você tem — apresentar 30 casos como se fossem 500 é o mesmo pecado
+  de apresentar inferência como medição.
+- **Teto de tempo: a suíte roda em menos que um café.** Suíte que passa de ~5 minutos
+  deixa de ser rodada e vira ritual trimestral — e ritual trimestral não protege nada.
+  Se estourar, simule o que custa dinheiro ou escreve em produção em vez de chamar de
+  verdade.
 
 #### Conjunto selado — a metade que o construtor não vê
 
@@ -112,6 +120,41 @@ aplica ao corroborar `verificado:` contra a trajetória registrada (ADR-0021).
 Juiz-LLM entra só onde a verificação programática não alcança (tom, completude),
 **sempre com critério escrito** e com uma amostra conferida à mão para calibrar.
 Juiz sem rubrica é o mesmo achismo com mais tokens.
+
+#### Higiene do juiz — cinco regras, e a primeira nos atinge em cheio
+
+Juiz enviesado é pior que juiz nenhum: ele lava um chute em número e depois age sobre
+ele. O viés é medido e é grande — no mesmo conjunto de saídas, um juiz devolveu 93,3% e
+outro devolveu 39,5%.
+
+1. **Família diferente da que gerou.** Modelo reconhece a própria escrita e a julga com
+   outra régua — para cima ou para baixo, e as duas direções já foram medidas. Isto vale
+   com força aqui: rodando dentro do Claude Code, o default preguiçoso é **Claude
+   julgando Claude**, que é exatamente o caso a evitar. Se só houver uma família
+   disponível, **diga isso no relatório** e trate o número como piso de confiança, não
+   como medida.
+2. **Painel quando errar é caro.** Dois ou três juízes de fornecedores diferentes, e o
+   agregado entre famílias é o que quebra erro correlacionado. Um juiz só é aceitável em
+   avaliação barata e reversível.
+3. **Objetivamente checável vai para código, nunca para o juiz.** O teste passou? O
+   arquivo existe? O estado mudou? O comando rodou? Isso é `if`, não julgamento — e sai
+   de graça, sem viés e sem token.
+4. **Versão do juiz pinada e registrada.** Juiz é software com versão. Um que atualiza em
+   silêncio torna incomparável todo score de antes e depois — e a falha é quieta: a suíte
+   continua produzindo números que pararam de significar a mesma coisa semanas atrás. É o
+   irmão simétrico do digest do artefato (passo 3.5): um fixa **o que** foi avaliado, o
+   outro fixa **quem** avaliou.
+5. **Nunca recompense a forma.** Zero pontos para comprimento, presença de palavra-chave,
+   contagem de citação, fraseado exato, número de chamadas de ferramenta ou similaridade
+   com uma referência. Recompense a forma e o agente aprende a forma: otimizar contra um
+   juiz por tempo suficiente ensina a **parecer certo em vez de estar certo**, e aí sua
+   defesa virou superfície de ataque.
+
+**Autocrítica não substitui juiz externo.** Pedir ao modelo que revise o próprio trabalho
+sem fundamentação externa não ajuda de forma confiável e frequentemente piora (Huang et
+al., ICLR 2024). A autocrítica do `anti-drift.md` funciona porque **não** é intrínseca:
+ela critica contra o "Done when" da task e exige evidência de `arquivo:linha`. Tirada a
+âncora externa, vira ruído com aparência de rigor.
 
 ### 3.5. Registrar o digest do que foi avaliado
 
@@ -188,6 +231,7 @@ O eval só vale se rodar sozinho quando alguém mexer no que ele protege:
 **Baseline → atual:** <n>% → <n>%
 **Visível:** <n>% (<N> casos) · **Selado:** <n>% (<N> casos) · **Divergência:** <n> pts
 **Gold set:** <N> casos (versão/commit) · **Digest do artefato:** `<sha256 curto>`
+**Juiz:** <modelo e versão pinada> · **Família do gerador:** <modelo> · **Painel:** sim/não
 **Eixos avaliados:** <quais> · **descartados:** <quais e por quê>
 
 ## Resultado por eixo
@@ -244,6 +288,9 @@ crescer no lugar certo em vez de crescer por invenção.
 - **Sem gold set versionado e limiar declarado, não é eval** — é impressão.
 - **Sem rubrica escrita, o número não significa nada.**
 - **Reporte os eixos separados** e diga o N.
+- **Juiz de família diferente da que gerou** — ou a limitação declarada no relatório.
+- **Versão do juiz pinada e registrada** junto do score.
+- **Nada de recompensar forma** — comprimento, palavra-chave, citação, similaridade.
 - **Só o conjunto selado aprova.** O visível serve para ajustar; o selado, para decidir.
 - **Digest registrado no relatório.** Artefato mudou, eval venceu.
 - **Nunca avalie o que você construiu.**

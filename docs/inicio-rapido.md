@@ -32,7 +32,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver:
 
 ```
-🔥 kairos-forge v0.22 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: ...
+🔥 kairos-forge v0.23 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: ...
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -157,6 +157,16 @@ A validação também **confere a evidência contra o que realmente rodou** (ADR
 Helena (segurança) + Patrícia (QA) sempre rodam. Vinícius (performance), Marcos (DevOps), Carlos (DBA), Ada (acessibilidade) entram automaticamente conforme os arquivos modificados no diff. Cada um produz parecer em primeira pessoa, com severidade.
 
 Veredicto agregado: ✅ aprovado / ⚠️ ressalvas / ❌ bloqueado.
+
+O relatório abre com a **faixa de raio de explosão** (ADR-0031), porque ela é que decide o rigor — e a pergunta não é "quão confiante estou?", é **"quanto custa desfazer se estiver errado?"**:
+
+| Faixa | Exemplo | O que fecha |
+|---|---|---|
+| 1 — reversível e contido | Texto de UI, teste, função isolada coberta | Gates verdes |
+| 2 — reversível mas amplo | Utilitário compartilhado, schema, contrato interno | Gates verdes **e** trajetória limpa |
+| 3 — difícil de reverter | Migration destrutiva, deleção, produção, dinheiro | **Humano decide, sempre** |
+
+Um diff de 20 linhas na faixa 3 recebe mais escrutínio que um de 400 na faixa 1. Se o projeto tem histórico git, a taxa de reversão da área tocada (`diagnostico.py`) é evidência para subir de faixa — é o sinal que o modelo não consegue influenciar.
 
 ### 3g. Alimentar a memória da fábrica
 

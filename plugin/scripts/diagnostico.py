@@ -206,6 +206,45 @@ def autoria(raiz: Path, arquivos: list[str], dias: int) -> dict:
     }
 
 
+def reversao(raiz: Path, dias: int) -> dict:
+    """Taxa histórica de reversão — a parte atuarial da confiança.
+
+    Confiar num agente (ou numa área do código) não é sentimento: é o registro de quantas
+    vezes o trabalho ali precisou voltar. Dos sinais que um gate de merge pode ler, este é
+    dos poucos que o modelo **não consegue influenciar** — e por isso vale mais que a
+    autoavaliação dele.
+
+    Conta commit de reversão na janela e as áreas onde eles se concentram.
+    """
+    if not tem_git(raiz):
+        return {"disponivel": False, "motivo": "não é repositório git"}
+    total = git(raiz, "log", f"--since={dias} days ago", "--oneline")
+    n_total = len([l for l in total.splitlines() if l.strip()])
+    if not n_total:
+        return {"disponivel": False, "motivo": "sem commits na janela"}
+
+    saida = git(raiz, "log", f"--since={dias} days ago", "--pretty=format:%H",
+                "--grep=^Revert", "--grep=^revert", "--grep=reverte", "-i", "--name-only")
+    revertidos: Counter = Counter()
+    n_rev = 0
+    for linha in saida.splitlines():
+        linha = linha.strip()
+        if not linha:
+            continue
+        if len(linha) == 40 and all(c in "0123456789abcdef" for c in linha):
+            n_rev += 1
+        elif not IGNORAR.search(linha):
+            revertidos[linha.replace("\\", "/")] += 1
+
+    return {
+        "disponivel": True,
+        "commits_na_janela": n_total,
+        "reversoes": n_rev,
+        "taxa_pct": round(100 * n_rev / n_total, 1),
+        "areas": [{"arquivo": a, "reversoes": n} for a, n in revertidos.most_common(5)],
+    }
+
+
 def cobertura_estrutural(arquivos: list[Path], raiz: Path) -> dict:
     """Proporção arquivo-de-teste : arquivo-de-fonte.
 
@@ -347,6 +386,7 @@ def coletar(raiz: Path, dias: int) -> dict:
         "autoria": autoria(raiz, hot, dias) if tem_git(raiz) else {"disponivel": False, "itens": []},
         "teste": cobertura_estrutural(arquivos, raiz),
         "dependencias": dependencias(raiz),
+        "reversao": reversao(raiz, dias),
         "spec_churn": churn_de_spec(raiz, dias),
         "marcadores": marcadores(arquivos, raiz),
         "tamanho": tamanho(arquivos, raiz),
@@ -396,6 +436,13 @@ def imprimir(d: dict) -> None:
         if solos:
             print(f"\n  ⚠️  {solos} de {d['autoria']['total_hotspots']} hotspots têm autor único "
                   "na janela — concentração de conhecimento")
+
+    rv = d["reversao"]
+    if rv.get("disponivel"):
+        print(f"  Reversões:      {rv['reversoes']} de {rv['commits_na_janela']} commits "
+              f"({rv['taxa_pct']}%)")
+        for a in rv["areas"][:3]:
+            print(f"                  {a['reversoes']}×  {a['arquivo']}")
 
     sc = d["spec_churn"]
     if sc.get("disponivel") and sc.get("specs_tocadas"):

@@ -79,6 +79,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `scripts/guardrail.py` | Guardrails determinísticos: comando destrutivo, arquivo protegido, integridade da SPEC, PR fora de estado. Modo hook (exit 2 bloqueia) e modo CLI para os demais CLIs e o CI (ADR-0022) | manual |
 | `scripts/release.py` | Bump de versão com contagens calculadas do filesystem + `check` de consistência (CI) | manual |
 | `evals/roteamento-laura/` | Gold set + `rodar.py` headless do eval de roteamento da Laura (dogfooding — só na raiz, não distribui) | manual |
+| `evals/comportamento-fabrica/` | Gold set dos cinco comportamentos que separam harness de pasta de prompts; 8 dos 13 casos verificados sem modelo no caminho (ADR-0031) | manual |
 | `hermes/` | Ponte Hermes Agent: skills de roteamento/ciclo + workflow + install.sh — a fábrica como motor de engenharia de um agente 24/7 (ADR-0019) | manual |
 | `.github/workflows/ci.yml` | CI: sync sem diff pendente, `release.py check`, segurança dos agentes (só na raiz) | manual |
 
@@ -118,6 +119,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 - **ADR-0028**: skill `diagnosticar` — porta de entrada de sistema existente, dono Rafael: escada de evidência declarada, seis dimensões com rubrica publicada, ganho só com faixa e base, e `diagnostico.py` como camada medida (v0.20.0)
 - **ADR-0029**: máquina de estados do arco — `ciclo.py` decide transição, orçamento e escalação por código; `corrigindo_revisao` só sai para `validando`; veredicto lido do relatório; `gh pr create` bloqueado fora de estado (v0.21.0)
 - **ADR-0030**: artefato ajustado ao resultado (conjunto selado + digest no `/avaliar`, churn de SPEC no `diagnostico.py`), ergonomia de guardrail (recusa na trajetória, modo `aviso` por classe) e detecção de patinação em voo; mais estimativa probabilística no Breno e RICE/WSJF no Hugo (v0.22.0)
+- **ADR-0031**: higiene do juiz no `/avaliar` (família diferente, painel, versão pinada, nunca recompensar forma) com tamanho reconciliado a teto de tempo; `evals/comportamento-fabrica/` com os cinco comportamentos; faixa de raio de explosão no `/revisar`+`/entregar` e taxa de reversão no `diagnostico.py`; auto-merge explicitamente fora (v0.23.0)
 
 ## Limitações conhecidas por CLI
 

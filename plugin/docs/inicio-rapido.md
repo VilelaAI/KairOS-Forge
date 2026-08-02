@@ -32,7 +32,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver:
 
 ```
-🔥 kairos-forge v0.19 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: ...
+🔥 kairos-forge v0.20 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: ...
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -77,6 +77,18 @@ Se o projeto já existe e tem dívida estrutural, comece por um mapa honesto:
 ```
 
 Diego coordena (com Fernanda/Thiago/Rafael conforme dimensões). Saída: `docs/arquitetura/MAPA-YYYY-MM-DD.md` com inventário, acoplamento, duplicação, bounded contexts e plano incremental de decomposição. Pule este passo se for greenfield ou se você já conhece bem a estrutura.
+
+### 3a-bis. (Sistema herdado) Diagnosticar antes de escolher a briga
+
+Se você herdou o sistema e não sabe o que atacar primeiro:
+
+```
+/kairos-forge:diagnosticar
+```
+
+Rafael conduz. A fábrica **mede** o que dá para medir (churn, concentração de autoria nos hotspots, razão teste/produção, dependências, dívida marcada), pontua seis dimensões com a rubrica publicada no próprio relatório, e devolve os achados ordenados por impacto × esforço com roadmap em três horizontes — em `docs/diagnosticos/`.
+
+Duas coisas que ele **não** faz, de propósito: não promete ganho sem base (faixa com origem declarada, ou "não estimável com o acesso atual"), e não corrige nada — cada achado sai encaminhado para `/otimizar`, `/migrar` ou `/especificar`.
 
 ### 3b. Especificar antes de codar
 

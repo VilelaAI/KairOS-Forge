@@ -100,6 +100,6 @@ ninguém aprova em seu nome.
   forma diferente da sessão interativa. Não é erro; é o desenho.
 - O Claude Code não enxerga a memória do Hermes: as skills da ponte colam o
   contexto relevante no handoff — contexto que não foi colado não existe.
-- As 17 skills do ciclo continuam sendo do plugin (Claude Code/Codex/
+- As 18 skills do ciclo continuam sendo do plugin (Claude Code/Codex/
   OpenCode/Cursor); a ponte adiciona a superfície de operação 24/7, não uma
   quinta distribuição do plugin.

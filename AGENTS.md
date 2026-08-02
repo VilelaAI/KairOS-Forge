@@ -19,7 +19,7 @@ The two plugins are independent — one does not import from the other. The core
 
 - `.claude-plugin/plugin.json` — Plugin manifest (Claude Code)
 - `agents/` — 71 subagents as `<id>.md` files (Claude Code format)
-- `skills/<name>/SKILL.md` — 17 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
+- `skills/<name>/SKILL.md` — 18 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
 - `hooks/hooks.json` — Claude Code hooks (SessionStart banner, PostToolUse pedagogical reminder, and the deterministic execution recorder wired at four lifecycle points — ADR-0021)
 - `.agents/` — Same content as `agents/` and `skills/`, in Codex CLI format (`<id>/AGENT.md` for agents, `skills/<name>/SKILL.md` for skills)
 - `.cursor/` — Generated Cursor distribution (ADR-0011): adapted subagents in `agents/` (`tools:`/`model:` stripped; `readonly: true` when the original allow-list has no write-capable tool), mirrored skills (open Agent Skills format), an `alwaysApply` rule replacing the SessionStart banner, plus `scripts/grafo.py` and `templates/` so `${CLAUDE_PLUGIN_ROOT}` references resolve
@@ -28,6 +28,7 @@ The two plugins are independent — one does not import from the other. The core
 - `docs/adr/` — Architecture Decision Records
 - `scripts/sync-multi-cli.py` — Regenerates `.agents/` (Codex) and `.cursor/` (Cursor) from `agents/` + `skills/` whenever the canonical Claude Code sources change
 - `scripts/grafo.py` — Deterministic side of the knowledge graph (validate, diagnose, k-hop subgraph, human sample, Mermaid export for SPEC/RFC/ADR); the graph itself lives in the user project at `.agents/grafo/`
+- `scripts/diagnostico.py` — Deterministic level-1 evidence for `/diagnosticar`: churn and code hotspots, authorship concentration on those hotspots, test-to-source ratio, dependency inventory, declared-debt density, file-size distribution. Measures only; scoring and causal inference are the skill's judgment (ADR-0028)
 - `scripts/execucao.py` — Deterministic execution recorder called by hooks; appends one event per lifecycle point to `.agents/execucoes/*.jsonl` in the user project. Never blocks, never writes to stdout, never records secrets (ADR-0021)
 - `scripts/telemetria.py` — Aggregates that record: `resumo` (the numbers behind the `/auditar` Autonomy dimension), `sessoes`, and `corroborar` (used by `/validar` to check a `verificado:` claim against what actually ran)
 - `scripts/release.py` — Version bump with counts computed from the filesystem, plus a `check` mode run by CI (consistency of counts/version, root↔plugin parity, JSON validity, mirrors)
@@ -56,7 +57,7 @@ The two plugins are independent — one does not import from the other. The core
 
 ### Skill availability per CLI
 
-All 17 skills live in `skills/` and are accessible to both Claude Code and Codex.
+All 18 skills live in `skills/` and are accessible to both Claude Code and Codex.
 
 | Skill | Claude Code | Codex CLI | OpenCode | Cursor |
 |---|---|---|---|---|
@@ -69,6 +70,7 @@ All 17 skills live in `skills/` and are accessible to both Claude Code and Codex
 | `rodar` | ✅ | ✅ | ✅ | ✅ |
 | `mobilizar` | ✅ | ⚠️ skill loads but detects environment and redirects to `rodar` | ⚠️ same as Codex | ⚠️ same as Codex |
 | `entregar` | ✅ | ✅ (builds via `rodar`) | ✅ (builds via `rodar`) | ✅ (builds via `rodar`) |
+| `diagnosticar` | ✅ | ✅ | ✅ | ✅ |
 | `avaliar` | ✅ | ✅ | ✅ | ✅ |
 | `revisar` | ✅ | ✅ | ✅ | ✅ |
 | `otimizar` | ✅ | ✅ | ✅ | ✅ |
@@ -170,7 +172,7 @@ cp -R kairos-forge/plugin/.cursor /path/to/project/.cursor
 cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
 ```
 
-This delivers the 71 subagents (`.cursor/agents/`), the 17 skills in the `/` menu (`.cursor/skills/`), an `alwaysApply` rule with the factory banner and `${CLAUDE_PLUGIN_ROOT}` path resolution, plus `scripts/grafo.py` and `templates/`. Project instructions: Cursor reads `AGENTS.md` — `/kairos-forge:onboardar` offers to generate it alongside `CLAUDE.md`. `mobilizar` detects Cursor and redirects to `rodar`.
+This delivers the 71 subagents (`.cursor/agents/`), the 18 skills in the `/` menu (`.cursor/skills/`), an `alwaysApply` rule with the factory banner and `${CLAUDE_PLUGIN_ROOT}` path resolution, plus `scripts/grafo.py` and `templates/`. Project instructions: Cursor reads `AGENTS.md` — `/kairos-forge:onboardar` offers to generate it alongside `CLAUDE.md`. `mobilizar` detects Cursor and redirects to `rodar`.
 
 ### OpenCode
 
@@ -231,6 +233,7 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0024**: Blast-radius containment — git worktree per teammate when human review leaves the loop, and declared reversibility as the admission test for autonomy: a task whose revert you cannot write is not autonomous (v0.18.0)
 - **ADR-0025**: `avaliar` skill — evals with a versioned gold set and an explicit rubric across the paper's five axes (task success, tool use quality, trajectory compliance, hallucination, response quality) as a CI gate, owned by Alice. The plugin's own routing eval becomes headless-runnable, so the factory stops preaching what it measured by hand (v0.19.0)
 - **ADR-0026**: Event-driven triggers — `templates/ci/` ships review-on-PR, fix-on-red-CI (opens a PR, never writes to the base branch) and audit-on-cron for the user's project. Install only after telemetry and guardrails are in place (v0.19.0)
+- **ADR-0028**: `diagnosticar` skill — the front door for an existing system, owned by Rafael. Declared evidence ladder (repo only / + runnable environment / + production telemetry), six dimensions scored against a rubric published inside the report, and projected gains only as a range with its basis stated — no basis, no number. `diagnostico.py` supplies the measured layer (v0.20.0)
 - **ADR-0027**: Static/dynamic context boundary declared and budgeted, enforced by `release.py check` — including the 500-line-per-skill rule that was convention until now (v0.19.0)
 
 ## Critical design constraints

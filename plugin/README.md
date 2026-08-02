@@ -53,12 +53,13 @@ Acionar:
 /kairos-forge:rodar apoio-revisao-arquitetural
 ```
 
-## As 17 skills
+## As 18 skills
 
 | Skill | Quando usar | Disponível em |
 |---|---|---|
 | `/kairos-forge:onboardar` | Primeira vez no projeto | Todos os CLIs |
 | `/kairos-forge:mapear-arquitetura` | Brownfield: inventário, acoplamento e plano de decomposição | Todos os CLIs |
+| `/kairos-forge:diagnosticar <sistema>` | Porta de entrada de sistema existente: mede, pontua 6 dimensões com rubrica publicada, prioriza por impacto × esforço e entrega roadmap por horizonte | Todos os CLIs |
 | `/kairos-forge:especificar <ideia>` | Antes de codar não-trivial; gera SPEC rastreável | Todos os CLIs |
 | `/kairos-forge:analisar-ameacas <feature>` | Threat model antes de implementar feature sensível (auth, PII, billing, IA) | Todos os CLIs |
 | `/kairos-forge:desenhar <spec>` | Handoff de design: fluxos, cinco estados por view, acessibilidade; modo `verificar` inspeciona o implementado | Todos os CLIs |
@@ -75,7 +76,7 @@ Acionar:
 | `/kairos-forge:auditar` | Semanal. Pontuação 0–120 em 6 dimensões (Fundação, Pipeline, Guardrails, Conhecimento, Estrutura, **Autonomia**) | Todos os CLIs |
 | `/kairos-forge:evoluir` | Semanal pós-auditoria | Todos os CLIs |
 
-Ordem natural: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `desenhar` (features com UI) → `mobilizar`/`rodar` → `validar` → `revisar` → `lancar` → `mapear-conhecimento` (quando docs acumulam) → `auditar` → `evoluir`.
+Ordem natural: `onboardar` → `mapear-arquitetura` (brownfield) → `diagnosticar` (sistema existente) → `especificar` → `analisar-ameacas` (features sensíveis) → `desenhar` (features com UI) → `mobilizar`/`rodar` → `validar` → `revisar` → `lancar` → `mapear-conhecimento` (quando docs acumulam) → `auditar` → `evoluir`.
 
 **Ou pule o encadeamento:** `/kairos-forge:entregar` percorre o trecho central sozinho — especificar → construir → validar ⇄ corrigir → revisar ⇄ corrigir → PR — roteando cada falha de volta ao agente responsável dentro de um orçamento declarado (ADR-0023). Sob demanda, fora do fluxo: `otimizar` (métrica mensurável a melhorar), `migrar` (legado) e `avaliar` (comportamento de IA).
 
@@ -284,7 +285,7 @@ Com o [Hermes Agent](https://hermes-agent.nousresearch.com) rodando num VPS, a p
 bash hermes/install.sh
 ```
 
-O que chega: 71 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 17 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, mais os scripts de suporte (`grafo.py`, `telemetria.py`, `guardrail.py`, `execucao.py`) e `templates/`. Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
+O que chega: 71 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 18 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, mais os scripts de suporte (`grafo.py`, `telemetria.py`, `guardrail.py`, `execucao.py`) e `templates/`. Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
 
 ### OpenCode
 
@@ -386,7 +387,8 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - **v0.16** — skills `desenhar` e `lancar`: o ciclo de produto do oh-my-hermes nas partes compatíveis com plugin (ADR-0020)
 - **v0.17** — observabilidade do harness: registro determinístico por hook, `telemetria.py`, corroboração de trajetória no `/validar` e 6ª dimensão **Autonomia** no `/auditar` (ADR-0021)
 - **v0.18** — o arco fechado: guardrails que bloqueiam (ADR-0022), skill `entregar` (ADR-0023) e contenção de raio com worktree e reversibilidade declarada (ADR-0024)
-- **v0.19** (atual) — provar e disparar: skill `avaliar` com rubrica como gate (ADR-0025), gatilhos por evento em `templates/ci/` (ADR-0026) e orçamento de contexto estático (ADR-0027)
+- **v0.19** — provar e disparar: skill `avaliar` com rubrica como gate (ADR-0025), gatilhos por evento em `templates/ci/` (ADR-0026) e orçamento de contexto estático (ADR-0027)
+- **v0.20** (atual) — skill `diagnosticar`: a porta de entrada de sistema existente, com escada de evidência declarada e `diagnostico.py` como camada medida (ADR-0028)
 - **v0.20** — perfis Tier 3 sob demanda via `/evoluir` (SEO técnico, UX research, desktop, base de suporte), mais trilhas por tema
 
 ## Documentação
@@ -419,6 +421,7 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - [ADR-0025](docs/adr/0025-skill-avaliar.md) — skill `avaliar`: eval com rubrica como gate, no projeto e no próprio plugin
 - [ADR-0026](docs/adr/0026-gatilhos-por-evento.md) — gatilhos por evento: a fábrica acorda sem ninguém digitar
 - [ADR-0027](docs/adr/0027-fronteira-estatico-dinamico.md) — fronteira estático/dinâmico e orçamento de contexto
+- [ADR-0028](docs/adr/0028-skill-diagnosticar.md) — skill `diagnosticar`: a porta de entrada de sistema existente
 - [Memória persistente](docs/memoria-persistente.md) — guia das 3 camadas e instalação opcional do ai-memory
 - [Análise: o novo SDLC e o caminho até L4](docs/revisoes/2026-08-01-analise-whitepaper-novo-sdlc-e-caminho-l4.md) — o harness da fábrica medido contra o whitepaper Day-1 do Google, com as lacunas e o que cada uma virou
 

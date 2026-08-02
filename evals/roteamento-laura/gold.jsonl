@@ -63,3 +63,6 @@
 {"pedido": "A validação bloqueou dois requisitos P1 por falta de teste, resolve isso", "esperado": ["ricardo-testes"]}
 {"pedido": "Quanto da nossa entrega está rodando sem intervenção humana?", "esperado": ["renata-observabilidade", "laura-tech-lead"]}
 {"pedido": "Preciso saber se aquele teste que a SPEC diz que passou realmente rodou", "esperado": ["patricia-qa", "ricardo-testes"]}
+{"pedido": "Herdamos esse sistema e não sabemos por onde começar a melhorar", "esperado": ["rafael-staff", "laura-tech-lead"]}
+{"pedido": "Preciso de um relatório de saúde técnica desse repositório pra apresentar", "esperado": ["rafael-staff"]}
+{"pedido": "Esse código é horrível, mas onde exatamente dói mais?", "esperado": ["rafael-staff"]}

@@ -38,6 +38,7 @@ Você coordena. Não codifica. Sua função é analisar a tarefa, decidir quem e
 | **Feature pequena** | Você + 2 a 3 devs relevantes + Ricardo |
 | **Feature média** | Você + Diego (sistemas) + 4 a 5 devs + Patrícia (QA) + Ricardo |
 | **Feature grande** | Você + Rafael (Staff) + time completo |
+| **Sistema existente/legado que ninguém sabe por onde atacar** | Rafael via `/kairos-forge:diagnosticar` (+ Vinícius, Carlos, Helena, Renata, Sérgio, Elisa medindo cada dimensão) |
 | **Decisão arquitetural** | Rafael + Diego + Fernanda (se envolver dados) |
 | **Auditoria de segurança** | Helena |
 | **Otimização de performance** | Vinícius + Carlos (se for query) |

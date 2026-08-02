@@ -22,12 +22,28 @@ Três garantias que a prosa não dava:
   3. **Veredicto vem do artefato, não da palavra.** Registrar `aprovado` sem relatório
      de validação correspondente é recusado — o script lê `docs/specs/validacoes/`.
 
+E uma quarta, desde a v0.24 (ADR-0032): **progresso real devolve a ficha.**
+
+O orçamento plano confundia duas coisas diferentes. Cinco bloqueios que viram dois e
+depois um é uma equipe convergindo — escalar na segunda rodada é interromper quem
+estava resolvendo. Cinco bloqueios que continuam cinco é patinação, e a segunda rodada
+já é uma a mais do que precisava. Agora o script compara a contagem de bloqueios com a
+**melhor marca já atingida** naquele gate: baixou, a ficha volta; não baixou, queima.
+Um teto absoluto de rodadas continua valendo por cima, porque convergência lenta demais
+também é motivo para chamar alguém.
+
+A contagem vem do bloco de contrato do relatório (`contrato.py`), nunca da alegação do
+agente — mesma regra do veredicto. Relatório sem bloco de contrato degrada para o
+comportamento anterior (toda rodada queima ficha), o que é honesto: sem número, não há
+como afirmar progresso.
+
 E o estado vive em `.agents/ciclo/<spec>.json`: sobrevive a reset de contexto, a troca
 de sessão e a troca de CLI. O agente não escreve ali (guardrail bloqueia, ADR-0022) —
 pelo mesmo motivo que não escreve a própria telemetria.
 
 Uso:
-    ciclo.py abrir SPEC-001 [--orcamento-validar 2] [--orcamento-revisar 2] [--spec-aprovada]
+    ciclo.py abrir SPEC-001 [--orcamento-validar 2] [--orcamento-revisar 2]
+                            [--teto-validar 6] [--teto-revisar 6] [--spec-aprovada]
     ciclo.py estado [SPEC-001] [--json]
     ciclo.py registrar <resultado> [SPEC-001] [--nota "..."]
     ciclo.py encerrar [SPEC-001] --motivo "..."
@@ -44,7 +60,18 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+try:
+    from contrato import ler_revisao, ler_validacao
+except Exception:  # contrato ausente/quebrado nunca derruba a máquina de estados
+    ler_revisao = ler_validacao = None  # type: ignore[assignment]
+
 PASTA = Path(".agents/ciclo")
+
+# Teto absoluto de rodadas por gate quando não declarado: 3× o orçamento. Progresso
+# devolve ficha, mas não dá rodadas infinitas — convergir devagar demais também é
+# motivo para chamar alguém.
+FATOR_TETO = 3
 
 # --- a máquina ---------------------------------------------------------------------
 # estado → {resultado aceito: destino}. `None` marca destino calculado (orçamento).
@@ -137,36 +164,65 @@ def gravar(p: Path, d: dict) -> None:
 
 # --- corroboração do veredicto -----------------------------------------------------
 
-def veredicto_do_relatorio(spec: str) -> str | None:
-    """Lê o veredicto do relatório de validação mais recente. None se não houver.
-
-    Existe para que `registrar aprovado` não seja aceito na palavra do agente: a
-    transição é alimentada por artefato. Mesmo princípio da corroboração de
-    trajetória do ADR-0021.
-    """
-    pasta = Path("docs/specs/validacoes")
-    if not pasta.is_dir():
+def _mais_recente(pasta: str, prefixo: str, spec: str) -> str | None:
+    p = Path(pasta)
+    if not p.is_dir():
         return None
     alvo = re.sub(r"[^A-Za-z0-9_-]", "-", spec)
-    cands = sorted(pasta.glob(f"VALIDACAO-{alvo}-*.md"), key=lambda p: p.name, reverse=True)
+    cands = sorted(p.glob(f"{prefixo}-{alvo}-*.md"), key=lambda x: x.name, reverse=True)
     if not cands:
         return None
-    m = re.search(r"\*\*Veredicto:\*\*\s*(.+)", cands[0].read_text(encoding="utf-8"))
+    try:
+        return cands[0].read_text(encoding="utf-8")
+    except Exception:
+        return None
+
+
+def _veredicto_da_prosa(texto: str) -> str | None:
+    """Fallback para relatório sem bloco de contrato. Sem contagem — só veredicto."""
+    m = re.search(r"\*\*Veredicto(?:\s+agregado)?:\*\*\s*(.+)", texto)
     if not m:
         return None
-    texto = m.group(1).strip().lower()
-    if "bloquead" in texto:
+    t = m.group(1).strip().lower()
+    if "bloquead" in t:
         return "bloqueado"
-    if "ressalva" in texto:
+    if "ressalva" in t:
         return "aprovado_com_ressalvas"
-    if "aprovad" in texto:
+    if "aprovad" in t:
         return "aprovado"
     return None
 
 
+def ler_relatorio(spec: str, gate: str) -> tuple[str | None, int | None, str]:
+    """(veredicto, contagem de bloqueios, fonte) do relatório mais recente do gate.
+
+    Existe para que `registrar aprovado` não seja aceito na palavra do agente: a
+    transição é alimentada por artefato. Mesmo princípio da corroboração de
+    trajetória do ADR-0021.
+
+    `fonte` é `contrato` (bloco cercado — tem contagem), `prosa` (formato antigo,
+    veredicto sem contagem) ou `ausente`. Só `contrato` permite afirmar progresso:
+    sem número não há comparação, e inventar uma seria pior que não ter.
+    """
+    if gate == "validar":
+        texto = _mais_recente("docs/specs/validacoes", "VALIDACAO", spec)
+        leitor, campo = ler_validacao, "bloqueios"
+    else:
+        texto = _mais_recente("docs/specs/revisoes", "REVISAO", spec)
+        leitor, campo = ler_revisao, "criticos"
+    if texto is None:
+        return None, None, "ausente"
+    if leitor is not None:
+        r = leitor(texto)
+        if r.ok:
+            return r.dados["veredicto"], r.dados[campo], "contrato"
+    return _veredicto_da_prosa(texto), None, "prosa"
+
+
 # --- comandos ----------------------------------------------------------------------
 
-def abrir(spec: str, orc_val: int, orc_rev: int, spec_aprovada: bool) -> int:
+def abrir(spec: str, orc_val: int, orc_rev: int, teto_val: int, teto_rev: int,
+          spec_aprovada: bool) -> int:
     p = caminho(spec)
     if p.is_file():
         d = ler(p)
@@ -179,7 +235,13 @@ def abrir(spec: str, orc_val: int, orc_rev: int, spec_aprovada: bool) -> int:
         "estado": estado,
         "aberto_em": agora(),
         "orcamento": {"validar": orc_val, "revisar": orc_rev},
+        "teto": {"validar": teto_val, "revisar": teto_rev},
+        # `rodadas` são as fichas consumidas SEM progresso — progresso zera.
         "rodadas": {"validar": 0, "revisar": 0},
+        # `rodadas_totais` nunca zera; é o que o teto absoluto mede.
+        "rodadas_totais": {"validar": 0, "revisar": 0},
+        # melhor (menor) contagem de bloqueios já atingida no gate; None = sem marca.
+        "marca": {"validar": None, "revisar": None},
         "historico": [{"t": agora(), "de": None, "para": estado, "resultado": "abrir"}],
     }
     gravar(p, d)
@@ -187,9 +249,51 @@ def abrir(spec: str, orc_val: int, orc_rev: int, spec_aprovada: bool) -> int:
     return 0
 
 
+def compatibilizar(d: dict) -> dict:
+    """Estado escrito por versão anterior ganha os campos novos sem perder história."""
+    orc = d.setdefault("orcamento", {"validar": 2, "revisar": 2})
+    d.setdefault("rodadas", {"validar": 0, "revisar": 0})
+    d.setdefault("teto", {g: max(1, orc.get(g, 2)) * FATOR_TETO for g in ("validar", "revisar")})
+    d.setdefault("rodadas_totais", dict(d["rodadas"]))
+    d.setdefault("marca", {"validar": None, "revisar": None})
+    return d
+
+
+def decidir_orcamento(d: dict, gate: str, bloqueios: int | None) -> tuple[str, str | None]:
+    """Decide destino e motivo de escalação quando o gate falhou. Muta o estado.
+
+    Ordem deliberada — o teto vem antes do progresso porque progresso não compra
+    rodadas infinitas: uma feature que baixa de 40 bloqueios para 39 a cada rodada
+    está "progredindo" e mesmo assim precisa de gente.
+    """
+    d["rodadas_totais"][gate] += 1
+    destino = "corrigindo_validacao" if gate == "validar" else "corrigindo_revisao"
+
+    if d["rodadas_totais"][gate] >= d["teto"][gate]:
+        return "escalado", (f"teto absoluto de {gate} atingido "
+                            f"({d['rodadas_totais'][gate]}/{d['teto'][gate]} rodadas)")
+
+    marca = d["marca"].get(gate)
+    progrediu = bloqueios is not None and marca is not None and bloqueios < marca
+    if bloqueios is not None and (marca is None or bloqueios < marca):
+        d["marca"][gate] = bloqueios
+
+    if progrediu:
+        d["rodadas"][gate] = 0  # ficha devolvida
+        return destino, None
+
+    if d["rodadas"][gate] >= d["orcamento"][gate]:
+        estagnado = "" if bloqueios is None else f", parado em {bloqueios} bloqueio(s)"
+        return "escalado", (f"orçamento de {gate} esgotado sem progresso "
+                            f"({d['rodadas'][gate]}/{d['orcamento'][gate]} rodadas{estagnado})")
+
+    d["rodadas"][gate] += 1
+    return destino, None
+
+
 def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
     p = resolver(spec)
-    d = ler(p)
+    d = compatibilizar(ler(p))
     estado = d["estado"]
 
     if estado in TERMINAIS:
@@ -205,38 +309,48 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
         return 1
 
     # Veredicto vem do artefato, não da palavra do agente.
+    gate_do_estado = {"validando": "validar", "revisando": "revisar"}.get(estado)
+    veredicto = contagem = None
+    fonte = "ausente"
+    if gate_do_estado:
+        veredicto, contagem, fonte = ler_relatorio(d["spec"], gate_do_estado)
+
     if estado == "validando" and resultado in ("aprovado", "aprovado_com_ressalvas"):
-        real = veredicto_do_relatorio(d["spec"])
-        if real == "bloqueado":
+        if veredicto == "bloqueado":
             print(f"🛑 recusado: o relatório de validação mais recente de {d['spec']} diz "
                   f"BLOQUEADO.\n   Registre `bloqueado` e corrija, ou rode a validação de novo.",
                   file=sys.stderr)
             return 1
-        if real is None:
+        if veredicto is None:
             print(f"🛑 recusado: não encontrei relatório em docs/specs/validacoes/ para "
                   f"{d['spec']}.\n   Rode /kairos-forge:validar antes de registrar o resultado.",
                   file=sys.stderr)
             return 1
 
     destino = aceitos[resultado]
-    esgotou = None
+    motivo = None
 
     if destino is None:  # bloqueio/crítico — o orçamento decide
-        gate = "validar" if estado == "validando" else "revisar"
-        if d["rodadas"][gate] >= d["orcamento"][gate]:
-            destino, esgotou = "escalado", gate
-        else:
-            d["rodadas"][gate] += 1
-            destino = "corrigindo_validacao" if gate == "validar" else "corrigindo_revisao"
+        destino, motivo = decidir_orcamento(d, gate_do_estado or "validar", contagem)
 
-    d["historico"].append({"t": agora(), "de": estado, "para": destino,
-                           "resultado": resultado, **({"nota": nota} if nota else {})})
+    evento = {"t": agora(), "de": estado, "para": destino, "resultado": resultado}
+    if contagem is not None:
+        evento["bloqueios"] = contagem
+    if gate_do_estado and fonte != "ausente":
+        evento["fonte"] = fonte
+    if nota:
+        evento["nota"] = nota
+    d["historico"].append(evento)
     d["estado"] = destino
-    if esgotou:
-        d["motivo_escalacao"] = (f"orçamento de {esgotou} esgotado "
-                                 f"({d['rodadas'][esgotou]}/{d['orcamento'][esgotou]} rodadas)")
+    if motivo:
+        d["motivo_escalacao"] = motivo
     gravar(p, d)
     imprimir(d)
+    if gate_do_estado and fonte == "prosa" and destino not in TERMINAIS:
+        print("\n   ⚠️  Relatório sem bloco de contrato — sem contagem de achados, toda "
+              "rodada queima ficha.\n       Adicione o bloco ```kairos-"
+              f"{'validacao' if gate_do_estado == 'validar' else 'revisao'}"
+              " para que progresso conte (ADR-0032).", file=sys.stderr)
     return 0
 
 
@@ -264,12 +378,24 @@ def encerrar(spec: str | None, motivo: str) -> int:
     return 0
 
 
+def _placar(d: dict, gate: str) -> str:
+    linha = f"{d['rodadas'][gate]}/{d['orcamento'][gate]}"
+    tot, teto = d.get("rodadas_totais", {}).get(gate), d.get("teto", {}).get(gate)
+    if tot is not None and teto is not None:
+        linha += f" (total {tot}/{teto})"
+    marca = (d.get("marca") or {}).get(gate)
+    if marca is not None:
+        linha += f" · melhor marca {marca}"
+    return linha
+
+
 def imprimir(d: dict) -> None:
+    d = compatibilizar(d)
     e = d["estado"]
     icone = {"escalado": "⏸️", "encerrado": "✅", "pronto_para_pr": "🎯"}.get(e, "🔁")
     print(f"{icone} {d['spec']} — estado: {e}")
-    print(f"   Rodadas: validar {d['rodadas']['validar']}/{d['orcamento']['validar']} · "
-          f"revisar {d['rodadas']['revisar']}/{d['orcamento']['revisar']}")
+    print(f"   Validar: {_placar(d, 'validar')}")
+    print(f"   Revisar: {_placar(d, 'revisar')}")
     if d.get("motivo_escalacao"):
         print(f"   Motivo: {d['motivo_escalacao']}")
     if d.get("motivo_encerramento"):
@@ -279,7 +405,7 @@ def imprimir(d: dict) -> None:
 
 def estado(spec: str | None, como_json: bool) -> int:
     p = resolver(spec)
-    d = ler(p)
+    d = compatibilizar(ler(p))
     if como_json:
         print(json.dumps({**d, "proximo_passo": INSTRUCAO[d["estado"]]},
                          ensure_ascii=False, indent=2))
@@ -295,7 +421,7 @@ def listar() -> int:
     linhas = []
     for p in sorted(PASTA.glob("*.json")):
         try:
-            d = ler(p)
+            d = compatibilizar(ler(p))
         except Exception:
             continue
         linhas.append((d["spec"], d["estado"],
@@ -334,6 +460,8 @@ def main() -> int:
 
     orc_val = opcao("--orcamento-validar", int, 2)
     orc_rev = opcao("--orcamento-revisar", int, 2)
+    teto_val = opcao("--teto-validar", int, max(1, orc_val) * FATOR_TETO)
+    teto_rev = opcao("--teto-revisar", int, max(1, orc_rev) * FATOR_TETO)
     motivo = opcao("--motivo", str, "")
     nota = opcao("--nota", str, None)
     spec_aprovada = "--spec-aprovada" in args
@@ -345,7 +473,7 @@ def main() -> int:
     if cmd == "abrir":
         if not resto:
             sys.exit("erro: uso — ciclo.py abrir <SPEC>")
-        return abrir(resto[0], orc_val, orc_rev, spec_aprovada)
+        return abrir(resto[0], orc_val, orc_rev, teto_val, teto_rev, spec_aprovada)
     if cmd == "estado":
         return estado(resto[0] if resto else None, como_json)
     if cmd == "registrar":

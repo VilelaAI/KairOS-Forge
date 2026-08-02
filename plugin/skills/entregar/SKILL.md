@@ -64,6 +64,12 @@ Três coisas deixam de depender da sua disciplina:
   revisão: o script só tem essa aresta.
 - **Veredicto vem do artefato.** `registrar aprovado` sem relatório em
   `docs/specs/validacoes/` é recusado; com relatório dizendo bloqueado, também.
+  Vale igual para a revisão (`docs/specs/revisoes/`) desde a v0.24.
+- **Progresso real devolve a ficha (ADR-0032).** O `ciclo.py` lê a contagem de
+  achados do bloco de contrato do relatório e compara com a melhor marca do
+  gate. Baixou de 5 para 2, a rodada não é cobrada; continuou em 5, é. Convergir
+  não é patinar, e o orçamento plano tratava os dois igual. Um **teto absoluto**
+  de rodadas segue valendo por cima — progresso não compra rodada infinita.
 
 E o `gh pr create` fica **bloqueado pelo guardrail** enquanto o estado não for
 `pronto_para_pr` (ADR-0022). Não é sugestão.
@@ -85,9 +91,10 @@ Anuncie ao usuário o que foi aberto — é o contrato da autonomia deste ciclo:
 ```
 🔁 Entrega — <feature/SPEC> — orçamento declarado
 
-Rodadas de correção por gate:  2 (validar) · 2 (revisar)
+Rodadas sem progresso por gate: 2 (validar) · 2 (revisar) — teto absoluto 6 cada
 Checkpoint com você:           aprovação da SPEC · antes do PR
-Escalação:                     orçamento esgotado, ou 2 falhas materialmente iguais
+Escalação:                     orçamento sem progresso esgotado, teto atingido,
+                               ou 2 falhas materialmente iguais
 Evidência mínima pra encerrar: P1 sem bloqueio no /validar + zero 🔴 no /revisar
 Modo de construção:            mobilizar (paralelo) | rodar (sequencial)
 ```
@@ -208,9 +215,10 @@ Salve `docs/specs/entregas/ENTREGA-<SPEC-NNN>-YYYY-MM-DD.md`:
 
 ## Linhagem de rodadas
 
-| # | Etapa | Achado | Agente | Ação | Resultado |
-|---|---|---|---|---|---|
-| 1 | validar | EXP-02 sem teste | Ricardo | teste de erro adicionado | aprovado |
+| # | Etapa | Achado | Agente | Ação | Bloqueios | Resultado |
+|---|---|---|---|---|---|---|
+| 1 | validar | 3 P1 sem teste | Ricardo | testes de erro adicionados | 3 → 1 | ficha devolvida |
+| 2 | validar | EXP-02 sem teste | Ricardo | teste de erro adicionado | 1 → 0 | aprovado |
 
 ## Evidência final
 ## Ressalvas e follow-ups aceitos

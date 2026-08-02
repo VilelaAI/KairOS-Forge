@@ -8,13 +8,16 @@ sugeria lembrar do Ricardo e não impedia nada. As regras duras da fábrica mora
 todas em prosa que o modelo pode driftar — a inversão exata do que o paper
 recomenda.
 
-Este script é a parte que **bloqueia**. Três classes de risco:
+Este script é a parte que **bloqueia**. Quatro classes de risco:
 
   1. Comando destrutivo      — apagar a raiz, force-push em branch protegida,
                                DROP/TRUNCATE fora de migration, curl|sh, chmod 777
   2. Arquivo protegido       — segredos, config de CI, e os dois arquivos que o
                                agente NUNCA pode escrever (ver "Goodhart" abaixo)
   3. Integridade da SPEC     — status "Concluído" sem célula `verificado:`
+  4. Contrato de relatório   — bloco ```kairos-validacao / ```kairos-revisao
+                               malformado, incoerente, ou limpo sem prova de
+                               cobertura (ADR-0032)
 
 ## Goodhart: o agente não escreve o próprio medidor
 
@@ -35,6 +38,7 @@ Hook (payload do hook em stdin, exit 2 = bloqueia e o motivo vai para o modelo):
     guardrail.py comando    # PreToolUse  matcher Bash
     guardrail.py escrita    # PreToolUse  matcher Write|Edit
     guardrail.py spec       # PostToolUse matcher Write|Edit
+    guardrail.py contrato   # PostToolUse matcher Write|Edit
 
 CLI, sem hook — o caminho para Codex/OpenCode/Cursor e para CI/pre-commit,
 onde não existe PreToolUse (exit 1 se houver achado):
@@ -48,8 +52,12 @@ onde não existe PreToolUse (exit 1 se houver achado):
     {
       "protegidos":      ["infra/terraform/**"],   // além dos defaults
       "comandos_extra":  ["kubectl delete"],       // regex, além dos defaults
-      "liberados":       [".github/workflows/**"]  // abre mão de um default
-    }
+      "liberados":       [".github/workflows/**"], // abre mão de um default
+      "modos":           {"contrato": "aviso"}     // por classe (ADR-0030):
+    }                                              // bloqueio (default) | aviso
+
+Classes de regra, para o campo `modos`: `comando`, `protegido`, `spec`, `contrato`.
+Os caminhos sagrados nunca degradam — não há `modos` que os afrouxe.
 
 Só stdlib.
 """
@@ -62,6 +70,8 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # para importar contrato.py
 
 # --- 1. comandos destrutivos --------------------------------------------------------
 # Precisão importa mais que cobertura: guardrail com falso positivo é guardrail que o
@@ -348,6 +358,57 @@ def checar_spec(payload: dict) -> int:
     )
 
 
+# --- modo hook: contrato do relatório (ADR-0032) ------------------------------------
+# Só morde quando o bloco EXISTE e está errado. Relatório sem bloco passa — o
+# `ciclo.py` degrada sozinho (sem contagem, toda rodada queima ficha), e um guardrail
+# que exigisse o bloco em todo `.md` de validação quebraria relatório legado.
+
+ALVOS_CONTRATO = [
+    ("docs/specs/validacoes/", "validar", "kairos-validacao"),
+    ("docs/specs/revisoes/", "revisar", "kairos-revisao"),
+]
+
+
+def checar_contrato(payload: dict) -> int:
+    entrada = payload.get("tool_input") or {}
+    caminho = str(entrada.get("file_path") or "")
+    norm = caminho.replace("\\", "/")
+    if not norm.endswith(".md"):
+        return 0
+    alvo = next((a for a in ALVOS_CONTRATO if a[0] in norm), None)
+    if alvo is None:
+        return 0
+    try:
+        from contrato import LEITORES
+        texto = Path(caminho).read_text(encoding="utf-8")
+    except Exception:
+        return 0
+
+    _, comando, fence = alvo
+    r = LEITORES[comando](texto)
+    if r.ok or r.codigo == "ausente":
+        return 0
+
+    raiz = Path(payload.get("cwd") or ".")
+    modo = modo_de(carregar_config(raiz), "contrato")
+    registrar_recusa(raiz, "contrato", r.codigo or "invalido", caminho, modo)
+
+    if r.codigo == "sem_cobertura":
+        saida = ("Liste em `verificado`/`examinado` o que você realmente conferiu — "
+                 "requisito, gate rodado, arquivo lido. Se a lista está vazia porque você "
+                 "não conferiu nada, o veredicto não é limpo: é 'não verificado'.")
+    else:
+        saida = (f"Corrija o bloco ```{fence}: ele alimenta o `ciclo.py`, que decide a "
+                 "transição e o orçamento por código. Bloco quebrado = decisão cega.")
+
+    return bloquear(
+        f"contrato do relatório inválido em `{relativo(caminho, raiz)}` [{r.codigo}]",
+        r.erro or "bloco de contrato não passou na validação",
+        saida,
+        modo,
+    )
+
+
 # --- modo CLI (Codex/OpenCode/Cursor, CI, pre-commit) -------------------------------
 
 def verificar(alvo: Path) -> int:
@@ -361,6 +422,17 @@ def verificar(alvo: Path) -> int:
     for spec in specs:
         for linha in linhas_incoerentes(spec.read_text(encoding="utf-8")):
             problemas.append(f"{spec}: 'Concluído' sem `verificado:` — {linha}")
+
+    # Contratos de relatório (ADR-0032) — mesmo contrato do hook, rodado depois.
+    try:
+        from contrato import LEITORES
+        for pasta, comando, _ in ALVOS_CONTRATO:
+            for rel in sorted(raiz.rglob(f"{pasta}*.md")) if alvo.is_dir() else []:
+                r = LEITORES[comando](rel.read_text(encoding="utf-8"))
+                if not r.ok and r.codigo != "ausente":
+                    problemas.append(f"{rel}: contrato [{r.codigo}] — {r.erro}")
+    except Exception:
+        pass
 
     for padrao, motivo in PROTEGIDOS_PADRAO[:5]:  # só os de segredo, não o de CI
         for achado in raiz.rglob(padrao.replace("**/", "")):
@@ -376,7 +448,8 @@ def verificar(alvo: Path) -> int:
     return 0
 
 
-MODOS = {"comando": checar_comando, "escrita": checar_escrita, "spec": checar_spec}
+MODOS = {"comando": checar_comando, "escrita": checar_escrita, "spec": checar_spec,
+         "contrato": checar_contrato}
 
 
 def main() -> int:

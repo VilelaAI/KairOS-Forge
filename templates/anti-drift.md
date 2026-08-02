@@ -91,6 +91,10 @@ caminho de volta:
 - **SPEC com "Concluído" sem `verificado:`** → o bloqueio está certo e você está
   errado. Rode o gate e escreva a evidência, ou volte o status para "Em progresso"
   com o que falta.
+- **Relatório limpo sem lista do que você olhou** → o contrato recusa (ADR-0032), e é
+  a mesma regra da autocrítica acima, agora em código: "não achei nada" sem dizer onde
+  procurou é ausência de busca, não ausência de defeito. Preencha `verificado` /
+  `examinado` com o que você de fato conferiu — ou reconheça que não conferiu.
 
 Contornar guardrail é o comportamento mais grave desta lista. Ele existe porque, em
 execução autônoma, ninguém vai ler o diff a tempo de pegar o erro.

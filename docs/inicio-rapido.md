@@ -32,7 +32,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver:
 
 ```
-🔥 kairos-forge v0.23 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: ...
+🔥 kairos-forge v0.24 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: ...
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -63,6 +63,11 @@ Ao final você terá:
 A fábrica declara o orçamento, especifica, **para para você aprovar a SPEC**,
 constrói, valida, corrige o que bloqueou, revisa, corrige o que era crítico e abre
 o PR. Falha de validação ou revisão volta ao agente responsável — não a você.
+
+O orçamento conta **rodadas sem progresso**, não rodadas (ADR-0032): se os achados
+bloqueantes caem de 5 para 2, a rodada não é cobrada; se continuam 5, é. Convergir não
+é patinar, e a contagem vem do relatório em disco, não da alegação do agente. Um teto
+absoluto vale por cima, porque progresso lento demais também é motivo para chamar você.
 
 É o modo recomendado quando você confia no fluxo e quer o resultado. As seções
 abaixo mostram as mesmas etapas **uma a uma**, que é como você aprende o que a
@@ -167,6 +172,8 @@ O relatório abre com a **faixa de raio de explosão** (ADR-0031), porque ela é
 | 3 — difícil de reverter | Migration destrutiva, deleção, produção, dinheiro | **Humano decide, sempre** |
 
 Um diff de 20 linhas na faixa 3 recebe mais escrutínio que um de 400 na faixa 1. Se o projeto tem histórico git, a taxa de reversão da área tocada (`diagnostico.py`) é evidência para subir de faixa — é o sinal que o modelo não consegue influenciar.
+
+O relatório é salvo em `docs/specs/revisoes/` com um bloco de contrato (ADR-0032) que o `/kairos-forge:entregar` lê do disco. Duas regras nele valem saber: **zero 🔴 exige a lista do que foi lido** — "não achei nada" sem dizer onde procurou é ausência de busca, não ausência de defeito; e a fence é própria da revisão, nunca a mesma da validação.
 
 ### 3g. Alimentar a memória da fábrica
 

@@ -130,7 +130,28 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
 ## Próximos passos
 - 🔴 + 🟠: invocar Lucas (backend) e Marina (frontend) pra corrigir
 - 🟡 cobertura: invocar Ricardo (test-automation)
+
+```kairos-revisao
+{
+  "veredicto": "aprovado | aprovado_com_ressalvas | bloqueado",
+  "faixa": 1,
+  "criticos": 0,
+  "examinado": ["api/users.ts (Helena)", "queries/relatorios.sql (Vinícius)", "migrations/ (Carlos)"]
+}
 ```
+```
+
+**Salve o relatório** em `docs/specs/revisoes/REVISAO-<SPEC-NNN ou slug da branch>-YYYY-MM-DD.md`.
+
+Antes da v0.24 a revisão só aparecia na tela: o `/kairos-forge:entregar` registrava
+`limpo` ou `critico` na palavra do agente, enquanto a validação já vinha de artefato.
+Era a metade que faltava — agora as duas alimentam o `ciclo.py` do disco (ADR-0032).
+
+O bloco ` ```kairos-revisao ` é o contrato, com as mesmas três regras do `/validar`:
+**fence própria** (nunca `kairos-validacao` — os dois relatórios têm a linha
+`**Veredicto:**` e sem fences distintas um vira o outro), **coerência**
+(`bloqueado` ⟺ `criticos ≥ 1`) e **prova de cobertura** (`criticos: 0` exige
+`examinado` não-vazio, com arquivo e revisor). O guardrail recusa a escrita se faltar.
 
 ### 6. Regras de bloqueio
 
@@ -145,6 +166,8 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
 - **Não aprove cegamente.** Mesmo PR pequeno passa por Helena + Patrícia.
 - **Faixa 3 nunca fecha por evidência.** Gates verdes e histórico limpo não substituem a
   decisão humana quando desfazer é caro.
+- **Zero 🔴 exige lista do que foi lido.** Revisão limpa sem `examinado` é recusada pelo
+  contrato — e a recusa está certa (ADR-0032).
 - **Não sugira workaround pra 🔴.** Sugira correção. Workaround vira dívida.
 
 ## Quando NÃO usar esta skill

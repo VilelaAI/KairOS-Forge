@@ -76,7 +76,8 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `scripts/execucao.py` | Registro determinístico de execução, chamado pelos hooks — escreve `.agents/execucoes/*.jsonl` (ADR-0021) | manual |
 | `scripts/telemetria.py` | Agrega o registro: `resumo` (números do `/auditar`), `sessoes`, `corroborar` (usado pelo `/validar`) | manual |
 | `scripts/ciclo.py` | Máquina de estados determinística do arco `/entregar`: transição, orçamento e escalação decididos por código (ADR-0029) | manual |
-| `scripts/guardrail.py` | Guardrails determinísticos: comando destrutivo, arquivo protegido, integridade da SPEC, PR fora de estado. Modo hook (exit 2 bloqueia) e modo CLI para os demais CLIs e o CI (ADR-0022) | manual |
+| `scripts/guardrail.py` | Guardrails determinísticos: comando destrutivo, arquivo protegido, integridade da SPEC, PR fora de estado, contrato de relatório. Modo hook (exit 2 bloqueia) e modo CLI para os demais CLIs e o CI (ADR-0022/0032) | manual |
+| `scripts/contrato.py` | Módulo puro dos contratos de fronteira dos relatórios: fences `kairos-validacao`/`kairos-revisao`, coerência e prova de cobertura. Nunca lança, sem I/O (ADR-0032) | manual |
 | `scripts/release.py` | Bump de versão com contagens calculadas do filesystem + `check` de consistência (CI) | manual |
 | `evals/roteamento-laura/` | Gold set + `rodar.py` headless do eval de roteamento da Laura (dogfooding — só na raiz, não distribui) | manual |
 | `evals/comportamento-fabrica/` | Gold set dos cinco comportamentos que separam harness de pasta de prompts; 8 dos 13 casos verificados sem modelo no caminho (ADR-0031) | manual |
@@ -120,6 +121,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 - **ADR-0029**: máquina de estados do arco — `ciclo.py` decide transição, orçamento e escalação por código; `corrigindo_revisao` só sai para `validando`; veredicto lido do relatório; `gh pr create` bloqueado fora de estado (v0.21.0)
 - **ADR-0030**: artefato ajustado ao resultado (conjunto selado + digest no `/avaliar`, churn de SPEC no `diagnostico.py`), ergonomia de guardrail (recusa na trajetória, modo `aviso` por classe) e detecção de patinação em voo; mais estimativa probabilística no Breno e RICE/WSJF no Hugo (v0.22.0)
 - **ADR-0031**: higiene do juiz no `/avaliar` (família diferente, painel, versão pinada, nunca recompensar forma) com tamanho reconciliado a teto de tempo; `evals/comportamento-fabrica/` com os cinco comportamentos; faixa de raio de explosão no `/revisar`+`/entregar` e taxa de reversão no `diagnostico.py`; auto-merge explicitamente fora (v0.23.0)
+- **ADR-0032**: relação com o LionCode (IDE desktop de orquestração — 32× o código, 0,4× os agentes): não viramos app, passamos a caber dentro de um; e três mecanismos adotados dele — progresso real devolve a ficha no `ciclo.py`, prova de cobertura no `contrato.py` (relatório limpo exige lista do que foi olhado) e fence própria por tipo de relatório, com a revisão passando a ser lida do disco (v0.24.0)
 
 ## Limitações conhecidas por CLI
 

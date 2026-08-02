@@ -162,7 +162,38 @@ Formato:
 
 - Se bloqueado: corrigir com <agente(s)> e rodar `/kairos-forge:validar SPEC-NNN` de novo.
 - Se aprovado: rodar `/kairos-forge:revisar`.
+
+```kairos-validacao
+{
+  "spec": "SPEC-NNN",
+  "veredicto": "aprovado | aprovado_com_ressalvas | bloqueado",
+  "bloqueios": 0,
+  "verificado": ["REQ-01 (npm test -- exportar)", "REQ-02 (gate lint)", "critério de aceite 3"]
+}
 ```
+```
+
+### 6.1. O bloco de contrato — por que ele existe (ADR-0032)
+
+O bloco ` ```kairos-validacao ` no fim do relatório é o que o `ciclo.py` lê. Não é
+decoração de formato: **é a fronteira entre a sua leitura e a decisão da máquina.**
+
+Três regras, todas verificadas por código (`contrato.py`), não por lembrança:
+
+1. **Fence própria.** Validação usa `kairos-validacao`; revisão usa `kairos-revisao`.
+   Nunca a mesma. Os dois relatórios têm a linha `**Veredicto:**` — sem fence
+   separada, um seria lido como o outro no dia errado.
+2. **Coerência.** `bloqueado` exige `bloqueios ≥ 1`; qualquer outro veredicto exige
+   `bloqueios = 0`. Achado bloqueante não vira ressalva por escolha de palavra.
+3. **Prova de cobertura.** `bloqueios: 0` **exige** `verificado` não-vazio. "Não achei
+   nada" sem dizer onde procurou não é ausência de defeito — é ausência de busca, e as
+   duas produzem o mesmo texto tranquilizador. Liste requisito, gate rodado e arquivo
+   lido. O guardrail recusa a escrita do relatório se a lista estiver vazia.
+
+E `bloqueios` tem uma segunda função: o `ciclo.py` compara a contagem com a melhor
+marca já atingida. **Baixou, a ficha do orçamento volta**; não baixou, queima. Por isso
+a contagem precisa ser honesta nos dois sentidos — inflar esconde progresso, esvaziar
+compra rodada que você não ganhou.
 
 ### 7. Responder ao usuário
 
@@ -188,6 +219,8 @@ Próximo passo: <corrigir com agente X | rodar /kairos-forge:revisar>.
 
 - **Não confunda validação com revisão.** Validação responde "cumpre a SPEC?". Revisão responde "o código está seguro, testado, performático e pronto para PR?".
 - **Não aprove no escuro.** Sem evidência, status é "sem evidência", não "aprovado".
+- **Veredicto limpo exige lista do que foi conferido.** O bloco de contrato recusa
+  `bloqueios: 0` com `verificado` vazio, e está certo em recusar (ADR-0032).
 - **Não esconda P2/P3.** O usuário pode aceitar follow-up, mas precisa aparecer.
 - **Marca "Concluído" na SPEC só com `verificado:` na coluna Verificação.** Diff existe + teste passou + arquivo/comando/URL citado no `verificado:`. Confiança em "código está aí" não é evidência.
 - **Evidência auto-relatada vale menos que evidência corroborada.** Quando houver trajetória, o `verificado:` é uma alegação a conferir, não um fato a aceitar. Alegação sem lastro na trajetória é "não corroborada" — e em P1 isso bloqueia.

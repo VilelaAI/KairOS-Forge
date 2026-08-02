@@ -80,7 +80,13 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/diagnostico.py coletar <caminho> --dias 90
 Ela entrega, já medido: atividade e frequência de commit, hotspots de código,
 hotspots com **autor único** (concentração de conhecimento), razão
 teste/produção, inventário de dependências com contagem sem versão fixa,
-densidade de marcadores de dívida e distribuição de tamanho de arquivo.
+densidade de marcadores de dívida, distribuição de tamanho de arquivo e **revisões de
+SPEC** — incluindo quantas aconteceram no mesmo commit que código de produção.
+
+Essa última merece leitura cuidadosa: SPEC alterada junto com o código é, às vezes, a
+especificação sendo reescrita para casar com o que foi construído — o `verificado:` pelo
+avesso. Nem sempre é isso (SPEC viva também é revisada por bom motivo), e por isso o
+script reporta e não julga.
 
 O script **não** pontua nem infere causa de propósito. Ler "arquivo X mudou 25
 vezes e tem autor único" é dado; dizer "X é o gargalo de manutenção" é
@@ -93,7 +99,7 @@ julgamento — e o julgamento é seu, rotulado como `inferido`.
 | **Performance** | Vinícius (+ Carlos em query) | Latência, N+1, ausência de paginação, cache | Nível 2+: tempo real por endpoint, `EXPLAIN ANALYZE` |
 | **Confiabilidade** | Sérgio (+ Ricardo) | Cobertura de caminho de erro, retry, timeout, idempotência | Suíte executada, taxa de falha, teste de regressão |
 | **Segurança** | Helena | Auth, input externo, segredo em repo, dependência vulnerável | `check-agent-security.py`, varredura de segredo, versão de dep |
-| **Manutenibilidade** | Rafael + Diego | Acoplamento, duplicação de domínio, tamanho, bus factor | Nível 1 (churn, autoria, tamanho) + leitura de estrutura |
+| **Manutenibilidade** | Rafael + Diego | Acoplamento, duplicação de domínio, tamanho, bus factor, **scope creep** | Nível 1 (churn, autoria, tamanho, revisão de SPEC) + leitura de estrutura |
 | **Observabilidade** | Renata | Log estruturado, correlação de request, métrica de negócio, alerta | Existência e formato verificados no código; nível 3 confirma uso |
 | **Custo** | Elisa | Recurso ocioso, consulta cara, egress, tier errado | Nível 3, ou fatura quando o usuário fornecer |
 

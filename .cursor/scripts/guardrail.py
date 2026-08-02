@@ -57,8 +57,10 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import os
 import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 # --- 1. comandos destrutivos --------------------------------------------------------
@@ -120,7 +122,50 @@ def carregar_config(raiz: Path) -> dict:
         return {}
 
 
-def bloquear(motivo: str, detalhe: str, saida: str) -> int:
+# --- modo por classe de regra (ADR-0030) --------------------------------------------
+# Regra que falha demais é regra que o time desliga na semana seguinte. `aviso` deixa
+# a regra rodar e medir antes de morder; `bloqueio` é o default e o destino.
+# Promoção não é por gosto: migre para `bloqueio` quando a taxa de aviso cair — o
+# `telemetria.py resumo` mostra o número.
+MODO_PADRAO = "bloqueio"
+
+
+def modo_de(cfg: dict, classe: str) -> str:
+    modo = (cfg.get("modos", {}) or {}).get(classe) or cfg.get("modo") or MODO_PADRAO
+    return modo if modo in ("bloqueio", "aviso") else MODO_PADRAO
+
+
+def registrar_recusa(raiz: Path, classe: str, regra: str, alvo: str, modo: str) -> None:
+    """Grava a tentativa na trajetória.
+
+    O bloqueio funcionou e o agente segue em frente — mas *ter tentado* é sinal, e sinal
+    que não é registrado não existe. Um agente que passa na validação alcançando ferramenta
+    que não tem não está passando (ADR-0030).
+    """
+    try:
+        pasta = raiz.resolve() / ".agents" / "execucoes"
+        pasta.mkdir(parents=True, exist_ok=True)
+        evento = {
+            "t": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "sessao": (os.environ.get("CLAUDE_SESSION_ID") or "?")[:16],
+            "tipo": "recusa",
+            "classe": classe,
+            "regra": regra[:120],
+            "alvo": alvo[:200],
+            "modo": modo,
+        }
+        with (pasta / f"{datetime.now(timezone.utc):%Y-%m}.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(evento, ensure_ascii=False) + "\n")
+    except Exception:
+        pass  # registro nunca derruba o guardrail
+
+
+def bloquear(motivo: str, detalhe: str, saida: str, modo: str = "bloqueio") -> int:
+    """exit 2 bloqueia e manda o motivo ao modelo; exit 1 avisa e deixa passar."""
+    if modo == "aviso":
+        print(f"⚠️  kairos-forge (guardrail, modo aviso): {motivo}\n\n{detalhe}\n\n{saida}\n"
+              "Esta regra está em observação — hoje ela avisa, não bloqueia.", file=sys.stderr)
+        return 1
     print(f"🛑 kairos-forge (guardrail): {motivo}\n\n{detalhe}\n\n{saida}", file=sys.stderr)
     return 2
 
@@ -170,6 +215,7 @@ def checar_comando(payload: dict) -> int:
     ciclo = ciclo_aberto(raiz)
     if ciclo:
         if FECHA_PR.search(cmd):
+            registrar_recusa(raiz, "ciclo", "merge durante ciclo aberto", cmd[:200], "bloqueio")
             return bloquear(
                 "merge de PR bloqueado durante um ciclo do /kairos-forge:entregar",
                 f"Ciclo {ciclo['spec']} em '{ciclo['estado']}'.",
@@ -177,6 +223,7 @@ def checar_comando(payload: dict) -> int:
                 "(ADR-0023). Peça o merge ao usuário.",
             )
         if ABRE_PR.search(cmd) and ciclo.get("estado") != "pronto_para_pr":
+            registrar_recusa(raiz, "ciclo", "PR fora de estado", cmd[:200], "bloqueio")
             return bloquear(
                 f"abertura de PR fora de estado — o ciclo {ciclo['spec']} está em "
                 f"'{ciclo['estado']}', não em 'pronto_para_pr'",
@@ -188,14 +235,17 @@ def checar_comando(payload: dict) -> int:
             )
 
     regras = list(COMANDOS) + [(r, "regra do projeto") for r in cfg.get("comandos_extra", [])]
+    modo = modo_de(cfg, "comando")
     for padrao, motivo in regras:
         try:
             if re.search(padrao, cmd):
+                registrar_recusa(raiz, "comando", motivo, cmd[:200], modo)
                 return bloquear(
                     f"comando bloqueado — {motivo}",
                     f"Comando: {cmd[:300]}",
                     "Se for realmente necessário, peça ao usuário para executar. "
-                    "Ação irreversível não roda em fluxo autônomo (ADR-0025).",
+                    "Ação irreversível não roda em fluxo autônomo (ADR-0024).",
+                    modo,
                 )
         except re.error:
             continue
@@ -214,8 +264,11 @@ def checar_escrita(payload: dict) -> int:
     cfg = carregar_config(raiz)
     liberados = cfg.get("liberados", [])
 
+    # Sagrados NUNCA degradam para aviso: são o medidor e a regra. Guardrail que só
+    # avisa sobre escrita no próprio medidor não é guardrail (ADR-0022).
     for padrao, motivo in SAGRADOS:
         if casa(rel, padrao):
+            registrar_recusa(raiz, "sagrado", motivo, rel, "bloqueio")
             return bloquear(
                 f"escrita bloqueada em `{rel}` — {motivo}",
                 "Este caminho é inegociável: o agente não escreve o próprio medidor "
@@ -230,14 +283,17 @@ def checar_escrita(payload: dict) -> int:
     protegidos = list(PROTEGIDOS_PADRAO) + [
         (p, "protegido pelo projeto") for p in cfg.get("protegidos", [])
     ]
+    modo = modo_de(cfg, "protegido")
     for padrao, motivo in protegidos:
         if casa(rel, padrao) and not any(casa(rel, lib) for lib in liberados):
+            registrar_recusa(raiz, "protegido", motivo, rel, modo)
             return bloquear(
                 f"escrita bloqueada em `{rel}` — {motivo}",
                 "Caminho protegido por guardrail determinístico.",
                 "Peça a mudança ao usuário, ou libere o caminho em "
                 "`.agents/guardrails.json` (campo `liberados`) — o que o usuário edita, "
                 "não você.",
+                modo,
             )
     return 0
 
@@ -277,6 +333,9 @@ def checar_spec(payload: dict) -> int:
     achados = linhas_incoerentes(texto)
     if not achados:
         return 0
+    raiz = Path(payload.get("cwd") or ".")
+    modo = modo_de(carregar_config(raiz), "spec")
+    registrar_recusa(raiz, "spec", "Concluído sem verificado:", caminho, modo)
     lista = "\n".join(f"  · {a}" for a in achados[:5])
     return bloquear(
         f"SPEC com status inconsistente — {len(achados)} requisito(s) marcado(s) "
@@ -285,6 +344,7 @@ def checar_spec(payload: dict) -> int:
         "Corrija agora: rode o gate e escreva `verificado: <como confirmei> (<dd/mm>)`, "
         "ou volte o status para 'Em progresso' com `em progresso: <o que falta>`. "
         "O /kairos-forge:validar trataria isso como 'sem evidência' e bloquearia P1.",
+        modo,
     )
 
 

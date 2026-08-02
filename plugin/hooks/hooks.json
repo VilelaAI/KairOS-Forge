@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '🔥 kairos-forge v0.21 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | 18 skills: /kairos-forge:onboardar mapear-arquitetura diagnosticar especificar analisar-ameacas desenhar mobilizar rodar validar revisar entregar avaliar lancar mapear-conhecimento otimizar migrar auditar evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1'"
+            "command": "echo '🔥 kairos-forge v0.22 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | 18 skills: /kairos-forge:onboardar mapear-arquitetura diagnosticar especificar analisar-ameacas desenhar mobilizar rodar validar revisar entregar avaliar lancar mapear-conhecimento otimizar migrar auditar evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1'"
           },
           {
             "type": "command",
@@ -53,6 +53,15 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/execucao.py\" ferramenta 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/execucao.py\" alerta 2>/dev/null || true"
           }
         ]
       },

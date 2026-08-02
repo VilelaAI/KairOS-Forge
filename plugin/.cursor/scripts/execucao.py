@@ -211,14 +211,111 @@ CONSTRUTORES = {
 }
 
 
+# --- detecção de patinação em voo (ADR-0030) ---------------------------------------
+# Medir depois não impede queimar orçamento agora. Estes três padrões são os que
+# aparecem quando o agente está preso — e a regra é a mesma do guardrail: alarme que
+# dispara errado é alarme que o usuário aprende a ignorar. Por isso todos exigem
+# FALHA, não só repetição: rodar o mesmo teste 3× enquanto conserta é trabalho normal.
+REPETICAO = 3      # mesmo comando, 3 falhas seguidas
+ALTERNANCIA = 4    # dois comandos revezando, 4 falhas na janela
+SEM_PROGRESSO = 8  # escritas em produção sem nenhum gate no meio
+JANELA = 12
+
+
+def _eventos_da_sessao(payload: dict, limite: int = JANELA) -> list[dict]:
+    try:
+        arq = destino(payload)
+        if not arq.is_file():
+            return []
+        sessao = (payload.get("session_id") or "?")[:16]
+        linhas = arq.read_text(encoding="utf-8").splitlines()[-400:]
+        eventos = []
+        for linha in linhas:
+            try:
+                ev = json.loads(linha)
+            except Exception:
+                continue
+            if ev.get("sessao") == sessao:
+                eventos.append(ev)
+        return eventos[-limite:]
+    except Exception:
+        return []
+
+
+def _norm(cmd: str) -> str:
+    return " ".join((cmd or "").lower().split())
+
+
+def detectar(eventos: list[dict]) -> str | None:
+    """Devolve o alerta quando o padrão FECHA exatamente agora — nunca a cada turno."""
+    comandos = [e for e in eventos if e.get("tipo") == "comando"]
+
+    # 1. Mesmo comando falhando seguidamente.
+    if len(comandos) >= REPETICAO:
+        ultimo = _norm(comandos[-1].get("cmd", ""))
+        corrida = 0
+        for e in reversed(comandos):
+            if _norm(e.get("cmd", "")) == ultimo and e.get("ok") is False:
+                corrida += 1
+            else:
+                break
+        if corrida == REPETICAO:  # exatamente agora, não a cada nova repetição
+            return (f"o mesmo comando falhou {REPETICAO} vezes seguidas: "
+                    f"`{comandos[-1].get('cmd', '')[:80]}`")
+
+    # 2. Dois comandos revezando sem nenhum passar.
+    recentes = comandos[-8:]
+    if len(recentes) >= ALTERNANCIA:
+        nomes = [_norm(e.get("cmd", "")) for e in recentes]
+        distintos = set(nomes)
+        alternando = len(distintos) == 2 and all(
+            nomes[i] != nomes[i + 1] for i in range(len(nomes) - 1)
+        )
+        if alternando and len(recentes) == ALTERNANCIA and not any(
+            e.get("ok") is True for e in recentes
+        ):
+            return (f"dois comandos estão se revezando há {ALTERNANCIA} rodadas sem "
+                    f"nenhum passar: {' ⇄ '.join(sorted(distintos))[:120]}")
+
+    # 3. Escrita em produção sem nenhum gate rodado no meio.
+    # Progresso é comando que rodou, não arquivo que mudou — contador que zera a cada
+    # escrita deixa o agente editar-falhar-editar parecendo saudável.
+    desde_gate = 0
+    for e in reversed(eventos):
+        if e.get("tipo") == "comando" and e.get("gate"):
+            break
+        if e.get("tipo") == "escrita" and e.get("producao"):
+            desde_gate += 1
+    if desde_gate == SEM_PROGRESSO:
+        return (f"{SEM_PROGRESSO} escritas em código de produção sem nenhum gate rodado "
+                "no meio — nada foi verificado desde então")
+    return None
+
+
+def alertar(payload: dict) -> None:
+    """PostToolUse: avisa o modelo quando ele está patinando. Nunca bloqueia."""
+    achado = detectar(_eventos_da_sessao(payload))
+    if achado:
+        print(f"🔁 kairos-forge (trajetória): {achado}.\n"
+              "   Duas falhas materialmente iguais nunca viram terceira tentativa — "
+              "mude de abordagem ou escale (ADR-0030).")
+
+
 def main() -> int:
     try:
         acao = sys.argv[1] if len(sys.argv) > 1 else ""
+        bruto = sys.stdin.read()
+        payload = json.loads(bruto) if bruto.strip() else {}
+
+        # `alerta` é o único modo que fala — e só em PostToolUse, onde stdout não
+        # entra no contexto de toda interação (invariante 2 preservada nos demais).
+        if acao == "alerta":
+            alertar(payload)
+            return 0
+
         construtor = CONSTRUTORES.get(acao)
         if construtor is None:
             return 0
-        bruto = sys.stdin.read()
-        payload = json.loads(bruto) if bruto.strip() else {}
         evento = construtor(payload)
         if evento is not None:
             anexar(payload, evento)

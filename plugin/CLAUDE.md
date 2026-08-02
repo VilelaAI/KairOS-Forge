@@ -65,7 +65,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `.agents/<id>/AGENT.md` | Mirror Codex dos subagents | **gerado** por `scripts/sync-multi-cli.py` |
 | `.cursor/` | Distribuição Cursor completa: agents adaptados (readonly quando consultivo), skills espelhadas, rule `alwaysApply` (lista de skills derivada), scripts de suporte, templates (ADR-0011) | **gerado** por `scripts/sync-multi-cli.py` |
 | `skills/<verbo>/SKILL.md` | 18 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
-| `hooks/hooks.json` | Hooks Claude Code: banner, telemetria em 4 pontos do ciclo (ADR-0021) e guardrails que bloqueiam em `PreToolUse`/`PostToolUse` (ADR-0022) | manual |
+| `hooks/hooks.json` | Hooks Claude Code: banner, telemetria em 4 pontos do ciclo (ADR-0021), guardrails que bloqueiam em `PreToolUse`/`PostToolUse` (ADR-0022) e alerta de patinação em voo (ADR-0030) | manual |
 | `.codex/hooks.json` | Hooks Codex (apenas SessionStart — Codex não suporta `Write\|Edit` matcher) | manual |
 | `AGENTS.md` | Espelho em inglês do CLAUDE.md raiz, para Codex/OpenCode | manual |
 | `templates/` | `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`, `trilhas/` (blueprints de SPEC por tema — ADR-0013), `ci/` (gatilhos por evento pro projeto do usuário — ADR-0026) | manual |
@@ -117,6 +117,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 - **ADR-0027**: fronteira estático/dinâmico declarada e orçamento de contexto verificado no `release.py check`, incluindo o limite de 500 linhas por skill (v0.19.0)
 - **ADR-0028**: skill `diagnosticar` — porta de entrada de sistema existente, dono Rafael: escada de evidência declarada, seis dimensões com rubrica publicada, ganho só com faixa e base, e `diagnostico.py` como camada medida (v0.20.0)
 - **ADR-0029**: máquina de estados do arco — `ciclo.py` decide transição, orçamento e escalação por código; `corrigindo_revisao` só sai para `validando`; veredicto lido do relatório; `gh pr create` bloqueado fora de estado (v0.21.0)
+- **ADR-0030**: artefato ajustado ao resultado (conjunto selado + digest no `/avaliar`, churn de SPEC no `diagnostico.py`), ergonomia de guardrail (recusa na trajetória, modo `aviso` por classe) e detecção de patinação em voo; mais estimativa probabilística no Breno e RICE/WSJF no Hugo (v0.22.0)
 
 ## Limitações conhecidas por CLI
 

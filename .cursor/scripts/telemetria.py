@@ -69,7 +69,7 @@ def por_sessao(eventos: list[dict]) -> dict[str, dict]:
     s: dict[str, dict] = defaultdict(
         lambda: {
             "prompts": 0, "skills": [], "gates": [], "escritas": 0,
-            "producao": 0, "delegacoes": 0, "inicio": None, "fim": None,
+            "producao": 0, "delegacoes": 0, "recusas": [], "inicio": None, "fim": None,
         }
     )
     for ev in eventos:
@@ -92,6 +92,8 @@ def por_sessao(eventos: list[dict]) -> dict[str, dict]:
                 d["producao"] += 1
         elif tipo == "delegacao":
             d["delegacoes"] += 1
+        elif tipo == "recusa":
+            d["recusas"].append((ev.get("classe", "?"), ev.get("modo", "?")))
     return dict(s)
 
 
@@ -124,7 +126,19 @@ def metricas(sessoes: dict[str, dict]) -> dict:
     def pct(a: int, b: int) -> float | None:
         return round(100 * a / b, 1) if b else None
 
+    recusas = [r for v in sessoes.values() for r in v["recusas"]]
+    por_classe: dict[str, int] = defaultdict(int)
+    em_aviso = 0
+    for classe, modo in recusas:
+        por_classe[classe] += 1
+        if modo == "aviso":
+            em_aviso += 1
+
     return {
+        "recusas_total": len(recusas),
+        "recusas_por_classe": dict(sorted(por_classe.items(), key=lambda kv: -kv[1])),
+        "recusas_em_modo_aviso": em_aviso,
+        "sessoes_com_recusa": sum(1 for v in sessoes.values() if v["recusas"]),
         "ciclos": len(ciclos),
         "ciclos_autonomos": len(autonomos),
         "autonomia_pct": pct(len(autonomos), len(ciclos)),
@@ -211,6 +225,13 @@ def imprimir_resumo(m: dict, dias: int | None) -> None:
     print(f"  Rodadas de correção:  {m['rodadas_de_correcao']}")
     if m["indeterminados"]:
         print(f"  Indeterminados:       {m['indeterminados']}  (saída não permitiu afirmar)")
+    if m["recusas_total"]:
+        classes = ", ".join(f"{k} ({v})" for k, v in m["recusas_por_classe"].items())
+        print(f"  Recusas do guardrail: {m['recusas_total']} em "
+              f"{m['sessoes_com_recusa']} sessão(ões) — {classes}")
+        if m["recusas_em_modo_aviso"]:
+            print(f"     {m['recusas_em_modo_aviso']} em modo aviso. Taxa baixa e estável "
+                  "é o sinal de que a regra pode virar bloqueio.")
     if m["sessoes_com_producao_sem_gate"]:
         print(f"  ⚠️  Código de produção escrito sem nenhum gate: "
               f"{m['sessoes_com_producao_sem_gate']} sessão(ões)")

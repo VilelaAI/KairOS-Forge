@@ -72,6 +72,25 @@ Regras de composição:
 - **Tamanho mínimo útil: ~30 casos.** Abaixo disso, uma resposta muda o percentual
   em mais de 3 pontos e a métrica vira ruído.
 
+#### Conjunto selado — a metade que o construtor não vê
+
+Divida o gold set em **visível** e **selado** (regra prática: ~60/40), e guarde o selado
+em `evals/<slug>/selado.jsonl`:
+
+- **Visível** é onde se ajusta. Quem constrói pode ler, rodar e iterar contra ele.
+- **Selado** é onde se decide. Roda por último, e **só o resultado dele vale como
+  aprovação**.
+
+Sem essa divisão, o loop é: roda a suíte, lê as falhas, ajusta até passar, aprova — um
+sistema ajustado ao próprio teste. Um agente calibrado contra uma suíte visível está
+otimizando a suíte, não o comportamento.
+
+**Rotacione.** A cada ciclo, mova alguns casos de um lado para o outro. Selado que nunca
+muda vira visível na prática, porque o construtor aprende os casos por osmose.
+
+**Divergência entre os dois é o sinal mais valioso do eval:** visível em 95% e selado em
+70% não é ruído amostral — é ajuste ao teste, medido.
+
 ### 3. Escrever a rubrica — os cinco eixos
 
 Sem isto, o eval não mede nada. Pontue **só os eixos que se aplicam** e diga quais
@@ -93,6 +112,22 @@ aplica ao corroborar `verificado:` contra a trajetória registrada (ADR-0021).
 Juiz-LLM entra só onde a verificação programática não alcança (tom, completude),
 **sempre com critério escrito** e com uma amostra conferida à mão para calibrar.
 Juiz sem rubrica é o mesmo achismo com mais tokens.
+
+### 3.5. Registrar o digest do que foi avaliado
+
+Antes de rodar, calcule e guarde o `sha256` do artefato sob avaliação (o prompt, o
+arquivo da skill, a definição do agente):
+
+```bash
+sha256sum <artefato> | cut -c1-16
+```
+
+O digest entra no relatório junto do resultado. **Artefato com digest diferente do
+registrado = eval vencida**, e o resultado anterior não vale mais.
+
+É o que dá dente à regra do conjunto selado: sem digest, ajustar o prompt depois da
+rodada selada custa zero — basta não mencionar. Com digest, custa uma reavaliação. A
+diferença entre uma regra e um lembrete.
 
 ### 4. Medir o baseline e fixar o limiar
 
@@ -151,7 +186,8 @@ O eval só vale se rodar sozinho quando alguém mexer no que ele protege:
 **Veredicto:** acima / abaixo do limiar
 **Limiar:** <número + o que ele protege>
 **Baseline → atual:** <n>% → <n>%
-**Gold set:** <N> casos (versão/commit)
+**Visível:** <n>% (<N> casos) · **Selado:** <n>% (<N> casos) · **Divergência:** <n> pts
+**Gold set:** <N> casos (versão/commit) · **Digest do artefato:** `<sha256 curto>`
 **Eixos avaliados:** <quais> · **descartados:** <quais e por quê>
 
 ## Resultado por eixo
@@ -182,6 +218,11 @@ crescer no lugar certo em vez de crescer por invenção.
   destrói o valor do instrumento.
 - **O gold set fica fora do contexto do sistema avaliado.** Sistema que enxerga o
   próprio gold set decora em vez de generalizar.
+- **O sistema sob avaliação não escreve no gold set.** Se ele tem ferramenta de escrita,
+  rode o eval em modo seco: as ferramentas viram gravadores, a trajetória ainda registra
+  o que ele *tentou* chamar (e tentativa negada conta como falha), mas nada toca o disco.
+  Sistema que pode editar a suíte que o julga não está sendo testado — está sendo
+  consultado.
 - **Métrica única mente.** Acurácia alta com alucinação alta é fracasso. Reporte
   os eixos separados; nunca colapse em um número só.
 - **Amostra pequena mente mais.** Diga o N junto do percentual, sempre.
@@ -203,6 +244,8 @@ crescer no lugar certo em vez de crescer por invenção.
 - **Sem gold set versionado e limiar declarado, não é eval** — é impressão.
 - **Sem rubrica escrita, o número não significa nada.**
 - **Reporte os eixos separados** e diga o N.
+- **Só o conjunto selado aprova.** O visível serve para ajustar; o selado, para decidir.
+- **Digest registrado no relatório.** Artefato mudou, eval venceu.
 - **Nunca avalie o que você construiu.**
 - **Falha de produção vira caso no gold set** antes da correção.
 - **PT-BR em tudo** — rubrica, relatório, causas, conversa.

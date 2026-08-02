@@ -125,6 +125,64 @@ def churn(raiz: Path, dias: int) -> dict:
     }
 
 
+def churn_de_spec(raiz: Path, dias: int) -> dict:
+    """Revisões de SPEC depois de criada — e quantas vieram junto com código.
+
+    Os slides de gestão chamam isso de *frequency of change*: critério de aceite
+    editado depois que a história entrou em sprint é scope creep silencioso. Aqui a
+    variante que mais importa para o harness é a segunda: **commit que altera a SPEC
+    e o código de produção ao mesmo tempo** é a especificação sendo reescrita para
+    casar com o que foi construído — o `verificado:` pelo avesso.
+
+    Sinal, não veredicto: SPEC viva também é revisada por bons motivos. O julgamento
+    é da skill.
+    """
+    if not tem_git(raiz):
+        return {"disponivel": False, "motivo": "não é repositório git"}
+    saida = git(raiz, "log", f"--since={dias} days ago", "--pretty=format:%H", "--name-only")
+    if not saida.strip():
+        return {"disponivel": False, "motivo": "sem histórico git na janela"}
+
+    revisoes: Counter = Counter()
+    junto_com_codigo: Counter = Counter()
+    commit_atual, arquivos = None, []
+
+    def fechar():
+        specs = [a for a in arquivos if "docs/specs/" in a and a.endswith(".md")]
+        if not specs:
+            return
+        tem_codigo = any(Path(a).suffix.lower() in EXT_FONTE for a in arquivos)
+        for s in specs:
+            revisoes[s] += 1
+            if tem_codigo:
+                junto_com_codigo[s] += 1
+
+    for linha in saida.splitlines():
+        linha = linha.strip()
+        if not linha:
+            continue
+        if len(linha) == 40 and all(c in "0123456789abcdef" for c in linha):
+            fechar()
+            commit_atual, arquivos = linha, []
+        else:
+            arquivos.append(linha.replace("\\", "/"))
+    fechar()
+
+    if not revisoes:
+        return {"disponivel": True, "specs_tocadas": 0, "top": [],
+                "nota": "nenhuma SPEC alterada na janela"}
+    return {
+        "disponivel": True,
+        "specs_tocadas": len(revisoes),
+        "revisoes_totais": sum(revisoes.values()),
+        "revisoes_junto_com_codigo": sum(junto_com_codigo.values()),
+        "top": [
+            {"spec": s, "revisoes": n, "junto_com_codigo": junto_com_codigo.get(s, 0)}
+            for s, n in revisoes.most_common(TOP)
+        ],
+    }
+
+
 def autoria(raiz: Path, arquivos: list[str], dias: int) -> dict:
     """Concentração de conhecimento nos hotspots — o bus factor onde ele importa."""
     if not arquivos:
@@ -289,6 +347,7 @@ def coletar(raiz: Path, dias: int) -> dict:
         "autoria": autoria(raiz, hot, dias) if tem_git(raiz) else {"disponivel": False, "itens": []},
         "teste": cobertura_estrutural(arquivos, raiz),
         "dependencias": dependencias(raiz),
+        "spec_churn": churn_de_spec(raiz, dias),
         "marcadores": marcadores(arquivos, raiz),
         "tamanho": tamanho(arquivos, raiz),
     }
@@ -337,6 +396,17 @@ def imprimir(d: dict) -> None:
         if solos:
             print(f"\n  ⚠️  {solos} de {d['autoria']['total_hotspots']} hotspots têm autor único "
                   "na janela — concentração de conhecimento")
+
+    sc = d["spec_churn"]
+    if sc.get("disponivel") and sc.get("specs_tocadas"):
+        print(f"\n  SPECs revisadas: {sc['specs_tocadas']} SPEC(s), "
+              f"{sc['revisoes_totais']} revisão(ões)")
+        if sc["revisoes_junto_com_codigo"]:
+            print(f"    ⚠️  {sc['revisoes_junto_com_codigo']} revisão(ões) no MESMO commit que "
+                  "código de produção — especificação possivelmente ajustada ao que foi feito")
+        for i in sc["top"][:5]:
+            marca = f"  ⚠️ {i['junto_com_codigo']}× junto com código" if i["junto_com_codigo"] else ""
+            print(f"    {i['revisoes']:>3}×  {i['spec']}{marca}")
 
     dep = d["dependencias"]
     if dep.get("disponivel"):

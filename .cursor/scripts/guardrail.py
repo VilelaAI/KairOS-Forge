@@ -87,7 +87,12 @@ COMANDOS = [
 SAGRADOS = [
     (".agents/execucoes/**", "a trajetória que o /kairos-forge:validar usa para corroborar evidência"),
     (".agents/guardrails.json", "a configuração destes guardrails"),
+    (".agents/ciclo/**", "o estado da máquina do arco /kairos-forge:entregar (ADR-0029)"),
 ]
+
+# --- 4. abertura de PR fora de estado (ADR-0029) -------------------------------------
+ABRE_PR = re.compile(r"\bgh\s+pr\s+create\b")
+FECHA_PR = re.compile(r"\bgh\s+pr\s+merge\b")
 
 PROTEGIDOS_PADRAO = [
     (".env", "arquivo de segredos"),
@@ -139,12 +144,48 @@ def casa(rel: str, padrao: str) -> bool:
 
 # --- modo hook: comando -------------------------------------------------------------
 
+def ciclo_aberto(raiz: Path) -> dict | None:
+    """O ciclo do /entregar em andamento, se houver. None quando não há máquina rodando."""
+    pasta = raiz / ".agents" / "ciclo"
+    if not pasta.is_dir():
+        return None
+    for p in sorted(pasta.glob("*.json")):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if d.get("estado") not in ("encerrado", "escalado"):
+            return d
+    return None
+
+
 def checar_comando(payload: dict) -> int:
     cmd = str((payload.get("tool_input") or {}).get("command") or "")
     if not cmd.strip():
         return 0
     raiz = Path(payload.get("cwd") or ".")
     cfg = carregar_config(raiz)
+
+    # Abertura/merge de PR obedecem à máquina de estados, quando ela está rodando.
+    ciclo = ciclo_aberto(raiz)
+    if ciclo:
+        if FECHA_PR.search(cmd):
+            return bloquear(
+                "merge de PR bloqueado durante um ciclo do /kairos-forge:entregar",
+                f"Ciclo {ciclo['spec']} em '{ciclo['estado']}'.",
+                "O arco termina no PR — a decisão de integrar é do dono do repositório "
+                "(ADR-0023). Peça o merge ao usuário.",
+            )
+        if ABRE_PR.search(cmd) and ciclo.get("estado") != "pronto_para_pr":
+            return bloquear(
+                f"abertura de PR fora de estado — o ciclo {ciclo['spec']} está em "
+                f"'{ciclo['estado']}', não em 'pronto_para_pr'",
+                f"Rodadas: validar {ciclo['rodadas']['validar']}/{ciclo['orcamento']['validar']} · "
+                f"revisar {ciclo['rodadas']['revisar']}/{ciclo['orcamento']['revisar']}.",
+                "PR com P1 bloqueado ou 🔴 aberto transfere para o revisor humano exatamente o "
+                "trabalho que o arco existe para absorver. Rode `ciclo.py estado` e siga o "
+                "próximo passo que ele indica.",
+            )
 
     regras = list(COMANDOS) + [(r, "regra do projeto") for r in cfg.get("comandos_extra", [])]
     for padrao, motivo in regras:

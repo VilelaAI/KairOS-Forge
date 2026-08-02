@@ -75,7 +75,8 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `scripts/diagnostico.py` | Evidência determinística de nível 1 pro `/diagnosticar`: churn, autoria, teste, deps, dívida marcada, tamanho (ADR-0028) | manual |
 | `scripts/execucao.py` | Registro determinístico de execução, chamado pelos hooks — escreve `.agents/execucoes/*.jsonl` (ADR-0021) | manual |
 | `scripts/telemetria.py` | Agrega o registro: `resumo` (números do `/auditar`), `sessoes`, `corroborar` (usado pelo `/validar`) | manual |
-| `scripts/guardrail.py` | Guardrails determinísticos: comando destrutivo, arquivo protegido, integridade da SPEC. Modo hook (exit 2 bloqueia) e modo CLI para os demais CLIs e o CI (ADR-0022) | manual |
+| `scripts/ciclo.py` | Máquina de estados determinística do arco `/entregar`: transição, orçamento e escalação decididos por código (ADR-0029) | manual |
+| `scripts/guardrail.py` | Guardrails determinísticos: comando destrutivo, arquivo protegido, integridade da SPEC, PR fora de estado. Modo hook (exit 2 bloqueia) e modo CLI para os demais CLIs e o CI (ADR-0022) | manual |
 | `scripts/release.py` | Bump de versão com contagens calculadas do filesystem + `check` de consistência (CI) | manual |
 | `evals/roteamento-laura/` | Gold set + `rodar.py` headless do eval de roteamento da Laura (dogfooding — só na raiz, não distribui) | manual |
 | `hermes/` | Ponte Hermes Agent: skills de roteamento/ciclo + workflow + install.sh — a fábrica como motor de engenharia de um agente 24/7 (ADR-0019) | manual |
@@ -115,6 +116,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 - **ADR-0026**: gatilhos por evento — `templates/ci/` com revisar no PR, corrigir em CI vermelho (abre PR, nunca escreve na base) e auditar por cron. Instalar só depois de telemetria e guardrails (v0.19.0)
 - **ADR-0027**: fronteira estático/dinâmico declarada e orçamento de contexto verificado no `release.py check`, incluindo o limite de 500 linhas por skill (v0.19.0)
 - **ADR-0028**: skill `diagnosticar` — porta de entrada de sistema existente, dono Rafael: escada de evidência declarada, seis dimensões com rubrica publicada, ganho só com faixa e base, e `diagnostico.py` como camada medida (v0.20.0)
+- **ADR-0029**: máquina de estados do arco — `ciclo.py` decide transição, orçamento e escalação por código; `corrigindo_revisao` só sai para `validando`; veredicto lido do relatório; `gh pr create` bloqueado fora de estado (v0.21.0)
 
 ## Limitações conhecidas por CLI
 

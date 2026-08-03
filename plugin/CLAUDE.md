@@ -78,6 +78,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `scripts/ciclo.py` | Máquina de estados determinística do arco `/entregar`: transição, orçamento e escalação decididos por código (ADR-0029) | manual |
 | `scripts/guardrail.py` | Guardrails determinísticos: comando destrutivo, arquivo protegido, integridade da SPEC, PR fora de estado, contrato de relatório. Modo hook (exit 2 bloqueia) e modo CLI para os demais CLIs e o CI (ADR-0022/0032) | manual |
 | `scripts/contrato.py` | Módulo puro dos contratos de fronteira dos relatórios: fences `kairos-validacao`/`kairos-revisao`, coerência e prova de cobertura. Nunca lança, sem I/O (ADR-0032) | manual |
+| `scripts/painel.py` | Quadro vivo: renderiza SPEC + ciclo + relatórios + trajetória no terminal, em HTML autocontido ou JSON. Renderização, nunca estado — não escreve nada (ADR-0013/0032) | manual |
 | `scripts/release.py` | Bump de versão com contagens calculadas do filesystem + `check` de consistência (CI) | manual |
 | `evals/roteamento-laura/` | Gold set + `rodar.py` headless do eval de roteamento da Laura (dogfooding — só na raiz, não distribui) | manual |
 | `evals/comportamento-fabrica/` | Gold set dos cinco comportamentos que separam harness de pasta de prompts; 8 dos 13 casos verificados sem modelo no caminho (ADR-0031) | manual |

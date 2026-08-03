@@ -57,7 +57,7 @@ Três opções foram avaliadas:
 | Opção | Custo | Decisão |
 |---|---|---|
 | **1. Sync para o LionCode** — gerar o seed a partir de `agents/` + `skills/` | semanas; um alvo em `sync-multi-cli.py` | **Direção adotada.** Fica para uma versão própria, quando houver acordo com o projeto — mas é o rumo |
-| **2. Renderizador do estado da fábrica** — HTML/terminal sobre `.agents/ciclo/`, `.agents/execucoes/` e status da SPEC | dias | **Aceita como próximo passo natural.** O ADR-0013 já decidiu que o quadro é *renderização* do estado canônico, nunca estado novo — falta construir |
+| **2. Renderizador do estado da fábrica** — HTML/terminal sobre `.agents/ciclo/`, `.agents/execucoes/` e status da SPEC | dias | **Aceita e construída** — `scripts/painel.py`, v0.25.0. Ver adendo abaixo |
 | **3. Produto separado** (app com licença/economia próprias, forge como camada MIT que o alimenta) | anos-pessoa | **Recusada por ora.** É o molde do ADR-0002 (kairos-ai), e continua disponível — mas seria um projeto novo, não uma evolução deste |
 
 O que a opção 3 custaria em troca é concreto: hoje a fábrica entra com
@@ -165,3 +165,29 @@ com bloco de contrato, e o `ciclo.py` lê os dois gates do disco.
 | Contar progresso pela diferença de achados que o agente **relata na mensagem** | É exatamente o juiz em causa própria que o ADR-0029 tirou do caminho. Se não vem do artefato, não conta |
 | Fence única (`kairos-relatorio`) com campo `tipo` | Um campo pode vir errado; uma fence errada não abre. O erro que queremos impedir é justamente o de tipo trocado |
 | Deixar a revisão sem relatório em disco | Metade do arco continuaria decidida por alegação, e o teste da faixa de raio (ADR-0031) não teria onde morar |
+
+## Adendo — opção 2 construída (`scripts/painel.py`, v0.25.0)
+
+A fábrica sempre soube onde estava; ela só não mostrava. O estado do arco em
+`.agents/ciclo/`, a trajetória em `.agents/execucoes/`, o progresso dos requisitos na
+coluna Status/Verificação da SPEC e o veredicto nos blocos de contrato — quatro fontes
+canônicas, quatro comandos, e o usuário juntando de cabeça.
+
+O `painel.py` junta e desenha: terminal por default, HTML autocontido com `--html`
+(sem CDN, sem fonte remota, sem script — precisa abrir na máquina sem rede, que é
+justamente onde alguém está depurando um ciclo travado), `--json` para outra ferramenta
+consumir. Roda em qualquer CLI, porque é script, não skill.
+
+**A regra que define o arquivo: é renderização, nunca estado.** Não escreve nada além
+do arquivo de saída pedido e não guarda nada entre execuções — um "quadro" persistido
+vira a planilha paralela que o ADR-0013 recusou. Consequência prática, escrita no
+rodapé da própria página: *se o número aqui está errado, o bug está na fonte*.
+
+**E o painel aplica a doutrina ao próprio número.** O ADR-0013 diz que o card só entra
+em "Pronto" com gate rodado. Requisito marcado `Concluído` sem `verificado:` portanto
+**não conta como pronto**: cai para "Em progresso", vale 0.5 e sai listado no aviso.
+Um painel que somasse "Concluído" por conta da palavra mostraria progresso que a
+própria `/validar` recusaria — seria o quadro bonito que o ADR-0013 queria evitar.
+
+Limites: o painel só enxerga o que está no disco (sem telemetria ele diz isso em vez de
+mostrar zero como se fosse medida), e o HTML é um retrato — não atualiza sozinho.

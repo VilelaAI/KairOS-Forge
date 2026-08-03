@@ -159,6 +159,27 @@ cp <plugin>/templates/ci/kairos-forge-*.yml .github/workflows/
 > é autonomia — é pipeline sem supervisão. O `/auditar` recomenda as lacunas
 > nessa ordem de propósito.
 
+### 4. Quadro vivo — onde tudo está, numa tela (ADR-0013/0032)
+
+As três peças acima produzem estado em quatro lugares. `scripts/painel.py` junta:
+
+```bash
+python3 scripts/painel.py                      # tudo
+python3 scripts/painel.py SPEC-001             # uma SPEC
+python3 scripts/painel.py --html quadro.html   # página autocontida, abre sem rede
+python3 scripts/painel.py --json               # pra outra ferramenta consumir
+```
+
+Requisitos por coluna, progresso da SPEC, estado do arco com as fichas de
+orçamento, veredicto dos dois gates com a cobertura declarada, e a trajetória.
+
+Duas regras que definem o script. **É renderização, nunca estado** — não escreve
+nada além do arquivo que você pediu, porque quadro persistido vira a planilha
+paralela que o ADR-0013 recusou; se o número está errado, o bug está na fonte. E
+**"Concluído" sem `verificado:` não conta como pronto** — cai para "Em progresso"
+e vira aviso. Um quadro que somasse a palavra mostraria progresso que a própria
+`/validar` recusaria.
+
 ### O que a autonomia **não** inclui
 
 Cinco gates humanos atravessam tudo isso intactos e estão em tabela no topo da
@@ -392,7 +413,8 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - **v0.21** — máquina de estados do arco: `ciclo.py` decide transição, orçamento e escalação por código; `corrigindo_revisao` só sai para `validando` e o veredicto vem do relatório em disco (ADR-0029)
 - **v0.22** — artefato ajustado ao resultado (conjunto selado + digest no `/avaliar`), ergonomia de guardrail (recusa na trajetória, modo `aviso`) e detecção de patinação em voo (ADR-0030)
 - **v0.23** — higiene do juiz no `/avaliar`, gold set de comportamento da fábrica, faixa de raio de explosão no `/revisar`+`/entregar` e taxa de reversão no `diagnostico.py` (ADR-0031)
-- **v0.24** (atual) — contratos de fronteira nos relatórios (`contrato.py`), progresso real devolve a ficha do orçamento no `ciclo.py`, e a revisão passa a ser lida do disco (ADR-0032)
+- **v0.24** — contratos de fronteira nos relatórios (`contrato.py`), progresso real devolve a ficha do orçamento no `ciclo.py`, e a revisão passa a ser lida do disco (ADR-0032)
+- **v0.25** (atual) — quadro vivo: `painel.py` renderiza SPEC + arco + veredictos + trajetória numa tela (terminal, HTML autocontido ou JSON), com "Concluído" sem `verificado:` não contando como pronto (ADR-0013/0032)
 - **v0.24** (planejado) — perfis Tier 3 sob demanda via `/evoluir` (SEO técnico, UX research, desktop, base de suporte), mais trilhas por tema
 
 ## Documentação

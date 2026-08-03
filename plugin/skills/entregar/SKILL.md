@@ -101,7 +101,13 @@ Modo de construção:            mobilizar (paralelo) | rodar (sequencial)
 
 **Avisa-e-pausa (ADR-0013):** ao cruzar ~80% de qualquer limite, avise no
 checkpoint seguinte. O `ciclo.py estado` mostra as rodadas consumidas a qualquer
-momento.
+momento, e `painel.py <SPEC>` mostra o arco inteiro numa tela — requisitos,
+fichas, veredicto dos dois gates e trajetória:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/painel.py SPEC-NNN
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/painel.py SPEC-NNN --html quadro.html  # para mandar pra alguém
+```
 
 Escolha do modo de construção: `mobilizar` se as tarefas forem independentes e
 as ferramentas de Agent Teams existirem; `rodar` no resto (e sempre em Codex,

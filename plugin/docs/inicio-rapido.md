@@ -32,7 +32,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver:
 
 ```
-🔥 kairos-forge v0.24 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: ...
+🔥 kairos-forge v0.25 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: ...
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -174,6 +174,20 @@ O relatório abre com a **faixa de raio de explosão** (ADR-0031), porque ela é
 Um diff de 20 linhas na faixa 3 recebe mais escrutínio que um de 400 na faixa 1. Se o projeto tem histórico git, a taxa de reversão da área tocada (`diagnostico.py`) é evidência para subir de faixa — é o sinal que o modelo não consegue influenciar.
 
 O relatório é salvo em `docs/specs/revisoes/` com um bloco de contrato (ADR-0032) que o `/kairos-forge:entregar` lê do disco. Duas regras nele valem saber: **zero 🔴 exige a lista do que foi lido** — "não achei nada" sem dizer onde procurou é ausência de busca, não ausência de defeito; e a fence é própria da revisão, nunca a mesma da validação.
+
+### 3f-bis. Ver onde tudo está, numa tela
+
+A qualquer momento, do diretório do projeto:
+
+```bash
+python3 <plugin>/scripts/painel.py              # tudo
+python3 <plugin>/scripts/painel.py SPEC-001     # uma SPEC
+python3 <plugin>/scripts/painel.py --html quadro.html   # página pra mandar pra alguém
+```
+
+Sai o quadro vivo: requisitos por coluna (A fazer / Em progresso / Pronto), progresso da SPEC, estado do arco com as fichas de orçamento, veredicto dos dois gates com a cobertura declarada, e a trajetória dos últimos 14 dias. O HTML é autocontido — abre sem rede.
+
+Duas coisas que ele **não** faz, de propósito: não escreve nada (é renderização do estado canônico, nunca planilha paralela — ADR-0013), e não conta como "Pronto" requisito marcado `Concluído` sem `verificado:` — esse cai para "Em progresso" e aparece no aviso. Um quadro que somasse a palavra mostraria progresso que a própria `/validar` recusaria.
 
 ### 3g. Alimentar a memória da fábrica
 

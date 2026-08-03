@@ -64,7 +64,7 @@ Quando rodar `apoio-<X>`, leia a definição em `${CLAUDE_PLUGIN_ROOT}/templates
    > "Marina, isso que você tá implementando vai precisar de RLS nova — pede pro Carlos antes de continuar."
    > "Carlos aqui. Já vou — Fernanda, valida comigo a estratégia de índice?"
 
-5. **Laura mantém o quadro vivo** (ADR-0013). Ao fim de cada entrega relevante, uma linha de status — o quadro anda porque os agentes construíram e provaram, e "Pronto" exige gate rodado:
+5. **Laura mantém o quadro vivo** (ADR-0013). Ao fim de cada entrega relevante, rode `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/painel.py` — ou, sem o script, escreva a linha de status. O quadro anda porque os agentes construíram e provaram, e "Pronto" exige gate rodado:
 
    > 📋 Quadro (60%) — A fazer: testes E2E | Em progresso: endpoint (Lucas) | Pronto: migration ✓gate, tela ✓gate
 

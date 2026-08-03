@@ -298,14 +298,20 @@ Você (Laura) fica monitorando enquanto o time trabalha:
 1. **Acompanhe TaskUpdate.** Tarefas marcadas completed → libera dependentes.
 2. **Responda SendMessage.** Bloqueios reportados pelos teammates precisam de decisão.
 3. **Reatribua se necessário.** Se Marina trava em uma task, mude o assignee via TaskUpdate.
-4. **Checkpoint a cada 3 tasks.** Olhe o que foi entregue, valide alinhamento com a SPEC — e **renderize o quadro vivo** (ADR-0013), uma linha por coluna:
+4. **Checkpoint a cada 3 tasks.** Olhe o que foi entregue, valide alinhamento com a SPEC — e **renderize o quadro vivo** (ADR-0013):
+
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/painel.py SPEC-NNN
+   ```
+
+   O script lê o estado canônico e desenha. Sem ele (CLI sem os scripts do plugin), escreva à mão, uma linha por coluna:
 
    ```
    📋 Quadro — <SPEC/feature> (NN% — concluídas + 0.5×em progresso / planejadas)
    A fazer: T5, T6 | Em progresso: T3 (Marina), T4 (Ricardo) | Pronto: T1 ✓gate, T2 ✓gate
    ```
 
-   O quadro é **renderização** do estado canônico (tasks + coluna Status/Verificação da SPEC), nunca estado paralelo. Regra do "Pronto": card só entra com gate rodado (`verificado:`) — os cards andam porque os agentes construíram e provaram, não porque alguém arrastou. Progresso de verdade, não chute.
+   O quadro é **renderização** do estado canônico (tasks + coluna Status/Verificação da SPEC), nunca estado paralelo. Regra do "Pronto": card só entra com gate rodado (`verificado:`) — os cards andam porque os agentes construíram e provaram, não porque alguém arrastou. Progresso de verdade, não chute. O `painel.py` aplica essa regra ao próprio número: requisito "Concluído" sem `verificado:` cai para "Em progresso" e vale 0.5, não 1.
 5. **Fan-in em camadas.** Com mais de ~6 teammates, não consolide todos os outputs crus de uma vez — isso estoura contexto antes da síntese começar. Agrupe por domínio (dados, backend, frontend…), resuma cada grupo, e sintetize **os resumos**.
 6. **Cheque contagem antes de declarar pronto.** Em cadeia, falha para tudo (chato, mas óbvio); em grafo, um nó que falhou some num relatório que parece completo. No encerramento, confira: tasks concluídas × tasks planejadas. Se faltar qualquer uma, **declare a lacuna explicitamente** — nunca sintetize por cima de resultado parcial em silêncio.
 7. **Encerramento.** Quando todas as tasks estiverem completed (ou as lacunas declaradas), rode ou recomende `/kairos-forge:validar SPEC-NNN` antes de `/kairos-forge:revisar`. Envie `SendMessage` com `{type: "shutdown_request"}` para cada teammate. Reporte ao usuário:

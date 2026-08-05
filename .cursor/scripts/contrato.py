@@ -42,6 +42,7 @@ Uso como CLI (para os CLIs sem hook, para o CI e para depurar):
     contrato.py criticar <arquivo.md>
     contrato.py validar  <arquivo.md>
     contrato.py revisar  <arquivo.md>
+    contrato.py esquema        # contrato de integração (ADR-0034), legível por máquina
 
 Só stdlib.
 """
@@ -65,6 +66,16 @@ MIN_CRITICOS = 2
 
 VEREDICTOS = ("aprovado", "aprovado_com_ressalvas", "bloqueado")
 FAIXAS = (1, 2, 3)
+
+# --- contrato de integração (ADR-0034) ----------------------------------------------
+# As três fences e as regras abaixo são CONTRATO PÚBLICO — o kairos-symphony (e
+# qualquer outro consumidor) precisa produzir e ler estes blocos. `contrato.py esquema`
+# publica a declaração legível por máquina; o `release.py check` recusa mudança de forma
+# sem bump, comparando digest.
+#
+# MENOR (1.x): campo opcional novo, fence nova, mensagem de erro diferente.
+# MAIOR (x.0): campo obrigatório novo ou removido, regra de aceitação mais estrita.
+CONTRATO_VERSAO = "1.0"
 
 # Teto de itens nas listas de cobertura. Existe para o parser não virar vetor de
 # payload absurdo, não porque 200 seja um número especial.
@@ -304,10 +315,76 @@ def ler_critica(texto: str) -> Resultado:
 LEITORES = {"validar": ler_validacao, "revisar": ler_revisao, "criticar": ler_critica}
 
 
+# --- declaração pública do contrato (ADR-0034) ----------------------------------------
+
+def contrato_publico() -> dict:
+    """Os três contratos, legíveis por máquina. `contrato.py esquema`.
+
+    Existe para o consumidor gerar o próprio validador em vez de reimplementar as
+    regras de cabeça — regra reimplementada de cabeça diverge na primeira mudança.
+    """
+    comum = ["extração: último bloco FECHADO com a fence vence",
+             "tolera CRLF, fence colada no preâmbulo e indentação até 3 espaços",
+             "bloco não fechado NÃO conta — parcial é pior que ausente",
+             "coerência: veredicto 'bloqueado' ⟺ contagem de achados ≥ 1",
+             f"listas com no máximo {MAX_ITENS} itens"]
+    return {
+        "nome": "kairos-forge/contrato",
+        "versao": CONTRATO_VERSAO,
+        "comando": "contrato.py <criticar|validar|revisar> <arquivo.md>",
+        "veredictos": list(VEREDICTOS),
+        "codigos_de_erro": {
+            AUSENTE: "nenhum bloco com a fence esperada",
+            JSON_INVALIDO: "bloco não é JSON válido",
+            ESTRUTURAL: "campo ausente, tipo errado ou incoerência — cabe retry",
+            SEM_COBERTURA: "veredicto limpo sem lista do que foi olhado — achado, não retry",
+        },
+        "relatorios": {
+            "critica": {
+                "fence": FENCE_CRITICA,
+                "pasta": "docs/specs/criticas/",
+                "arquivo": "CRITICA-<SPEC>-<AAAA-MM-DD>.md",
+                "obrigatorios": {"veredicto": "string", "achados": "integer>=0",
+                                 "criticado_por": "string[]", "examinado": "string[]"},
+                "opcionais": {"spec": "string"},
+                "regras": comum + [
+                    "cobertura: achados=0 exige 'examinado' não-vazio",
+                    f"independência: ao menos {MIN_CRITICOS} nomes DISTINTOS em "
+                    "'criticado_por' (case-insensitive)",
+                ],
+            },
+            "validacao": {
+                "fence": FENCE_VALIDACAO,
+                "pasta": "docs/specs/validacoes/",
+                "arquivo": "VALIDACAO-<SPEC>-<AAAA-MM-DD>.md",
+                "obrigatorios": {"veredicto": "string", "bloqueios": "integer>=0",
+                                 "verificado": "string[]"},
+                "opcionais": {"spec": "string"},
+                "regras": comum + ["cobertura: bloqueios=0 exige 'verificado' não-vazio"],
+            },
+            "revisao": {
+                "fence": FENCE_REVISAO,
+                "pasta": "docs/specs/revisoes/",
+                "arquivo": "REVISAO-<SPEC ou slug>-<AAAA-MM-DD>.md",
+                "obrigatorios": {"veredicto": "string", "faixa": "1|2|3",
+                                 "criticos": "integer>=0", "examinado": "string[]"},
+                "opcionais": {},
+                "regras": comum + [
+                    "cobertura: criticos=0 exige 'examinado' não-vazio",
+                    "faixa 3 (difícil de reverter) nunca fecha por evidência — ADR-0031",
+                ],
+            },
+        },
+    }
+
+
 # --- CLI --------------------------------------------------------------------------------
 
 def main() -> int:
     args = sys.argv[1:]
+    if args and args[0] == "esquema":
+        print(json.dumps(contrato_publico(), ensure_ascii=False, indent=2))
+        return 0
     if len(args) < 2 or args[0] not in LEITORES:
         print(__doc__.strip())
         return 1

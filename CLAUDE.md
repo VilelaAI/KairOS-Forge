@@ -79,7 +79,8 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `scripts/guardrail.py` | Guardrails determinísticos: comando destrutivo, arquivo protegido, integridade da SPEC, PR fora de estado, contrato de relatório. Modo hook (exit 2 bloqueia) e modo CLI para os demais CLIs e o CI (ADR-0022/0032) | manual |
 | `scripts/contrato.py` | Módulo puro dos contratos de fronteira dos relatórios: fences `kairos-critica`/`kairos-validacao`/`kairos-revisao`, coerência, prova de cobertura e independência dos críticos. Nunca lança, sem I/O (ADR-0032/0033) | manual |
 | `scripts/painel.py` | Quadro vivo: renderiza SPEC + ciclo + relatórios + trajetória no terminal, em HTML autocontido ou JSON. Renderização, nunca estado — não escreve nada (ADR-0013/0032) | manual |
-| `scripts/release.py` | Bump de versão com contagens calculadas do filesystem + `check` de consistência (CI) | manual |
+| `scripts/release.py` | Bump de versão com contagens calculadas do filesystem, `check` de consistência (CI) e `assinar-contratos` (ADR-0034) | manual |
+| `contratos/ASSINATURA.json` | Versão + sha256 dos contratos de integração; o `check` recusa mudança de forma sem reassinar (ADR-0034) | manual |
 | `evals/roteamento-laura/` | Gold set + `rodar.py` headless do eval de roteamento da Laura (dogfooding — só na raiz, não distribui) | manual |
 | `evals/comportamento-fabrica/` | Gold set dos cinco comportamentos que separam harness de pasta de prompts; 8 dos 13 casos verificados sem modelo no caminho (ADR-0031) | manual |
 | `hermes/` | Ponte Hermes Agent: skills de roteamento/ciclo + workflow + install.sh — a fábrica como motor de engenharia de um agente 24/7 (ADR-0019) | manual |
@@ -124,6 +125,8 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 - **ADR-0031**: higiene do juiz no `/avaliar` (família diferente, painel, versão pinada, nunca recompensar forma) com tamanho reconciliado a teto de tempo; `evals/comportamento-fabrica/` com os cinco comportamentos; faixa de raio de explosão no `/revisar`+`/entregar` e taxa de reversão no `diagnostico.py`; auto-merge explicitamente fora (v0.23.0)
 - **ADR-0032**: relação com o LionCode (IDE desktop de orquestração — 32× o código, 0,4× os agentes): não viramos app, passamos a caber dentro de um; e três mecanismos adotados dele — progresso real devolve a ficha no `ciclo.py`, prova de cobertura no `contrato.py` (relatório limpo exige lista do que foi olhado) e fence própria por tipo de relatório, com a revisão passando a ser lida do disco (v0.24.0)
 - **ADR-0033**: planejamento em fases — os checkpoints do `/especificar` viram estado porque prosa não para um runner headless; crítica adversarial da SPEC com dois críticos independentes cobrados pelo parser (a única etapa do arco que não tinha contraditório); teto de 6 teammates por onda no `/mobilizar`; e `limpo` da revisão passa a exigir artefato como os outros dois gates (v0.26.0)
+
+- **ADR-0034**: contrato de integração público e versionado — `ciclo.py estado --json` e as três fences viram superfície estável com campos derivados (`terminal`, `aguardando_humano`, `gate`, `resultados_validos`) para o consumidor não comparar nome de estado; assinatura com digest verificada no CI, porque contrato que ninguém verifica é promessa. Abre a porta para o [kairos-symphony](https://github.com/VilelaAI/kairos-symphony) dirigir o arco em vez de reimplementá-lo (v0.27.0)
 
 ## Limitações conhecidas por CLI
 

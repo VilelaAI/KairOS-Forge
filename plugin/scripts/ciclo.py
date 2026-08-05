@@ -62,6 +62,7 @@ Uso:
     ciclo.py registrar <resultado> [SPEC-001] [--nota "..."]
     ciclo.py encerrar [SPEC-001] --motivo "..."
     ciclo.py listar
+    ciclo.py contrato        # contrato de integração (ADR-0034), legível por máquina
 
 Só stdlib.
 """
@@ -74,6 +75,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.dont_write_bytecode = True   # não escrever __pycache__ no diretório do plugin
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
     from contrato import ler_critica, ler_revisao, ler_validacao
@@ -81,6 +83,16 @@ except Exception:  # contrato ausente/quebrado nunca derruba a máquina de estad
     ler_critica = ler_revisao = ler_validacao = None  # type: ignore[assignment]
 
 PASTA = Path(".agents/ciclo")
+
+# --- contrato de integração (ADR-0034) ----------------------------------------------
+# A saída de `estado --json` é CONTRATO PÚBLICO: o kairos-symphony e qualquer outro
+# orquestrador dependem dela para saber o próximo passo, se precisa de humano e o que
+# `registrar` aceita agora. Mudança de forma sem bump aqui quebra consumidor em silêncio
+# — e o `release.py check` recusa, comparando o digest da declaração.
+#
+# MENOR (1.x): campo novo, estado novo, aresta nova. Consumidor antigo continua válido.
+# MAIOR (x.0): campo removido/renomeado, semântica alterada, aresta removida.
+CONTRATO_VERSAO = "1.0"
 
 # Gates com orçamento próprio. Cada um conta rodadas SEM progresso, tem teto absoluto
 # e guarda a melhor marca já atingida (ADR-0032).
@@ -176,6 +188,48 @@ INSTRUCAO = {
                 "necessária. Só o usuário destrava (novo `abrir` com orçamento ampliado).",
     "encerrado": "Ciclo encerrado. Salve o relatório em docs/specs/entregas/.",
 }
+
+
+# Todos os estados alcançáveis, derivados do grafo — nunca digitados à mão.
+ESTADOS = sorted({*TRANSICOES, *TERMINAIS,
+                  *(d for m in TRANSICOES.values() for d in m.values() if d)})
+
+# Campos GARANTIDOS na saída de `estado --json`. O que não está aqui é interno e
+# pode mudar sem aviso; o que está aqui só muda com bump de CONTRATO_VERSAO.
+CAMPOS_ESTADO = {
+    "contrato": "string",            # versão deste contrato
+    "spec": "string",
+    "estado": "string",              # um de `estados`
+    "terminal": "boolean",           # nada mais a registrar
+    "aguardando_humano": "boolean",  # precisa de resposta de gente, não de agente
+    "gate": "string|null",           # gate em jogo agora (criticar/validar/revisar)
+    "proximo_passo": "string",       # instrução legível
+    "resultados_validos": "string[]",  # o que `registrar` aceita NESTE estado
+    "orcamento": "object", "rodadas": "object", "rodadas_totais": "object",
+    "teto": "object", "marca": "object",
+    "historico": "object[]",
+    "motivo_escalacao": "string?", "motivo_encerramento": "string?",
+}
+
+
+def contrato_publico() -> dict:
+    """Declaração legível por máquina do contrato. `ciclo.py contrato --json`.
+
+    Publica o grafo inteiro — estados, terminais, gates e transições — para que o
+    consumidor não precise repetir a máquina do lado dele. Repetir é o caminho curto
+    para os dois discordarem depois da primeira aresta nova.
+    """
+    return {
+        "nome": "kairos-forge/ciclo",
+        "versao": CONTRATO_VERSAO,
+        "comando": "ciclo.py estado --json",
+        "estados": ESTADOS,
+        "terminais": sorted(TERMINAIS),
+        "aguardando_humano": [e for e in ESTADOS if e.startswith("aguardando_")],
+        "gates": list(GATES),
+        "transicoes": {e: dict(m) for e, m in TRANSICOES.items()},
+        "campos": CAMPOS_ESTADO,
+    }
 
 
 def agora() -> str:
@@ -474,12 +528,32 @@ def imprimir(d: dict) -> None:
     print(f"\n   PRÓXIMO PASSO: {INSTRUCAO[e]}")
 
 
+def vista_publica(d: dict) -> dict:
+    """O estado como o contrato promete (ADR-0034). Campos derivados, nunca gravados.
+
+    `terminal`, `aguardando_humano`, `gate` e `resultados_validos` saem daqui em vez
+    de o consumidor deduzir do nome do estado — string comparada por fora vira
+    acoplamento que quebra no dia em que um estado é renomeado.
+    """
+    e = d["estado"]
+    return {
+        **d,
+        "contrato": CONTRATO_VERSAO,
+        "estado": e,
+        "terminal": e in TERMINAIS,
+        "aguardando_humano": e.startswith("aguardando_"),
+        "gate": {"criticando": "criticar", "validando": "validar",
+                 "revisando": "revisar"}.get(e),
+        "proximo_passo": INSTRUCAO[e],
+        "resultados_validos": sorted(TRANSICOES.get(e, {})),
+    }
+
+
 def estado(spec: str | None, como_json: bool) -> int:
     p = resolver(spec)
     d = compatibilizar(ler(p))
     if como_json:
-        print(json.dumps({**d, "proximo_passo": INSTRUCAO[d["estado"]]},
-                         ensure_ascii=False, indent=2))
+        print(json.dumps(vista_publica(d), ensure_ascii=False, indent=2))
     else:
         imprimir(d)
     return 0
@@ -559,6 +633,9 @@ def main() -> int:
         return encerrar(resto[0] if resto else None, motivo)
     if cmd == "listar":
         return listar()
+    if cmd == "contrato":
+        print(json.dumps(contrato_publico(), ensure_ascii=False, indent=2))
+        return 0
 
     print(__doc__.strip())
     return 1

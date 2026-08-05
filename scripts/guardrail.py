@@ -71,6 +71,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.dont_write_bytecode = True   # não escrever __pycache__ no diretório do plugin
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # para importar contrato.py
 
 # --- 1. comandos destrutivos --------------------------------------------------------

@@ -1,0 +1,19 @@
+{
+  "_comentario": [
+    "Assinatura dos contratos de integração do kairos-forge (ADR-0034).",
+    "O `release.py check` recalcula o sha256 da declaração de cada contrato e compara.",
+    "Mudou a forma sem atualizar este arquivo → CI vermelho.",
+    "Atualizar este arquivo obriga você a olhar a versão: campo novo é MENOR (1.x),",
+    "campo removido ou semântica alterada é MAIOR (x.0). Quem consome do outro lado",
+    "(kairos-symphony) não descobre a quebra em produção.",
+    "Regerar: python3 scripts/release.py assinar-contratos"
+  ],
+  "ciclo": {
+    "versao": "1.0",
+    "sha256": "cb2401bb25f24d38a34a182dfe97812573ed2d85b9165bb3a3ce5e6d8cec296d"
+  },
+  "contrato": {
+    "versao": "1.0",
+    "sha256": "716df542b916e62d900b4f2c259da02cc390f945ff130fb4593418aa517cdb27"
+  }
+}

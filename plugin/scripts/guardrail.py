@@ -364,6 +364,7 @@ def checar_spec(payload: dict) -> int:
 # que exigisse o bloco em todo `.md` de validação quebraria relatório legado.
 
 ALVOS_CONTRATO = [
+    ("docs/specs/criticas/", "criticar", "kairos-critica"),
     ("docs/specs/validacoes/", "validar", "kairos-validacao"),
     ("docs/specs/revisoes/", "revisar", "kairos-revisao"),
 ]
@@ -397,6 +398,10 @@ def checar_contrato(payload: dict) -> int:
         saida = ("Liste em `verificado`/`examinado` o que você realmente conferiu — "
                  "requisito, gate rodado, arquivo lido. Se a lista está vazia porque você "
                  "não conferiu nada, o veredicto não é limpo: é 'não verificado'.")
+    elif "críticos distintos" in (r.erro or ""):
+        saida = ("Crítica adversarial exige mais de um olhar, e de quem NÃO escreveu a "
+                 "SPEC. Acione um segundo crítico de outra especialidade e liste os dois "
+                 "em `criticado_por` — um crítico só é revisão.")
     else:
         saida = (f"Corrija o bloco ```{fence}: ele alimenta o `ciclo.py`, que decide a "
                  "transição e o orçamento por código. Bloco quebrado = decisão cega.")

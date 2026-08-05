@@ -10,10 +10,11 @@ sobre prosa (`**Veredicto:** ...`). Funciona até o dia em que um relatório de
 **revisão** — que tem exatamente a mesma linha — é lido como se fosse validação. O
 contrato passa a ser um bloco cercado explícito, com fence **própria por tipo**:
 
+    ```kairos-critica        → crítica adversarial da SPEC (/kairos-forge:especificar)
     ```kairos-validacao      → aceite contra a SPEC  (/kairos-forge:validar)
     ```kairos-revisao        → code review pré-PR    (/kairos-forge:revisar)
 
-As duas fences são deliberadamente distintas. Um validador que emitisse o bloco do
+As três fences são deliberadamente distintas. Um validador que emitisse o bloco do
 revisor seria aceito por engano se a fence fosse compartilhada — a separação é o
 ponto, não um detalhe de estilo.
 
@@ -23,6 +24,7 @@ A regra que dá dente ao contrato: **relatório limpo exige lista do que foi olh
 
     bloqueios == 0  ⇒  `verificado` não pode ser vazio
     criticos  == 0  ⇒  `examinado`  não pode ser vazio
+    achados   == 0  ⇒  `examinado`  não pode ser vazio
 
 "Não achei nada" sem dizer onde procurou não é ausência de defeito, é ausência de
 busca — e as duas coisas produzem o mesmo texto tranquilizador. A regra já existia em
@@ -37,6 +39,7 @@ Uso como biblioteca:
 
 Uso como CLI (para os CLIs sem hook, para o CI e para depurar):
 
+    contrato.py criticar <arquivo.md>
     contrato.py validar  <arquivo.md>
     contrato.py revisar  <arquivo.md>
 
@@ -54,6 +57,11 @@ from pathlib import Path
 
 FENCE_VALIDACAO = "kairos-validacao"
 FENCE_REVISAO = "kairos-revisao"
+FENCE_CRITICA = "kairos-critica"
+
+# Mínimo de críticos independentes na crítica da SPEC (ADR-0033). Um crítico só é
+# revisão; adversarial exige mais de um olhar, e é o parser que cobra.
+MIN_CRITICOS = 2
 
 VEREDICTOS = ("aprovado", "aprovado_com_ressalvas", "bloqueado")
 FAIXAS = (1, 2, 3)
@@ -234,7 +242,66 @@ def ler_revisao(texto: str) -> Resultado:
     })
 
 
-LEITORES = {"validar": ler_validacao, "revisar": ler_revisao}
+# --- contrato da crítica da SPEC (ADR-0033) -------------------------------------------
+
+def ler_critica(texto: str) -> Resultado:
+    """Lê o bloco ```kairos-critica. Campos: veredicto, achados, criticado_por[], examinado[].
+
+    A diferença para os outros dois: além de coerência e cobertura, este contrato cobra
+    **independência** — pelo menos {MIN_CRITICOS} críticos distintos. Um crítico só é
+    revisão; adversarial é mais de um olhar, e quem cobra é o parser, não o prompt.
+    """
+    dados, erro = _carregar(texto, FENCE_CRITICA)
+    if erro:
+        return erro
+
+    veredicto = str(dados.get("veredicto", "")).strip().lower().replace(" ", "_")
+    if veredicto not in VEREDICTOS:
+        return _falha(ESTRUTURAL, f"veredicto '{dados.get('veredicto')}' inválido — "
+                                  f"use um de: {', '.join(VEREDICTOS)}")
+
+    achados, e = _inteiro_de(dados.get("achados"), "achados")
+    if e:
+        return _falha(ESTRUTURAL, e)
+
+    criticos, e = _lista_de(dados.get("criticado_por", []), "criticado_por")
+    if e:
+        return _falha(ESTRUTURAL, e)
+    distintos = sorted({c.lower() for c in criticos})
+    if len(distintos) < MIN_CRITICOS:
+        return _falha(ESTRUTURAL, f"crítica da SPEC exige ao menos {MIN_CRITICOS} críticos "
+                                  f"distintos em 'criticado_por'; veio {len(distintos)}. "
+                                  "Um olhar só é revisão, não crítica adversarial")
+
+    examinado, e = _lista_de(dados.get("examinado", []), "examinado")
+    if e:
+        return _falha(ESTRUTURAL, e)
+
+    if veredicto == "bloqueado" and achados == 0:
+        return _falha(ESTRUTURAL, "veredicto 'bloqueado' com achados=0 — "
+                                  "se nada foi encontrado, o veredicto é outro")
+    if veredicto != "bloqueado" and achados > 0:
+        return _falha(ESTRUTURAL, f"veredicto '{veredicto}' com achados={achados} — "
+                                  "achado que impede a SPEC não vira ressalva por escolha "
+                                  "de palavra")
+
+    if achados == 0 and not examinado:
+        return _falha(SEM_COBERTURA, "crítica sem achado precisa listar em 'examinado' o que "
+                                     "foi lido da SPEC — objetivo, requisitos, plano, matriz "
+                                     "de testes. Lista vazia com veredicto limpo é ausência "
+                                     "de busca")
+
+    return Resultado(ok=True, dados={
+        "tipo": "critica",
+        "veredicto": veredicto,
+        "achados": achados,
+        "criticado_por": criticos,
+        "examinado": examinado,
+        "spec": str(dados.get("spec", "")).strip() or None,
+    })
+
+
+LEITORES = {"validar": ler_validacao, "revisar": ler_revisao, "criticar": ler_critica}
 
 
 # --- CLI --------------------------------------------------------------------------------

@@ -98,6 +98,26 @@ Aplique a regra de acionamento de Laura (em `${CLAUDE_PLUGIN_ROOT}/agents/laura-
 
 Mais teammates ≠ melhor. Mais teammates = mais coordenação, mais tokens, mais chance de drift.
 
+### Teto de onda: 6 teammates simultâneos (ADR-0033)
+
+**No máximo 6 teammates ativos ao mesmo tempo.** Time maior não é proibido — ele roda
+em **ondas**: 6 entram, você faz o fan-in, e só então a próxima leva começa.
+
+O número não é gosto. Acima de ~6 a consolidação dos outputs estoura contexto antes da
+síntese começar (é o mesmo 6 do fan-in em camadas, no passo de condução), e cada
+teammate a mais multiplica os pares que podem colidir em file ownership.
+
+Isto era julgamento e virou número por um motivo: **julgamento funciona enquanto tem
+alguém olhando.** Em execução conduzida por script, "não exagere no paralelismo" não
+impõe nada — 6 impõe. Declare a divisão em ondas no relatório de abertura:
+
+```
+Ondas: 2 (6 teammates + 3) · fan-in entre elas
+```
+
+Quando a onda seguinte depende da anterior (schema antes de endpoint), a divisão já
+está no grafo de dependências das tasks — respeite-o, não corte por número.
+
 **Declare o orçamento de complexidade antes de criar o time** (ADR-0012) e inclua no relatório de abertura pro usuário:
 
 - Máximo de teammates e de tasks.

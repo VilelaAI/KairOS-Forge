@@ -32,7 +32,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver:
 
 ```
-🔥 kairos-forge v0.25 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: ...
+🔥 kairos-forge v0.26 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: ...
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -49,7 +49,7 @@ Ao final você terá:
 - `contextos/` com contexto de projeto, stack, convenções, restrições e testes
 - `decisoes/log.md`
 - `decisoes/estado-operacional.md`
-- `docs/specs/`, `docs/specs/validacoes/` e `docs/adr/` prontos pros arquitetos popularem
+- `docs/specs/` com `criticas/`, `validacoes/` e `revisoes/` (um relatório por gate do arco) e `docs/adr/`
 - `.agents/memory/` (índice de memórias de incidente) e `.agents/grafo/` (esquema do grafo de conhecimento)
 
 ## Passo 3 — primeira feature
@@ -110,6 +110,8 @@ Laura entra como Tech Lead, classifica a feature, e aciona os arquitetos relevan
 > **Camila:** "Camila aqui, PM. Fica como MVP só CSV mesmo? PDF fica pra V2?"
 
 Eles interrogam, propõem 2-3 abordagens, recomendam uma, e produzem `docs/specs/SPEC-001-exportar-relatorio-csv.md` com requisitos rastreáveis, critérios de aceite, gates e plano de implementação **agente por agente**.
+
+Antes de a SPEC chegar a você, **dois críticos que não a escreveram atacam o documento** (ADR-0033) — premissa, requisito, plano e testabilidade — e o relatório vai para `docs/specs/criticas/`. Era a única etapa do arco sem contraditório: a validação tem Ricardo e Patrícia, a revisão tem Helena e Patrícia, e a SPEC tinha só o autor. O parser cobra dois nomes distintos, porque um olhar só é revisão, não crítica.
 
 ### 3c. (Feature sensível) Modelar ameaças antes de implementar
 

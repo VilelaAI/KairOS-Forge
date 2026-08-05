@@ -41,8 +41,22 @@ E o estado vive em `.agents/ciclo/<spec>.json`: sobrevive a reset de contexto, a
 de sessão e a troca de CLI. O agente não escreve ali (guardrail bloqueia, ADR-0022) —
 pelo mesmo motivo que não escreve a própria telemetria.
 
+E uma quinta, desde a v0.26 (ADR-0033): **o planejamento também tem fases e gate.**
+
+Os três checkpoints do `/especificar` — espelhar o entendimento, escolher a abordagem,
+aprovar a SPEC — já existiam, em prosa. Prosa para um humano que está lendo; nada para
+um runner headless. Agora são estados, e entre a SPEC escrita e a aprovação entra a
+**crítica adversarial**: ao menos dois críticos que não escreveram a SPEC atacam
+premissa, requisito, plano e testabilidade, com o resultado lido de artefato como
+qualquer outro gate.
+
+Por que só agora: em sessão, uma premissa errada é pega porque alguém lê antes de
+aprovar. Sem ninguém lendo, o orçamento inteiro queima construindo a coisa errada com
+disciplina impecável.
+
 Uso:
-    ciclo.py abrir SPEC-001 [--orcamento-validar 2] [--orcamento-revisar 2]
+    ciclo.py abrir SPEC-001 [--orcamento-criticar 2] [--orcamento-validar 2]
+                            [--orcamento-revisar 2] [--teto-criticar 6]
                             [--teto-validar 6] [--teto-revisar 6] [--spec-aprovada]
     ciclo.py estado [SPEC-001] [--json]
     ciclo.py registrar <resultado> [SPEC-001] [--nota "..."]
@@ -62,11 +76,22 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
-    from contrato import ler_revisao, ler_validacao
+    from contrato import ler_critica, ler_revisao, ler_validacao
 except Exception:  # contrato ausente/quebrado nunca derruba a máquina de estados
-    ler_revisao = ler_validacao = None  # type: ignore[assignment]
+    ler_critica = ler_revisao = ler_validacao = None  # type: ignore[assignment]
 
 PASTA = Path(".agents/ciclo")
+
+# Gates com orçamento próprio. Cada um conta rodadas SEM progresso, tem teto absoluto
+# e guarda a melhor marca já atingida (ADR-0032).
+GATES = ("criticar", "validar", "revisar")
+
+# Onde cada gate lê o veredicto e a contagem de achados — sempre do artefato.
+FONTE_DO_GATE = {
+    "criticar": ("docs/specs/criticas", "CRITICA", "achados"),
+    "validar": ("docs/specs/validacoes", "VALIDACAO", "bloqueios"),
+    "revisar": ("docs/specs/revisoes", "REVISAO", "criticos"),
+}
 
 # Teto absoluto de rodadas por gate quando não declarado: 3× o orçamento. Progresso
 # devolve ficha, mas não dá rodadas infinitas — convergir devagar demais também é
@@ -76,7 +101,18 @@ FATOR_TETO = 3
 # --- a máquina ---------------------------------------------------------------------
 # estado → {resultado aceito: destino}. `None` marca destino calculado (orçamento).
 TRANSICOES: dict[str, dict[str, str | None]] = {
-    "especificando":       {"spec_pronta": "aguardando_aprovacao"},
+    # Planejamento em fases (ADR-0033). Os três checkpoints já existiam no
+    # /especificar como prosa — "espelhar entendimento", "propor abordagens",
+    # "aprovar a SPEC". Viram estado porque prosa não para um runner headless: em
+    # sessão o humano lê e responde no meio da conversa; sem ninguém lendo, uma
+    # premissa errada queima o orçamento inteiro construindo a coisa certa errada.
+    "enquadrando":         {"entendimento_pronto": "aguardando_entendimento"},
+    "aguardando_entendimento": {"confirmado": "desenhando", "ajustar": "enquadrando"},
+    "desenhando":          {"abordagens_prontas": "aguardando_abordagem"},
+    "aguardando_abordagem": {"escolhida": "especificando", "ajustar": "desenhando"},
+    "especificando":       {"spec_pronta": "criticando"},
+    "criticando":          {"limpa": "aguardando_aprovacao", "com_achados": None},
+    "corrigindo_spec":     {"pronto": "criticando"},
     "aguardando_aprovacao": {"aprovada": "construindo", "recusada": "encerrado"},
     "construindo":         {"pronto": "validando"},
     "validando":           {"aprovado": "revisando",
@@ -91,11 +127,39 @@ TRANSICOES: dict[str, dict[str, str | None]] = {
 }
 TERMINAIS = {"encerrado", "escalado"}
 
+# Resultado "limpo" de cada estado de gate. Registrá-lo exige que o ARTEFATO concorde —
+# a regra do ADR-0029 aplicada aos três gates, não só à validação.
+LIMPO_DO_GATE = {
+    "criticando": {"limpa"},
+    "validando": {"aprovado", "aprovado_com_ressalvas"},
+    "revisando": {"limpo"},
+}
+
 INSTRUCAO = {
-    "especificando": "Rode /kairos-forge:especificar. Ao final: `ciclo.py registrar spec_pronta`.",
-    "aguardando_aprovacao": "GATE HUMANO — apresente objetivo, P1, não-objetivos e perguntas "
-                            "abertas; espere SIM/NÃO/AJUSTAR. Depois: `registrar aprovada` ou "
-                            "`registrar recusada`. Nunca responda pelo usuário.",
+    "enquadrando": "Rode /kairos-forge:especificar até o passo 4. Laura dimensiona, os "
+                   "arquitetos interrogam e você ESPELHA o entendimento — sem escrever SPEC "
+                   "ainda. Ao final: `ciclo.py registrar entendimento_pronto`.",
+    "aguardando_entendimento": "GATE HUMANO (1/3) — apresente o entendimento espelhado e as "
+                               "perguntas abertas; espere confirmação. Depois: "
+                               "`registrar confirmado` ou `registrar ajustar`. "
+                               "Nunca responda pelo usuário.",
+    "desenhando": "Passo 5 do /kairos-forge:especificar: 2-3 abordagens com trade-offs e uma "
+                  "recomendação. Decisão arquiteturalmente significativa? Use o modo RFC. "
+                  "Ao final: `registrar abordagens_prontas`.",
+    "aguardando_abordagem": "GATE HUMANO (2/3) — apresente as abordagens, a recomendada e o "
+                            "porquê; espere a escolha. Depois: `registrar escolhida` ou "
+                            "`registrar ajustar`. Nunca escolha pelo usuário.",
+    "especificando": "Passo 6: escreva a SPEC em docs/specs/ com requisitos rastreáveis, "
+                     "plano por agente e matriz de testes. Ao final: `registrar spec_pronta`.",
+    "criticando": "Crítica adversarial da SPEC: ao menos 2 críticos independentes, que NÃO "
+                  "a escreveram, atacam premissa, requisito, plano e testabilidade. Relatório "
+                  "em docs/specs/criticas/. Depois: `registrar limpa` ou `registrar com_achados`.",
+    "corrigindo_spec": "Corrija os achados da crítica na SPEC — cada um, ou justifique por "
+                       "escrito por que não. Depois: `registrar pronto` (a crítica REABRE).",
+    "aguardando_aprovacao": "GATE HUMANO (3/3) — apresente objetivo, P1, não-objetivos e o "
+                            "que a crítica encontrou; espere SIM/NÃO/AJUSTAR. Depois: "
+                            "`registrar aprovada` ou `registrar recusada`. "
+                            "Nunca responda pelo usuário.",
     "construindo": "Construa pela SPEC (/mobilizar ou /rodar). Cada tarefa com gate e "
                    "`verificado:`. Ao final: `registrar pronto`.",
     "validando": "Rode /kairos-forge:validar. Depois: `registrar aprovado` | "
@@ -204,12 +268,10 @@ def ler_relatorio(spec: str, gate: str) -> tuple[str | None, int | None, str]:
     veredicto sem contagem) ou `ausente`. Só `contrato` permite afirmar progresso:
     sem número não há comparação, e inventar uma seria pior que não ter.
     """
-    if gate == "validar":
-        texto = _mais_recente("docs/specs/validacoes", "VALIDACAO", spec)
-        leitor, campo = ler_validacao, "bloqueios"
-    else:
-        texto = _mais_recente("docs/specs/revisoes", "REVISAO", spec)
-        leitor, campo = ler_revisao, "criticos"
+    pasta, prefixo, campo = FONTE_DO_GATE[gate]
+    leitor = {"criticar": ler_critica, "validar": ler_validacao,
+              "revisar": ler_revisao}[gate]
+    texto = _mais_recente(pasta, prefixo, spec)
     if texto is None:
         return None, None, "ausente"
     if leitor is not None:
@@ -221,27 +283,26 @@ def ler_relatorio(spec: str, gate: str) -> tuple[str | None, int | None, str]:
 
 # --- comandos ----------------------------------------------------------------------
 
-def abrir(spec: str, orc_val: int, orc_rev: int, teto_val: int, teto_rev: int,
-          spec_aprovada: bool) -> int:
+def abrir(spec: str, orcamento: dict, teto: dict, spec_aprovada: bool) -> int:
     p = caminho(spec)
     if p.is_file():
         d = ler(p)
         if d.get("estado") not in TERMINAIS:
             sys.exit(f"erro: já existe ciclo aberto para {spec} em '{d['estado']}'. "
                      f"Veja: ciclo.py estado {spec}")
-    estado = "construindo" if spec_aprovada else "especificando"
+    estado = "construindo" if spec_aprovada else "enquadrando"
     d = {
         "spec": spec,
         "estado": estado,
         "aberto_em": agora(),
-        "orcamento": {"validar": orc_val, "revisar": orc_rev},
-        "teto": {"validar": teto_val, "revisar": teto_rev},
+        "orcamento": dict(orcamento),
+        "teto": dict(teto),
         # `rodadas` são as fichas consumidas SEM progresso — progresso zera.
-        "rodadas": {"validar": 0, "revisar": 0},
+        "rodadas": {g: 0 for g in GATES},
         # `rodadas_totais` nunca zera; é o que o teto absoluto mede.
-        "rodadas_totais": {"validar": 0, "revisar": 0},
-        # melhor (menor) contagem de bloqueios já atingida no gate; None = sem marca.
-        "marca": {"validar": None, "revisar": None},
+        "rodadas_totais": {g: 0 for g in GATES},
+        # melhor (menor) contagem de achados já atingida no gate; None = sem marca.
+        "marca": {g: None for g in GATES},
         "historico": [{"t": agora(), "de": None, "para": estado, "resultado": "abrir"}],
     }
     gravar(p, d)
@@ -251,11 +312,17 @@ def abrir(spec: str, orc_val: int, orc_rev: int, teto_val: int, teto_rev: int,
 
 def compatibilizar(d: dict) -> dict:
     """Estado escrito por versão anterior ganha os campos novos sem perder história."""
-    orc = d.setdefault("orcamento", {"validar": 2, "revisar": 2})
-    d.setdefault("rodadas", {"validar": 0, "revisar": 0})
-    d.setdefault("teto", {g: max(1, orc.get(g, 2)) * FATOR_TETO for g in ("validar", "revisar")})
-    d.setdefault("rodadas_totais", dict(d["rodadas"]))
-    d.setdefault("marca", {"validar": None, "revisar": None})
+    orc = d.setdefault("orcamento", {})
+    d.setdefault("rodadas", {})
+    d.setdefault("teto", {})
+    d.setdefault("rodadas_totais", {})
+    d.setdefault("marca", {})
+    for g in GATES:
+        orc.setdefault(g, 2)
+        d["rodadas"].setdefault(g, 0)
+        d["teto"].setdefault(g, max(1, orc[g]) * FATOR_TETO)
+        d["rodadas_totais"].setdefault(g, d["rodadas"][g])
+        d["marca"].setdefault(g, None)
     return d
 
 
@@ -267,7 +334,8 @@ def decidir_orcamento(d: dict, gate: str, bloqueios: int | None) -> tuple[str, s
     está "progredindo" e mesmo assim precisa de gente.
     """
     d["rodadas_totais"][gate] += 1
-    destino = "corrigindo_validacao" if gate == "validar" else "corrigindo_revisao"
+    destino = {"criticar": "corrigindo_spec", "validar": "corrigindo_validacao",
+               "revisar": "corrigindo_revisao"}[gate]
 
     if d["rodadas_totais"][gate] >= d["teto"][gate]:
         return "escalado", (f"teto absoluto de {gate} atingido "
@@ -309,21 +377,23 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
         return 1
 
     # Veredicto vem do artefato, não da palavra do agente.
-    gate_do_estado = {"validando": "validar", "revisando": "revisar"}.get(estado)
+    gate_do_estado = {"criticando": "criticar", "validando": "validar",
+                      "revisando": "revisar"}.get(estado)
     veredicto = contagem = None
     fonte = "ausente"
     if gate_do_estado:
         veredicto, contagem, fonte = ler_relatorio(d["spec"], gate_do_estado)
 
-    if estado == "validando" and resultado in ("aprovado", "aprovado_com_ressalvas"):
+    if resultado in LIMPO_DO_GATE.get(estado, ()):
+        pasta, _, _ = FONTE_DO_GATE[gate_do_estado]
         if veredicto == "bloqueado":
-            print(f"🛑 recusado: o relatório de validação mais recente de {d['spec']} diz "
-                  f"BLOQUEADO.\n   Registre `bloqueado` e corrija, ou rode a validação de novo.",
-                  file=sys.stderr)
+            print(f"🛑 recusado: o relatório mais recente de {d['spec']} em {pasta}/ diz "
+                  f"BLOQUEADO.\n   Registre o resultado negativo e corrija, ou rode o gate "
+                  "de novo.", file=sys.stderr)
             return 1
         if veredicto is None:
-            print(f"🛑 recusado: não encontrei relatório em docs/specs/validacoes/ para "
-                  f"{d['spec']}.\n   Rode /kairos-forge:validar antes de registrar o resultado.",
+            print(f"🛑 recusado: não encontrei relatório em {pasta}/ para {d['spec']}.\n"
+                  f"   Rode o gate e salve o relatório antes de registrar o resultado.",
                   file=sys.stderr)
             return 1
 
@@ -392,10 +462,11 @@ def _placar(d: dict, gate: str) -> str:
 def imprimir(d: dict) -> None:
     d = compatibilizar(d)
     e = d["estado"]
-    icone = {"escalado": "⏸️", "encerrado": "✅", "pronto_para_pr": "🎯"}.get(e, "🔁")
+    icone = {"escalado": "⏸️", "encerrado": "✅", "pronto_para_pr": "🎯"}.get(
+        e, "🙋" if e.startswith("aguardando_") else "🔁")
     print(f"{icone} {d['spec']} — estado: {e}")
-    print(f"   Validar: {_placar(d, 'validar')}")
-    print(f"   Revisar: {_placar(d, 'revisar')}")
+    for g in GATES:
+        print(f"   {g.capitalize():<9} {_placar(d, g)}")
     if d.get("motivo_escalacao"):
         print(f"   Motivo: {d['motivo_escalacao']}")
     if d.get("motivo_encerramento"):
@@ -425,15 +496,15 @@ def listar() -> int:
         except Exception:
             continue
         linhas.append((d["spec"], d["estado"],
-                       f"{d['rodadas']['validar']}/{d['orcamento']['validar']}",
-                       f"{d['rodadas']['revisar']}/{d['orcamento']['revisar']}"))
+                       *[f"{d['rodadas'][g]}/{d['orcamento'][g]}" for g in GATES]))
     if not linhas:
         print("nenhum ciclo registrado.")
         return 0
-    print(f"{'spec':<20} {'estado':<22} {'validar':>8} {'revisar':>8}")
-    print("-" * 62)
-    for s, e, v, r in linhas:
-        print(f"{s:<20} {e:<22} {v:>8} {r:>8}")
+    cab = "".join(f"{g:>10}" for g in GATES)
+    print(f"{'spec':<20} {'estado':<24}{cab}")
+    print("-" * (44 + 10 * len(GATES)))
+    for s, e, *placares in linhas:
+        print(f"{s:<20} {e:<24}" + "".join(f"{p:>10}" for p in placares))
     return 0
 
 
@@ -458,10 +529,8 @@ def main() -> int:
             return v
         return default
 
-    orc_val = opcao("--orcamento-validar", int, 2)
-    orc_rev = opcao("--orcamento-revisar", int, 2)
-    teto_val = opcao("--teto-validar", int, max(1, orc_val) * FATOR_TETO)
-    teto_rev = opcao("--teto-revisar", int, max(1, orc_rev) * FATOR_TETO)
+    orcamento = {g: opcao(f"--orcamento-{g}", int, 2) for g in GATES}
+    teto = {g: opcao(f"--teto-{g}", int, max(1, orcamento[g]) * FATOR_TETO) for g in GATES}
     motivo = opcao("--motivo", str, "")
     nota = opcao("--nota", str, None)
     spec_aprovada = "--spec-aprovada" in args
@@ -473,7 +542,7 @@ def main() -> int:
     if cmd == "abrir":
         if not resto:
             sys.exit("erro: uso — ciclo.py abrir <SPEC>")
-        return abrir(resto[0], orc_val, orc_rev, teto_val, teto_rev, spec_aprovada)
+        return abrir(resto[0], orcamento, teto, spec_aprovada)
     if cmd == "estado":
         return estado(resto[0] if resto else None, como_json)
     if cmd == "registrar":

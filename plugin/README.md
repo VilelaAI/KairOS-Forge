@@ -414,8 +414,9 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - **v0.22** — artefato ajustado ao resultado (conjunto selado + digest no `/avaliar`), ergonomia de guardrail (recusa na trajetória, modo `aviso`) e detecção de patinação em voo (ADR-0030)
 - **v0.23** — higiene do juiz no `/avaliar`, gold set de comportamento da fábrica, faixa de raio de explosão no `/revisar`+`/entregar` e taxa de reversão no `diagnostico.py` (ADR-0031)
 - **v0.24** — contratos de fronteira nos relatórios (`contrato.py`), progresso real devolve a ficha do orçamento no `ciclo.py`, e a revisão passa a ser lida do disco (ADR-0032)
-- **v0.25** (atual) — quadro vivo: `painel.py` renderiza SPEC + arco + veredictos + trajetória numa tela (terminal, HTML autocontido ou JSON), com "Concluído" sem `verificado:` não contando como pronto (ADR-0013/0032)
-- **v0.24** (planejado) — perfis Tier 3 sob demanda via `/evoluir` (SEO técnico, UX research, desktop, base de suporte), mais trilhas por tema
+- **v0.25** — quadro vivo: `painel.py` renderiza SPEC + arco + veredictos + trajetória numa tela (terminal, HTML autocontido ou JSON), com "Concluído" sem `verificado:` não contando como pronto (ADR-0013/0032)
+- **v0.26** (atual) — planejamento em fases no arco, crítica adversarial da SPEC com dois críticos independentes, e teto de 6 teammates por onda no `/mobilizar` (ADR-0033)
+- **v0.27** (planejado) — perfis Tier 3 sob demanda via `/evoluir` (SEO técnico, UX research, desktop, base de suporte), mais trilhas por tema
 
 ## Documentação
 
@@ -452,6 +453,7 @@ Sem o sync, usuários de Codex CLI e Cursor ficam desatualizados.
 - [ADR-0030](docs/adr/0030-artefato-ergonomia-e-deteccao.md) — artefato ajustado ao resultado, ergonomia de guardrail e detecção em voo
 - [ADR-0031](docs/adr/0031-higiene-de-juiz-e-faixa-de-raio.md) — higiene do juiz e faixa de raio de explosão: o gate pergunta quanto custa desfazer
 - [ADR-0032](docs/adr/0032-relacao-lioncode-e-contratos-de-fronteira.md) — relação com o LionCode e contratos de fronteira: progresso devolve ficha, limpo exige cobertura
+- [ADR-0033](docs/adr/0033-planejamento-em-fases-e-critica-adversarial.md) — planejamento em fases e crítica adversarial da SPEC: a etapa que não tinha contraditório
 - [Memória persistente](docs/memoria-persistente.md) — guia das 3 camadas e instalação opcional do ai-memory
 - [Análise: o novo SDLC e o caminho até L4](docs/revisoes/2026-08-01-analise-whitepaper-novo-sdlc-e-caminho-l4.md) — o harness da fábrica medido contra o whitepaper Day-1 do Google, com as lacunas e o que cada uma virou
 

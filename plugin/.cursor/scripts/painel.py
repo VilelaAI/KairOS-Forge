@@ -39,9 +39,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
-    from contrato import ler_revisao, ler_validacao
+    from contrato import ler_critica, ler_revisao, ler_validacao
 except Exception:
-    ler_revisao = ler_validacao = None  # type: ignore[assignment]
+    ler_critica = ler_revisao = ler_validacao = None  # type: ignore[assignment]
 try:
     from telemetria import carregar, metricas, por_sessao
 except Exception:
@@ -54,11 +54,7 @@ LINHA_TABELA = re.compile(r"^\s*\|(?!\s*-)(.+)\|\s*$")
 # "Em progresso" conta 0.5 porque meio caminho andado não é zero nem um.
 PESO = {"concluído": 1.0, "concluido": 1.0, "em progresso": 0.5, "pendente": 0.0}
 
-ORDEM_ESTADO = ["especificando", "aguardando_aprovacao", "construindo", "validando",
-                "corrigindo_validacao", "revisando", "corrigindo_revisao",
-                "pronto_para_pr", "encerrado", "escalado"]
-ICONE_ESTADO = {"escalado": "⏸️", "encerrado": "✅", "pronto_para_pr": "🎯",
-                "aguardando_aprovacao": "🙋"}
+ICONE_ESTADO = {"escalado": "⏸️", "encerrado": "✅", "pronto_para_pr": "🎯"}
 
 
 # --- leitura das fontes canônicas ----------------------------------------------------
@@ -112,6 +108,21 @@ def ler_spec(caminho: Path) -> dict | None:
     }
 
 
+ROTULOS = (("critica", "Crítica"), ("validacao", "Validação"), ("revisao", "Revisão"))
+
+
+def _achados(r: dict) -> int:
+    """Contagem de achados, qualquer que seja o nome do campo no contrato."""
+    for campo in ("achados", "bloqueios", "criticos"):
+        if campo in r:
+            return r[campo]
+    return 0
+
+
+def _cobertura(r: dict) -> list:
+    return r.get("verificado") or r.get("examinado") or []
+
+
 def coluna_de(r: dict) -> str:
     """Coluna do quadro. 'Pronto' exige `verificado:` — o resto é 'Em progresso'."""
     if r["estado"].startswith("conclu"):
@@ -137,6 +148,7 @@ def ler_relatorios(raiz: Path, spec: str) -> dict:
     alvo = re.sub(r"[^A-Za-z0-9_-]", "-", spec)
     saida = {}
     for chave, pasta, prefixo, leitor in (
+        ("critica", "docs/specs/criticas", "CRITICA", ler_critica),
         ("validacao", "docs/specs/validacoes", "VALIDACAO", ler_validacao),
         ("revisao", "docs/specs/revisoes", "REVISAO", ler_revisao),
     ):
@@ -206,7 +218,7 @@ def render_terminal(d: dict) -> str:
         cab = f"  {s['id']} — {barra(s['progresso'])} {s['progresso']}%  ({s['total']} req)"
         if c:
             e = c.get("estado", "?")
-            cab += f"   {ICONE_ESTADO.get(e, '🔁')} {e}"
+            cab += f"   {ICONE_ESTADO.get(e, '🙋' if e.startswith('aguardando_') else '🔁')} {e}"
         L.append(cab)
 
         colunas = {"A fazer": [], "Em progresso": [], "Pronto": []}
@@ -219,25 +231,26 @@ def render_terminal(d: dict) -> str:
         if s["sem_prova"]:
             L.append(f"     ⚠️  'Concluído' sem `verificado:` → {', '.join(s['sem_prova'])}"
                      " — não conta como pronto aqui, e a /validar trata como sem evidência")
-        for chave, rot in (("validacao", "Validação"), ("revisao", "Revisão")):
+        for chave, rot in ROTULOS:
             r = s["relatorios"].get(chave)
             if not r:
                 continue
             if "erro" in r:
                 L.append(f"     🛑 {rot}: contrato inválido [{r['erro']}] em {r['arquivo']}")
             else:
-                n = r.get("bloqueios", r.get("criticos", 0))
-                faixa = f" · faixa {r['faixa']}" if r.get("faixa") else ""
+                n, cob = _achados(r), len(_cobertura(r))
+                extra = f" · faixa {r['faixa']}" if r.get("faixa") else ""
+                if r.get("criticado_por"):
+                    extra += f" · {len(set(c.lower() for c in r['criticado_por']))} críticos"
                 L.append(f"     {'✅' if not n else '❌'} {rot}: {r['veredicto']}"
-                         f" ({n} achado(s){faixa}) · {len(r.get('verificado') or r.get('examinado') or [])}"
-                         " item(ns) de cobertura")
+                         f" ({n} achado(s){extra}) · {cob} item(ns) de cobertura")
         if c:
             L.append("     " + _placar_ciclo(c))
         L.append("")
 
     for c in ciclo_por_spec.values():  # ciclo sem SPEC correspondente em docs/specs/
         e = c.get("estado", "?")
-        L.append(f"  {c.get('spec', '?')} — {ICONE_ESTADO.get(e, '🔁')} {e}  (sem SPEC no disco)")
+        L.append(f"  {c.get('spec', '?')} — {ICONE_ESTADO.get(e, '🙋' if e.startswith('aguardando_') else '🔁')} {e}  (sem SPEC no disco)")
         L.append("     " + _placar_ciclo(c) + "\n")
 
     t = d["telemetria"]
@@ -336,7 +349,7 @@ def render_html(d: dict) -> str:
             linhas.append('<p class="l warn">⚠ "Concluído" sem <code>verificado:</code> → '
                           f'{_e(", ".join(s["sem_prova"]))} — não conta como pronto aqui, '
                           "e a /validar trata como sem evidência</p>")
-        for chave, rot in (("validacao", "Validação"), ("revisao", "Revisão")):
+        for chave, rot in ROTULOS:
             r = s["relatorios"].get(chave)
             if not r:
                 continue
@@ -344,8 +357,7 @@ def render_html(d: dict) -> str:
                 linhas.append(f'<p class="l no">🛑 {rot}: contrato inválido '
                               f'[{_e(r["erro"])}] em {_e(r["arquivo"])}</p>')
                 continue
-            n = r.get("bloqueios", r.get("criticos", 0))
-            cob = len(r.get("verificado") or r.get("examinado") or [])
+            n, cob = _achados(r), len(_cobertura(r))
             faixa = f" · faixa {_e(r['faixa'])}" if r.get("faixa") else ""
             linhas.append(f'<p class="l {"ok" if not n else "no"}">{"✅" if not n else "❌"} '
                           f'{rot}: {_e(r["veredicto"])} ({n} achado(s){faixa}) '

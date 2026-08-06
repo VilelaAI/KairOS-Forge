@@ -35,6 +35,9 @@ Após instalar, no início da sessão você deve ver:
 🔥 kairos-forge v0.27 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: ...
 ```
 
+> **Quer só testar antes de aplicar num projeto seu?** `docs/testar-localmente.md` monta um
+> projeto de exemplo com gate real e percorre os guardrails, o arco e o quadro vivo.
+
 ## Passo 2 — onboarding do projeto
 
 ```

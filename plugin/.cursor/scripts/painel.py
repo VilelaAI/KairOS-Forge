@@ -199,6 +199,15 @@ def coletar(raiz: Path, alvo: str | None, dias: int) -> dict:
 
 # --- render: terminal -----------------------------------------------------------------
 
+def pc(valor) -> str:
+    """Percentual formatado. Métrica sem base é `—`, nunca `None%`.
+
+    Zero ciclos não é zero por cento: é ausência de medida, e imprimir `None%`
+    faz o painel parecer quebrado quando ele está sendo honesto.
+    """
+    return "—" if valor is None else f"{valor}%"
+
+
 def barra(pct: int, largura: int = 20) -> str:
     cheio = round(pct * largura / 100)
     return "█" * cheio + "░" * (largura - cheio)
@@ -257,8 +266,8 @@ def render_terminal(d: dict) -> str:
     t = d["telemetria"]
     if t:
         L.append(f"  Trajetória ({d['janela_dias']}d): {t.get('ciclos', 0)} ciclo(s) · "
-                 f"autonomia {t.get('autonomia_pct', 0)}% · "
-                 f"gate verde de primeira {t.get('verdes_de_primeira_pct', 0)}% · "
+                 f"autonomia {pc(t.get('autonomia_pct'))} · "
+                 f"gate verde de primeira {pc(t.get('verdes_de_primeira_pct'))} · "
                  f"{t.get('sessoes_com_producao_sem_gate', 0)} sessão(ões) com produção sem gate")
         if t.get("recusas_total"):
             L.append(f"  Recusas de guardrail: {t['recusas_total']} "
@@ -275,7 +284,9 @@ def _placar_ciclo(c: dict) -> str:
     tot, teto = c.get("rodadas_totais", {}), c.get("teto", {})
     marca = c.get("marca") or {}
     partes = []
-    for g in ("validar", "revisar"):
+    # Derivado do estado: gate novo aparece sozinho em vez de a linha envelhecer
+    # calada (o ADR-0033 acrescentou `criticar`).
+    for g in [g for g in orc if g in rod]:
         p = f"{g} {rod.get(g, 0)}/{orc.get(g, '?')}"
         if tot.get(g) is not None and teto.get(g) is not None:
             p += f" (tot {tot[g]}/{teto[g]})"
@@ -387,11 +398,11 @@ def render_html(d: dict) -> str:
     t = d["telemetria"]
     if t:
         pares = [("Ciclos", t.get("ciclos", 0)),
-                 ("Autonomia", f"{t.get('autonomia_pct', 0)}%"),
+                 ("Autonomia", pc(t.get("autonomia_pct"))),
                  ("Intervenções (mediana)", t.get("intervencoes_medianas", "—")),
-                 ("Gate verde de primeira", f"{t.get('verdes_de_primeira_pct', 0)}%"
-                                            f" ({t.get('verdes_de_primeira', 0)}"
-                                            f"/{t.get('gates_distintos', 0)})"),
+                 ("Gate verde de primeira",
+                  f"{pc(t.get('verdes_de_primeira_pct'))}"
+                  f" ({t.get('verdes_de_primeira', 0)}/{t.get('gates_distintos', 0)})"),
                  ("Sessões com produção sem gate", t.get("sessoes_com_producao_sem_gate", 0)),
                  ("Recusas de guardrail", t.get("recusas_total", 0))]
         corpo.append('<section class="c"><div class="h"><b>Trajetória</b>'

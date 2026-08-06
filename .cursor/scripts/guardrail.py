@@ -238,8 +238,13 @@ def checar_comando(payload: dict) -> int:
             return bloquear(
                 f"abertura de PR fora de estado — o ciclo {ciclo['spec']} está em "
                 f"'{ciclo['estado']}', não em 'pronto_para_pr'",
-                f"Rodadas: validar {ciclo['rodadas']['validar']}/{ciclo['orcamento']['validar']} · "
-                f"revisar {ciclo['rodadas']['revisar']}/{ciclo['orcamento']['revisar']}.",
+                # Derivado do que o estado realmente tem: gate novo aparece sozinho,
+                # em vez de a mensagem envelhecer calada (ADR-0033 acrescentou `criticar`).
+                "Rodadas: " + " · ".join(
+                    f"{g} {ciclo['rodadas'][g]}/{ciclo['orcamento'][g]}"
+                    for g in ciclo.get("orcamento", {})
+                    if g in ciclo.get("rodadas", {})
+                ) + ".",
                 "PR com P1 bloqueado ou 🔴 aberto transfere para o revisor humano exatamente o "
                 "trabalho que o arco existe para absorver. Rode `ciclo.py estado` e siga o "
                 "próximo passo que ele indica.",

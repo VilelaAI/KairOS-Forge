@@ -5,19 +5,23 @@ As contagens (agentes, times, squads, skills) são CALCULADAS do filesystem —
 nunca digitadas à mão. Isso elimina a classe de bug "contagem desatualizada".
 
 Uso:
-  python3 scripts/release.py check         # verifica consistência (usado no CI)
-  python3 scripts/release.py bump 0.14.0   # injeta versão+contagens, roda os
-                                           # dois syncs e espelha em plugin/
+  python3 scripts/release.py check              # verifica consistência (usado no CI)
+  python3 scripts/release.py bump 0.14.0        # injeta versão+contagens, roda os
+                                                # dois syncs e espelha em plugin/
+  python3 scripts/release.py assinar-contratos  # reassina os contratos de integração
+                                                # depois de mudar a forma (ADR-0034)
 
 Só stdlib — sem dependências, igual ao grafo.py.
 """
 
+import hashlib
 import json
 import re
 import shutil
 import subprocess
 import sys
 import unicodedata
+from collections import Counter
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -25,7 +29,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 # O que é espelhado root → plugin/ (diretórios inteiros e arquivos avulsos).
 DIRS_ESPELHADOS = [
     "agents", "skills", "templates", "hooks", ".codex", ".codex-plugin",
-    "scripts", "docs", "hermes",
+    "scripts", "docs", "hermes", "contratos",
 ]
 ARQUIVOS_ESPELHADOS = ["CLAUDE.md", "AGENTS.md", ".claude-plugin/plugin.json"]
 # Diferem por desenho entre root e plugin/ — nunca copiar nem comparar.
@@ -43,6 +47,14 @@ ORCAMENTO_ESTATICO = {
     "templates/CLAUDE.md.template": 8000,
 }
 LIMITE_LINHAS_SKILL = 500  # regra 3 do CLAUDE.md, agora verificada
+
+# Vocabulário fechado do gold set de comportamento da fábrica (ADR-0031).
+# Fechado de propósito: capacidade nova entra por ADR, não por linha nova no JSONL.
+CAPACIDADES_FABRICA = {
+    "ferramenta-vazia", "chamada-repetida", "recusa-de-fronteira",
+    "integridade-de-handoff", "conclusao-verificada",
+}
+VERIFICACOES_EVAL = {"deterministica", "juiz", "parcial"}
 
 
 def derivar():
@@ -228,8 +240,98 @@ def arquivos_de(base, rel_dir):
     return {
         str(p.relative_to(base))
         for p in d.rglob("*")
-        if p.is_file() and ".agents/plugins" not in str(p.relative_to(base))
+        if p.is_file()
+        and ".agents/plugins" not in str(p.relative_to(base))
+        and "__pycache__" not in p.parts
     }
+
+
+ASSINATURA = RAIZ / "contratos" / "ASSINATURA.json"
+
+
+def declaracoes() -> dict:
+    """Declaração pública de cada contrato de integração, na fonte (ADR-0034)."""
+    sys.dont_write_bytecode = True   # não sujar scripts/ com __pycache__
+    sys.path.insert(0, str(RAIZ / "scripts"))
+    import ciclo
+    import contrato
+    return {"ciclo": ciclo.contrato_publico(), "contrato": contrato.contrato_publico()}
+
+
+def digest(decl: dict) -> str:
+    bruto = json.dumps(decl, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(bruto.encode("utf-8")).hexdigest()
+
+
+def conferir_contratos() -> list[str]:
+    problemas: list[str] = []
+    try:
+        decls = declaracoes()
+    except Exception as e:
+        return [f"contratos: não foi possível carregar as declarações — {e}"]
+    if not ASSINATURA.is_file():
+        return [f"contratos: {ASSINATURA.relative_to(RAIZ)} ausente — "
+                "rode `release.py assinar-contratos`"]
+    try:
+        assinado = json.loads(ASSINATURA.read_text(encoding="utf-8"))
+    except Exception as e:
+        return [f"contratos: ASSINATURA.json inválido — {e}"]
+
+    for nome, decl in decls.items():
+        esperado = assinado.get(nome)
+        if not esperado:
+            problemas.append(f"contrato '{nome}' não está assinado em ASSINATURA.json")
+            continue
+        if esperado.get("versao") != decl["versao"]:
+            problemas.append(f"contrato '{nome}': versão {decl['versao']} no código, "
+                             f"{esperado.get('versao')} na assinatura")
+        atual = digest(decl)
+        if esperado.get("sha256") != atual:
+            problemas.append(
+                f"contrato '{nome}' MUDOU DE FORMA sem reassinar (v{decl['versao']}).\n"
+                "      Campo/estado/aresta novo = MENOR (1.x); removido ou com semântica "
+                "alterada = MAIOR (x.0).\n"
+                "      Decida a versão, ajuste CONTRATO_VERSAO e rode "
+                "`release.py assinar-contratos`.\n"
+                "      Quem consome (kairos-symphony) não descobre a quebra em produção."
+            )
+
+    # A saída real precisa entregar o que o contrato promete — declaração sem
+    # verificação é promessa.
+    try:
+        import ciclo
+        vista = ciclo.vista_publica({
+            "spec": "SPEC-000", "estado": "validando",
+            "orcamento": {}, "rodadas": {}, "rodadas_totais": {}, "teto": {},
+            "marca": {}, "historico": [],
+        })
+        for campo, tipo in ciclo.CAMPOS_ESTADO.items():
+            if tipo.endswith("?"):
+                continue
+            if campo not in vista:
+                problemas.append(f"contrato 'ciclo': campo prometido '{campo}' ausente "
+                                 "na saída de `estado --json`")
+    except Exception as e:
+        problemas.append(f"contrato 'ciclo': não foi possível verificar a saída — {e}")
+
+    return problemas
+
+
+def assinar_contratos() -> None:
+    """Regrava ASSINATURA.json a partir da fonte, preservando o comentário."""
+    antigo = {}
+    if ASSINATURA.is_file():
+        try:
+            antigo = json.loads(ASSINATURA.read_text(encoding="utf-8"))
+        except Exception:
+            antigo = {}
+    novo = {"_comentario": antigo.get("_comentario", [])}
+    for nome, decl in declaracoes().items():
+        novo[nome] = {"versao": decl["versao"], "sha256": digest(decl)}
+        print(f"  ✍️  contrato {nome}: v{decl['versao']} · {novo[nome]['sha256'][:12]}…")
+    ASSINATURA.parent.mkdir(parents=True, exist_ok=True)
+    ASSINATURA.write_text(json.dumps(novo, ensure_ascii=False, indent=2) + "\n",
+                          encoding="utf-8")
 
 
 def checar():
@@ -336,6 +438,43 @@ def checar():
                 if aid not in n["ids_agentes"]:
                     problemas.append(f"gold.jsonl linha {i}: agente '{aid}' não existe")
 
+    # Gold set de comportamento da fábrica bem formado (ADR-0031).
+    # O eval em si precisa de modelo; a integridade do conjunto não — e é ela que
+    # apodrece em silêncio se ninguém olhar.
+    comp = RAIZ / "evals/comportamento-fabrica/gold.jsonl"
+    if comp.exists():
+        vistos, capacidades = set(), Counter()
+        for i, linha in enumerate(comp.read_text(encoding="utf-8").splitlines(), 1):
+            if not linha.strip():
+                continue
+            rel = "comportamento-fabrica/gold.jsonl"
+            try:
+                caso = json.loads(linha)
+            except Exception as e:
+                problemas.append(f"{rel} linha {i}: JSON inválido — {e}")
+                continue
+            for campo in ("id", "capacidade", "verificacao", "cenario", "esperado", "falha_se"):
+                if not str(caso.get(campo, "")).strip():
+                    problemas.append(f"{rel} linha {i}: campo '{campo}' ausente ou vazio")
+            if caso.get("id") in vistos:
+                problemas.append(f"{rel} linha {i}: id '{caso['id']}' duplicado")
+            vistos.add(caso.get("id"))
+            if caso.get("capacidade") not in CAPACIDADES_FABRICA:
+                problemas.append(f"{rel} linha {i}: capacidade '{caso.get('capacidade')}' "
+                                 f"fora das cinco — {', '.join(sorted(CAPACIDADES_FABRICA))}")
+            else:
+                capacidades[caso["capacidade"]] += 1
+            if caso.get("verificacao") not in VERIFICACOES_EVAL:
+                problemas.append(f"{rel} linha {i}: verificacao '{caso.get('verificacao')}' "
+                                 f"inválida — {', '.join(sorted(VERIFICACOES_EVAL))}")
+        for cap in sorted(CAPACIDADES_FABRICA - set(capacidades)):
+            problemas.append(f"comportamento-fabrica: capacidade '{cap}' sem nenhum caso")
+
+    # Contratos de integração assinados (ADR-0034). O digest existe para que mudança
+    # de forma não passe em silêncio — quem consome do outro lado não descobre em
+    # produção. Mesma disciplina do digest de certificação do ADR-0030.
+    problemas.extend(conferir_contratos())
+
     if problemas:
         print(f"\n❌ {len(problemas)} problema(s):")
         for p in problemas:
@@ -389,6 +528,8 @@ def main():
     args = sys.argv[1:]
     if args == ["check"]:
         checar()
+    elif args == ["assinar-contratos"]:
+        assinar_contratos()
     elif len(args) == 2 and args[0] == "bump":
         bump(args[1])
     else:

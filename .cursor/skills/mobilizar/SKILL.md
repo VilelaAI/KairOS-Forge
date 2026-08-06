@@ -98,6 +98,26 @@ Aplique a regra de acionamento de Laura (em `${CLAUDE_PLUGIN_ROOT}/agents/laura-
 
 Mais teammates ≠ melhor. Mais teammates = mais coordenação, mais tokens, mais chance de drift.
 
+### Teto de onda: 6 teammates simultâneos (ADR-0033)
+
+**No máximo 6 teammates ativos ao mesmo tempo.** Time maior não é proibido — ele roda
+em **ondas**: 6 entram, você faz o fan-in, e só então a próxima leva começa.
+
+O número não é gosto. Acima de ~6 a consolidação dos outputs estoura contexto antes da
+síntese começar (é o mesmo 6 do fan-in em camadas, no passo de condução), e cada
+teammate a mais multiplica os pares que podem colidir em file ownership.
+
+Isto era julgamento e virou número por um motivo: **julgamento funciona enquanto tem
+alguém olhando.** Em execução conduzida por script, "não exagere no paralelismo" não
+impõe nada — 6 impõe. Declare a divisão em ondas no relatório de abertura:
+
+```
+Ondas: 2 (6 teammates + 3) · fan-in entre elas
+```
+
+Quando a onda seguinte depende da anterior (schema antes de endpoint), a divisão já
+está no grafo de dependências das tasks — respeite-o, não corte por número.
+
 **Declare o orçamento de complexidade antes de criar o time** (ADR-0012) e inclua no relatório de abertura pro usuário:
 
 - Máximo de teammates e de tasks.
@@ -298,14 +318,20 @@ Você (Laura) fica monitorando enquanto o time trabalha:
 1. **Acompanhe TaskUpdate.** Tarefas marcadas completed → libera dependentes.
 2. **Responda SendMessage.** Bloqueios reportados pelos teammates precisam de decisão.
 3. **Reatribua se necessário.** Se Marina trava em uma task, mude o assignee via TaskUpdate.
-4. **Checkpoint a cada 3 tasks.** Olhe o que foi entregue, valide alinhamento com a SPEC — e **renderize o quadro vivo** (ADR-0013), uma linha por coluna:
+4. **Checkpoint a cada 3 tasks.** Olhe o que foi entregue, valide alinhamento com a SPEC — e **renderize o quadro vivo** (ADR-0013):
+
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/painel.py SPEC-NNN
+   ```
+
+   O script lê o estado canônico e desenha. Sem ele (CLI sem os scripts do plugin), escreva à mão, uma linha por coluna:
 
    ```
    📋 Quadro — <SPEC/feature> (NN% — concluídas + 0.5×em progresso / planejadas)
    A fazer: T5, T6 | Em progresso: T3 (Marina), T4 (Ricardo) | Pronto: T1 ✓gate, T2 ✓gate
    ```
 
-   O quadro é **renderização** do estado canônico (tasks + coluna Status/Verificação da SPEC), nunca estado paralelo. Regra do "Pronto": card só entra com gate rodado (`verificado:`) — os cards andam porque os agentes construíram e provaram, não porque alguém arrastou. Progresso de verdade, não chute.
+   O quadro é **renderização** do estado canônico (tasks + coluna Status/Verificação da SPEC), nunca estado paralelo. Regra do "Pronto": card só entra com gate rodado (`verificado:`) — os cards andam porque os agentes construíram e provaram, não porque alguém arrastou. Progresso de verdade, não chute. O `painel.py` aplica essa regra ao próprio número: requisito "Concluído" sem `verificado:` cai para "Em progresso" e vale 0.5, não 1.
 5. **Fan-in em camadas.** Com mais de ~6 teammates, não consolide todos os outputs crus de uma vez — isso estoura contexto antes da síntese começar. Agrupe por domínio (dados, backend, frontend…), resuma cada grupo, e sintetize **os resumos**.
 6. **Cheque contagem antes de declarar pronto.** Em cadeia, falha para tudo (chato, mas óbvio); em grafo, um nó que falhou some num relatório que parece completo. No encerramento, confira: tasks concluídas × tasks planejadas. Se faltar qualquer uma, **declare a lacuna explicitamente** — nunca sintetize por cima de resultado parcial em silêncio.
 7. **Encerramento.** Quando todas as tasks estiverem completed (ou as lacunas declaradas), rode ou recomende `/kairos-forge:validar SPEC-NNN` antes de `/kairos-forge:revisar`. Envie `SendMessage` com `{type: "shutdown_request"}` para cada teammate. Reporte ao usuário:

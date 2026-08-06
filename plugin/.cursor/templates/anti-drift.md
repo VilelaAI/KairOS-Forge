@@ -67,6 +67,13 @@ Crítica é separada de reescrita. Antes de marcar `completed`:
 
 Por que: a primeira passada quase sempre tem defeito que a releitura contra critérios explícitos captura — e é muito mais barato capturar aqui do que na validação ou revisão.
 
+**Por que "contra critérios explícitos" e não "revise seu trabalho":** autocorreção
+intrínseca — pedir ao modelo que revise o próprio trabalho **sem fundamentação externa** —
+não ajuda de forma confiável e frequentemente piora o resultado (Huang et al., ICLR 2024).
+O que faz esta etapa funcionar é a âncora fora do modelo: o "Done when" da task, o gate que
+roda, o `arquivo:linha` que você cita. Tire a âncora e sobra ruído com aparência de rigor —
+por isso "olhei e parece bom" é explicitamente recusado acima.
+
 ### 7. Guardrails determinísticos não se negociam
 
 Alguns limites não dependem de você lembrar — eles são código que roda antes da sua
@@ -84,6 +91,10 @@ caminho de volta:
 - **SPEC com "Concluído" sem `verificado:`** → o bloqueio está certo e você está
   errado. Rode o gate e escreva a evidência, ou volte o status para "Em progresso"
   com o que falta.
+- **Relatório limpo sem lista do que você olhou** → o contrato recusa (ADR-0032), e é
+  a mesma regra da autocrítica acima, agora em código: "não achei nada" sem dizer onde
+  procurou é ausência de busca, não ausência de defeito. Preencha `verificado` /
+  `examinado` com o que você de fato conferiu — ou reconheça que não conferiu.
 
 Contornar guardrail é o comportamento mais grave desta lista. Ele existe porque, em
 execução autônoma, ninguém vai ler o diff a tempo de pegar o erro.

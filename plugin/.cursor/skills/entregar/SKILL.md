@@ -45,24 +45,69 @@ Antes da rodada 1, verifique. Faltando qualquer uma, diga o que falta e pare:
 | Gates conhecidos | `contextos/testes.md` ou comandos evidentes do projeto | Registre como `<a definir>` e avise que a validação fica mais fraca |
 | Telemetria (recomendado) | `.agents/execucoes/` existe | Sem ela o `/validar` não corrobora evidência (ADR-0021) — siga, mas declare |
 
-## Passo 0 — Declarar o orçamento
+## Quem decide o próximo passo (ADR-0029)
 
-Antes de qualquer coisa, anuncie ao usuário e registre. É o contrato da
-autonomia deste ciclo:
+**Não é você.** O arco é uma máquina de estados em `scripts/ciclo.py`, e a
+transição é decidida por código. Você **executa** o passo e **registra** o que
+aconteceu; o script diz o que vem depois.
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ciclo.py estado          # qual o passo agora
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ciclo.py registrar <res> # o que aconteceu
+```
+
+Três coisas deixam de depender da sua disciplina:
+
+- **O orçamento é fato.** Esgotou, `registrar` devolve `escalado` — não existe
+  "mais uma rodada, dessa vez vai".
+- **Correção de revisão reabre a validação.** Você não escolhe voltar pra
+  revisão: o script só tem essa aresta.
+- **Veredicto vem do artefato.** `registrar aprovado` sem relatório em
+  `docs/specs/validacoes/` é recusado; com relatório dizendo bloqueado, também.
+  Vale igual para a revisão (`docs/specs/revisoes/`) desde a v0.24.
+- **Progresso real devolve a ficha (ADR-0032).** O `ciclo.py` lê a contagem de
+  achados do bloco de contrato do relatório e compara com a melhor marca do
+  gate. Baixou de 5 para 2, a rodada não é cobrada; continuou em 5, é. Convergir
+  não é patinar, e o orçamento plano tratava os dois igual. Um **teto absoluto**
+  de rodadas segue valendo por cima — progresso não compra rodada infinita.
+
+E o `gh pr create` fica **bloqueado pelo guardrail** enquanto o estado não for
+`pronto_para_pr` (ADR-0022). Não é sugestão.
+
+Se o `ciclo.py` não estiver disponível (CLI sem os scripts do plugin), conduza o
+arco pela prosa abaixo e **diga ao usuário** que o orçamento está sendo contado
+por você, não imposto.
+
+## Passo 0 — Abrir o ciclo com o orçamento
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ciclo.py abrir SPEC-NNN \
+  --orcamento-criticar 2 --orcamento-validar 2 --orcamento-revisar 2
+# use --spec-aprovada quando a SPEC já existe e já foi aprovada
+```
+
+Anuncie ao usuário o que foi aberto — é o contrato da autonomia deste ciclo:
 
 ```
 🔁 Entrega — <feature/SPEC> — orçamento declarado
 
-Rodadas de correção por gate:  2 (validar) · 2 (revisar)
-Checkpoint com você:           aprovação da SPEC · antes do PR
-Escalação:                     2 falhas materialmente iguais, ou orçamento esgotado
+Rodadas sem progresso por gate: 2 em criticar · validar · revisar — teto 6 cada
+Checkpoint com você:           entendimento · abordagem · SPEC · antes do PR
+Escalação:                     orçamento sem progresso esgotado, teto atingido,
+                               ou 2 falhas materialmente iguais
 Evidência mínima pra encerrar: P1 sem bloqueio no /validar + zero 🔴 no /revisar
 Modo de construção:            mobilizar (paralelo) | rodar (sequencial)
 ```
 
 **Avisa-e-pausa (ADR-0013):** ao cruzar ~80% de qualquer limite, avise no
-checkpoint seguinte. Ao atingir 100%, **pause** e pergunte: encerrar com as
-lacunas declaradas ou ampliar o orçamento?
+checkpoint seguinte. O `ciclo.py estado` mostra as rodadas consumidas a qualquer
+momento, e `painel.py <SPEC>` mostra o arco inteiro numa tela — requisitos,
+fichas, veredicto dos dois gates e trajetória:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/painel.py SPEC-NNN
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/painel.py SPEC-NNN --html quadro.html  # para mandar pra alguém
+```
 
 Escolha do modo de construção: `mobilizar` se as tarefas forem independentes e
 as ferramentas de Agent Teams existirem; `rodar` no resto (e sempre em Codex,
@@ -70,80 +115,142 @@ OpenCode, Cursor ou execução headless).
 
 ## O arco
 
+**Planejamento** (ADR-0033) — três checkpoints, e uma crítica antes de você ver:
+
 ```
-1. especificar ──▶ 2. APROVAÇÃO ──▶ 3. construir ──▶ 4. validar ──┐
-                                          ▲                       │ bloqueio P1
-                                          └──── corrigir ◀────────┘ (máx 2)
-                                                                   │ ok
-                                    ┌──────────────────────────────┘
-                                    ▼
-                              5. revisar ──┐
-                                    ▲      │ achado 🔴
-                                    └ corrigir (máx 2)
-                                           │ ok
-                                           ▼
-                                       6. PR
+enquadrando ─▶ aguardando_entendimento ─▶ desenhando ─▶ aguardando_abordagem
+                        │ ajustar                             │ ajustar
+                        └──────▶ enquadrando                  └──▶ desenhando
+                                                                    │ escolhida
+                              ┌─────────────────────────────────────┘
+                              ▼
+                       especificando ─▶ criticando ──┐ com_achados (orçamento)
+                                            ▲        ▼
+                                            └── corrigindo_spec
+                                            │ limpa
+                                            ▼
+                                   aguardando_aprovacao
 ```
 
-### 1. Especificar
+**Construção:**
 
-Se já existe SPEC aprovada, pule. Senão, rode `/kairos-forge:especificar`. As
-perguntas do Pare e Pergunte chegam ao usuário **agora** — nunca responda por
-ele, nunca preencha com achismo.
+```
+aguardando_aprovacao ─▶ construindo ─▶ validando ──┐
+                             ▲                     │ bloqueado
+                    corrigindo_validacao ◀─────────┘ (orçamento)
+                                                    │ aprovado
+                   ┌────────────────────────────────┘
+                   ▼
+             revisando ──┐ critico (orçamento)
+                         ▼
+                corrigindo_revisao ──▶ validando   ← reabre a validação
+                   │ limpo
+                   ▼
+            pronto_para_pr ──▶ encerrado
+```
 
-### 2. Aprovação da SPEC — gate humano
+Orçamento esgotado em qualquer dos **três** gates (`criticar`, `validar`,
+`revisar`) → `escalado`, terminal até o usuário destravar. Os nomes acima são os
+estados reais do `ciclo.py`.
 
-Apresente: objetivo, requisitos P1, não-objetivos, perguntas abertas e o plano
-de tarefas. Espere **SIM / NÃO / AJUSTAR**. Sem SIM, o arco não avança.
+### 1. `enquadrando` → `aguardando_entendimento` — gate humano 1/3
 
-### 3. Construir
+Rode `/kairos-forge:especificar` até o passo 4: Laura dimensiona, os arquitetos
+interrogam, você **espelha o entendimento**. Nada de SPEC ainda. As perguntas do
+Pare e Pergunte chegam ao usuário **agora** — nunca responda por ele.
+
+`registrar entendimento_pronto`, apresente, e espere: `confirmado` ou `ajustar`.
+
+### 2. `desenhando` → `aguardando_abordagem` — gate humano 2/3
+
+Passo 5: 2-3 abordagens com trade-offs e uma recomendada. Decisão
+arquiteturalmente significativa vira RFC (ADR-0018).
+
+`registrar abordagens_prontas`, apresente, espere: `escolhida` ou `ajustar`.
+**Nunca escolha pelo usuário** — a recomendação é sua, a decisão é dele.
+
+### 3. `especificando` → `criticando` — a crítica adversarial
+
+Escreva a SPEC (passo 6). Depois, **antes de mostrar ao usuário**, ao menos dois
+críticos que não a escreveram atacam premissa, requisito, plano e testabilidade
+(passo 7). Relatório em `docs/specs/criticas/`, com bloco `kairos-critica`.
+
+`registrar limpa` ou `registrar com_achados` — e o veredicto vem do artefato: o
+`ciclo.py` recusa `limpa` contra um relatório que diz o contrário, igual aos
+outros dois gates. Achado volta para `corrigindo_spec`, e a crítica reabre.
+
+Por que antes do usuário: um gate humano que recebe SPEC com premissa furada
+gasta a atenção dele achando o que dois agentes achariam de graça.
+
+### 4. `aguardando_aprovacao` — gate humano 3/3
+
+Apresente: objetivo, requisitos P1, não-objetivos, perguntas abertas, o plano
+de tarefas **e o que a crítica encontrou**. Espere **SIM / NÃO / AJUSTAR**.
+
+`registrar aprovada` ou `registrar recusada`. Sem SIM, o arco não avança — e o
+script não tem aresta que permita avançar.
+
+### 5. `construindo`
 
 `/kairos-forge:mobilizar SPEC-NNN` ou `/kairos-forge:rodar`, conforme o modo
 declarado. Cada tarefa mantém seu gate e seu "Done when". A SPEC só recebe
 status **Concluído** com célula `verificado:` preenchida — o guardrail
 determinístico bloqueia o contrário (ADR-0022).
 
-### 4. Validar — e o primeiro loop
+### 6. `validando` / `corrigindo_validacao` — o primeiro loop
 
-Rode `/kairos-forge:validar SPEC-NNN`.
+Rode `/kairos-forge:validar SPEC-NNN` e registre o veredicto do relatório:
+`registrar aprovado`, `registrar aprovado_com_ressalvas` ou `registrar bloqueado`.
 
-- **Aprovado** → siga para o passo 5.
-- **Aprovado com ressalvas** → siga, carregando as ressalvas para o relatório final.
-- **Bloqueado** → **não devolva ao usuário.** Abra rodada de correção:
-  1. Para cada achado bloqueante, identifique o agente que o relatório indicou
-     (o `/validar` já nomeia: Ricardo em cobertura, Helena em segurança, Carlos
-     em dados, e assim por diante).
-  2. Acione **só os agentes dos achados** — corrigir é cirurgia, não mutirão.
-  3. Rode o gate do requisito afetado e atualize a célula `verificado:`.
-  4. Rode `/kairos-forge:validar SPEC-NNN` de novo.
+Em `corrigindo_validacao`, **não devolva o problema ao usuário**:
 
-Máximo de 2 rodadas. Na terceira, **escale** (ver abaixo).
+1. Para cada achado bloqueante, identifique o agente que o relatório indicou (o
+   `/validar` já nomeia: Ricardo em cobertura, Helena em segurança, Carlos em
+   dados, e assim por diante).
+2. Acione **só os agentes dos achados** — corrigir é cirurgia, não mutirão.
+3. Rode o gate do requisito afetado e atualize a célula `verificado:`.
+4. `registrar pronto` — o script devolve `validando`.
 
-### 5. Revisar — e o segundo loop
+Quantas rodadas cabem não é decisão sua: o `ciclo.py` conta e escala sozinho.
 
-Rode `/kairos-forge:revisar`.
+### 7. `revisando` / `corrigindo_revisao` — o segundo loop
 
-- **Zero 🔴** → siga para o PR (🟠 e 🟡 viram follow-up declarado no corpo do PR).
-- **Qualquer 🔴** → rodada de correção, mesmo protocolo do passo 4, roteando ao
-  agente que o revisor indicou. Depois, `/kairos-forge:revisar` de novo.
+Rode `/kairos-forge:revisar`. Depois: `registrar limpo` (zero 🔴) ou
+`registrar critico`. Achados 🟠 e 🟡 viram follow-up no corpo do PR.
 
 Correção de segurança **nunca vira workaround** — se o único caminho for
-contornar em vez de corrigir, isso é escalação, não rodada.
+contornar em vez de corrigir, use `ciclo.py escalar --motivo "..."`.
 
-Se a correção tocar código de produção, o `/validar` do passo 4 **volta a valer**:
-rode-o antes de reentrar na revisão. Correção que quebra requisito já validado é
-o modo de falha silencioso deste arco.
+Depois de corrigir um 🔴, `registrar pronto` leva a **`validando`**, não a
+`revisando`. Correção que quebra requisito já validado é o modo de falha
+silencioso deste arco — e agora ele está fechado por construção, não por
+lembrança.
 
-### 6. Abrir o PR
+### 7.5. Evidência proporcional à faixa (ADR-0031)
+
+O `/revisar` classificou o diff em faixa de raio de explosão. A faixa decide o que basta:
+
+- **Faixa 1** — gates verdes fecham.
+- **Faixa 2** — gates verdes **e** trajetória limpa: sem alerta de patinação, sem recusa
+  de guardrail registrada, `verificado:` corroborado (`telemetria.py`).
+- **Faixa 3** — **para e pergunta.** Escale com `ciclo.py escalar --motivo "faixa 3:
+  <o que é irreversível>"`. Não existe pontuação que abra essa faixa; é a mesma fronteira
+  do ADR-0024.
+
+Diga a faixa no corpo do PR. Quem revisa precisa saber onde olhar antes de abrir o diff.
+
+### 8. `pronto_para_pr` — abrir o PR
 
 Com validação sem bloqueio em P1 e revisão sem 🔴:
 
 - Título: `<tipo>(<escopo>): <o que muda>` em PT-BR.
 - Corpo: objetivo da SPEC, requisitos P1 com evidência, gates rodados, ressalvas
-  aceitas e follow-ups abertos, rodadas de correção consumidas.
-- **Nunca** faça merge. A integração é decisão do dono do repositório.
+  aceitas e follow-ups abertos, rodadas de correção consumidas (`ciclo.py estado`).
+- **Nunca** faça merge — e o guardrail bloqueia `gh pr merge` durante um ciclo
+  aberto. A integração é decisão do dono do repositório.
+- Depois: `ciclo.py registrar pr_aberto`.
 
-### 7. Encerrar e registrar
+### 9. Encerrar e registrar
 
 Salve `docs/specs/entregas/ENTREGA-<SPEC-NNN>-YYYY-MM-DD.md`:
 
@@ -156,9 +263,10 @@ Salve `docs/specs/entregas/ENTREGA-<SPEC-NNN>-YYYY-MM-DD.md`:
 
 ## Linhagem de rodadas
 
-| # | Etapa | Achado | Agente | Ação | Resultado |
-|---|---|---|---|---|---|
-| 1 | validar | EXP-02 sem teste | Ricardo | teste de erro adicionado | aprovado |
+| # | Etapa | Achado | Agente | Ação | Bloqueios | Resultado |
+|---|---|---|---|---|---|---|
+| 1 | validar | 3 P1 sem teste | Ricardo | testes de erro adicionados | 3 → 1 | ficha devolvida |
+| 2 | validar | EXP-02 sem teste | Ricardo | teste de erro adicionado | 1 → 0 | aprovado |
 
 ## Evidência final
 ## Ressalvas e follow-ups aceitos
@@ -166,13 +274,18 @@ Salve `docs/specs/entregas/ENTREGA-<SPEC-NNN>-YYYY-MM-DD.md`:
 ## Próximo passo
 ```
 
-A tabela de rodadas registra **também as que falharam**. Rodada revertida ou
-escalada é evidência, não vergonha apagada — é o que impede a próxima entrega de
+A linhagem não é digitada de memória: `ciclo.py estado --json` traz o
+`historico` completo com cada transição, o resultado registrado e o horário.
+A tabela registra **também as rodadas que falharam** — rodada revertida ou
+escalada é evidência, não vergonha apagada, e é o que impede a próxima entrega de
 repetir a mesma tentativa.
+
+Ao final, `ciclo.py encerrar --motivo "PR #N aberto"`.
 
 ## Escalação
 
-Pare o arco e devolva ao usuário quando:
+O `ciclo.py` escala **sozinho** quando o orçamento de um gate esgota. Você escala
+manualmente (`ciclo.py escalar --motivo "..."`) quando:
 
 - **Duas falhas materialmente iguais** na mesma etapa. Insistir na terceira é
   gastar orçamento em ruído. Se o gate falha pelo mesmo motivo depois de uma
@@ -183,7 +296,8 @@ Pare o arco e devolva ao usuário quando:
 - **Qualquer gate da fronteira de aprovação** foi tocado.
 - **Pare e Pergunte disparou** durante a construção.
 
-Formato da escalação — específica, com o que você já tentou:
+Formato da escalação — específica, com o que você já tentou (o `historico` do
+`ciclo.py estado --json` tem os dados):
 
 ```
 ⏸️ Entrega pausada na etapa <N> (<etapa>).
@@ -229,7 +343,10 @@ existe para absorver.
 
 ## Regras
 
-- **Orçamento declarado antes da rodada 1.** Sem ele, arco vira consumo sem fim.
+- **O ciclo é aberto no `ciclo.py` antes da rodada 1**, com o orçamento. Quem conta
+  rodada e decide transição é o script — você executa e registra.
+- **Nunca contorne o estado.** Se o guardrail bloqueou o `gh pr create`, o problema
+  não é o guardrail: rode `ciclo.py estado` e faça o que falta.
 - **Falha volta ao agente, não ao usuário** — dentro do orçamento. É isso que
   separa esta skill de encadear comandos à mão.
 - **Só os agentes dos achados** entram na correção.

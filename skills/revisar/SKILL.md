@@ -58,6 +58,30 @@ Use `git diff --name-only` e classifique os arquivos modificados:
 - `*.tsx`, `*.jsx` (componentes) → +Ada
 - Código de produção em geral → +Vinícius
 
+### 3.5. Classificar a faixa de raio de explosão (ADR-0031)
+
+Antes de acionar ninguém, classifique o diff pela pergunta que decide o rigor:
+**quanto custa desfazer se estiver errado?** Confiança é a variável fraca dessa decisão;
+custo do erro é a forte.
+
+| Faixa | O que é | O que a revisão exige |
+|---|---|---|
+| **1 — reversível e contido** | Texto de UI, teste, função isolada com cobertura, doc | Gates verdes. Um merge ruim custa um revert |
+| **2 — reversível mas amplo** | Utilitário compartilhado, adição de schema, contrato interno, qualquer coisa com muitos chamadores | Gates verdes **mais** trajetória limpa: sem patinação registrada, sem recusa de guardrail, evidência corroborada |
+| **3 — difícil de reverter** | Migration destrutiva, deleção de dados, mudança que escreve em produção, dinheiro, credencial | **Humano decide, sempre** — independente de score, de gates verdes e de histórico |
+
+A faixa 3 é a mesma regra do ADR-0024 vista pelo outro lado: lá, tarefa cujo revert você
+não consegue escrever não é autônoma; aqui, mudança cuja reversão é cara não fecha por
+evidência. Mesmo critério, momentos diferentes.
+
+Declare a faixa no topo do relatório. Um diff de 20 linhas na faixa 3 recebe mais escrutínio
+que um de 400 na faixa 1 — e o revisor precisa saber disso antes de começar a ler.
+
+**O histórico entra aqui, não a impressão.** Se o projeto tem `diagnostico.py`, a taxa de
+reversão da área tocada é evidência: área que já voltou atrás três vezes neste trimestre
+sobe de faixa. É o sinal que o modelo não consegue influenciar — e por isso vale mais que
+a autoavaliação dele, que é o input que deve pesar **menos**.
+
 ### 4. Acionar revisores em paralelo (se possível)
 
 Cada revisor lê o diff **na sua dimensão** e produz parecer em primeira pessoa:
@@ -80,6 +104,7 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
 ```markdown
 # Revisão pré-PR — <branch>
 
+**Faixa de raio de explosão:** 1 (contida) / 2 (ampla) / 3 (difícil de reverter)
 **Escopo:** N arquivos, M linhas adicionadas, K linhas removidas
 **Revisores acionados:** Helena, Patrícia[, Vinícius, Marcos, Carlos, Ada conforme]
 **Veredicto agregado:** ✅ aprovado / ⚠️ aprovado com ressalvas / ❌ bloqueado
@@ -105,7 +130,28 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
 ## Próximos passos
 - 🔴 + 🟠: invocar Lucas (backend) e Marina (frontend) pra corrigir
 - 🟡 cobertura: invocar Ricardo (test-automation)
+
+```kairos-revisao
+{
+  "veredicto": "aprovado | aprovado_com_ressalvas | bloqueado",
+  "faixa": 1,
+  "criticos": 0,
+  "examinado": ["api/users.ts (Helena)", "queries/relatorios.sql (Vinícius)", "migrations/ (Carlos)"]
+}
 ```
+```
+
+**Salve o relatório** em `docs/specs/revisoes/REVISAO-<SPEC-NNN ou slug da branch>-YYYY-MM-DD.md`.
+
+Antes da v0.24 a revisão só aparecia na tela: o `/kairos-forge:entregar` registrava
+`limpo` ou `critico` na palavra do agente, enquanto a validação já vinha de artefato.
+Era a metade que faltava — agora as duas alimentam o `ciclo.py` do disco (ADR-0032).
+
+O bloco ` ```kairos-revisao ` é o contrato, com as mesmas três regras do `/validar`:
+**fence própria** (nunca `kairos-validacao` — os dois relatórios têm a linha
+`**Veredicto:**` e sem fences distintas um vira o outro), **coerência**
+(`bloqueado` ⟺ `criticos ≥ 1`) e **prova de cobertura** (`criticos: 0` exige
+`examinado` não-vazio, com arquivo e revisor). O guardrail recusa a escrita se faltar.
 
 ### 6. Regras de bloqueio
 
@@ -118,6 +164,10 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
 - **Não revise você mesmo.** Delegue aos agentes especialistas. Esta skill é orquestradora.
 - **Não suprima achados.** Se Helena marcou 🔴, não suavize pra 🟡 porque o usuário tem pressa.
 - **Não aprove cegamente.** Mesmo PR pequeno passa por Helena + Patrícia.
+- **Faixa 3 nunca fecha por evidência.** Gates verdes e histórico limpo não substituem a
+  decisão humana quando desfazer é caro.
+- **Zero 🔴 exige lista do que foi lido.** Revisão limpa sem `examinado` é recusada pelo
+  contrato — e a recusa está certa (ADR-0032).
 - **Não sugira workaround pra 🔴.** Sugira correção. Workaround vira dívida.
 
 ## Quando NÃO usar esta skill

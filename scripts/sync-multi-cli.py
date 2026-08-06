@@ -47,7 +47,8 @@ FERRAMENTAS_ESCRITA = {"Write", "Edit", "NotebookEdit", "Bash"}
 # Scripts referenciados pelas skills via ${CLAUDE_PLUGIN_ROOT}/scripts/ — o Cursor
 # precisa deles ao lado das skills. Copiados se existirem (a lista tolera ausência
 # para que o sync funcione em qualquer ponto do histórico).
-SCRIPTS_DE_SUPORTE = ["grafo.py", "telemetria.py", "execucao.py", "guardrail.py"]
+SCRIPTS_DE_SUPORTE = ["grafo.py", "telemetria.py", "execucao.py", "guardrail.py",
+                      "diagnostico.py", "ciclo.py", "contrato.py", "painel.py"]
 
 
 def montar_rule(skills: list[str]) -> str:
@@ -60,11 +61,11 @@ def montar_rule(skills: list[str]) -> str:
     lista = ", ".join(sem_mobilizar)
     return f"""\
 ---
-description: "Fábrica de software kairos-forge — 71 agentes e 17 skills em PT-BR"
+description: "Fábrica de software kairos-forge — 71 agentes e 18 skills em PT-BR"
 alwaysApply: true
 ---
 
-🔥 kairos-forge v0.19 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
+🔥 kairos-forge v0.27 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
 
 - As skills da fábrica estão no menu `/` (Agent Skills): {lista}. A skill
   `mobilizar` requer Agent Teams do Claude Code — no Cursor, use `rodar` (cobre

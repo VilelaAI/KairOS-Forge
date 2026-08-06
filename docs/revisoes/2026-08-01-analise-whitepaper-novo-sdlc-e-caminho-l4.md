@@ -275,3 +275,27 @@ depois de algumas semanas de ciclos registrados, e a régua de L4 exige taxa ≥
 verdes de primeira ≥ 70% e zero sessões com produção escrita sem gate. O harness agora
 consegue medir e sustentar isso; provar é a próxima etapa, e ela roda no calendário, não no
 editor.
+
+### 9.1. O que veio depois das três ondas (v0.20 → v0.23)
+
+Trabalho posterior, não puxado por lacuna desta análise, mas que toca a mesma tese e por
+isso fica registrado aqui:
+
+| Versão | O que | Relação com o L4 |
+|---|---|---|
+| v0.20 | Skill `diagnosticar` + `diagnostico.py` (ADR-0028) | Porta de entrada para sistema existente — L4 não é só para greenfield |
+| v0.21 | `ciclo.py`, a máquina de estados do arco (ADR-0029) | Transição decidida por código; o arco deixa de depender do agente lembrar |
+| v0.22 | Conjunto selado + digest, recusa na trajetória, detecção em voo (ADR-0030) | Fecha o Goodhart do artefato e dá a primeira ação **durante** o problema |
+| v0.23 | Higiene do juiz, gold set de comportamento, faixa de raio (ADR-0031) | Ataca a frase do L4 diretamente |
+
+A v0.23 merece a nota. O L4 diz *"o time confia mais no harness do que em revisão
+individual de código"* — e confiança, dita assim, é sentimento. A faixa de raio de explosão
+troca a pergunta que o gate faz (**"quanto custa desfazer?"** no lugar de *"quão confiante
+estou?"*), e a taxa de reversão dá o sinal atuarial que sustenta a resposta. É a diferença
+entre confiar porque o número deu verde e confiar porque o histórico da área diz que
+verde ali significa alguma coisa.
+
+O que a v0.23 explicitamente **não** faz é o passo seguinte que a literatura de eval
+engineering sugere — merge automático quando o gate passa. Integração continua sendo
+decisão do dono do repositório (ADR-0023). L4 é a fábrica merecer a confiança; entregá-la
+é escolha de quem instala.

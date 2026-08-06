@@ -103,16 +103,22 @@ Colete primeiro:
 
 ```bash
 python3 <plugin>/scripts/telemetria.py resumo --dias 30
+python3 <plugin>/scripts/painel.py --dias 30      # o mesmo estado com as SPECs ao lado
 ```
 
 | Critério | Pontos |
 |---|---|
-| Telemetria ativa: `.agents/execucoes/` existe com eventos dos últimos 30 dias | 3 |
+| Telemetria ativa: `.agents/execucoes/` existe com eventos dos últimos 30 dias | 2 |
 | **Taxa de autonomia** (ciclos sem intervenção ÷ ciclos), em escala: < 20% = 0 · 20–49% = 2 · 50–79% = 4 · ≥ 80% = 6 | 0-6 |
 | **Gates verdes de primeira** ≥ 70% (primeira execução do gate já passa — mede a qualidade do contexto, não a sorte) | 3 |
-| Arco fechado em uso: ao menos 1 ciclo de `/kairos-forge:entregar` registrado nos últimos 30 dias | 3 |
+| Arco fechado em uso: ao menos 1 ciclo de `/kairos-forge:entregar` registrado nos últimos 30 dias | 2 |
 | Guardrails determinísticos ativos: `guardrail.py` instalado nos hooks **ou** rodando no CI do projeto (ADR-0022) | 3 |
+| Recusas do guardrail sob controle: `recusas_total` na telemetria com tendência estável ou caindo. Recusa **crescente** é sinal de agente batendo em limite repetidamente — não pontue se estiver subindo (ADR-0030) | 2 |
 | Gatilho por evento: ao menos 1 workflow da fábrica em `.github/workflows/` disparado por PR, falha de CI ou cron (ADR-0026) | 2 |
+
+**Recusa é sinal, não vitória.** O bloqueio ter funcionado não zera o fato de o agente ter tentado: um agente que passa na validação alcançando ferramenta que não tem não está passando. Leia `recusas_por_classe` no `telemetria.py resumo` — recusa concentrada numa classe indica regra mal calibrada (se for falso positivo) ou instrução faltando (se for tentativa legítima recorrente).
+
+**Regra em modo aviso é regra em observação, não regra cumprida.** Se `recusas_em_modo_aviso` está alto e estável, ou a regra vira `bloqueio` ou ela sai — regra que só avisa para sempre é decoração.
 
 Penalidade dura: **sessões com escrita em código de produção e nenhum gate rodado** (campo `sessoes_com_producao_sem_gate`) — subtraia 2 pontos por ocorrência, até zerar a dimensão. Código de produção escrito sem nenhuma verificação é o oposto exato de autonomia confiável; é vibe coding com mais etapas.
 

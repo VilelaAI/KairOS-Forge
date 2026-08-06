@@ -4,9 +4,9 @@ Plugin Claude Code / Codex CLI / OpenCode / Cursor que entrega uma fábrica de s
 
 ## O que este projeto é
 
-Plugin multi-CLI (não runtime, não SDK). 71 agentes (40 core + 31 apoio em 10 squads), 17 skills, hooks por CLI, coordenação por Laura (Tech Lead).
+Plugin multi-CLI (não runtime, não SDK). 71 agentes (40 core + 31 apoio em 10 squads), 18 skills, hooks por CLI, coordenação por Laura (Tech Lead).
 
-Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `especificar` → `analisar-ameacas` (features sensíveis) → `desenhar` (features com UI — ADR-0020) → `mobilizar`/`rodar` → `validar` → `revisar` → `lancar` (deploy com gates — ADR-0020) → `mapear-conhecimento` (quando docs acumulam; alimenta mobilizar/validar seguintes) → `auditar` (semanal) → `evoluir`. A skill `entregar` (ADR-0023) **percorre esse trecho central sozinha** — especificar → construir → validar ⇄ corrigir → revisar ⇄ corrigir → PR, roteando cada falha de volta ao agente responsável dentro de um orçamento declarado, em vez de o usuário encadear os comandos à mão. Fora do fluxo, sob demanda: `otimizar` (ciclo de catraca contra métrica mensurável — ADR-0012) e `migrar` (modernização de legado por estrangulamento, dono Ivan — ADR-0018).
+Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `diagnosticar` (sistema existente — ADR-0028) → `especificar` → `analisar-ameacas` (features sensíveis) → `desenhar` (features com UI — ADR-0020) → `mobilizar`/`rodar` → `validar` → `revisar` → `lancar` (deploy com gates — ADR-0020) → `mapear-conhecimento` (quando docs acumulam; alimenta mobilizar/validar seguintes) → `auditar` (semanal) → `evoluir`. A skill `entregar` (ADR-0023) **percorre esse trecho central sozinha** — especificar → construir → validar ⇄ corrigir → revisar ⇄ corrigir → PR, roteando cada falha de volta ao agente responsável dentro de um orçamento declarado, em vez de o usuário encadear os comandos à mão. Fora do fluxo, sob demanda: `otimizar` (ciclo de catraca contra métrica mensurável — ADR-0012) e `migrar` (modernização de legado por estrangulamento, dono Ivan — ADR-0018).
 
 A memória da fábrica tem **três camadas** (ADR-0009/ADR-0010): **episódica** — sessões capturadas pelo [ai-memory](https://github.com/akitaonrails/ai-memory), companion externo opcional detectado pelas tools MCP `memory_*` (handoff entre CLIs, briefing, busca); **curada** — `decisoes/`, `.agents/memory/`, `contextos/` no repo; **estrutural** — `.agents/grafo/` com entidades e relações com proveniência, dona Olívia (`olivia-grafos`). `/mobilizar` usa o grafo como memória compartilhada entre teammates e `/validar` como base de fatos. O durável sobe de camada (sessão → arquivo → grafo); o repo é a fonte da verdade. Guia: `docs/memoria-persistente.md`.
 
@@ -64,19 +64,25 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `agents/<id>.md` | 71 subagentes (canônico Claude Code) | manual |
 | `.agents/<id>/AGENT.md` | Mirror Codex dos subagents | **gerado** por `scripts/sync-multi-cli.py` |
 | `.cursor/` | Distribuição Cursor completa: agents adaptados (readonly quando consultivo), skills espelhadas, rule `alwaysApply` (lista de skills derivada), scripts de suporte, templates (ADR-0011) | **gerado** por `scripts/sync-multi-cli.py` |
-| `skills/<verbo>/SKILL.md` | 17 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
-| `hooks/hooks.json` | Hooks Claude Code: banner, telemetria em 4 pontos do ciclo (ADR-0021) e guardrails que bloqueiam em `PreToolUse`/`PostToolUse` (ADR-0022) | manual |
+| `skills/<verbo>/SKILL.md` | 18 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
+| `hooks/hooks.json` | Hooks Claude Code: banner, telemetria em 4 pontos do ciclo (ADR-0021), guardrails que bloqueiam em `PreToolUse`/`PostToolUse` (ADR-0022) e alerta de patinação em voo (ADR-0030) | manual |
 | `.codex/hooks.json` | Hooks Codex (apenas SessionStart — Codex não suporta `Write\|Edit` matcher) | manual |
 | `AGENTS.md` | Espelho em inglês do CLAUDE.md raiz, para Codex/OpenCode | manual |
 | `templates/` | `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`, `trilhas/` (blueprints de SPEC por tema — ADR-0013), `ci/` (gatilhos por evento pro projeto do usuário — ADR-0026) | manual |
 | `docs/adr/` | ADRs | manual |
 | `scripts/sync-multi-cli.py` | Regenera `.agents/` (Codex) e `.cursor/` (Cursor) a partir de `agents/` + `skills/` | manual |
 | `scripts/grafo.py` | Parte determinística do grafo de conhecimento (validar, diagnosticar, subgrafo, amostrar, mermaid) | manual |
+| `scripts/diagnostico.py` | Evidência determinística de nível 1 pro `/diagnosticar`: churn, autoria, teste, deps, dívida marcada, tamanho (ADR-0028) | manual |
 | `scripts/execucao.py` | Registro determinístico de execução, chamado pelos hooks — escreve `.agents/execucoes/*.jsonl` (ADR-0021) | manual |
 | `scripts/telemetria.py` | Agrega o registro: `resumo` (números do `/auditar`), `sessoes`, `corroborar` (usado pelo `/validar`) | manual |
-| `scripts/guardrail.py` | Guardrails determinísticos: comando destrutivo, arquivo protegido, integridade da SPEC. Modo hook (exit 2 bloqueia) e modo CLI para os demais CLIs e o CI (ADR-0022) | manual |
-| `scripts/release.py` | Bump de versão com contagens calculadas do filesystem + `check` de consistência (CI) | manual |
+| `scripts/ciclo.py` | Máquina de estados determinística do arco `/entregar`: planejamento em fases, transição, orçamento dos três gates e escalação decididos por código (ADR-0029/0033) | manual |
+| `scripts/guardrail.py` | Guardrails determinísticos: comando destrutivo, arquivo protegido, integridade da SPEC, PR fora de estado, contrato de relatório. Modo hook (exit 2 bloqueia) e modo CLI para os demais CLIs e o CI (ADR-0022/0032) | manual |
+| `scripts/contrato.py` | Módulo puro dos contratos de fronteira dos relatórios: fences `kairos-critica`/`kairos-validacao`/`kairos-revisao`, coerência, prova de cobertura e independência dos críticos. Nunca lança, sem I/O (ADR-0032/0033) | manual |
+| `scripts/painel.py` | Quadro vivo: renderiza SPEC + ciclo + relatórios + trajetória no terminal, em HTML autocontido ou JSON. Renderização, nunca estado — não escreve nada (ADR-0013/0032) | manual |
+| `scripts/release.py` | Bump de versão com contagens calculadas do filesystem, `check` de consistência (CI) e `assinar-contratos` (ADR-0034) | manual |
+| `contratos/ASSINATURA.json` | Versão + sha256 dos contratos de integração; o `check` recusa mudança de forma sem reassinar (ADR-0034) | manual |
 | `evals/roteamento-laura/` | Gold set + `rodar.py` headless do eval de roteamento da Laura (dogfooding — só na raiz, não distribui) | manual |
+| `evals/comportamento-fabrica/` | Gold set dos cinco comportamentos que separam harness de pasta de prompts; 8 dos 13 casos verificados sem modelo no caminho (ADR-0031) | manual |
 | `hermes/` | Ponte Hermes Agent: skills de roteamento/ciclo + workflow + install.sh — a fábrica como motor de engenharia de um agente 24/7 (ADR-0019) | manual |
 | `.github/workflows/ci.yml` | CI: sync sem diff pendente, `release.py check`, segurança dos agentes (só na raiz) | manual |
 
@@ -113,6 +119,14 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 - **ADR-0025**: skill `avaliar` — evals com gold set versionado e rubrica nos cinco eixos como gate, dona Alice; e o eval de roteamento do próprio plugin passa a rodar headless no CI (v0.19.0)
 - **ADR-0026**: gatilhos por evento — `templates/ci/` com revisar no PR, corrigir em CI vermelho (abre PR, nunca escreve na base) e auditar por cron. Instalar só depois de telemetria e guardrails (v0.19.0)
 - **ADR-0027**: fronteira estático/dinâmico declarada e orçamento de contexto verificado no `release.py check`, incluindo o limite de 500 linhas por skill (v0.19.0)
+- **ADR-0028**: skill `diagnosticar` — porta de entrada de sistema existente, dono Rafael: escada de evidência declarada, seis dimensões com rubrica publicada, ganho só com faixa e base, e `diagnostico.py` como camada medida (v0.20.0)
+- **ADR-0029**: máquina de estados do arco — `ciclo.py` decide transição, orçamento e escalação por código; `corrigindo_revisao` só sai para `validando`; veredicto lido do relatório; `gh pr create` bloqueado fora de estado (v0.21.0)
+- **ADR-0030**: artefato ajustado ao resultado (conjunto selado + digest no `/avaliar`, churn de SPEC no `diagnostico.py`), ergonomia de guardrail (recusa na trajetória, modo `aviso` por classe) e detecção de patinação em voo; mais estimativa probabilística no Breno e RICE/WSJF no Hugo (v0.22.0)
+- **ADR-0031**: higiene do juiz no `/avaliar` (família diferente, painel, versão pinada, nunca recompensar forma) com tamanho reconciliado a teto de tempo; `evals/comportamento-fabrica/` com os cinco comportamentos; faixa de raio de explosão no `/revisar`+`/entregar` e taxa de reversão no `diagnostico.py`; auto-merge explicitamente fora (v0.23.0)
+- **ADR-0032**: relação com o LionCode (IDE desktop de orquestração — 32× o código, 0,4× os agentes): não viramos app, passamos a caber dentro de um; e três mecanismos adotados dele — progresso real devolve a ficha no `ciclo.py`, prova de cobertura no `contrato.py` (relatório limpo exige lista do que foi olhado) e fence própria por tipo de relatório, com a revisão passando a ser lida do disco (v0.24.0)
+- **ADR-0033**: planejamento em fases — os checkpoints do `/especificar` viram estado porque prosa não para um runner headless; crítica adversarial da SPEC com dois críticos independentes cobrados pelo parser (a única etapa do arco que não tinha contraditório); teto de 6 teammates por onda no `/mobilizar`; e `limpo` da revisão passa a exigir artefato como os outros dois gates (v0.26.0)
+
+- **ADR-0034**: contrato de integração público e versionado — `ciclo.py estado --json` e as três fences viram superfície estável com campos derivados (`terminal`, `aguardando_humano`, `gate`, `resultados_validos`) para o consumidor não comparar nome de estado; assinatura com digest verificada no CI, porque contrato que ninguém verifica é promessa. Abre a porta para o [kairos-symphony](https://github.com/VilelaAI/kairos-symphony) dirigir o arco em vez de reimplementá-lo (v0.27.0)
 
 ## Limitações conhecidas por CLI
 

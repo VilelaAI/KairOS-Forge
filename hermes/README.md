@@ -20,7 +20,9 @@ Hermes Agent (24/7 no VPS) ──── opera: kanban, cron, memória, aprovaç�
 Claude Code + plugin kairos-forge ──── constrói: a fábrica inteira vive aqui
   │        (Laura roteia os 71 agentes dentro do engine)
   ▼
-especificar → aprovação → rodar → validar → revisar → PR
+especificar → aprovação do fundador → entregar
+                                        └─ construir → validar ⇄ corrigir
+                                           → revisar ⇄ corrigir → PR
 ```
 
 Divisão de papéis — cada camada faz o que só ela faz bem:
@@ -65,10 +67,16 @@ O que acontece:
    abertas.
 3. Você responde **SIM / NÃO / AJUSTAR** (e as perguntas do Pare e Pergunte,
    se houver — a fábrica não inventa conteúdo).
-4. A fábrica constrói (`rodar`), valida contra a SPEC (`validar`) e revisa
-   (`revisar` — Helena/Patrícia/Vinícius). Cada etapa vira evidência no card.
+4. A fábrica roda o **arco fechado** (`/kairos-forge:entregar`, ADR-0023):
+   constrói, valida, corrige o que bloqueou, revisa, corrige o que era crítico —
+   dentro de um orçamento de rodadas declarado. Falha volta ao agente
+   responsável, não a você.
 5. Chega o PR com validação sem bloqueio e revisão sem achados críticos.
    O merge é seu.
+
+Se o orçamento esgotar ou a fábrica precisar de decisão fora da SPEC, ela **para
+e pergunta** em vez de insistir — a pergunta chega ao chat com o que já foi
+tentado.
 
 Também funciona sob demanda: "migra esse monólito com a fábrica" (Ivan,
 `/migrar`), "roda a revisão de segurança da fábrica nesse diff" (`/revisar`).
@@ -84,8 +92,14 @@ ninguém aprova em seu nome.
 
 - `mobilizar` (paralelo via Agent Teams) requer sessão interativa — o ciclo
   headless usa `rodar` (sequencial). Para paralelo, abra `claude` no projeto.
+- A ponte requer o plugin **v0.18.0+** para o arco fechado; em versão anterior a
+  skill `kairos-forge-ciclo` cai no procedimento legado (loop conduzido pelo
+  Hermes, documentado no rodapé dela).
+- A telemetria de execução (ADR-0021) enxerga cada `claude -p` como um ciclo
+  próprio — a dimensão Autonomia do `/auditar` lida com o fluxo headless de
+  forma diferente da sessão interativa. Não é erro; é o desenho.
 - O Claude Code não enxerga a memória do Hermes: as skills da ponte colam o
   contexto relevante no handoff — contexto que não foi colado não existe.
-- As 17 skills do ciclo continuam sendo do plugin (Claude Code/Codex/
+- As 18 skills do ciclo continuam sendo do plugin (Claude Code/Codex/
   OpenCode/Cursor); a ponte adiciona a superfície de operação 24/7, não uma
   quinta distribuição do plugin.

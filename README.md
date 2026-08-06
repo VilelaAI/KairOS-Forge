@@ -6,7 +6,11 @@ Este repositório é um **marketplace catalog** que distribui o plugin `kairos-f
 
 ## O plugin distribuído
 
-**`kairos-forge`** — 71 agentes (40 core + 31 apoio em 10 squads) coordenados por Laura (Tech Lead), 17 skills cobrindo o ciclo completo (onboarding → mapa arquitetural brownfield → especificação rastreável → threat model → execução paralela/sequencial → validação contra SPEC → revisão → grafo de conhecimento com proveniência → auditoria em 5 dimensões → evolução).
+**`kairos-forge`** — 71 agentes (40 core + 31 apoio em 10 squads) coordenados por Laura (Tech Lead), 18 skills cobrindo o ciclo completo (onboarding → mapa arquitetural brownfield → especificação rastreável → threat model → design → execução paralela/sequencial → validação contra SPEC → revisão → lançamento com gates → grafo de conhecimento com proveniência → evals com rubrica → auditoria em 6 dimensões → evolução).
+
+A partir da v0.17 o harness se instrumenta e se contém: **telemetria de execução** gravada por hook (a autonomia da fábrica vira número), **guardrails determinísticos** que bloqueiam comando destrutivo e SPEC sem evidência, o **arco fechado** do `/kairos-forge:entregar` (a falha volta ao agente responsável, não ao usuário) e **gatilhos por evento** prontos para o CI do seu projeto.
+
+E a partir da v0.23 o gate decide pela variável certa: a **faixa de raio de explosão** do `/kairos-forge:revisar` pergunta *quanto custa desfazer*, não *quão confiante estou* — confiança é a variável fraca, e é justamente a que o modelo controla. Mudança contida fecha com gate verde; mudança difícil de reverter é do humano, sempre.
 
 Para projetos em **domínios regulados brasileiros** (LGPD, NRs, OAB, etc.), use [kairos-ai](https://github.com/VilelaAI/kairos-ai) em vez deste — adiciona squads negociais, guardrails legais, assertions binárias e advisor regulatório.
 
@@ -86,7 +90,7 @@ cp -R kairos-forge/plugin/.cursor /caminho/do/projeto/.cursor
 cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
 ```
 
-Isso entrega os 71 subagents, as 17 skills no menu `/`, a rule com o banner da fábrica e os arquivos de suporte (`grafo.py`, templates). `mobilizar` detecta o Cursor e redireciona pra `rodar`.
+Isso entrega os 71 subagents, as 18 skills no menu `/`, a rule com o banner da fábrica e os arquivos de suporte (`grafo.py`, `telemetria.py`, `guardrail.py`, templates). `mobilizar` detecta o Cursor e redireciona pra `rodar`.
 
 ### Hermes Agent (bot 24/7 — ponte)
 
@@ -114,14 +118,22 @@ Após instalar:
 Entrevista de 7 perguntas que prepara seu projeto. Depois disso o ciclo padrão é:
 
 ```
+/kairos-forge:entregar <feature>      # o ciclo inteiro sozinho, até o PR (caminho curto)
+```
+
+Ou etapa por etapa, quando você quer conduzir:
+
+```
 /kairos-forge:especificar <ideia>     # Laura aciona arquitetos, produz SPEC
 /kairos-forge:rodar                   # execução conversacional sequencial
 /kairos-forge:mobilizar SPEC-NNN      # paralelo via Agent Teams (Claude Code)
-/kairos-forge:validar SPEC-NNN        # aceite contra requisitos/gates da SPEC
+/kairos-forge:validar SPEC-NNN        # aceite contra SPEC, corroborado pela trajetória
 /kairos-forge:revisar                 # Helena + Patrícia + outros
+/kairos-forge:lancar                  # deploy com gates, health check e rollback anotado
+/kairos-forge:avaliar <comportamento> # eval com gold set e rubrica, como gate de CI
 /kairos-forge:mapear-conhecimento     # grafo de conhecimento: memória compartilhada da fábrica
 /kairos-forge:otimizar <métrica>      # ciclo de catraca: 1 mudança por rodada, manter ou reverter
-/kairos-forge:auditar                 # semanal, pontuação 0–100
+/kairos-forge:auditar                 # semanal, 0–120 em 6 dimensões (inclui Autonomia medida)
 /kairos-forge:evoluir                 # 1 capacidade nova/semana
 ```
 
@@ -137,12 +149,17 @@ python3 scripts/sync-multi-cli.py
 git add agents/ skills/ .agents/ .cursor/
 ```
 
-Quando bumpar versão, atualize **todos** os 4 arquivos:
+Para bumpar versão, **não edite os manifests à mão** — o script de release calcula as
+contagens do filesystem, injeta versão e números em todos os manifests, banners e docs,
+roda os dois syncs e espelha em `plugin/`:
 
-- `.claude-plugin/marketplace.json` (catalog)
-- `.agents/plugins/marketplace.json` (catalog)
-- `plugin/.claude-plugin/plugin.json` (manifest Claude Code)
-- `plugin/.codex-plugin/plugin.json` (manifest Codex)
+```bash
+python3 scripts/release.py bump 0.20.0   # tudo de uma vez
+python3 scripts/release.py check         # o que o CI roda em todo PR
+```
+
+O `check` verifica versão, contagens, paridade raiz↔`plugin/`, JSON válido, mirrors,
+orçamento de contexto estático e o limite de 500 linhas por skill.
 
 ## Licença
 

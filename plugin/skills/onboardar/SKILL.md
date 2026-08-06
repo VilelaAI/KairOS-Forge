@@ -62,7 +62,7 @@ Para cada resposta, peça parágrafos, não frases. Sugira: "Use ditado por voz 
 1. **Criar estrutura de pastas** no projeto:
 
 ```bash
-mkdir -p contextos decisoes docs/specs docs/specs/validacoes docs/adr .agents/memory .agents/grafo/perfis
+mkdir -p contextos decisoes docs/specs docs/specs/criticas docs/specs/validacoes docs/specs/revisoes docs/adr .agents/memory .agents/grafo/perfis
 ```
 
 2. **Gerar `CLAUDE.md`** na raiz do projeto, usando o template em `templates/CLAUDE.md.template` deste plugin como base, preenchido com as respostas da entrevista.
@@ -191,7 +191,7 @@ Estrutura criada:
 - contextos/ (inclui testes e gates)
 - decisoes/log.md
 - decisoes/estado-operacional.md
-- docs/specs/ e docs/specs/validacoes/
+- docs/specs/ com criticas/, validacoes/ e revisoes/ (um relatório por gate do arco)
 - docs/adr/ (vazio, será preenchido pelo arquiteto)
 - .agents/memory/MEMORY.md (índice — capture lições de incidente conforme aparecerem)
 - .agents/grafo/ (esquema + índice — o grafo em si nasce no primeiro mapear-conhecimento)

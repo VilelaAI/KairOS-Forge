@@ -13,6 +13,19 @@ A fábrica não fica boa em uma semana. Fica boa porque toda semana ela aprende 
 
 **Regra de ouro: uma execução = uma capacidade entregue.** Não três. Não cinco. Uma.
 
+## Quando NÃO usar
+
+- **Melhorar métrica que já existe e você sabe medir** → `/kairos-forge:otimizar`
+  (catraca com manter-ou-reverter). Aqui se decide o que construir; lá se melhora
+  o que já roda.
+- **Construir a capacidade agora.** Esta skill **especifica** o que vem na semana
+  seguinte. Construir dentro dela é como uma entrevista de 5 perguntas vira uma
+  tarde de código sem SPEC.
+- **Semana sem atrito.** Sem dor registrada não há capacidade a escolher — inventar
+  uma para "não passar em branco" adiciona superfície sem demanda, e superfície não
+  usada é a que apodrece.
+- **Mais de uma capacidade.** Se saíram três boas, escolha uma e anote as outras.
+
 ## Pré-requisito
 
 Idealmente o usuário acabou de rodar `/kairos-forge:auditar`. Se não rodou, sugira:

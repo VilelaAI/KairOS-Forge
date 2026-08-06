@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Sem isto, o `if: github.event_name == 'workflow_dispatch'` do job de eval era
+  # condição morta — o botão "Run workflow" não existia, e o eval só rodava no
+  # merge para main. Serve também para rodar o CI à mão em PR cujo push veio de
+  # app token (o GitHub não dispara workflow nesse caso).
+  workflow_dispatch:
 
 jobs:
   verificar:

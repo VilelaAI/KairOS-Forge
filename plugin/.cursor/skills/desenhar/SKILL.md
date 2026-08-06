@@ -19,6 +19,14 @@ passos"), registra a premissa e segue — o usuário ajusta se discordar
 view sem os cinco estados definidos, nenhum critério visual que o `/validar`
 não consiga cobrar.
 
+## Quando NÃO usar
+
+- **Feature sem UI** — job, migração, endpoint interno. Não force tela onde não há.
+- **Criar a SPEC** → `/kairos-forge:especificar`. O DESIGN parte dela; não a substitui.
+- **Revisar o CSS de um PR** → `/kairos-forge:revisar` (Pablo entra lá).
+- **Definir marca do zero** — paleta, tipografia, identidade sem produto. Isso é
+  trabalho de marca; a fábrica entra quando já existe feature para desenhar.
+
 ## Modos de invocação
 
 | Comando | O que faz |

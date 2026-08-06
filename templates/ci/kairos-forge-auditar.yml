@@ -43,26 +43,38 @@ jobs:
             echo "ativo=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Fora do gate de credencial: telemetria e guardrail são Python puro, sem token
+      # e sem chave. São a evidência da dimensão Autonomia — e num repo sem o segredo
+      # configurado continuam sendo a única medida automática do harness.
+      - name: Instalar a fábrica (sem custo)
+        run: git clone --depth 1 https://github.com/VilelaAI/kairos-forge /tmp/forge
+
+      - name: Telemetria da semana (dimensão Autonomia)
+        run: |
+          python3 /tmp/forge/scripts/telemetria.py resumo --dias 30 > telemetria.txt 2>&1 || \
+            echo "sem registro de execução neste runner" > telemetria.txt
+          cat telemetria.txt
+
+      - name: Guardrail morde? (autoteste)
+        # Entra no relatório como evidência, não como gate: a auditoria pontua, não
+        # bloqueia. Guardrail que parou de morder é lacuna de Autonomia com nome.
+        run: |
+          python3 /tmp/forge/scripts/guardrail.py verificar . > autoteste.txt 2>&1 || true
+          python3 /tmp/forge/scripts/guardrail.py autoteste . >> autoteste.txt 2>&1 || true
+          cat autoteste.txt
+
       - uses: actions/setup-node@v4
         if: steps.cred.outputs.ativo == 'true'
         with:
           node-version: "20"
 
-      - name: Instalar Claude Code e a fábrica
+      - name: Instalar Claude Code
         if: steps.cred.outputs.ativo == 'true'
         run: |
           npm install -g @anthropic-ai/claude-code
-          git clone --depth 1 https://github.com/VilelaAI/kairos-forge /tmp/forge
           mkdir -p .claude
           cp -R /tmp/forge/plugin/skills .claude/skills
           cp -R /tmp/forge/plugin/agents .claude/agents
-
-      - name: Telemetria da semana (dimensão Autonomia)
-        if: steps.cred.outputs.ativo == 'true'
-        run: |
-          python3 /tmp/forge/scripts/telemetria.py resumo --dias 30 > telemetria.txt 2>&1 || \
-            echo "sem registro de execução neste runner" > telemetria.txt
-          cat telemetria.txt
 
       - name: Rodar a auditoria
         if: steps.cred.outputs.ativo == 'true'
@@ -71,11 +83,13 @@ jobs:
         run: |
           claude -p "Use a skill kairos-forge:auditar neste projeto. A telemetria \
             desta máquina está em telemetria.txt — se estiver vazia, pontue a \
-            dimensão Autonomia como 'não medida' e diga isso, sem estimar. \
-            Produza APENAS o relatório em markdown, em PT-BR, com a pontuação por \
-            dimensão, o nível estimado (L2/L3/L4) e as 3 lacunas de maior \
-            alavancagem. Não modifique nenhum arquivo — a skill é read-only." \
-            > auditoria.md || true
+            dimensão Autonomia como 'não medida' e diga isso, sem estimar. O \
+            resultado do autoteste do guardrail está em autoteste.txt: se alguma \
+            provocação saiu com resultado errado, isso é lacuna de Autonomia com \
+            nome, e entra nas três. Produza APENAS o relatório em markdown, em \
+            PT-BR, com a pontuação por dimensão, o nível estimado (L2/L3/L4) e as \
+            3 lacunas de maior alavancagem. Não modifique nenhum arquivo — a skill \
+            é read-only." > auditoria.md || true
           test -s auditoria.md || echo "A auditoria não produziu saída." > auditoria.md
 
       - name: Abrir issue com as lacunas
@@ -92,6 +106,14 @@ jobs:
             echo
             echo '```'
             cat telemetria.txt
+            echo '```'
+            echo
+            echo "</details>"
+            echo
+            echo "<details><summary>Guardrail — configuração e autoteste</summary>"
+            echo
+            echo '```'
+            cat autoteste.txt
             echo '```'
             echo
             echo "</details>"

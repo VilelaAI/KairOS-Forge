@@ -112,6 +112,13 @@ jobs:
         if: steps.dedup.outputs.seguir == 'true'
         run: python3 /tmp/forge/scripts/guardrail.py verificar .
 
+      - name: Guardrail morde? (autoteste, antes de propor)
+        # Aqui BLOQUEIA, diferente do `revisar`: este workflow é o único que escreve
+        # código. Uma correção produzida enquanto o guardrail estava frouxo não é
+        # correção verificada — é mudança sem contenção, e não deve virar PR.
+        if: steps.dedup.outputs.seguir == 'true'
+        run: python3 /tmp/forge/scripts/guardrail.py autoteste .
+
       - name: Abrir PR (nunca push na base)
         if: steps.dedup.outputs.seguir == 'true'
         env:

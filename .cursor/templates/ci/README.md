@@ -17,6 +17,10 @@ skill; aqui ela acorda porque um PR abriu, um CI ficou vermelho ou é sexta-feir
 | `kairos-forge-corrigir.yml` | CI do projeto falha | Diagnostica e tenta corrigir, **abrindo PR** | Branch nova + PR |
 | `kairos-forge-auditar.yml` | Segunda-feira 09:00 (cron) | Roda `/kairos-forge:auditar` e abre issue com as 3 lacunas | Issue |
 
+Os três rodam antes o autoteste do guardrail — determinístico, sem token e sem
+chave. Num repo sem `ANTHROPIC_API_KEY` os workflows pulam a parte cara, mas essa
+parte continua rodando.
+
 ## Instalação
 
 ```bash
@@ -46,9 +50,30 @@ seguem, e que você deve manter se editá-los:
    comentário; `auditar` só abre issue. Nenhum tem `contents: write` além do
    necessário.
 4. **Timeout em tudo.** Job travado é custo silencioso.
-5. **Guardrail roda junto.** Cada workflow chama `guardrail.py verificar` antes
-   de aceitar o resultado — em CI não existe `PreToolUse`, então o mesmo contrato
-   é verificado depois (ADR-0022).
+5. **Guardrail roda junto, e prova que morde.** Os três workflows chamam
+   `guardrail.py verificar` (a configuração está bem formada?) e
+   `guardrail.py autoteste` (a regra de fato bloqueia?) — em CI não existe
+   `PreToolUse`, então o mesmo contrato é verificado depois (ADR-0022). Os dois
+   rodam **fora** do gate de credencial: são Python puro, sem token e sem chave,
+   e num repo sem `ANTHROPIC_API_KEY` continuam sendo o único sinal automático
+   sobre o harness. Só o `corrigir` **bloqueia** com o autoteste — é o único que
+   escreve código, e correção produzida com o guardrail frouxo não é correção
+   verificada. O `revisar` mostra no comentário; o `auditar` põe no relatório.
+
+### Quer o guardrail como gate de merge?
+
+O `revisar` informa por desenho. Se você quiser que um PR que afrouxa o guardrail
+fique vermelho, é um workflow de três linhas — determinístico, sem token:
+
+```yaml
+- run: git clone --depth 1 https://github.com/VilelaAI/kairos-forge /tmp/forge
+- run: python3 /tmp/forge/scripts/guardrail.py verificar .
+- run: python3 /tmp/forge/scripts/guardrail.py autoteste .
+```
+
+Marque-o como required check. Ao contrário de um parecer de modelo, aqui vermelho
+significa exatamente uma coisa: alguma regra parou de bloquear, ou passou a
+bloquear coisa benigna.
 
 ## Por que `corrigir` abre PR em vez de commitar direto
 

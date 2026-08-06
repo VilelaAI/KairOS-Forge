@@ -21,6 +21,17 @@ Toda afirmação no mapa precisa de **evidência verificável** (`arquivo:linha`
 - Quando `/kairos-forge:auditar` apontar "código sem dono" ou "acoplamento alto" como gap principal.
 - Antes de decisões arquiteturais grandes que precisariam de ADR.
 
+## Quando NÃO usar
+
+- **Mapear fatos e decisões** — quem decidiu o quê, o que depende de quê →
+  `/kairos-forge:mapear-conhecimento` (grafo). Aqui o mapa é da estrutura do código.
+- **Julgar saúde e priorizar o que atacar** → `/kairos-forge:diagnosticar`, que usa
+  este mapa como insumo da dimensão Manutenibilidade.
+- **Refatorar.** Esta skill é read-only por desenho: o plano sai daqui, a execução é
+  `/kairos-forge:mobilizar` ou `/kairos-forge:migrar`.
+- **Projeto greenfield** — sem código não há inventário. Comece em
+  `/kairos-forge:especificar`.
+
 ## Fluxo
 
 ### 1. Confirmar escopo

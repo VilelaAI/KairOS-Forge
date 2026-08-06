@@ -23,7 +23,16 @@ Não invente cenário improvável. Atacante real custa dinheiro e tempo, e ataca
 - Antes de integrar IA com input de usuário ou de terceiros.
 - Quando a SPEC marcar como "complexo" e tocar segurança/autorização.
 
-Se a feature for trivial (mudança de cor, label), **não use**. Threat model em tudo vira ruído.
+## Quando NÃO usar
+
+- **Auditar código já escrito** → `/kairos-forge:revisar`. Helena entra lá também,
+  mas olhando o diff. Aqui é desenho, antes de a feature existir.
+- **Incidente em andamento** → é o Sérgio (SRE) direto. Modelo de ameaças é
+  trabalho frio; incidente quente é outro ritual.
+- **Mudança trivial** — cor, label, cópia. Threat model em tudo vira ruído, e ruído
+  treina o time a pular a etapa justamente quando ela importa.
+- **Conformidade com referência legal** (LGPD, NRs, OAB) → é o kairos-ai, não o
+  forge (ADR-0002).
 
 ## Fluxo
 

@@ -83,7 +83,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `contratos/ASSINATURA.json` | Versão + sha256 dos contratos de integração; o `check` recusa mudança de forma sem reassinar (ADR-0034) | manual |
 | `exemplos/criar-projeto-demo.sh` | Scaffold de um projeto real (pytest de verdade) para testar a fábrica na máquina; roteiro em `docs/testar-localmente.md` (só na raiz, não distribui) | manual |
 | `evals/roteamento-laura/` | Gold set + `rodar.py` headless do eval de roteamento da Laura (dogfooding — só na raiz, não distribui) | manual |
-| `evals/comportamento-fabrica/` | Gold set dos cinco comportamentos que separam harness de pasta de prompts; 8 dos 13 casos verificados sem modelo no caminho (ADR-0031) | manual |
+| `evals/comportamento-fabrica/` | Gold set dos cinco comportamentos que separam harness de pasta de prompts; 8 dos 13 casos são decididos lendo `.agents/execucoes/`, e em 3 deles a metade mecânica já é decidida pelo `guardrail.py autoteste` — o campo `mecanismo` liga um ao outro e o `release.py check` cobra as duas pontas (ADR-0031) | manual |
 | `hermes/` | Ponte Hermes Agent: skills de roteamento/ciclo + workflow + install.sh — a fábrica como motor de engenharia de um agente 24/7 (ADR-0019) | manual |
 | `.github/workflows/ci.yml` | CI: sync sem diff pendente, `release.py check`, segurança dos agentes (só na raiz) | manual |
 

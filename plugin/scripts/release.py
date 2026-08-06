@@ -55,6 +55,30 @@ CAPACIDADES_FABRICA = {
     "integridade-de-handoff", "conclusao-verificada",
 }
 VERIFICACOES_EVAL = {"deterministica", "juiz", "parcial"}
+# Automações que decidem, sem modelo, a metade mecânica de um caso do gold set.
+# Vocabulário fechado pelo mesmo motivo das capacidades: automação nova entra por
+# ADR, não por string nova no JSONL.
+MECANISMOS_EVAL = {"guardrail.py autoteste"}
+
+# O `check` completo é operação da ÁRVORE RAIZ: só ela tem o catálogo do
+# marketplace e o espelho `plugin/` contra o qual conferir paridade. Rodado de
+# dentro do espelho — que é a árvore que o usuário instala — ele confere o que
+# existe e DECLARA o que não pôde conferir. Antes disso, estourava traceback
+# (`FileNotFoundError` no marketplace.json) em vez de mensagem.
+# Teste estrutural, não por nome de diretório: o espelho não tem `plugin/` dentro.
+ESPELHO = not (RAIZ / "plugin").is_dir()
+SO_NA_RAIZ = {
+    ".claude-plugin/marketplace.json",     # catálogo do marketplace Claude Code
+    ".agents/plugins/marketplace.json",    # catálogo do marketplace Codex
+    "plugin/README.md",                    # README do próprio espelho
+}
+
+
+def na_arvore(rels: list[str]) -> list[str]:
+    """Descarta alvos que, por desenho, não existem na árvore espelhada."""
+    if not ESPELHO:
+        return rels
+    return [r for r in rels if r not in SO_NA_RAIZ and not r.startswith("plugin/")]
 
 
 def derivar():
@@ -123,7 +147,7 @@ def padroes(n, versao):
     tt, tc = n["times_total"], n["times_core"]
     contagem_parens = f"{t} agentes ({c} core + {a} apoio em {sq} squads)"
 
-    return [
+    lista = [
         (".claude-plugin/plugin.json", [
             (r'"version": "\d+\.\d+\.\d+"', f'"version": "{versao}"'),
             (r"\d+ agentes em \d+ times — \d+ core", f"{t} agentes em {tt} times — {c} core"),
@@ -211,12 +235,26 @@ def padroes(n, versao):
         ]),
     ]
 
+    if ESPELHO:
+        # A raiz tem DOIS READMEs — o do marketplace e o do plugin — e só o segundo
+        # é distribuído. Dentro do espelho, `README.md` é o `plugin/README.md` da
+        # raiz: mesmo arquivo, outro caminho. Sem esta troca, o check cobraria do
+        # README do plugin os padrões do README do marketplace.
+        lista = [("README.md" if rel == "plugin/README.md" else rel, subs)
+                 for rel, subs in lista if rel != "README.md"]
+    return lista
+
 
 def aplicar(n, versao, escrever):
     """Aplica os padrões. Com escrever=False só reporta divergências."""
     problemas = []
     for rel, subs in padroes(n, versao):
         arq = RAIZ / rel
+        if not arq.is_file():
+            if ESPELHO and rel in SO_NA_RAIZ:
+                continue
+            problemas.append(f"{rel}: alvo de versão não encontrado")
+            continue
         texto = arq.read_text(encoding="utf-8")
         novo = texto
         for rx, alvo in subs:
@@ -317,6 +355,31 @@ def conferir_contratos() -> list[str]:
     return problemas
 
 
+def conferir_mecanismos(declarados: set[str], ids_do_gold: set[str]) -> list[str]:
+    """Gold set ↔ `guardrail.py autoteste`: cada ponta conhece a outra?"""
+    sys.dont_write_bytecode = True
+    sys.path.insert(0, str(RAIZ / "scripts"))
+    try:
+        import guardrail
+        cobertos = guardrail.casos_cobertos()
+    except Exception as e:
+        return [f"comportamento-fabrica: não deu para ler a cobertura do autoteste — {e}"]
+
+    problemas = []
+    for cid in sorted(cobertos - ids_do_gold):
+        problemas.append(f"guardrail.py: provocação cobre o caso '{cid}', que não existe "
+                         "no gold set — cobertura declarada sobre caso inexistente")
+    for cid in sorted(cobertos - declarados):
+        if cid in ids_do_gold:
+            problemas.append(f"comportamento-fabrica: caso '{cid}' é decidido pelo "
+                             "`guardrail.py autoteste` mas não declara `mecanismo`")
+    for cid in sorted(declarados - cobertos):
+        problemas.append(f"comportamento-fabrica: caso '{cid}' declara mecanismo mas "
+                         "nenhuma provocação do autoteste o cobre — a automação foi "
+                         "renomeada ou removida")
+    return problemas
+
+
 def assinar_contratos() -> None:
     """Regrava ASSINATURA.json a partir da fonte, preservando o comentário."""
     antigo = {}
@@ -342,40 +405,46 @@ def checar():
           f"{n['skills']} skills")
     problemas = aplicar(n, versao, escrever=False)
 
+    if ESPELHO:
+        print("ℹ️  árvore espelhada (sem `plugin/` dentro): catálogo do marketplace e "
+              "paridade root↔plugin/ ficam FORA deste check — rode-o na raiz do repo.")
+
     # JSON válido
-    for rel in [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json",
-                ".codex-plugin/plugin.json", "hooks/hooks.json", ".codex/hooks.json",
-                "plugin/.claude-plugin/plugin.json", "plugin/.codex-plugin/plugin.json",
-                "plugin/hooks/hooks.json", "plugin/.codex/hooks.json",
-                ".agents/plugins/marketplace.json"]:
+    for rel in na_arvore([".claude-plugin/plugin.json", ".claude-plugin/marketplace.json",
+                          ".codex-plugin/plugin.json", "hooks/hooks.json", ".codex/hooks.json",
+                          "plugin/.claude-plugin/plugin.json", "plugin/.codex-plugin/plugin.json",
+                          "plugin/hooks/hooks.json", "plugin/.codex/hooks.json",
+                          ".agents/plugins/marketplace.json"]):
         try:
             json.loads((RAIZ / rel).read_text(encoding="utf-8"))
         except Exception as e:
             problemas.append(f"{rel}: JSON inválido — {e}")
 
     # Mirrors gerados carregam todos os agentes
-    for rel, glob in [(".agents", "*/AGENT.md"), (".cursor/agents", "*.md"),
-                      ("plugin/.agents", "*/AGENT.md"), ("plugin/.cursor/agents", "*.md")]:
-        achou = len(list((RAIZ / rel).glob(glob)))
+    globs = {".agents": "*/AGENT.md", ".cursor/agents": "*.md",
+             "plugin/.agents": "*/AGENT.md", "plugin/.cursor/agents": "*.md"}
+    for rel in na_arvore(list(globs)):
+        achou = len(list((RAIZ / rel).glob(globs[rel])))
         if achou != n["total"]:
             problemas.append(f"{rel}: {achou} agentes no mirror, esperado {n['total']} — rode o sync")
 
-    # Paridade root ↔ plugin/
+    # Paridade root ↔ plugin/ (só faz sentido na raiz — o espelho não tem espelho)
     plugin = RAIZ / "plugin"
-    for d in DIRS_ESPELHADOS + DIRS_GERADOS:
-        raiz_set, plugin_set = arquivos_de(RAIZ, d), arquivos_de(plugin, d)
-        for rel in sorted(raiz_set - plugin_set):
-            problemas.append(f"paridade: {rel} existe na raiz mas não em plugin/")
-        for rel in sorted(plugin_set - raiz_set):
-            problemas.append(f"paridade: plugin/{rel} não existe na raiz")
-        for rel in sorted(raiz_set & plugin_set):
-            if rel in EXCECOES_ESPELHO:
-                continue
+    if not ESPELHO:
+        for d in DIRS_ESPELHADOS + DIRS_GERADOS:
+            raiz_set, plugin_set = arquivos_de(RAIZ, d), arquivos_de(plugin, d)
+            for rel in sorted(raiz_set - plugin_set):
+                problemas.append(f"paridade: {rel} existe na raiz mas não em plugin/")
+            for rel in sorted(plugin_set - raiz_set):
+                problemas.append(f"paridade: plugin/{rel} não existe na raiz")
+            for rel in sorted(raiz_set & plugin_set):
+                if rel in EXCECOES_ESPELHO:
+                    continue
+                if (RAIZ / rel).read_bytes() != (plugin / rel).read_bytes():
+                    problemas.append(f"paridade: {rel} difere entre raiz e plugin/")
+        for rel in ARQUIVOS_ESPELHADOS:
             if (RAIZ / rel).read_bytes() != (plugin / rel).read_bytes():
                 problemas.append(f"paridade: {rel} difere entre raiz e plugin/")
-    for rel in ARQUIVOS_ESPELHADOS:
-        if (RAIZ / rel).read_bytes() != (plugin / rel).read_bytes():
-            problemas.append(f"paridade: {rel} difere entre raiz e plugin/")
 
     # Toda skill aparece nos banners e manifests que listam skills por nome
     for rel in ["hooks/hooks.json", ".codex/hooks.json",
@@ -443,7 +512,7 @@ def checar():
     # apodrece em silêncio se ninguém olhar.
     comp = RAIZ / "evals/comportamento-fabrica/gold.jsonl"
     if comp.exists():
-        vistos, capacidades = set(), Counter()
+        vistos, capacidades, com_mecanismo = set(), Counter(), set()
         for i, linha in enumerate(comp.read_text(encoding="utf-8").splitlines(), 1):
             if not linha.strip():
                 continue
@@ -467,8 +536,24 @@ def checar():
             if caso.get("verificacao") not in VERIFICACOES_EVAL:
                 problemas.append(f"{rel} linha {i}: verificacao '{caso.get('verificacao')}' "
                                  f"inválida — {', '.join(sorted(VERIFICACOES_EVAL))}")
+            mec = caso.get("mecanismo")
+            if mec is not None:
+                if mec not in MECANISMOS_EVAL:
+                    problemas.append(f"{rel} linha {i}: mecanismo '{mec}' desconhecido — "
+                                     f"{', '.join(sorted(MECANISMOS_EVAL))}")
+                elif caso.get("verificacao") != "deterministica":
+                    problemas.append(f"{rel} linha {i}: caso com 'mecanismo' precisa ser "
+                                     "'deterministica' — se uma automação decide, não é juiz")
+                else:
+                    com_mecanismo.add(caso["id"])
         for cap in sorted(CAPACIDADES_FABRICA - set(capacidades)):
             problemas.append(f"comportamento-fabrica: capacidade '{cap}' sem nenhum caso")
+
+        # Ligação nas DUAS direções entre gold set e automação (ADR-0031). Gold set
+        # apontando para provocação renomeada, ou provocação cobrindo caso que já
+        # não existe, são os dois jeitos de a ligação apodrecer em silêncio — e
+        # ambos deixam o conjunto parecendo mais coberto do que está.
+        problemas.extend(conferir_mecanismos(com_mecanismo, vistos))
 
     # Contratos de integração assinados (ADR-0034). O digest existe para que mudança
     # de forma não passe em silêncio — quem consome do outro lado não descobre em
@@ -480,7 +565,11 @@ def checar():
         for p in problemas:
             print(f"  ✗ {p}")
         sys.exit(1)
-    print("✅ consistente — versão, contagens, paridade e mirrors ok")
+    if ESPELHO:
+        print("✅ consistente para uma árvore espelhada — versão, contagens e mirrors ok "
+              "(paridade e catálogo não conferidos aqui)")
+    else:
+        print("✅ consistente — versão, contagens, paridade e mirrors ok")
 
 
 def espelhar():

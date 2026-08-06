@@ -18,6 +18,20 @@ Não implemente correções nesta skill. Você pode ler arquivos, analisar diff,
 - Antes de `/kairos-forge:revisar`, para separar aceite funcional de code review.
 - Quando o usuário perguntar "isso cumpre a spec?".
 
+## Quando NÃO usar
+
+- **Code review do diff** — segurança, performance, legibilidade →
+  `/kairos-forge:revisar`. Aqui a pergunta é só *"cumpre o contrato da SPEC?"*.
+- **Sem SPEC.** Sem contrato não há aceite. **Não infira requisitos do código**: é
+  exatamente o modo de falha que esta skill existe para impedir — o código vira ao
+  mesmo tempo a proposta e o gabarito. Rode `/kairos-forge:especificar` antes.
+- **Antes de a implementação existir.** Validar SPEC recém-escrita só produz uma
+  matriz de "não implementado".
+- **Julgar a SPEC em si** — está boa? cobre o problema? Isso é a crítica adversarial
+  dentro do `/kairos-forge:especificar`, com dois críticos que não a escreveram
+  (ADR-0033).
+- **Medir a fábrica** → `/kairos-forge:auditar`.
+
 ## Fluxo
 
 ### 1. Localizar a SPEC

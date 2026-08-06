@@ -11,6 +11,16 @@ Você está sendo invocado para ativar a fábrica de software num modo onde os a
 
 Diferente das outras skills, esta não cria SPECs nem audita o projeto. Ela ativa um **modo de conversa coletiva** onde múltiplos especialistas da fábrica colaboram em uma tarefa, cada um se apresentando e contribuindo na sua área.
 
+## Quando NÃO usar
+
+- **Executar SPEC em paralelo com file ownership** → `/kairos-forge:mobilizar`
+  (só no Claude Code). O `rodar` é sequencial por desenho — é o caminho nos demais
+  CLIs, não o preferido onde há Agent Teams.
+- **Produzir a SPEC** → `/kairos-forge:especificar`.
+- **O arco fechado até o PR** → `/kairos-forge:entregar`.
+- **Tarefa óbvia de um agente só** — chame o subagente direto. Passar pela Laura para
+  fazer uma pergunta ao Ricardo é cerimônia sem ganho.
+
 ## Modos de invocação
 
 | Comando | O que faz |

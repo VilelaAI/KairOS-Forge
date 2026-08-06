@@ -11,6 +11,21 @@ Você está sendo invocado para iniciar o ciclo de design **antes** da implement
 
 Não codifique. Não chame teammate de implementação. Esta skill produz **artefato textual** — uma SPEC — que servirá de contrato para `/kairos-forge:mobilizar` ou execução manual depois.
 
+## Quando NÃO usar
+
+- **Mudança trivial** — 1 arquivo, menos de 20 linhas, typo, rename, formatação.
+  Execute direto: a SPEC custa mais que a mudança. A Laura já classifica assim no
+  passo 1.1, e o caminho certo é aceitar a classificação dela.
+- **Já existe SPEC para esta feature** — atualize a existente. Duas SPECs para a
+  mesma coisa é como a rastreabilidade se perde sem ninguém perceber.
+- **Sistema existente que você ainda não entende** → `/kairos-forge:diagnosticar`
+  primeiro (ADR-0028), ou `/kairos-forge:mapear-arquitetura` se a dúvida for
+  estrutural. Especificar sobre um sistema opaco produz requisito chutado.
+- **Modernização de legado por estrangulamento** → `/kairos-forge:migrar`, com o
+  Ivan. A SPEC sai de lá, com as fatias já definidas.
+- **Você quer o arco inteiro até o PR** → `/kairos-forge:entregar`, que já roda esta
+  skill como primeira fase e mantém os três checkpoints humanos.
+
 ## Fluxo
 
 ### 1. Laura entra primeiro

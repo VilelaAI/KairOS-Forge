@@ -42,23 +42,40 @@ jobs:
             echo "ativo=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # A fábrica é clonada FORA do gate de credencial de propósito: os dois passos
+      # de guardrail abaixo são Python puro, não consomem token e não precisam de
+      # chave. Num repo sem o segredo configurado, eles continuam sendo o único
+      # sinal automático sobre o harness — e um PR que afrouxa o guardrail é
+      # exatamente o PR em que você não quer o sinal desligado.
+      - name: Instalar a fábrica (sem custo)
+        run: git clone --depth 1 https://github.com/VilelaAI/kairos-forge /tmp/forge
+
+      - name: Guardrail bem formado (o CI não tem PreToolUse — o contrato roda depois)
+        run: python3 /tmp/forge/scripts/guardrail.py verificar . || true
+
+      - name: Guardrail morde? (autoteste)
+        # `verificar` diz se a configuração está bem formada; o autoteste prova que
+        # a regra BLOQUEIA, com controles benignos que devem passar. Não escreve nada
+        # no projeto (roda numa sandbox). Se o PR mexeu em `.agents/guardrails.json`,
+        # é aqui que aparece.
+        id: autoteste
+        run: |
+          python3 /tmp/forge/scripts/guardrail.py autoteste . > autoteste.txt 2>&1 \
+            && echo "ok=true" >> "$GITHUB_OUTPUT" || echo "ok=false" >> "$GITHUB_OUTPUT"
+          cat autoteste.txt
+
       - uses: actions/setup-node@v4
         if: steps.cred.outputs.ativo == 'true'
         with:
           node-version: "20"
 
-      - name: Instalar Claude Code e a fábrica
+      - name: Instalar Claude Code
         if: steps.cred.outputs.ativo == 'true'
         run: |
           npm install -g @anthropic-ai/claude-code
-          git clone --depth 1 https://github.com/VilelaAI/kairos-forge /tmp/forge
           mkdir -p .claude
           cp -R /tmp/forge/plugin/skills .claude/skills
           cp -R /tmp/forge/plugin/agents .claude/agents
-
-      - name: Guardrail (o CI não tem PreToolUse — o contrato roda depois)
-        if: steps.cred.outputs.ativo == 'true'
-        run: python3 /tmp/forge/scripts/guardrail.py verificar . || true
 
       - name: Rodar a revisão da fábrica
         if: steps.cred.outputs.ativo == 'true'
@@ -83,6 +100,20 @@ jobs:
             echo "## 🔥 Revisão da fábrica kairos-forge"
             echo
             cat revisao.md
+            echo
+            if [ "${{ steps.autoteste.outputs.ok }}" != "true" ]; then
+              echo "> ⚠️ **O autoteste do guardrail falhou nesta branch.** Alguma regra"
+              echo "> parou de bloquear, ou passou a bloquear coisa benigna. Leia o"
+              echo "> parecer acima sabendo que o harness não estava inteiro."
+              echo
+            fi
+            echo "<details><summary>Autoteste do guardrail</summary>"
+            echo
+            echo '```'
+            cat autoteste.txt
+            echo '```'
+            echo
+            echo "</details>"
             echo
             echo "---"
             echo "_Parecer automático — não substitui julgamento humano em decisão de design._"

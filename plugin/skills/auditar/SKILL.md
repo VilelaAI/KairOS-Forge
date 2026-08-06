@@ -26,6 +26,17 @@ Read-only: você só lê arquivos e roda comandos de leitura. Não modifica nada
 > v0.17 são 6 e o total é 120. Compare auditorias antigas com novas **pelo percentual**,
 > nunca pelo número absoluto — e registre a mudança de escala no histórico.
 
+## Quando NÃO usar
+
+- **Julgar o código do produto** → `/kairos-forge:revisar` para o diff,
+  `/kairos-forge:diagnosticar` para o sistema inteiro. A nota daqui é da **fábrica**,
+  não do software.
+- **Aceite de SPEC** → `/kairos-forge:validar`.
+- **Decidir o que construir na semana** → `/kairos-forge:evoluir`, logo depois desta:
+  auditar mede, evoluir escolhe.
+- **Todo dia.** A pontuação compara semana com semana. Rodada diariamente ela não se
+  move o bastante para significar nada, e vira ritual sem informação.
+
 ## Fluxo
 
 1. **Identificar o projeto.** Confirmar diretório raiz com o usuário.

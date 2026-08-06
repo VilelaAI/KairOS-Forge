@@ -15,6 +15,17 @@ Você está sendo invocado para preparar este projeto para a fábrica kairos-for
 4. Criar `contextos/testes.md` e `decisoes/estado-operacional.md`
 5. Listar próximos passos para o usuário
 
+## Quando NÃO usar
+
+- **Projeto já onboardado.** Para reconfigurar, edite o `CLAUDE.md` direto; para ver
+  o que falta, `/kairos-forge:auditar`. Reonboardar sobrescreve contexto real,
+  acumulado ao longo de semanas, com respostas de entrevista.
+- **Entender um sistema existente** → `/kairos-forge:diagnosticar` (saúde) ou
+  `/kairos-forge:mapear-arquitetura` (estrutura). Esta entrevista prepara a fábrica;
+  ela não estuda o código.
+- **Instalar o plugin.** Isso é `/plugin marketplace add` — quando esta skill roda, o
+  plugin já está instalado.
+
 ## Antes de começar
 
 Verifique se o projeto já tem `CLAUDE.md`. Se sim, pergunte:

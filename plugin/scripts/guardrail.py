@@ -45,6 +45,13 @@ onde não existe PreToolUse (exit 1 se houver achado):
 
     guardrail.py verificar [CAMINHO]
 
+Autoteste — o guardrail provando que morde no SEU projeto, com a SUA config. Provoca
+cada classe e confere o exit code, incluindo controles benignos que devem passar
+(guardrail que bloqueia tudo é desligado na semana seguinte). Não escreve nada no
+projeto: roda numa sandbox com cópia da config.
+
+    guardrail.py autoteste [CAMINHO]
+
 ## Configuração (opcional)
 
 `.agents/guardrails.json` no projeto:
@@ -420,6 +427,149 @@ def checar_contrato(payload: dict) -> int:
     )
 
 
+# --- autoteste: o guardrail provando que morde --------------------------------------
+#
+# Depois de instalar o plugin, a única forma de saber se o guardrail está de fato
+# bloqueando era digitar payload de hook à mão. Isto automatiza: provoca cada classe
+# de regra e confere o código de saída.
+#
+# Duas decisões que definem o desenho:
+#
+# **Sandbox, não o projeto.** Cada provocação grava recusa em `.agents/execucoes/`
+# (ADR-0030). Rodar direto injetaria eventos falsos na trajetória que a fábrica usa
+# para medir a própria autonomia — o autoteste corromperia justamente o que existe
+# para ser confiável. Então ele copia a config real (`guardrails.json`, `ciclo/`)
+# para um diretório temporário e provoca lá.
+#
+# **Controles benignos.** Guardrail que bloqueia tudo também está quebrado, e "5 de 5
+# bloquearam" não distingue um do outro. Por isso metade das provocações são coisas
+# que DEVEM passar.
+
+FIXTURE_SPEC = """# SPEC-000 — fixture do autoteste
+
+| ID | Requisito | Prioridade | Critério | Status | Verificação |
+|---|---|---|---|---|---|
+| AUT-01 | requisito de mentira | P1 | nenhum | Concluído | — |
+"""
+
+FIXTURE_CONTRATO = (
+    "# Validação — fixture do autoteste\n\n```kairos-validacao\n"
+    '{"veredicto": "aprovado", "bloqueios": 0, "verificado": []}\n```\n'
+)
+
+
+def _sandbox(raiz: Path):
+    """Cópia mínima do projeto onde provocar sem sujar a trajetória real."""
+    import shutil
+    import tempfile
+
+    caixa = Path(tempfile.mkdtemp(prefix="kairos-autoteste-"))
+    (caixa / ".agents").mkdir()
+    cfg = raiz / ".agents" / "guardrails.json"
+    if cfg.is_file():
+        shutil.copy2(cfg, caixa / ".agents" / "guardrails.json")
+    ciclo = raiz / ".agents" / "ciclo"
+    if ciclo.is_dir():
+        shutil.copytree(ciclo, caixa / ".agents" / "ciclo")
+
+    (caixa / "docs" / "specs" / "validacoes").mkdir(parents=True)
+    (caixa / "docs" / "specs" / "SPEC-000-autoteste.md").write_text(
+        FIXTURE_SPEC, encoding="utf-8")
+    (caixa / "docs" / "specs" / "validacoes" / "VALIDACAO-SPEC-000-2000-01-01.md").write_text(
+        FIXTURE_CONTRATO, encoding="utf-8")
+    (caixa / "src").mkdir()
+    (caixa / "src" / "app.py").write_text("# arquivo comum\n", encoding="utf-8")
+    return caixa
+
+
+def provocacoes(caixa: Path) -> list[tuple]:
+    """(nome, modo, payload, deve_bloquear). Bloquear = exit 2 (ou 1 em modo aviso)."""
+    d = str(caixa)
+    return [
+        ("comando destrutivo", "comando",
+         {"command": "rm -rf / --no-preserve-root"}, True),
+        ("escrita no próprio medidor", "escrita",
+         {"file_path": f"{d}/.agents/execucoes/2000-01.jsonl"}, True),
+        ("SPEC 'Concluído' sem verificado:", "spec",
+         {"file_path": f"{d}/docs/specs/SPEC-000-autoteste.md"}, True),
+        ("relatório limpo sem cobertura", "contrato",
+         {"file_path": f"{d}/docs/specs/validacoes/VALIDACAO-SPEC-000-2000-01-01.md"}, True),
+        ("abertura de PR fora de estado", "comando", {"command": "gh pr create"}, True),
+        # Controles: guardrail que bloqueia tudo não guarda, atrapalha.
+        ("rm -rf node_modules (benigno)", "comando",
+         {"command": "rm -rf node_modules"}, False),
+        ("escrita em src/ (benigno)", "escrita", {"file_path": f"{d}/src/app.py"}, False),
+        ("git push na própria branch (benigno)", "comando",
+         {"command": "git push -u origin minha-branch"}, False),
+    ]
+
+
+def autoteste(raiz: Path) -> int:
+    import contextlib
+    import io
+    import shutil
+
+    caixa = _sandbox(raiz)
+    tem_ciclo = (caixa / ".agents" / "ciclo").is_dir() and any(
+        (caixa / ".agents" / "ciclo").glob("*.json"))
+    cfg = carregar_config(raiz)
+
+    print(f"🛡️  Autoteste do guardrail — {raiz.resolve()}")
+    if cfg:
+        print("   Config do projeto em uso (.agents/guardrails.json copiada para a sandbox)")
+    print()
+
+    falhas, pulados = [], []
+    for nome, modo, entrada, deve in provocacoes(caixa):
+        if modo == "comando" and "gh pr create" in entrada.get("command", "") and not tem_ciclo:
+            pulados.append((nome, "nenhum ciclo aberto — abra um com `ciclo.py abrir`"))
+            print(f"  ⏭️  {nome:<38} pulado")
+            continue
+        payload = {"cwd": str(caixa), "tool_input": entrada}
+        with contextlib.redirect_stderr(io.StringIO()) as capturado:
+            try:
+                saida = MODOS[modo](payload)
+            except Exception as e:  # bug no guardrail é falha do autoteste, não silêncio
+                saida = -1
+                capturado.write(f"exceção: {e}")
+        motivo = (capturado.getvalue().splitlines() or [""])[0][:70]
+        bloqueou = saida in (1, 2)
+        ok = bloqueou == deve
+        if ok:
+            detalhe = f"bloqueou (exit {saida})" if deve else f"passou (exit {saida})"
+            print(f"  ✅ {nome:<38} {detalhe}")
+        else:
+            esperado = "bloquear" if deve else "passar"
+            print(f"  ❌ {nome:<38} deveria {esperado}, exit {saida}  {motivo}")
+            falhas.append(nome)
+
+    shutil.rmtree(caixa, ignore_errors=True)
+
+    # Sinais que não são provocação, mas dizem se o harness está ligado.
+    print()
+    hooks = raiz / ".claude" / "settings.json"
+    exec_dir = raiz / ".agents" / "execucoes"
+    n_eventos = sum(1 for a in exec_dir.glob("*.jsonl")
+                    for _ in a.read_text(encoding="utf-8").splitlines()) if exec_dir.is_dir() else 0
+    print(f"   Telemetria: {'✅' if n_eventos else '⚠️ '} {n_eventos} evento(s) em "
+          ".agents/execucoes/" + ("" if n_eventos else " — sem trajetória, o /validar não corrobora"))
+    if not hooks.is_file():
+        print("   Hooks:      ⚠️  .claude/settings.json ausente — em Codex/OpenCode/Cursor é "
+              "esperado; rode `guardrail.py verificar` no CI")
+
+    print()
+    if falhas:
+        print(f"❌ {len(falhas)} provocação(ões) com resultado errado: {', '.join(falhas)}")
+        print("   Guardrail que não morde não guarda; guardrail que morde em tudo é desligado "
+              "na semana seguinte. Os dois são falha.")
+        return 1
+    total = len(provocacoes(caixa)) - len(pulados)
+    print(f"✅ {total} de {total} provocações com o resultado esperado — o harness está mordendo.")
+    for nome, motivo in pulados:
+        print(f"   ⏭️  {nome}: {motivo}")
+    return 0
+
+
 # --- modo CLI (Codex/OpenCode/Cursor, CI, pre-commit) -------------------------------
 
 def verificar(alvo: Path) -> int:
@@ -472,6 +622,9 @@ def main() -> int:
     if args[0] == "verificar":
         alvo = Path(args[1]) if len(args) > 1 else Path.cwd()
         return verificar(alvo)
+
+    if args[0] == "autoteste":
+        return autoteste(Path(args[1]) if len(args) > 1 else Path.cwd())
 
     modo = MODOS.get(args[0])
     if modo is None:

@@ -1,6 +1,6 @@
 # Testar a fábrica na sua máquina
 
-Roteiro para exercitar o que entrou da v0.17 à v0.27 — telemetria, guardrails que
+Roteiro para exercitar o que entrou da v0.17 à v0.28 — telemetria, guardrails que
 bloqueiam, o arco em fases, os contratos de relatório e o quadro vivo — num projeto
 pequeno e **real**.
 
@@ -23,7 +23,7 @@ claude --plugin-dir ../kairos-forge/plugin
 No começo da sessão você deve ver o banner:
 
 ```
-🔥 kairos-forge v0.27 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: ...
+🔥 kairos-forge v0.28 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: ...
 ```
 
 Sem banner, o plugin não carregou: confira o caminho e rode `/reload-plugins`.
@@ -143,6 +143,44 @@ Com dois críticos e a lista preenchida, `registrar limpa` passa.
 
 ## Passo 4 — os guardrails, provocados de propósito
 
+**O caminho curto:**
+
+```bash
+python3 $F/guardrail.py autoteste
+```
+
+```
+🛡️  Autoteste do guardrail — /home/voce/kairos-demo
+
+  ✅ comando destrutivo                     bloqueou (exit 2)
+  ✅ escrita no próprio medidor             bloqueou (exit 2)
+  ✅ SPEC 'Concluído' sem verificado:       bloqueou (exit 2)
+  ✅ relatório limpo sem cobertura          bloqueou (exit 2)
+  ✅ abertura de PR fora de estado          bloqueou (exit 2)
+  ✅ rm -rf node_modules (benigno)          passou (exit 0)
+  ✅ escrita em src/ (benigno)              passou (exit 0)
+  ✅ git push na própria branch (benigno)   passou (exit 0)
+
+✅ 8 de 8 provocações com o resultado esperado — o harness está mordendo.
+```
+
+Três coisas que o autoteste faz e valem entender:
+
+- **Metade das provocações deve PASSAR.** Guardrail que bloqueia tudo é desligado na
+  semana seguinte, e "5 de 5 bloquearam" não distingue um harness sadio de um
+  paranoico. Os controles benignos são metade do valor do teste.
+- **Ele não escreve nada no seu projeto.** Cada provocação gravaria uma recusa em
+  `.agents/execucoes/`; injetar evento falso na trajetória corromperia justamente a
+  medida que a fábrica usa para se avaliar. Ele copia a sua config para uma sandbox
+  e provoca lá.
+- **Usa a SUA config.** Se você pôs uma classe em modo `aviso` no
+  `.agents/guardrails.json`, ela sai exit 1 e continua contando como "bloqueou" —
+  porque avisou, que é o que você configurou.
+
+Rode depois de instalar, e de novo depois de mexer em `.agents/guardrails.json`.
+
+### O caminho longo, para ver o payload
+
 Simule o payload que o Claude Code manda para o hook:
 
 ```bash
@@ -159,7 +197,7 @@ exit=2
 **Exit 2 é o que bloqueia** — o Claude Code cancela a ferramenta e entrega o motivo ao
 modelo. Exit 0 passa, exit 1 avisa sem impedir.
 
-Quatro provocações que valem fazer:
+As mesmas provocações, uma a uma:
 
 | Provocação | Payload | Esperado |
 |---|---|---|

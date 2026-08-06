@@ -103,6 +103,7 @@ Colete primeiro:
 
 ```bash
 python3 <plugin>/scripts/telemetria.py resumo --dias 30
+python3 <plugin>/scripts/guardrail.py autoteste     # o guardrail morde mesmo?
 python3 <plugin>/scripts/painel.py --dias 30      # o mesmo estado com as SPECs ao lado
 ```
 

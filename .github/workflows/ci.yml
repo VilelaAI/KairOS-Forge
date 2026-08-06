@@ -52,6 +52,12 @@ jobs:
           python3 scripts/guardrail.py verificar .
           python3 plugin/scripts/guardrail.py verificar plugin
 
+      - name: Guardrail morde? (autoteste)
+        # Provoca cada classe e confere o exit code, com controles benignos que
+        # devem passar. Pega regressão nas duas direções — regra que parou de
+        # morder e regra que passou a morder demais.
+        run: python3 scripts/guardrail.py autoteste .
+
   eval-roteamento:
     name: Eval de roteamento da Laura
     runs-on: ubuntu-latest

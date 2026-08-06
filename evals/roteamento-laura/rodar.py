@@ -15,15 +15,23 @@ Uso:
     python3 evals/roteamento-laura/rodar.py --amostra 15       # subconjunto barato
     python3 evals/roteamento-laura/rodar.py --limiar 85 --json
 
-Sem o CLI `claude` disponível, sai com 0 e diz que pulou — CI sem chave não
-quebra o build por ausência de credencial (isso seria falso vermelho, e falso
+Sem o CLI `claude` **ou sem credencial**, sai com 0 e diz que pulou — CI sem chave
+não quebra o build por ausência de credencial (isso seria falso vermelho, e falso
 vermelho treina o time a ignorar o vermelho).
+
+A distinção que este script precisa acertar: **0% por regressão de roteamento** e
+**0% por CLI não autenticado** produzem o mesmo número e significam coisas opostas.
+A segunda não é medida nenhuma — reportá-la como falha do eval é exatamente o falso
+vermelho que a regra acima quer evitar. Por isso a autenticação é detectada em dois
+momentos: antes de começar (variáveis de ambiente) e na primeira resposta (assinatura
+de erro de auth), porque `claude` instalado e deslogado passa no `which`.
 
 Só stdlib.
 """
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -79,6 +87,21 @@ def extrair_id(resposta: str, ids: list[str]) -> str | None:
     return achados[0] if len(achados) == 1 else None
 
 
+# Assinaturas de "o CLI não está autenticado". Falha de credencial não é resultado
+# de eval — é ausência de eval.
+SEM_AUTH = re.compile(
+    r"not logged in|please run /login|invalid[^\n]{0,24}api[_ -]?key|"
+    r"authentication (failed|error)|unauthorized|credit balance",
+    re.IGNORECASE,
+)
+
+
+def tem_credencial() -> bool:
+    """Alguma credencial plausível no ambiente? Não valida — só evita rodar à toa."""
+    return any(os.environ.get(v) for v in
+               ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_AUTH_TOKEN"))
+
+
 def perguntar(pedido: str, cat: str) -> str:
     r = subprocess.run(
         ["claude", "-p", INSTRUCAO.format(catalogo=cat, pedido=pedido)],
@@ -104,11 +127,16 @@ def main() -> int:
     limiar = opcao("--limiar", float, LIMIAR_PADRAO)
     amostra = opcao("--amostra", int, None)
 
-    if not shutil.which("claude"):
-        print("⏭️  eval de roteamento pulado — CLI `claude` não disponível.\n"
+    def pular(motivo: str) -> int:
+        print(f"⏭️  eval de roteamento pulado — {motivo}.\n"
               "   A parte determinística (ids do gold set existem em agents/) roda "
               "no `release.py check`.")
         return 0
+
+    if not shutil.which("claude"):
+        return pular("CLI `claude` não disponível")
+    if not tem_credencial():
+        return pular("sem credencial no ambiente (ANTHROPIC_API_KEY e afins ausentes)")
 
     cat, ids = catalogo()
     lista = casos()[:amostra] if amostra else casos()
@@ -121,6 +149,10 @@ def main() -> int:
         except subprocess.TimeoutExpired:
             erros.append({"pedido": pedido, "esperado": esperado, "obtido": "<timeout>"})
             continue
+        # `claude` instalado e deslogado responde a mesma coisa para todo pedido.
+        # Isso não é 0% de acurácia: é eval que não rodou.
+        if SEM_AUTH.search(bruto):
+            return pular(f"CLI `claude` não autenticado (resposta: {bruto[:60].strip()!r})")
         obtido = extrair_id(bruto, ids)
         if obtido in esperado:
             acertos += 1

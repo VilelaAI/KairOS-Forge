@@ -1,6 +1,6 @@
 # kairos-forge
 
-> Marketplace single-plugin do **kairos-forge**: fábrica de software autônoma com 71 agentes em PT-BR para Claude Code, Codex CLI, OpenCode e Cursor. MIT.
+> Marketplace single-plugin do **kairos-forge**: fábrica de software autônoma com 71 agentes em PT-BR para Claude Code, Codex CLI, OpenCode, Cursor e Kiro CLI. MIT.
 
 Este repositório é um **marketplace catalog** que distribui o plugin `kairos-forge`. Para a documentação completa do plugin (agentes, skills, comandos), veja [`plugin/README.md`](plugin/README.md).
 
@@ -34,6 +34,7 @@ kairos-forge/                          ← repo = MARKETPLACE
     ├── skills/, agents/, hooks/
     ├── .agents/, .codex/               ← mirror Codex (gerado)
     ├── .cursor/                        ← distribuição Cursor (gerada)
+    ├── .kiro/                          ← distribuição Kiro CLI (gerada)
     ├── docs/, templates/, scripts/
     └── ...
 ```
@@ -91,6 +92,28 @@ cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
 ```
 
 Isso entrega os 71 subagents, as 18 skills no menu `/`, a rule com o banner da fábrica e os arquivos de suporte (`grafo.py`, `telemetria.py`, `guardrail.py`, templates). `mobilizar` detecta o Cursor e redireciona pra `rodar`.
+
+### Kiro CLI
+
+Também sem marketplace — cópia única da distribuição gerada `.kiro/` (ADR-0035):
+
+```bash
+git clone https://github.com/VilelaAI/kairos-forge.git
+
+# Por projeto:
+cp -R kairos-forge/plugin/.kiro /caminho/do/projeto/.kiro
+
+# Ou global (todos os projetos):
+cp -R kairos-forge/plugin/.kiro/* ~/.kiro/
+```
+
+Isso entrega as 71 configs de agente (`.kiro/agents/<id>.json` — persona no `prompt`, allow-list traduzida pros nomes do Kiro, hooks de telemetria e guardrail embutidos), as 18 skills, o steering sempre carregado e os arquivos de suporte. Comece pela Laura: `kiro-cli chat --agent laura-tech-lead`.
+
+O Kiro é o **segundo CLI onde o harness inteiro roda** — hooks que bloqueiam com exit 2 e allow-list por ferramenta, não só a pasta de prompts.
+
+### Kiro Crew (gateway 24/7 — ponte)
+
+O [Kiro Crew](https://github.com/kirodotdev/KiroCrew) roda cada agente como `kiro-cli acp --agent <id>` e entrega o que a fábrica deliberadamente não faz: persistência entre sessões, agenda, webhook, Slack/Telegram, aprovações interativas e sandbox de OS. **O Gateway é o *quando/onde*; a fábrica é o *como*.** Ele dirige o arco pelo contrato do ADR-0034 em vez de reimplementá-lo. Guia em [`docs/kirocrew.md`](plugin/docs/kirocrew.md) (ADR-0035).
 
 ### Hermes Agent (bot 24/7 — ponte)
 

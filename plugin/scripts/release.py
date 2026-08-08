@@ -35,7 +35,7 @@ ARQUIVOS_ESPELHADOS = ["CLAUDE.md", "AGENTS.md", ".claude-plugin/plugin.json"]
 # Diferem por desenho entre root e plugin/ — nunca copiar nem comparar.
 EXCECOES_ESPELHO = {"docs/adr/0004-multi-cli.md"}
 # Gerados pelo sync — paridade é verificada, cópia é via sync de cada lado.
-DIRS_GERADOS = [".agents", ".cursor"]
+DIRS_GERADOS = [".agents", ".cursor", ".kiro"]
 
 # Orçamento de contexto ESTÁTICO (ADR-0027) — o que é pago em toda interação,
 # independente de relevância. Teto em chars, com folga sobre o estado atual.
@@ -44,6 +44,7 @@ DIRS_GERADOS = [".agents", ".cursor"]
 ORCAMENTO_ESTATICO = {
     "banner SessionStart": 600,
     "rule Cursor (alwaysApply)": 2500,
+    "steering Kiro (inclusion: always)": 2500,
     "templates/CLAUDE.md.template": 8000,
 }
 LIMITE_LINHAS_SKILL = 500  # regra 3 do CLAUDE.md, agora verificada
@@ -156,6 +157,10 @@ def padroes(n, versao):
             (r"v\d+\.\d+ ativo \(Cursor\) — \d+ agentes \(\d+ core \+ \d+ apoio em \d+ squads\)",
              f"v{v_curta} ativo (Cursor) — {contagem_parens}"),
             (r"As \d+ personas", f"As {t} personas"),
+            # Constantes que alimentam o steering e o banner do Kiro (ADR-0035).
+            (r'VERSAO = "\d+\.\d+"', f'VERSAO = "{v_curta}"'),
+            (r'CONTAGEM = "\d+ agentes \(\d+ core \+ \d+ apoio em \d+ squads\)"',
+             f'CONTAGEM = "{contagem_parens}"'),
         ]),
         ("CLAUDE.md", [
             (r"fábrica de software de \d+ agentes", f"fábrica de software de {t} agentes"),
@@ -355,10 +360,33 @@ def checar():
 
     # Mirrors gerados carregam todos os agentes
     for rel, glob in [(".agents", "*/AGENT.md"), (".cursor/agents", "*.md"),
-                      ("plugin/.agents", "*/AGENT.md"), ("plugin/.cursor/agents", "*.md")]:
+                      (".kiro/agents", "*.json"),
+                      ("plugin/.agents", "*/AGENT.md"), ("plugin/.cursor/agents", "*.md"),
+                      ("plugin/.kiro/agents", "*.json")]:
         achou = len(list((RAIZ / rel).glob(glob)))
         if achou != n["total"]:
             problemas.append(f"{rel}: {achou} agentes no mirror, esperado {n['total']} — rode o sync")
+
+    # Configs do Kiro: JSON válido, allow-list não vazia e hooks pendurados nos
+    # matchers do Kiro (ADR-0035). Allow-list vazia aqui seria o mesmo furo que o
+    # check-agent-security.py já barra do lado canônico — só que invisível, porque
+    # ninguém lê arquivo gerado.
+    for cfg in sorted((RAIZ / ".kiro/agents").glob("*.json")):
+        try:
+            dados = json.loads(cfg.read_text(encoding="utf-8"))
+        except Exception as e:
+            problemas.append(f".kiro/agents/{cfg.name}: JSON inválido — {e}")
+            continue
+        if not dados.get("tools"):
+            problemas.append(f".kiro/agents/{cfg.name}: `tools` vazio — allow-list perdida na tradução")
+        if not str(dados.get("prompt", "")).strip():
+            problemas.append(f".kiro/agents/{cfg.name}: `prompt` vazio — persona perdida na tradução")
+        matchers = {h.get("matcher") for h in dados.get("hooks", {}).get("preToolUse", [])}
+        if not {"fs_write", "execute_bash"} <= matchers:
+            problemas.append(
+                f".kiro/agents/{cfg.name}: preToolUse sem matcher de fs_write/execute_bash "
+                "— guardrail pendurado em matcher que não casa não guarda nada"
+            )
 
     # Paridade root ↔ plugin/
     plugin = RAIZ / "plugin"
@@ -402,6 +430,7 @@ def checar():
         estatico = {
             "banner SessionStart": banner["hooks"]["SessionStart"][0]["hooks"][0]["command"],
             "rule Cursor (alwaysApply)": (RAIZ / ".cursor/rules/kairos-forge.mdc").read_text(encoding="utf-8"),
+            "steering Kiro (inclusion: always)": (RAIZ / ".kiro/steering/kairos-forge.md").read_text(encoding="utf-8"),
             "templates/CLAUDE.md.template": (RAIZ / "templates/CLAUDE.md.template").read_text(encoding="utf-8"),
         }
         for nome, texto in estatico.items():
@@ -421,6 +450,27 @@ def checar():
             problemas.append(
                 f"{p.relative_to(RAIZ)}: {n_linhas} linhas, limite {LIMITE_LINHAS_SKILL} "
                 "— material pesado vai em references/ da skill"
+            )
+
+    # Docs citam só agentes que existem. Nasceu de um erro real: o ADR-0035 e o
+    # guia do Kiro foram escritos com `--agent laura-techlead`, e o id é
+    # `laura-tech-lead` — comando que o leitor copia, cola e vê falhar. O padrão
+    # é estreito de propósito (só `--agent <id>` e `<id>.json`), para pegar o
+    # comando copiável sem virar um linter de prosa.
+    # Ancorado no contexto do Kiro de propósito: `--agent` sozinho também é flag do
+    # ai-memory (`--agent claude-code`), que nomeia CLI, não persona. Casar os dois
+    # daria alarme falso em doc correto — e alarme falso treina o time a ignorar.
+    ids = set(n["ids_agentes"])
+    citacao = re.compile(r"kiro-cli[^\n]*?--agent\s+([a-z0-9][a-z0-9-]+)"
+                         r"|\.kiro/agents/([a-z0-9][a-z0-9-]+)\.json")
+    for rel_doc in ["CLAUDE.md", "AGENTS.md", "README.md"] + \
+                   [str(p.relative_to(RAIZ)) for p in sorted((RAIZ / "docs").rglob("*.md"))]:
+        texto = (RAIZ / rel_doc).read_text(encoding="utf-8")
+        citados = {a or b for a, b in citacao.findall(texto)}
+        for aid in sorted(citados - ids - {"<id>"}):
+            problemas.append(
+                f"{rel_doc}: cita `{aid}` como agente do Kiro, mas agents/{aid}.md não existe "
+                "— comando que o leitor copia e vê falhar"
             )
 
     # Gold set do eval de roteamento cita só agentes que existem

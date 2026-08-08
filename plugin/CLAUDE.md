@@ -1,6 +1,6 @@
 # kairos-forge — guia para o Claude
 
-Plugin Claude Code / Codex CLI / OpenCode / Cursor que entrega uma fábrica de software de 71 agentes em PT-BR. Você está editando o próprio plugin.
+Plugin Claude Code / Codex CLI / OpenCode / Cursor / Kiro CLI que entrega uma fábrica de software de 71 agentes em PT-BR. Você está editando o próprio plugin.
 
 ## O que este projeto é
 
@@ -27,16 +27,16 @@ Não duplique funcionalidade entre os dois. Se algo é **regulatório**, vai pro
 
 ## Workflow para mudanças (CRÍTICO)
 
-Os arquivos canônicos são **`agents/`** e **`skills/`** (formato Claude Code). Os diretórios **`.agents/`** (Codex) e **`.cursor/`** (Cursor) são GERADOS automaticamente.
+Os arquivos canônicos são **`agents/`** e **`skills/`** (formato Claude Code). Os diretórios **`.agents/`** (Codex), **`.cursor/`** (Cursor) e **`.kiro/`** (Kiro CLI) são GERADOS automaticamente.
 
 **Sempre que alterar agents/ ou skills/, rode antes de commitar:**
 
 ```bash
 python3 scripts/sync-multi-cli.py
-git add agents/ skills/ .agents/ .cursor/
+git add agents/ skills/ .agents/ .cursor/ .kiro/
 ```
 
-Sem o sync, usuários de Codex CLI e Cursor pegam versão desatualizada.
+Sem o sync, usuários de Codex CLI, Cursor e Kiro pegam versão desatualizada.
 
 **Para bump de versão, use o script de release** — ele calcula as contagens
 (agentes/times/squads/skills) do filesystem, injeta versão+contagens em todos os
@@ -64,13 +64,15 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `agents/<id>.md` | 71 subagentes (canônico Claude Code) | manual |
 | `.agents/<id>/AGENT.md` | Mirror Codex dos subagents | **gerado** por `scripts/sync-multi-cli.py` |
 | `.cursor/` | Distribuição Cursor completa: agents adaptados (readonly quando consultivo), skills espelhadas, rule `alwaysApply` (lista de skills derivada), scripts de suporte, templates (ADR-0011) | **gerado** por `scripts/sync-multi-cli.py` |
+| `.kiro/` | Distribuição Kiro CLI completa: `agents/<id>.json` com allow-list traduzida e hooks embutidos, skills espelhadas, `steering/` sempre carregado, scripts de suporte, templates (ADR-0035) | **gerado** por `scripts/sync-multi-cli.py` |
 | `skills/<verbo>/SKILL.md` | 18 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
 | `hooks/hooks.json` | Hooks Claude Code: banner, telemetria em 4 pontos do ciclo (ADR-0021), guardrails que bloqueiam em `PreToolUse`/`PostToolUse` (ADR-0022) e alerta de patinação em voo (ADR-0030) | manual |
 | `.codex/hooks.json` | Hooks Codex (apenas SessionStart — Codex não suporta `Write\|Edit` matcher) | manual |
 | `AGENTS.md` | Espelho em inglês do CLAUDE.md raiz, para Codex/OpenCode | manual |
 | `templates/` | `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`, `trilhas/` (blueprints de SPEC por tema — ADR-0013), `ci/` (gatilhos por evento pro projeto do usuário — ADR-0026) | manual |
 | `docs/adr/` | ADRs | manual |
-| `scripts/sync-multi-cli.py` | Regenera `.agents/` (Codex) e `.cursor/` (Cursor) a partir de `agents/` + `skills/` | manual |
+| `scripts/sync-multi-cli.py` | Regenera `.agents/` (Codex), `.cursor/` (Cursor) e `.kiro/` (Kiro) a partir de `agents/` + `skills/` | manual |
+| `scripts/kiro.py` | Fronteira com o Kiro: tabela única de ferramentas (usada na allow-list E nos matchers de hook) e adaptador de payload que preserva o exit 2 do guardrail (ADR-0035) | manual |
 | `scripts/grafo.py` | Parte determinística do grafo de conhecimento (validar, diagnosticar, subgrafo, amostrar, mermaid) | manual |
 | `scripts/diagnostico.py` | Evidência determinística de nível 1 pro `/diagnosticar`: churn, autoria, teste, deps, dívida marcada, tamanho (ADR-0028) | manual |
 | `scripts/execucao.py` | Registro determinístico de execução, chamado pelos hooks — escreve `.agents/execucoes/*.jsonl` (ADR-0021) | manual |
@@ -128,17 +130,22 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 
 - **ADR-0034**: contrato de integração público e versionado — `ciclo.py estado --json` e as três fences viram superfície estável com campos derivados (`terminal`, `aguardando_humano`, `gate`, `resultados_validos`) para o consumidor não comparar nome de estado; assinatura com digest verificada no CI, porque contrato que ninguém verifica é promessa. Abre a porta para o [kairos-symphony](https://github.com/VilelaAI/kairos-symphony) dirigir o arco em vez de reimplementá-lo (v0.27.0)
 
+- **ADR-0035**: suporte ao Kiro CLI (`.kiro/` gerado — allow-list traduzida por `kiro.py`, hooks bloqueantes com exit 2, steering sempre carregado) e a fronteira com o [Kiro Crew](https://github.com/kirodotdev/KiroCrew): o Gateway é o *quando/onde*, o forge é o *como*; ele consome o contrato do ADR-0034 rodando cada agente como `kiro-cli acp --agent <id>`, e sua memória/síntese automática de skills **não** vira camada do forge — o repositório continua a fonte da verdade (v0.28.0)
+
 ## Limitações conhecidas por CLI
 
-| Item | Claude Code | Codex CLI | OpenCode | Cursor |
-|---|---|---|---|---|
-| `/kairos-forge:mobilizar` (Agent Teams) | ✅ | ❌ skill avisa e sugere `rodar` | ❌ skill avisa e sugere `rodar` | ❌ skill avisa e sugere `rodar` |
-| Hook PostToolUse pedagógico | ✅ | ❌ | ❌ (sem `oh-my-opencode`) | ❌ |
-| SessionStart banner | ✅ | ✅ | ❌ (sem `oh-my-opencode`) | ✅ via rule `alwaysApply` |
-| Subagents com persona | ✅ nativo | ✅ mirror `.agents/` | ⚠️ via cópia de `agents/` | ✅ `.cursor/agents/` (allow-list degrada pra `readonly`) |
-| Telemetria de execução (ADR-0021) | ✅ completa (4 pontos do ciclo) | ⚠️ só SessionStart — sem trajetória útil | ❌ | ❌ |
+| Item | Claude Code | Codex CLI | OpenCode | Cursor | Kiro CLI |
+|---|---|---|---|---|---|
+| `/kairos-forge:mobilizar` (Agent Teams) | ✅ | ❌ skill avisa e sugere `rodar` | ❌ skill avisa e sugere `rodar` | ❌ skill avisa e sugere `rodar` | ❌ skill avisa e sugere `rodar` |
+| Hook PostToolUse pedagógico | ✅ | ❌ | ❌ (sem `oh-my-opencode`) | ❌ | ✅ `postToolUse` |
+| SessionStart banner | ✅ | ✅ | ❌ (sem `oh-my-opencode`) | ✅ via rule `alwaysApply` | ✅ `agentSpawn` + `steering/` |
+| Subagents com persona | ✅ nativo | ✅ mirror `.agents/` | ⚠️ via cópia de `agents/` | ✅ `.cursor/agents/` (allow-list degrada pra `readonly`) | ✅ `.kiro/agents/*.json` (**allow-list preservada**) |
+| Telemetria de execução (ADR-0021) | ✅ completa (4 pontos do ciclo) | ⚠️ só SessionStart — sem trajetória útil | ❌ | ❌ | ✅ completa (⚠️ sob ACP, ver ADR-0035) |
+| Guardrail bloqueante (ADR-0022) | ✅ `PreToolUse` exit 2 | ❌ só `guardrail.py verificar` no CI | ❌ | ❌ | ✅ `preToolUse` exit 2 (⚠️ idem) |
 
 Nos CLIs sem hooks completos, a dimensão **Autonomia** do `/auditar` pontua 0 e o `/validar` pula a corroboração de trajetória — comportamento honesto, não bug: sem hook não há trajetória. O caminho nesses CLIs é rodar os checks equivalentes no CI do projeto (`templates/ci/`).
+
+O Kiro é o **segundo CLI com o harness completo** — hooks bloqueantes e allow-list de verdade, não só a pasta de prompts. A ressalva: não foi confirmado em execução se os hooks do kiro-cli disparam em sessões **ACP**, que é como o Kiro Crew dirige o CLI (ADR-0035). Se não dispararem, degrada como Codex/Cursor — e sob Kiro Crew o caminho é pendurar o `guardrail.py verificar` no gate de PreToolUse do próprio Gateway.
 
 A skill `mobilizar` tem detecção embutida — quando rodada em CLI sem suporte, ela orienta o usuário a usar `rodar` em vez disso.
 

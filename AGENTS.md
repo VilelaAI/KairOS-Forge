@@ -5,7 +5,7 @@
 
 ## Project Overview
 
-**kairos-forge** is a Claude Code / Codex CLI / OpenCode / Cursor plugin that delivers a 71-agent software factory in Brazilian Portuguese. The factory consists of **40 core agents** organized in 11 teams (leadership, product, architecture, frontend, mobile, backend, data, data science, quality, platform, docs) and **31 support agents** in 10 squads (microcopy, narrative, naming, value, observability, DX, architectural review, requirements engineering, project & delivery management, governance).
+**kairos-forge** is a Claude Code / Codex CLI / OpenCode / Cursor / Kiro CLI plugin that delivers a 71-agent software factory in Brazilian Portuguese. The factory consists of **40 core agents** organized in 11 teams (leadership, product, architecture, frontend, mobile, backend, data, data science, quality, platform, docs) and **31 support agents** in 10 squads (microcopy, narrative, naming, value, observability, DX, architectural review, requirements engineering, project & delivery management, governance).
 
 The factory is coordinated by **Laura (Tech Lead)** who analyzes task complexity and only mobilizes the relevant agents. Agents respond in the first person with consistent personas.
 
@@ -23,10 +23,12 @@ The two plugins are independent — one does not import from the other. The core
 - `hooks/hooks.json` — Claude Code hooks (SessionStart banner, PostToolUse pedagogical reminder, and the deterministic execution recorder wired at four lifecycle points — ADR-0021)
 - `.agents/` — Same content as `agents/` and `skills/`, in Codex CLI format (`<id>/AGENT.md` for agents, `skills/<name>/SKILL.md` for skills)
 - `.cursor/` — Generated Cursor distribution (ADR-0011): adapted subagents in `agents/` (`tools:`/`model:` stripped; `readonly: true` when the original allow-list has no write-capable tool), mirrored skills (open Agent Skills format), an `alwaysApply` rule replacing the SessionStart banner, plus `scripts/grafo.py` and `templates/` so `${CLAUDE_PLUGIN_ROOT}` references resolve
+- `.kiro/` — Generated Kiro CLI distribution (ADR-0035): agent configs in `agents/<id>.json` (persona as `prompt`, allow-list translated to Kiro tool names, telemetry and guardrail hooks embedded — Kiro keeps hooks in the agent config, not in a global file), mirrored skills, an always-loaded `steering/` file replacing the SessionStart banner, plus support scripts and `templates/`
 - `.codex/hooks.json` — Codex-specific hooks (no `Write|Edit` matcher; only Bash supported)
 - `templates/` — `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`, `trilhas/` (theme-based SPEC blueprints — guided mode, ADR-0013)
 - `docs/adr/` — Architecture Decision Records
-- `scripts/sync-multi-cli.py` — Regenerates `.agents/` (Codex) and `.cursor/` (Cursor) from `agents/` + `skills/` whenever the canonical Claude Code sources change
+- `scripts/sync-multi-cli.py` — Regenerates `.agents/` (Codex), `.cursor/` (Cursor) and `.kiro/` (Kiro CLI) from `agents/` + `skills/` whenever the canonical Claude Code sources change
+- `scripts/kiro.py` — Kiro boundary (ADR-0035): the single tool-name table used by BOTH the translated allow-list and the hook matchers, plus a hook-payload adapter that preserves the guardrail's exit 2
 - `scripts/grafo.py` — Deterministic side of the knowledge graph (validate, diagnose, k-hop subgraph, human sample, Mermaid export for SPEC/RFC/ADR); the graph itself lives in the user project at `.agents/grafo/`
 - `scripts/diagnostico.py` — Deterministic level-1 evidence for `/diagnosticar`: churn and code hotspots, authorship concentration on those hotspots, test-to-source ratio, dependency inventory, declared-debt density, file-size distribution. Measures only; scoring and causal inference are the skill's judgment (ADR-0028)
 - `scripts/execucao.py` — Deterministic execution recorder called by hooks; appends one event per lifecycle point to `.agents/execucoes/*.jsonl` in the user project. Never blocks, never writes to stdout, never records secrets (ADR-0021)
@@ -45,18 +47,21 @@ The two plugins are independent — one does not import from the other. The core
 
 ## Cross-platform compatibility
 
-| Component | Claude Code | Codex CLI | OpenCode | Cursor |
-|---|---|---|---|---|
-| Plugin manifest | `.claude-plugin/plugin.json` | `.codex-plugin/plugin.json` | n/a | n/a |
-| Marketplace catalog | `.claude-plugin/marketplace.json` | `.agents/plugins/marketplace.json` | n/a | n/a |
-| Install command | `/plugin marketplace add` (TUI) | `codex plugin marketplace add` + TUI selection | `cp -R skills/ .opencode/skills/` | `cp -R plugin/.cursor <project>/.cursor` (or `~/.cursor/`) |
-| Skills | `skills/<name>/SKILL.md` | same `skills/` folder (shared) | `.opencode/skills/` or `.claude/skills/` | `.cursor/skills/` (generated mirror, Agent Skills standard) |
-| Subagents | `agents/<id>.md` | `.agents/<id>/AGENT.md` | via copy of `agents/` | `.cursor/agents/<id>.md` (generated, adapted frontmatter) |
-| SessionStart hook | `hooks/hooks.json` | `.codex/hooks.json` | via `oh-my-opencode` | `.cursor/rules/kairos-forge.mdc` (`alwaysApply`) |
-| PostToolUse hook | `hooks/hooks.json` | ❌ (only Bash matcher) | via `oh-my-opencode` | ❌ |
-| Execution telemetry (ADR-0021) | ✅ full (4 lifecycle points) | ⚠️ SessionStart only — no usable trajectory | ❌ | ❌ |
-| Agent Teams (`/mobilizar`) | ✅ native (`TeamCreate`) | ❌ no equivalent | ❌ no equivalent | ❌ (parallel subagents exist, but no Teams protocol) |
-| Project instructions | `CLAUDE.md` | `AGENTS.md` | `CLAUDE.md` (fallback) or `AGENTS.md` | `AGENTS.md` |
+| Component | Claude Code | Codex CLI | OpenCode | Cursor | Kiro CLI |
+|---|---|---|---|---|---|
+| Plugin manifest | `.claude-plugin/plugin.json` | `.codex-plugin/plugin.json` | n/a | n/a | n/a |
+| Marketplace catalog | `.claude-plugin/marketplace.json` | `.agents/plugins/marketplace.json` | n/a | n/a | n/a |
+| Install command | `/plugin marketplace add` (TUI) | `codex plugin marketplace add` + TUI selection | `cp -R skills/ .opencode/skills/` | `cp -R plugin/.cursor <project>/.cursor` (or `~/.cursor/`) | `cp -R plugin/.kiro <project>/.kiro` (or `~/.kiro/`) |
+| Skills | `skills/<name>/SKILL.md` | same `skills/` folder (shared) | `.opencode/skills/` or `.claude/skills/` | `.cursor/skills/` (generated mirror, Agent Skills standard) | `.kiro/skills/<name>/SKILL.md` (generated mirror, same format) |
+| Subagents | `agents/<id>.md` | `.agents/<id>/AGENT.md` | via copy of `agents/` | `.cursor/agents/<id>.md` (generated, adapted frontmatter) | `.kiro/agents/<id>.json` (generated, allow-list translated) |
+| SessionStart hook | `hooks/hooks.json` | `.codex/hooks.json` | via `oh-my-opencode` | `.cursor/rules/kairos-forge.mdc` (`alwaysApply`) | `agentSpawn` hook + `.kiro/steering/` |
+| PostToolUse hook | `hooks/hooks.json` | ❌ (only Bash matcher) | via `oh-my-opencode` | ❌ | ✅ `postToolUse` (per-agent config) |
+| Blocking guardrail (ADR-0022) | ✅ `PreToolUse` exit 2 | ❌ CI-only (`guardrail.py verificar`) | ❌ | ❌ | ✅ `preToolUse` exit 2 (⚠️ unverified under ACP) |
+| Execution telemetry (ADR-0021) | ✅ full (4 lifecycle points) | ⚠️ SessionStart only — no usable trajectory | ❌ | ❌ | ✅ full (⚠️ unverified under ACP) |
+| Agent Teams (`/mobilizar`) | ✅ native (`TeamCreate`) | ❌ no equivalent | ❌ no equivalent | ❌ (parallel subagents exist, but no Teams protocol) | ❌ (subagents + `spawn_run` exist, but no Teams protocol) |
+| Project instructions | `CLAUDE.md` | `AGENTS.md` | `CLAUDE.md` (fallback) or `AGENTS.md` | `AGENTS.md` | `.kiro/steering/` |
+
+Kiro is the **second CLI where the whole harness runs** — not just the prompt folder. Hooks block with exit 2 and the per-tool allow-list survives translation (Cursor degrades it to `readonly`). The caveat: it was not confirmed in execution whether kiro-cli hooks fire in **ACP** sessions, which is how Kiro Crew drives the CLI. If they don't, it degrades like Codex/Cursor — and under Kiro Crew the mounting point is the Gateway's own PreToolUse gate (ADR-0035).
 
 **Skills are shared, not duplicated** between Claude Code and Codex — both discover skills at `skills/<name>/SKILL.md` when packaged as plugin. Cursor has no plugin/marketplace concept, so it receives a **generated** mirror under `.cursor/skills/` (same SKILL.md files, open Agent Skills standard — regenerated by the sync script, never edited by hand).
 
@@ -179,6 +184,24 @@ cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
 
 This delivers the 71 subagents (`.cursor/agents/`), the 18 skills in the `/` menu (`.cursor/skills/`), an `alwaysApply` rule with the factory banner and `${CLAUDE_PLUGIN_ROOT}` path resolution, plus `scripts/grafo.py` and `templates/`. Project instructions: Cursor reads `AGENTS.md` — `/kairos-forge:onboardar` offers to generate it alongside `CLAUDE.md`. `mobilizar` detects Cursor and redirects to `rodar`.
 
+### Kiro CLI
+
+Kiro has no plugin marketplace either — install is a copy of the generated `.kiro/` distribution (ADR-0035):
+
+```bash
+git clone https://github.com/VilelaAI/kairos-forge.git
+
+# Per project:
+cp -R kairos-forge/plugin/.kiro /path/to/project/.kiro
+
+# Or globally, for all projects:
+cp -R kairos-forge/plugin/.kiro/* ~/.kiro/
+```
+
+This delivers the 71 agent configs (`.kiro/agents/<id>.json` — persona as `prompt`, allow-list translated to Kiro tool names, telemetry and guardrail hooks embedded), the 18 skills (`.kiro/skills/`), an always-loaded steering file, plus the support scripts and templates. Start from Laura: `kiro-cli chat --agent laura-tech-lead`.
+
+Under **Kiro Crew**, each agent runs as `kiro-cli acp --agent <id>` and the Gateway supplies what the factory deliberately doesn't — persistence between sessions, scheduling, webhooks, Slack/Telegram, interactive approvals, OS sandbox. The Gateway is the *when/where*; the factory is the *how*. It drives the arc through the ADR-0034 contract (`ciclo.py estado --json`) rather than reimplementing it. See `docs/kirocrew.md`.
+
 ### OpenCode
 
 ```bash
@@ -208,7 +231,7 @@ OpenCode reads `CLAUDE.md` as a fallback for `AGENTS.md`, so project instruction
 - Version bumps go through `python3 scripts/release.py bump X.Y.Z` — it computes agent/team/squad/skill counts from the filesystem, injects version+counts everywhere, runs both syncs and mirrors `plugin/`; `python3 scripts/release.py check` is what CI runs on every PR
 - Changed Laura's prompt, an agent `description` or routing → run the routing eval (`evals/roteamento-laura/`) with Alice before committing
 
-Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) after sync.
+Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode/Kiro) after sync.
 
 ## Decisions made
 
@@ -246,6 +269,7 @@ Always run `/reload-plugins` (Claude Code) or restart the CLI (Codex/OpenCode) a
 - **ADR-0032**: Relationship with [LionCode](https://github.com/LionLabsCommunity/LionCodeLabs) (Electron IDE for agent orchestration — 216k lines of TS to our 6.8k; 31 agents to our 71) and three mechanisms adopted from it. The strategic call: **we don't become an app, we become something that fits inside one** — their seed catalog is a data structure, which makes it a fifth sync target (ADR-0004), not a new product. The three: (a) *real progress refunds the token* — the flat budget punished convergence, treating 5→3→1 blockers the same as 5→5→5; the cycle now compares against the best mark reached and only burns a round when nothing improved, with an absolute ceiling on top; (b) *proof of coverage* — a clean report must list what was examined, enforced by the parser, not the prompt ("found nothing" without saying where you looked is absence of search, not absence of defect); (c) *one fence per report type*, because a wrong field can be ignored but a wrong fence simply doesn't open. Consequence: `/revisar` now saves a report to disk, so both halves of the arc are artifact-fed instead of taken on the agent's word (v0.24.0)
 - **ADR-0033**: Phased planning and adversarial SPEC critique. The `/especificar` checkpoints — mirror the understanding, pick the approach, approve the SPEC — already existed as prose; they become **states**, because prose stops a human who is reading and stops nothing in a script-driven arc. Then the gap inventory: the SPEC was the *only* stage of the arc with no adversary (validation has Ricardo and Patrícia, review has Helena and Patrícia, evals have a judge panel — the SPEC had its author). New `criticando` gate: at least two critics who did not write it attack premise, requirement, plan and testability, with independence enforced by the parser (two distinct names in `criticado_por` — one pair of eyes is review, not critique). Runs *before* the human gate, so the user isn't spending attention on what two agents would find for free. Plus a numeric wave cap of 6 teammates in `/mobilizar` (judgment only works while someone is watching), and a symmetry fix: `registrar limpo` on review now requires the artifact too (v0.26.0)
 - **ADR-0034**: A public, versioned integration contract. Analysing [kairos-symphony](https://github.com/VilelaAI/kairos-symphony) after proposing to build a runtime that already existed: 8.5k lines of TS, 161 tests, daemon spawning CLIs via `child_process` — the exact shape proposed, already built. The two state machines *nest* (its 6 work-item states around our 17 arc states; its `in_progress` is where the whole arc lives), but the seam had a defect that was ours: its autonomous loop stops on a `checkpoint.md` **written by the agent**, which is precisely what v0.21–v0.26 removed here. It reimplemented because on our side there was no contract to depend on. So `ciclo.py estado --json` and the three fences become a stable surface — with derived fields (`terminal`, `aguardando_humano`, `gate`, `resultados_validos`) whose only job is to stop consumers comparing state-name strings, and a sha256 signature verified by `release.py check`: change the shape without re-signing and CI goes red (v0.27.0)
+- **ADR-0035**: Kiro CLI support and the Kiro Crew boundary. Two different questions behind one name: **kiro-cli** is a *CLI* (its skills use the same `SKILL.md` format, its agents take a per-tool allow-list, and its hooks block with exit 2 like Claude Code's) so it becomes a first-class sync target — `.kiro/` generated, the second CLI where the whole harness runs. **Kiro Crew** is a *Gateway*, the same category as Hermes and LionCode: it is the *when/where* (persistence, scheduling, Slack, approvals, sandbox) to the factory's *how*, and it drives the arc through the ADR-0034 contract rather than reimplementing it. One tool-name table in `scripts/kiro.py` feeds both the allow-list and the hook matchers, because a guardrail on a matcher that never fires guards nothing. Explicitly **not** adopted: the Gateway's memory and automatic skill synthesis — the repo stays the source of truth, and skills enter through an ADR (v0.28.0)
 
 ## Critical design constraints
 

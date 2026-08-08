@@ -28,6 +28,7 @@ qualquer achado de severidade ALTA — pronto para CI ou pre-commit.
 """
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -113,15 +114,46 @@ PADROES_HOOK = [
 ]
 
 
+def comandos_de_hook(dados) -> list[str]:
+    """Extrai só os `command` de dentro de um bloco `hooks` (recursivo)."""
+    achados: list[str] = []
+    if isinstance(dados, dict):
+        for chave, valor in dados.items():
+            if chave == "command" and isinstance(valor, str):
+                achados.append(valor)
+            else:
+                achados.extend(comandos_de_hook(valor))
+    elif isinstance(dados, list):
+        for item in dados:
+            achados.extend(comandos_de_hook(item))
+    return achados
+
+
 def checar_hooks(raiz: Path) -> int:
     n = 0
+    # No Kiro os hooks moram DENTRO da config de cada agente (ADR-0035) — sem
+    # incluí-las aqui, 71 arquivos com comando de shell ficariam fora da varredura
+    # de injeção, e a cobertura relatada diria "2 arquivos" achando que cobriu tudo.
+    #
+    # Nesses arquivos varremos APENAS os comandos de hook, nunca o texto inteiro:
+    # a persona ocupa quase todo o arquivo, e a Alice (evals) e a Laura (que roteia
+    # para evals) escrevem "eval" em prosa. Varrer o corpo acusaria as duas por
+    # falarem do próprio trabalho — e alarme falso treina o time a ignorar alarme.
     candidatos = [raiz / "hooks" / "hooks.json", raiz / ".codex" / "hooks.json"]
+    candidatos += sorted((raiz / ".kiro" / "agents").glob("*.json"))
     for arq in candidatos:
         if not arq.is_file():
             continue
         n += 1
-        texto = arq.read_text(encoding="utf-8")
         nome = rel(raiz, arq)
+        texto = arq.read_text(encoding="utf-8")
+        if arq.parent.name == "agents":
+            try:
+                cfg = json.loads(texto)
+            except ValueError:
+                registrar(MEDIA, "injeção em hook", f"{nome}: JSON inválido — não auditado")
+                continue
+            texto = "\n".join(comandos_de_hook(cfg.get("hooks", {})))
         for regex, descricao in PADROES_HOOK:
             if regex.search(texto):
                 registrar(MEDIA, "injeção em hook", f"{nome}: {descricao}")

@@ -144,8 +144,13 @@ ls .agents/execucoes/                  # apareceu .jsonl? então os hooks rodam
 
 ## O que ainda está aberto
 
-- **`/mobilizar` em paralelo.** Continua exigindo Agent Teams do Claude Code. O
-  Kiro tem subagents e o Crew tem `spawn_run` — é o candidato mais promissor a
-  um segundo caminho, mas não foi testado. Por ora use `rodar`.
+- **`/mobilizar` em paralelo.** Continua exigindo Agent Teams do Claude Code —
+  por ora use `rodar`. O `spawn_run` foi investigado: ele entrega paralelismo
+  com personas distintas, fan-in e detecção de patinação, mas **não** entrega as
+  duas coisas de que a skill realmente depende — quadro de tarefas compartilhado
+  com `depends_on` e mensagem em voo ao lead. O caminho viável é converter cada
+  aresta `depends_on` em fronteira de onda (o teto de onda do ADR-0033 já vai
+  nessa direção), aceitando perder granularidade do DAG e o escalonamento em
+  voo. Análise completa no [ADR-0035](adr/0035-suporte-kiro-e-fronteira-kirocrew.md).
 - **Duas pontes com o mesmo papel.** `hermes/` e Kiro Crew ocupam o mesmo lugar
   na arquitetura. Manter as duas tem custo; escolher é uma decisão em aberto.

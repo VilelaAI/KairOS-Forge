@@ -164,9 +164,51 @@ afirmações foi confirmada em execução, e as três mudam o desenho se estiver
 3. **A categoria `web`.** É categoria aceita no campo `tools`, não nome de tool builtin.
    Se sumir, o sintoma é a config recusada na carga — barulhento, que é como se quer.
 
-### Fora de escopo, registrado
+### Fora de escopo, registrado: `/mobilizar` sobre `spawn_run`
 
-`/mobilizar` continua exigindo Agent Teams do Claude Code. O Kiro tem subagents e o Crew
-tem `spawn_run`, o que faz dele o candidato mais promissor a um segundo caminho para o
-paralelismo — mas prometer sem testar seria inventar capacidade. Por ora, o steering
-aponta para `rodar`, como nos demais CLIs.
+`/mobilizar` continua exigindo Agent Teams do Claude Code, e o steering aponta para
+`rodar` como nos demais CLIs. Mas a pergunta "o `spawn_run` do Crew não daria um segundo
+caminho?" foi investigada, e a resposta é específica o bastante para valer registro.
+
+O `/mobilizar` não depende de *paralelismo* — depende de um **protocolo de coordenação**.
+Separando uma coisa da outra:
+
+| O que a skill usa | Kiro / Kiro Crew |
+|---|---|
+| Personas distintas em paralelo | ✅ `spawn_run` + `toolsSettings.subagent` (`availableAgents`/`trustedAgents`) |
+| Ondas com fan-in | ✅ nativo — o pai espera todos os subagentes terminarem |
+| Tier de modelo por teammate | ✅ campo `model` na config de cada agente |
+| File ownership | ✅ é convenção de prompt aqui também — porta sem tradução |
+| Detecção de patinação | ✅ `spawn_list` marca `stalled` sem atividade por 120s |
+| **Quadro compartilhado com `depends_on`** | ❌ não documentado |
+| **Mensagem em voo ao lead** | ❌ subagente é contexto isolado; só devolve no fim |
+
+As duas últimas linhas são as que decidem, porque são exatamente o que o prompt do
+teammate manda usar: *"Use `TaskList` pra checar status"* e *"se travar, não force —
+`SendMessage(team_lead)`"*. Sem elas não existe porte fiel. (O `tasks.md` do modo spec
+do Kiro é a coisa mais próxima de um quadro, mas é arquivo sem escrita atômica: dois
+teammates marcando tarefa ao mesmo tempo se sobrescrevem. Quadro que perde marcação é
+pior que quadro nenhum.)
+
+**Mas existe uma variante viável, e ela sai de uma decisão que já tomamos.** O teto de
+onda do ADR-0033 já diz que time maior roda em ondas com fan-in entre elas, e a skill já
+observa que *"quando a onda seguinte depende da anterior (schema antes de endpoint), a
+divisão já reflete isso"*. Levando isso ao limite: **se toda aresta `depends_on` virar
+fronteira de onda, o quadro compartilhado deixa de ser necessário** — o pai faz
+fan-out, espera, faz fan-in, e só então abre a onda seguinte. É precisamente a forma do
+`spawn_run`.
+
+O que se perde, declarado:
+
+1. **Granularidade do DAG.** Uma tarefa passa a esperar a onda inteira em vez de esperar
+   só a sua dependência. Custa tempo de parede quando a onda é desbalanceada — é o
+   contrário do que o "teste da aresta real" do passo 4 otimiza.
+2. **Escalonamento em voo.** O teammate bloqueado não pede ajuda no meio: ele devolve o
+   bloqueio como resultado, e o pai decide no fan-in. Isso é uma perda de ergonomia, mas
+   note que é uma perda na direção certa — vira uma decisão do código no fan-in em vez
+   de uma conversa no meio do voo, que é o que o ADR-0029 já prefere em todo o resto.
+
+Não construímos agora: seria skill nova (minor + ADR próprio), e nada disso foi rodado
+contra um Crew instalado — as duas ausências acima são "não documentado", não "verificado
+que não existe". Fica registrado que o caminho existe, qual é a forma dele, e que o
+preço é conhecido.

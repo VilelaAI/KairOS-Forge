@@ -34,8 +34,19 @@ dependências** — não tem equivalente em nenhuma versão do multi-agente do C
 `update_plan` é uma lista de afazeres privada do agente, não um quadro com arestas,
 posse e contagem.
 
-Ou seja: a skill estava presa a um CLI por **uma** ferramenta, não por quatro. E essa
-uma é a que menos precisava ser do CLI.
+A auditoria foi então estendida aos outros dois CLIs, e o resultado desmonta a premissa
+inteira:
+
+| | Lançar em paralelo | Falar com worker em voo | Allow-list |
+|---|---|---|---|
+| Claude Code | `Agent` + `team_name` | `SendMessage` | enforced |
+| Codex CLI | `spawn_agent` | `send_message`/`followup_task` | parcial (`apply_patch` sobrevive) |
+| OpenCode | `task` (várias chamadas numa mensagem; `background` opcional) | `task_id` retoma a sessão | **enforced** (`permission`) |
+| Cursor | subagents orquestrados pelo agente principal | ❌ | instrução (`readonly`) |
+
+**Os quatro sabem lançar worker em paralelo.** Nenhum dos três, além do Claude Code,
+tinha o quadro. Ou seja: a skill estava presa a um CLI por **uma** ferramenta, não por
+quatro — e essa uma é a que menos precisava ser do CLI.
 
 ## Decisão
 
@@ -65,11 +76,18 @@ valiam enquanto havia um humano lendo:
 - **Contagem antes de declarar pronto.** "Nunca sintetize por cima de resultado parcial"
   era um pedido. Agora `encerrar` recusa quadro com tarefa aberta sem lacuna declarada.
 
-**4. As 71 personas viram roles de subagent do Codex.** `sync-multi-cli.py` passa a
-gerar `.codex/agents/<id>.toml` a partir de `agents/<id>.md`, com `description` como
-gatilho de roteamento, corpo como `developer_instructions`, `model: opus` traduzido para
-`model_reasoning_effort = "high"` e `shell_tool = false` nos 14 consultivos. Sem isso o
-`spawn_agent` só receberia a persona colada no prompt — persona como texto, não como
+**4. As 71 personas viram definições nativas de subagent em cada CLI.**
+`sync-multi-cli.py` passa a gerar, a partir de `agents/<id>.md`:
+
+- `.codex/agents/<id>.toml` — `description` como gatilho, corpo como
+  `developer_instructions`, `model: opus` → `model_reasoning_effort = "high"`,
+  `shell_tool = false` nos 14 consultivos;
+- `.opencode/agent/<id>.md` — `mode: subagent` (sem ele o OpenCode carrega a persona mas
+  a tool `task` não a oferece, e a onda paralela não acontece), com a allow-list
+  traduzida para `permission` e `task: deny` em todos;
+- `.cursor/agents/<id>.md` — já existia desde o ADR-0011.
+
+Sem isso o spawn receberia a persona colada no prompt — persona como texto, não como
 papel.
 
 **5. `estado --json` do quadro entra no contrato assinado (ADR-0034)**, junto com
@@ -93,19 +111,33 @@ o quadro **não** vê. Essa aresta continua sendo julgamento da Laura, declarado
 
 ## Consequências
 
-**A tabela de limitações muda.** `/mobilizar` passa de `❌` para `✅` no Codex. Cursor e
-OpenCode continuam sem paralelismo — mas a degradação melhora: em vez de "não dá, use
-rodar", a Laura oferece abrir o quadro e executar em série, entregando o mesmo rastreio,
-os mesmos gates e a mesma recusa de encerrar escondendo lacuna. O que falta nesses CLIs
-é o paralelismo, não o rastreio.
+**A tabela de limitações muda nos quatro CLIs.** `/mobilizar` passa de `❌` para `✅` no
+Codex, no OpenCode e no Cursor. O que continua variando é a ergonomia, não a capacidade:
 
-**A allow-list não atravessa inteira, e isso está escrito.** No Claude Code, `tools:` é
-enforced. Um role file do Codex aplica só um conjunto fechado de chaves; `sandbox_mode`
-**não** está entre elas (ao contrário do que boa parte dos tutoriais afirma), e
-`shell_tool = false` tira o shell mas não o `apply_patch`. Então no Codex "Helena não
-modifica código" é instrução, não fronteira — igual ao Cursor. Onde a supervisão humana
-sai do caminho, a fronteira que sobra é a física: worktree por teammate (ADR-0024). A
-skill e a referência dizem isso ao usuário em vez de anunciar garantia que o CLI não dá.
+- **OpenCode** — o paralelismo está na *forma de chamar*: uma onda é **uma** mensagem
+  com várias chamadas de `task`. Chamar-esperar-chamar é fila com passos a mais, e o
+  resultado final é o mesmo, só mais lento — por isso o erro passa despercebido.
+  `background: true` (atrás de `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS`) é
+  conveniência, não requisito.
+- **Cursor** — não há tool de spawn: o agente principal orquestra os subagents. A Laura
+  descreve a onda inteira de uma vez e registra os retornos. **Não há canal para falar
+  com worker em voo**, então bloqueio resolvido vira subagent novo com contexto
+  completo, e o prompt inicial precisa carregar tudo.
+
+A degradação para "sem paralelismo" continua existindo — para qualquer CLI que não tenha
+nenhum dos quatro mecanismos — mas deixa de ser o caso comum.
+
+**A allow-list atravessa em dois CLIs e não nos outros dois, e isso está escrito.** No
+Claude Code `tools:` é enforced; no OpenCode `permission: {edit: deny}` também é. Um role
+file do Codex aplica só um conjunto fechado de chaves — `sandbox_mode` **não** está entre
+elas, ao contrário do que boa parte dos tutoriais afirma, e `shell_tool = false` tira o
+shell mas não o `apply_patch`. No Cursor a allow-list degrada para `readonly`.
+
+Então "Helena não modifica código" é **fronteira** no Claude Code e no OpenCode e
+**instrução** no Codex e no Cursor. Onde é só instrução e a supervisão humana sai do
+caminho, a fronteira que sobra é a física: worktree por teammate (ADR-0024). A skill e as
+referências dizem isso ao usuário, por CLI, em vez de anunciar uma garantia uniforme que
+não existe.
 
 **O painel ganha uma quinta fonte.** `painel.py` renderiza as mobilizações junto com
 SPEC, ciclo, relatórios e trajetória — o checkpoint do `/mobilizar` já chamava o painel,

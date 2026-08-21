@@ -1,6 +1,6 @@
 ---
 name: mobilizar
-description: Monta um time paralelo para executar uma SPEC rastreável ou um conjunto de tarefas, com múltiplos agentes da fábrica trabalhando ao mesmo tempo, cada um com file ownership, requisitos, gates e Definition of Done próprios. Use quando a SPEC tem tarefas independentes que podem rodar simultaneamente. Roda no Claude Code (Agent Teams) e no Codex CLI (subagents nativos); o quadro de tarefas é um arquivo do repositório, então sobrevive a troca de sessão e de CLI. Não use para tarefa sequencial, pequena ou de discussão — use rodar; em CLI sem lançamento paralelo a skill degrada para rodar sozinha.
+description: Monta um time paralelo para executar uma SPEC rastreável ou um conjunto de tarefas, com múltiplos agentes da fábrica trabalhando ao mesmo tempo, cada um com file ownership, requisitos, gates e Definition of Done próprios. Use quando a SPEC tem tarefas independentes que podem rodar simultaneamente. Roda nos quatro CLIs — Claude Code (Agent Teams), Codex (spawn_agent), OpenCode (task) e Cursor (subagents orquestrados); o quadro de tarefas é um arquivo do repositório, então sobrevive a troca de sessão e de CLI. Não use para tarefa sequencial, pequena ou de discussão — use rodar; em CLI sem lançamento paralelo a skill roda o mesmo quadro em série.
 ---
 
 # Mobilizar — time paralelo sobre um quadro compartilhado
@@ -11,9 +11,9 @@ um time que executa tarefas em paralelo.
 ## O que esta skill precisa (e o que não precisa)
 
 Por muito tempo esta skill se declarou "exclusiva do Claude Code", citando quatro
-ferramentas nativas. Três delas têm equivalente direto em outros CLIs. A quarta —
-**o quadro compartilhado de tarefas com dependências** — não tinha, e era ela sozinha
-que prendia a skill a um CLI.
+ferramentas nativas. Auditando os quatro CLIs, **todos sabem lançar worker em paralelo**
+— o que faltava em todos, menos no Claude Code, era **o quadro compartilhado de tarefas
+com dependências.** Era ele sozinho que prendia a skill a um CLI.
 
 A solução não foi reimplementar Agent Teams em cada CLI. Foi **tirar o quadro do CLI**:
 
@@ -30,39 +30,45 @@ para dizer que acabou — passam a ser **de código** (ADR-0035).
 Antes de qualquer coisa, veja quais ferramentas você tem. Não pergunte ao usuário o que
 dá para verificar sozinho.
 
-| Capacidade | Claude Code | Codex CLI | Cursor / OpenCode |
-|---|---|---|---|
-| Lançar worker paralelo | `Agent` com `team_name` | `spawn_agent` | ⚠️ / ❌ |
-| Esperar por worker | `TaskList` | `wait_agent` | ❌ |
-| Falar com worker | `SendMessage` | `send_message`, `followup_task` | ❌ |
-| Encerrar worker | `SendMessage{shutdown_request}` | `close_agent` | ❌ |
-| **Quadro com dependências** | **`quadro.py`** | **`quadro.py`** | **`quadro.py`** |
+| Capacidade | Claude Code | Codex CLI | OpenCode | Cursor |
+|---|---|---|---|---|
+| Lançar worker paralelo | `Agent` com `team_name` | `spawn_agent` | `task` (várias chamadas numa mensagem) | subagents (o agente principal orquestra) |
+| Esperar por worker | `TaskList` | `wait_agent` | retorno da tool; ou notificação se `background` | retorno do subagent |
+| Falar com worker | `SendMessage` | `send_message`, `followup_task` | `task` com `task_id` (retoma a sessão) | ❌ — reponha contexto num novo subagent |
+| Encerrar worker | `shutdown_request` | `close_agent` | encerra sozinho ao responder | encerra sozinho |
+| **Quadro com dependências** | **`quadro.py`** | **`quadro.py`** | **`quadro.py`** | **`quadro.py`** |
 
-Decida assim, nesta ordem:
+Decida assim, na ordem — pare no primeiro que casar:
 
-1. **Tem `TeamCreate`/`Agent` com `team_name`?** → Claude Code. Siga o fluxo abaixo com
-   a coluna Claude Code. (Requer `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`; sem isso as
-   ferramentas não aparecem e você cai no caso 3.)
-2. **Tem `spawn_agent`?** → Codex CLI. Siga o fluxo com a coluna Codex e leia
-   `${CLAUDE_PLUGIN_ROOT}/skills/mobilizar/references/codex.md` **antes de lançar** — o
-   protocolo de espera e as `agent_type` das 71 personas estão lá.
-3. **Nenhum dos dois?** → não há paralelismo real aqui. Diga isso e ofereça as duas
-   saídas honestas:
+1. **`Agent` com `team_name`?** → Claude Code. (Requer
+   `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`; sem isso as ferramentas não aparecem e você
+   cai no caso 4.)
+2. **`spawn_agent`?** → Codex CLI. Leia
+   `${CLAUDE_PLUGIN_ROOT}/skills/mobilizar/references/codex.md` **antes de lançar**.
+3. **`task` com `subagent_type`?** → OpenCode. Lance a onda inteira em **uma** mensagem
+   com várias chamadas — é o que torna a onda paralela em vez de fila. Com
+   `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true` dá para usar `background: true` e
+   seguir trabalhando; sem ele, o retorno das chamadas concorrentes já basta.
+4. **Está no Cursor?** → o agente principal orquestra os subagents de
+   `.cursor/agents/` em paralelo. Você não os lança por tool: descreve a onda que o
+   quadro liberou e deixa a orquestração acontecer, registrando cada retorno no quadro.
+   Sem canal de mensagem para worker em voo — se faltar contexto, abra um subagent novo
+   com o contexto completo em vez de tentar corrigir o que já está rodando.
+5. **Nenhum deles?** → sem paralelismo. Diga isso e ofereça a saída honesta:
 
 ```
-Este CLI não expõe lançamento de worker em paralelo, então /kairos-forge:mobilizar
-não tem o que coordenar.
+Este CLI não expõe lançamento de worker em paralelo, então não há o que coordenar
+em paralelo.
 
-- /kairos-forge:rodar faz o mesmo trabalho em modo sequencial e cobre a maioria
-  dos casos.
+- /kairos-forge:rodar faz o mesmo trabalho em modo sequencial.
 - Se quiser o rastreio de dependências, gates e contagem mesmo em série, eu abro o
-  quadro (quadro.py) e executo as tarefas eu mesmo, uma a uma, na ordem que ele
-  liberar. Você fica com o mesmo relatório final e a mesma recusa de encerrar com
-  lacuna escondida.
+  quadro (quadro.py) e executo as tarefas eu mesmo, na ordem que ele liberar — mesmo
+  relatório final, mesma recusa de encerrar com lacuna escondida.
 ```
 
-O quadro funciona em qualquer CLI porque é só Python e um arquivo. É o paralelismo que
-não existe — não o rastreio.
+O quadro funciona em qualquer CLI porque é só Python e um arquivo. **O que varia entre
+CLIs é como se lança e como se espera — não o que é uma tarefa, nem quando ela pode
+entrar, nem quando dá para dizer que acabou.**
 
 ## Modos de invocação
 
@@ -223,17 +229,19 @@ está faltando uma aresta ou um refinamento de posse — conserte o quadro, não
 
 **Como lançar o worker, por CLI:**
 
-| | Claude Code | Codex CLI |
-|---|---|---|
-| Lançar | `Agent(name: "<id>", team_name: "forge-<slug>", prompt: …)` | `spawn_agent(task_name: "<id>", agent_type: "<id>", message: …)` |
-| Tier preciso | agente com `model: opus` já é | `reasoning_effort: "high"` |
-| Esperar | acompanhar `TaskList` | `wait_agent` |
-| Corrigir rota | `SendMessage` | `send_message` (avisar) / `followup_task` (nova rodada) |
-| Encerrar | `SendMessage{type:"shutdown_request"}` | `close_agent` |
+| | Claude Code | Codex CLI | OpenCode |
+|---|---|---|---|
+| Lançar | `Agent(name: "<id>", team_name: "forge-<slug>", prompt: …)` | `spawn_agent(task_name: "<id>", agent_type: "<id>", message: …, fork_turns: "none")` | `task(subagent_type: "<id>", description: …, prompt: …)` |
+| Paralelismo | uma chamada por teammate | uma chamada por teammate, **antes** de esperar | **todas as chamadas numa só mensagem** |
+| Tier preciso | agente com `model: opus` já é | `reasoning_effort: "high"` | `model` do agente |
+| Esperar | acompanhar `TaskList` | `wait_agent` | retorno das chamadas |
+| Corrigir rota | `SendMessage` | `send_message` / `followup_task` | `task` com o `task_id` de volta |
+| Encerrar | `SendMessage{type:"shutdown_request"}` | `close_agent` | automático |
 
-No Codex, `agent_type` é o id do agente (`carlos-dba`, `marina-frontend`) — os 71 roles
-são gerados em `.codex/agents/*.toml` e resolvem a persona, o tier e a redução de
-capacidade dos consultivos. Detalhes e limites em `references/codex.md`.
+Em todos, o id do agente é o mesmo (`carlos-dba`, `marina-frontend`): as 71 personas são
+geradas como `.codex/agents/*.toml` (Codex), `.opencode/agent/*.md` (OpenCode) e
+`.cursor/agents/*.md` (Cursor). Limites e instalação por CLI em `references/codex.md` e
+`references/opencode-cursor.md`.
 
 #### Template de prompt do teammate
 

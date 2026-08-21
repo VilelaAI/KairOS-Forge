@@ -9,6 +9,7 @@ não tem conceito de plugin — recebe um diretório `.cursor/` completo:
     Claude Code:  agents/<id>.md               (canônico)
     Codex CLI:    .agents/<id>/AGENT.md        (gerado)
                   .codex/agents/<id>.toml      (gerado — role de subagent, ADR-0035)
+    OpenCode:     .opencode/agent/<id>.md      (gerado — subagent delegável, ADR-0035)
     Cursor:       .cursor/agents/<id>.md       (gerado, frontmatter adaptado)
                   .cursor/skills/…             (gerado, mirror — Agent Skills padrão)
                   .cursor/rules/kairos-forge.mdc  (gerado — banner alwaysApply)
@@ -36,6 +37,16 @@ Transformação de agente para o Codex (ADR-0035):
     mas `apply_patch` continua disponível. Para os agentes consultivos a fronteira
     real segue sendo a instrução, como no Cursor — não anuncie mais do que se aplica.
 
+Transformação de agente para o OpenCode (ADR-0035):
+    - `.opencode/agent/<id>.md` com `mode: subagent` — sem isso a persona carrega, mas
+      a ferramenta `task` não consegue delegar para ela;
+    - a allow-list vira `permission`, que no OpenCode é **enforced de verdade**:
+      `edit: deny` para quem não tem Write/Edit no canônico, `bash: deny` para quem não
+      tem Bash. É a tradução mais fiel dos quatro CLIs — mais até que o Codex, onde
+      `apply_patch` sobrevive a qualquer redução;
+    - `task: deny` em todos: decompor é da Laura. Sub-time dentro de teammate é como o
+      file ownership vira ficção (mesma razão do `max_depth = 1` do Codex).
+
 Transformação de agente para o Cursor (ADR-0011):
     - mantém `name`, `description` e o corpo da persona;
     - remove `tools:` (Cursor não tem allow-list) e `model:` (valores não mapeiam);
@@ -48,6 +59,7 @@ NÃO modifica:
     - .codex-plugin/plugin.json e .agents/plugins/marketplace.json (manuais)
 """
 from pathlib import Path
+import json
 import re
 import shutil
 import sys
@@ -86,9 +98,9 @@ alwaysApply: true
 🔥 kairos-forge v0.28 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
 
 - As skills da fábrica estão no menu `/` (Agent Skills): {lista}. A skill
-  `mobilizar` precisa lançar worker em paralelo, o que o Cursor não expõe: ela
-  abre o quadro (`quadro.py`) e executa em série — mesmo rastreio, sem
-  paralelismo. Para conversa sequencial simples, `rodar`.
+  `mobilizar` roda aqui: o agente principal orquestra os subagents em paralelo
+  e o `quadro.py` guarda dependências, posse e contagem. Descreva a onda inteira
+  de uma vez — uma tarefa por vez faz o Cursor serializar.
 - As 71 personas são subagents (Laura, Tech Lead, é o ponto de entrada: ela
   analisa a tarefa e decide quem entra). Cada agente responde em primeira
   pessoa e se apresenta pelo nome.
@@ -188,6 +200,45 @@ def gerar_roles_codex():
                 "shell_tool = false",
             ]
         (destino / f"{agent_id}.toml").write_text("\n".join(linhas) + "\n", encoding="utf-8")
+        contagem += 1
+    return contagem
+
+
+def gerar_agentes_opencode():
+    """Escreve .opencode/agent/<id>.md — subagents delegáveis pela tool `task` (ADR-0035).
+
+    O OpenCode varre `{agent,agents}/**/*.md` no diretório de config e só oferece à tool
+    `task` os que declaram `mode: subagent`. Copiar `agents/` cru (o que a doc mandava
+    fazer até aqui) carrega a persona mas não a torna delegável — e sem delegação não há
+    onda paralela.
+    """
+    destino = ROOT / ".opencode" / "agent"
+    if destino.exists():
+        shutil.rmtree(destino)
+    destino.mkdir(parents=True)
+
+    contagem = 0
+    for agent_md in sorted(AGENTS_SRC.glob("*.md")):
+        campos, corpo = dividir_frontmatter(agent_md.read_text(encoding="utf-8"))
+        agent_id = campos.get("name") or agent_md.stem
+        ferramentas = {t.strip() for t in campos.get("tools", "").split(",") if t.strip()}
+        # Sem allow-list declarada, herda tudo — não invente restrição que o canônico não pede.
+        edita = (not ferramentas) or bool(ferramentas & {"Write", "Edit", "NotebookEdit"})
+        shell = (not ferramentas) or ("Bash" in ferramentas)
+
+        frente = [
+            "---",
+            f"name: {agent_id}",
+            f"description: {json.dumps(campos.get('description', ''), ensure_ascii=False)}",
+            "mode: subagent",
+            "permission:",
+            f"  edit: {'allow' if edita else 'deny'}",
+            f"  bash: {'allow' if shell else 'deny'}",
+            "  task: deny",   # decompor é da Laura, não do teammate
+            "---",
+            "",
+        ]
+        (destino / f"{agent_id}.md").write_text("\n".join(frente) + corpo + "\n", encoding="utf-8")
         contagem += 1
     return contagem
 
@@ -294,6 +345,10 @@ def main() -> int:
     print("🧩 gerando roles de subagent do Codex (.codex/agents/*.toml, ADR-0035)...")
     n_roles = gerar_roles_codex()
     print(f"  ✓ {n_roles} roles — `spawn_agent(agent_type: \"<id>\")` resolve a persona")
+
+    print("🐙 gerando subagents do OpenCode (.opencode/agent/*.md, ADR-0035)...")
+    n_oc = gerar_agentes_opencode()
+    print(f"  ✓ {n_oc} subagents — `task(subagent_type: \"<id>\")` delega com permission enforced")
 
     print("🖱️ regenerando .cursor/ (Claude Code → Cursor, ADR-0011)...")
     n_agents, n_skills = sincronizar_cursor()

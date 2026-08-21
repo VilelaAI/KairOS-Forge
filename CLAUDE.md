@@ -64,6 +64,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `agents/<id>.md` | 71 subagentes (canônico Claude Code) | manual |
 | `.agents/<id>/AGENT.md` | Mirror Codex dos subagents | **gerado** por `scripts/sync-multi-cli.py` |
 | `.codex/agents/<id>.toml` | Roles de subagent do Codex — o que faz `spawn_agent(agent_type: "<id>")` resolver a persona (ADR-0035) | **gerado** por `scripts/sync-multi-cli.py` |
+| `.opencode/agent/<id>.md` | Subagents do OpenCode com `mode: subagent` e a allow-list traduzida para `permission`, que ali é enforced (ADR-0035) | **gerado** por `scripts/sync-multi-cli.py` |
 | `.cursor/` | Distribuição Cursor completa: agents adaptados (readonly quando consultivo), skills espelhadas, rule `alwaysApply` (lista de skills derivada), scripts de suporte, templates (ADR-0011) | **gerado** por `scripts/sync-multi-cli.py` |
 | `skills/<verbo>/SKILL.md` | 18 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
 | `hooks/hooks.json` | Hooks Claude Code: banner, telemetria em 4 pontos do ciclo (ADR-0021), guardrails que bloqueiam em `PreToolUse`/`PostToolUse` (ADR-0022) e alerta de patinação em voo (ADR-0030) | manual |
@@ -130,14 +131,15 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 
 - **ADR-0034**: contrato de integração público e versionado — `ciclo.py estado --json` e as três fences viram superfície estável com campos derivados (`terminal`, `aguardando_humano`, `gate`, `resultados_validos`) para o consumidor não comparar nome de estado; assinatura com digest verificada no CI, porque contrato que ninguém verifica é promessa. Abre a porta para o [kairos-symphony](https://github.com/VilelaAI/kairos-symphony) dirigir o arco em vez de reimplementá-lo (v0.27.0)
 
-- **ADR-0035**: `/mobilizar` deixa de ser exclusivo do Claude Code — das quatro ferramentas nativas que a skill citava, só o **quadro de tarefas** não tinha equivalente no Codex, então o quadro sai da sessão e vira arquivo do repo (`quadro.py`). Teto de onda, colisão de posse e contagem final passam de prosa a código; as 71 personas viram roles `.codex/agents/*.toml` (v0.28.0)
+- **ADR-0035**: `/mobilizar` deixa de ser exclusivo do Claude Code — das quatro ferramentas nativas que a skill citava, só o **quadro de tarefas** não tinha equivalente no Codex, então o quadro sai da sessão e vira arquivo do repo (`quadro.py`). Teto de onda, colisão de posse e contagem final passam de prosa a código. Os quatro CLIs sabem lançar worker em paralelo — o que variava era só o adaptador — então a skill passa a rodar em Claude Code, Codex, OpenCode e Cursor, com as 71 personas geradas no formato nativo de cada um (v0.28.0)
 
 ## Limitações conhecidas por CLI
 
 | Item | Claude Code | Codex CLI | OpenCode | Cursor |
 |---|---|---|---|---|
-| `/kairos-forge:mobilizar` (time paralelo) | ✅ Agent Teams | ✅ subagents nativos (ADR-0035) | ⚠️ quadro em série | ⚠️ quadro em série |
-| Allow-list de ferramentas do agente | ✅ enforced | ⚠️ `shell_tool` off nos consultivos; `apply_patch` fica | ❌ | ⚠️ degrada pra `readonly` |
+| `/kairos-forge:mobilizar` (time paralelo) | ✅ Agent Teams | ✅ `spawn_agent` | ✅ `task` (ADR-0035) | ✅ subagents orquestrados |
+| Falar com worker em voo | ✅ `SendMessage` | ✅ `send_message` | ✅ retomar por `task_id` | ❌ — relance com contexto completo |
+| Allow-list de ferramentas do agente | ✅ enforced | ⚠️ instrução (`apply_patch` sobrevive) | ✅ enforced (`permission`) | ⚠️ degrada pra `readonly` |
 | Hook PostToolUse pedagógico | ✅ | ❌ | ❌ (sem `oh-my-opencode`) | ❌ |
 | SessionStart banner | ✅ | ✅ | ❌ (sem `oh-my-opencode`) | ✅ via rule `alwaysApply` |
 | Subagents com persona | ✅ nativo | ✅ mirror `.agents/` | ⚠️ via cópia de `agents/` | ✅ `.cursor/agents/` (allow-list degrada pra `readonly`) |
@@ -146,10 +148,12 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 Nos CLIs sem hooks completos, a dimensão **Autonomia** do `/auditar` pontua 0 e o `/validar` pula a corroboração de trajetória — comportamento honesto, não bug: sem hook não há trajetória. O caminho nesses CLIs é rodar os checks equivalentes no CI do projeto (`templates/ci/`).
 
 A skill `mobilizar` detecta a capacidade do CLI no Passo 0 (ADR-0035). O que ela precisa
-é lançar worker em paralelo e esperar — Claude Code e Codex têm; Cursor e OpenCode não.
-Nos dois últimos ela não recusa: abre o mesmo quadro (`quadro.py`) e executa em série,
-entregando o rastreio de dependências, os gates e a recusa de encerrar escondendo
-lacuna. O que falta lá é o paralelismo, não o rastreio.
+é lançar worker em paralelo e esperar — **os quatro CLIs têm**, com ergonomias
+diferentes: no OpenCode o paralelismo está na forma de chamar (uma onda = uma mensagem
+com várias chamadas de `task`), e no Cursor não há tool de spawn — o agente principal
+orquestra, e não há canal para falar com worker em voo. O quadro (`quadro.py`) é o mesmo
+em todos; só o adaptador de lançamento muda. Em CLI sem nenhum desses mecanismos, a
+skill não recusa: roda o mesmo quadro em série.
 
 ## O que NÃO portar do kairos-ai
 

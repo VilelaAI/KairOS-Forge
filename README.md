@@ -102,7 +102,7 @@ cp -R kairos-forge/plugin/.cursor /caminho/do/projeto/.cursor
 cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
 ```
 
-Isso entrega os 71 subagents, as 18 skills no menu `/`, a rule com o banner da fábrica e os arquivos de suporte (`grafo.py`, `telemetria.py`, `guardrail.py`, templates). `mobilizar` detecta que o Cursor não lança worker em paralelo e roda o mesmo quadro em série, em vez de recusar.
+Isso entrega os 71 subagents, as 18 skills no menu `/`, a rule com o banner da fábrica e os arquivos de suporte (`grafo.py`, `telemetria.py`, `guardrail.py`, templates). `mobilizar` roda no Cursor: o agente principal orquestra os subagents em paralelo enquanto o `quadro.py` guarda dependências, posse e contagem.
 
 ### Hermes Agent (bot 24/7 — ponte)
 

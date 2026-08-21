@@ -8,6 +8,8 @@ não tem conceito de plugin — recebe um diretório `.cursor/` completo:
 
     Claude Code:  agents/<id>.md               (canônico)
     Codex CLI:    .agents/<id>/AGENT.md        (gerado)
+                  .codex/agents/<id>.toml      (gerado — role de subagent, ADR-0035)
+    OpenCode:     .opencode/agent/<id>.md      (gerado — subagent delegável, ADR-0035)
     Cursor:       .cursor/agents/<id>.md       (gerado, frontmatter adaptado)
                   .cursor/skills/…             (gerado, mirror — Agent Skills padrão)
                   .cursor/rules/kairos-forge.mdc  (gerado — banner alwaysApply)
@@ -18,6 +20,32 @@ Uso:
 
 Roda este script sempre que mudar arquivos em agents/ ou skills/. O resultado é
 commitado no git. Usuário final do Codex/Cursor pega os arquivos prontos.
+
+Transformação de agente para o Codex (ADR-0035):
+    - `.agents/<id>/AGENT.md` continua sendo o mirror lido como subagent de sessão;
+    - `.codex/agents/<id>.toml` é o que faz `spawn_agent(agent_type: "<id>")`
+      funcionar: o Codex resolve roles a partir de arquivos .toml em `<config>/agents/`.
+      `description` vira o gatilho de roteamento, o corpo da persona vira
+      `developer_instructions`, `model: opus` vira `model_reasoning_effort = "high"`
+      (o Codex não tem "opus"; o que aquele campo significava aqui era tier preciso)
+      e agente sem ferramenta de escrita na allow-list ganha `shell_tool = false`.
+
+    Sobre a degradação da allow-list: o Codex NÃO aplica `sandbox_mode` a partir de
+    um role file (só `developer_instructions`, `model*`, `personality`, `service_tier`,
+    `features` e `skills` — estes dois últimos apenas para DESABILITAR). Então o
+    read-only do Codex é parcial: `shell_tool = false` tira a execução de comando,
+    mas `apply_patch` continua disponível. Para os agentes consultivos a fronteira
+    real segue sendo a instrução, como no Cursor — não anuncie mais do que se aplica.
+
+Transformação de agente para o OpenCode (ADR-0035):
+    - `.opencode/agent/<id>.md` com `mode: subagent` — sem isso a persona carrega, mas
+      a ferramenta `task` não consegue delegar para ela;
+    - a allow-list vira `permission`, que no OpenCode é **enforced de verdade**:
+      `edit: deny` para quem não tem Write/Edit no canônico, `bash: deny` para quem não
+      tem Bash. É a tradução mais fiel dos quatro CLIs — mais até que o Codex, onde
+      `apply_patch` sobrevive a qualquer redução;
+    - `task: deny` em todos: decompor é da Laura. Sub-time dentro de teammate é como o
+      file ownership vira ficção (mesma razão do `max_depth = 1` do Codex).
 
 Transformação de agente para o Cursor (ADR-0011):
     - mantém `name`, `description` e o corpo da persona;
@@ -31,6 +59,8 @@ NÃO modifica:
     - .codex-plugin/plugin.json e .agents/plugins/marketplace.json (manuais)
 """
 from pathlib import Path
+import json
+import re
 import shutil
 import sys
 
@@ -48,7 +78,8 @@ FERRAMENTAS_ESCRITA = {"Write", "Edit", "NotebookEdit", "Bash"}
 # precisa deles ao lado das skills. Copiados se existirem (a lista tolera ausência
 # para que o sync funcione em qualquer ponto do histórico).
 SCRIPTS_DE_SUPORTE = ["grafo.py", "telemetria.py", "execucao.py", "guardrail.py",
-                      "diagnostico.py", "ciclo.py", "contrato.py", "painel.py"]
+                      "diagnostico.py", "ciclo.py", "contrato.py", "painel.py",
+                      "quadro.py"]
 
 
 def montar_rule(skills: list[str]) -> str:
@@ -57,19 +88,19 @@ def montar_rule(skills: list[str]) -> str:
     Derivar em vez de digitar elimina a classe de bug "lista de skills desatualizada"
     — mesma disciplina que o release.py aplica às contagens.
     """
-    sem_mobilizar = [s for s in skills if s != "mobilizar"]
-    lista = ", ".join(sem_mobilizar)
+    lista = ", ".join(skills)   # mobilizar volta à lista: degrada, não recusa (ADR-0035)
     return f"""\
 ---
 description: "Fábrica de software kairos-forge — 71 agentes e 18 skills em PT-BR"
 alwaysApply: true
 ---
 
-🔥 kairos-forge v0.27 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
+🔥 kairos-forge v0.28 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
 
 - As skills da fábrica estão no menu `/` (Agent Skills): {lista}. A skill
-  `mobilizar` requer Agent Teams do Claude Code — no Cursor, use `rodar` (cobre
-  o fluxo em modo sequencial).
+  `mobilizar` roda aqui: o agente principal orquestra os subagents em paralelo
+  e o `quadro.py` guarda dependências, posse e contagem. Descreva a onda inteira
+  de uma vez — uma tarefa por vez faz o Cursor serializar.
 - As 71 personas são subagents (Laura, Tech Lead, é o ponto de entrada: ela
   analisa a tarefa e decide quem entra). Cada agente responde em primeira
   pessoa e se apresenta pelo nome.
@@ -86,6 +117,130 @@ alwaysApply: true
 > Arquivo GERADO por scripts/sync-multi-cli.py (kairos-forge). Não edite aqui —
 > edite os canônicos agents/ e skills/ e rode o sync.
 """
+
+
+def dividir_frontmatter(texto: str) -> tuple[dict, str]:
+    """Frontmatter YAML simples (chave: valor) + corpo. Sem dependência externa."""
+    linhas = texto.split("\n")
+    if not linhas or linhas[0].strip() != "---":
+        return {}, texto
+    try:
+        fim = linhas[1:].index("---") + 1
+    except ValueError:
+        return {}, texto
+    campos = {}
+    for linha in linhas[1:fim]:
+        if ":" in linha:
+            chave, valor = linha.split(":", 1)
+            campos[chave.strip()] = valor.strip()
+    return campos, "\n".join(linhas[fim + 1:]).strip()
+
+
+def toml_basico(valor: str) -> str:
+    """String TOML multi-linha, escapando o que quebraria o literal."""
+    limpo = valor.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
+    return '"""\n' + limpo + '\n"""'
+
+
+def apelido_de(corpo: str, agent_id: str) -> str:
+    """Primeiro nome da persona, do H1 (`# 🛢️ Carlos — DBA` → `Carlos`)."""
+    for linha in corpo.split("\n"):
+        if linha.startswith("# "):
+            titulo = linha[2:].strip()
+            for parte in re.split(r"[—–-]", titulo, maxsplit=1)[0].split():
+                if parte[:1].isalpha():
+                    return parte
+    return agent_id.split("-")[0].capitalize()
+
+
+def gerar_roles_codex():
+    """Escreve .codex/agents/<id>.toml — o que torna as 71 personas usáveis no
+    `spawn_agent` do Codex (ADR-0035).
+
+    Sem isso o `/mobilizar` no Codex só conseguiria colar a persona no prompt de um
+    agente genérico: a persona viraria texto, não papel. Com o role file, o Codex
+    resolve `agent_type` e aplica o papel ao filho independentemente de quanto
+    histórico foi herdado.
+    """
+    destino = ROOT / ".codex" / "agents"
+    if destino.exists():
+        shutil.rmtree(destino)
+    destino.mkdir(parents=True)
+
+    contagem = 0
+    for agent_md in sorted(AGENTS_SRC.glob("*.md")):
+        campos, corpo = dividir_frontmatter(agent_md.read_text(encoding="utf-8"))
+        agent_id = campos.get("name") or agent_md.stem
+        descricao = campos.get("description", "")
+        ferramentas = {t.strip() for t in campos.get("tools", "").split(",") if t.strip()}
+        escreve = bool(ferramentas & FERRAMENTAS_ESCRITA)
+
+        linhas = [
+            "# GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui.",
+            f"# Canônico: agents/{agent_md.name}",
+            "",
+            f'name = "{agent_id}"',
+            f"description = {toml_basico(descricao)}",
+            f'nickname_candidates = ["{apelido_de(corpo, agent_id)}"]',
+        ]
+        # `model: opus` no canônico significa tier preciso. O Codex não tem "opus" e
+        # o slug de modelo varia por conta — esforço de raciocínio é o que traduz sem
+        # inventar nome de modelo que pode não existir do outro lado.
+        if campos.get("model") == "opus":
+            linhas.append('model_reasoning_effort = "high"')
+        linhas += ["", f"developer_instructions = {toml_basico(corpo)}"]
+        if ferramentas and not escreve:
+            linhas += [
+                "",
+                "# Allow-list original sem ferramenta de escrita: agente consultivo.",
+                "# `shell_tool = false` é a única redução de capacidade que um role",
+                "# file do Codex aplica de fato — `apply_patch` continua disponível,",
+                "# então a fronteira restante é a instrução, como no Cursor.",
+                "[features]",
+                "shell_tool = false",
+            ]
+        (destino / f"{agent_id}.toml").write_text("\n".join(linhas) + "\n", encoding="utf-8")
+        contagem += 1
+    return contagem
+
+
+def gerar_agentes_opencode():
+    """Escreve .opencode/agent/<id>.md — subagents delegáveis pela tool `task` (ADR-0035).
+
+    O OpenCode varre `{agent,agents}/**/*.md` no diretório de config e só oferece à tool
+    `task` os que declaram `mode: subagent`. Copiar `agents/` cru (o que a doc mandava
+    fazer até aqui) carrega a persona mas não a torna delegável — e sem delegação não há
+    onda paralela.
+    """
+    destino = ROOT / ".opencode" / "agent"
+    if destino.exists():
+        shutil.rmtree(destino)
+    destino.mkdir(parents=True)
+
+    contagem = 0
+    for agent_md in sorted(AGENTS_SRC.glob("*.md")):
+        campos, corpo = dividir_frontmatter(agent_md.read_text(encoding="utf-8"))
+        agent_id = campos.get("name") or agent_md.stem
+        ferramentas = {t.strip() for t in campos.get("tools", "").split(",") if t.strip()}
+        # Sem allow-list declarada, herda tudo — não invente restrição que o canônico não pede.
+        edita = (not ferramentas) or bool(ferramentas & {"Write", "Edit", "NotebookEdit"})
+        shell = (not ferramentas) or ("Bash" in ferramentas)
+
+        frente = [
+            "---",
+            f"name: {agent_id}",
+            f"description: {json.dumps(campos.get('description', ''), ensure_ascii=False)}",
+            "mode: subagent",
+            "permission:",
+            f"  edit: {'allow' if edita else 'deny'}",
+            f"  bash: {'allow' if shell else 'deny'}",
+            "  task: deny",   # decompor é da Laura, não do teammate
+            "---",
+            "",
+        ]
+        (destino / f"{agent_id}.md").write_text("\n".join(frente) + corpo + "\n", encoding="utf-8")
+        contagem += 1
+    return contagem
 
 
 def limpar_subagents_codex():
@@ -186,6 +341,14 @@ def main() -> int:
     print("👥 sincronizando subagents (Claude Code → Codex)...")
     n = sincronizar_subagents()
     print(f"  ✓ {n} subagents copiados como .agents/<id>/AGENT.md")
+
+    print("🧩 gerando roles de subagent do Codex (.codex/agents/*.toml, ADR-0035)...")
+    n_roles = gerar_roles_codex()
+    print(f"  ✓ {n_roles} roles — `spawn_agent(agent_type: \"<id>\")` resolve a persona")
+
+    print("🐙 gerando subagents do OpenCode (.opencode/agent/*.md, ADR-0035)...")
+    n_oc = gerar_agentes_opencode()
+    print(f"  ✓ {n_oc} subagents — `task(subagent_type: \"<id>\")` delega com permission enforced")
 
     print("🖱️ regenerando .cursor/ (Claude Code → Cursor, ADR-0011)...")
     n_agents, n_skills = sincronizar_cursor()

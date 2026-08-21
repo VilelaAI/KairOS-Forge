@@ -35,7 +35,7 @@ ARQUIVOS_ESPELHADOS = ["CLAUDE.md", "AGENTS.md", ".claude-plugin/plugin.json"]
 # Diferem por desenho entre root e plugin/ — nunca copiar nem comparar.
 EXCECOES_ESPELHO = {"docs/adr/0004-multi-cli.md"}
 # Gerados pelo sync — paridade é verificada, cópia é via sync de cada lado.
-DIRS_GERADOS = [".agents", ".cursor"]
+DIRS_GERADOS = [".agents", ".cursor", ".opencode"]
 
 # Orçamento de contexto ESTÁTICO (ADR-0027) — o que é pago em toda interação,
 # independente de relevância. Teto em chars, com folga sobre o estado atual.
@@ -255,7 +255,9 @@ def declaracoes() -> dict:
     sys.path.insert(0, str(RAIZ / "scripts"))
     import ciclo
     import contrato
-    return {"ciclo": ciclo.contrato_publico(), "contrato": contrato.contrato_publico()}
+    import quadro
+    return {"ciclo": ciclo.contrato_publico(), "contrato": contrato.contrato_publico(),
+            "quadro": quadro.contrato_publico()}
 
 
 def digest(decl: dict) -> str:

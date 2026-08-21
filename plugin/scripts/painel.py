@@ -2,10 +2,11 @@
 """painel.py — o quadro vivo da fábrica, renderizado do estado canônico (ADR-0013/0032).
 
 A fábrica sempre soube onde estava; ela só não mostrava. O estado do arco vive em
-`.agents/ciclo/`, a trajetória em `.agents/execucoes/`, o progresso dos requisitos na
-coluna Status/Verificação da SPEC, e o veredicto nos blocos de contrato dos relatórios.
-Quatro fontes, todas canônicas, nenhuma com cara de painel — e por isso o usuário
-precisava rodar quatro comandos e juntar de cabeça.
+`.agents/ciclo/`, o quadro das mobilizações em `.agents/quadro/`, a trajetória em
+`.agents/execucoes/`, o progresso dos requisitos na coluna Status/Verificação da SPEC, e
+o veredicto nos blocos de contrato dos relatórios. Cinco fontes, todas canônicas, nenhuma
+com cara de painel — e por isso o usuário precisava rodar cinco comandos e juntar de
+cabeça.
 
 Este script junta. **Só isso.**
 
@@ -47,6 +48,10 @@ try:
     from telemetria import carregar, metricas, por_sessao
 except Exception:
     carregar = metricas = por_sessao = None  # type: ignore[assignment]
+try:
+    from quadro import vista_publica
+except Exception:  # quadro ausente nunca derruba o painel
+    vista_publica = None  # type: ignore[assignment]
 
 DIAS_PADRAO = 14
 LINHA_TABELA = re.compile(r"^\s*\|(?!\s*-)(.+)\|\s*$")
@@ -144,6 +149,26 @@ def ler_ciclos(raiz: Path) -> list[dict]:
     return saida
 
 
+def ler_quadros(raiz: Path) -> list[dict]:
+    """Mobilizações em `.agents/quadro/` (ADR-0035), pela vista pública do quadro.py.
+
+    Pela vista pública, não pelo JSON cru: `completo` e `pode_encerrar` são derivados,
+    e recalcular aqui é exatamente como as duas contas divergem na primeira regra nova.
+    """
+    pasta = raiz / ".agents" / "quadro"
+    if not pasta.is_dir() or vista_publica is None:
+        return []
+    saida = []
+    for p in sorted(pasta.glob("*.json")):
+        try:
+            v = vista_publica(json.loads(p.read_text(encoding="utf-8")))
+        except Exception:
+            continue
+        v.pop("tasks", None)          # o painel mostra o placar, não a tabela inteira
+        saida.append(v)
+    return saida
+
+
 def ler_relatorios(raiz: Path, spec: str) -> dict:
     """Último veredicto de cada gate, lido do bloco de contrato (ADR-0032)."""
     alvo = re.sub(r"[^A-Za-z0-9_-]", "-", spec)
@@ -178,6 +203,9 @@ def coletar(raiz: Path, alvo: str | None, dias: int) -> dict:
     ciclos = [c for c in ler_ciclos(raiz)
               if alvo is None or alvo.lower() in str(c.get("spec", "")).lower()]
 
+    quadros = [q for q in ler_quadros(raiz)
+               if alvo is None or alvo.lower() in f"{q.get('spec') or ''} {q['slug']}".lower()]
+
     tele = {}
     if carregar is not None:
         try:
@@ -193,6 +221,7 @@ def coletar(raiz: Path, alvo: str | None, dias: int) -> dict:
         "janela_dias": dias,
         "specs": specs,
         "ciclos": ciclos,
+        "quadros": quadros,
         "telemetria": tele,
     }
 
@@ -207,8 +236,9 @@ def barra(pct: int, largura: int = 20) -> str:
 def render_terminal(d: dict) -> str:
     L = [f"📋 Quadro da fábrica — {d['gerado_em'][:16].replace('T', ' ')} UTC", ""]
 
-    if not d["specs"] and not d["ciclos"]:
-        L.append("Nada para mostrar: sem SPEC em docs/specs/ e sem ciclo em .agents/ciclo/.")
+    if not d["specs"] and not d["ciclos"] and not d.get("quadros"):
+        L.append("Nada para mostrar: sem SPEC em docs/specs/, sem ciclo em .agents/ciclo/ "
+                 "e sem quadro em .agents/quadro/.")
         L.append("Comece com /kairos-forge:especificar ou /kairos-forge:entregar.")
         return "\n".join(L)
 
@@ -253,6 +283,32 @@ def render_terminal(d: dict) -> str:
         e = c.get("estado", "?")
         L.append(f"  {c.get('spec', '?')} — {ICONE_ESTADO.get(e, '🙋' if e.startswith('aguardando_') else '🔁')} {e}  (sem SPEC no disco)")
         L.append("     " + _placar_ciclo(c) + "\n")
+
+    if d.get("quadros"):
+        L.append("  Mobilizações (.agents/quadro/):")
+        for q in d["quadros"]:
+            pe, total = q["por_estado"], q["total"]
+            pct = int(round(100 * pe["concluida"] / total)) if total else 0
+            marca = "🏁" if q["encerrado"] else "🔄"
+            spec = f" · {q['spec']}" if q.get("spec") else ""
+            cli = f" · {q['cli']}" if q.get("cli") else ""
+            L.append(f"    {marca} {q['slug']}{spec}{cli}")
+            L.append(f"       {barra(pct)} {pct}%  {pe['concluida']}/{total} concluídas · "
+                     f"onda {q['onda']} (teto {q['teto_onda']})")
+            partes = []
+            if q["em_voo"]:
+                partes.append("em voo: " + ", ".join(q["em_voo"]))
+            if q["prontas"] and not q["encerrado"]:   # quadro fechado não lança nada
+                partes.append("pode lançar: " + ", ".join(q["prontas"]))
+            if q["bloqueadas"]:
+                partes.append("bloqueadas: " + ", ".join(q["bloqueadas"]))
+            if partes:
+                L.append("       " + " | ".join(partes))
+            for texto in q["lacunas"]:
+                L.append(f"       ⚠️  lacuna: {texto}")
+            if not q["encerrado"] and q["completo"]:
+                L.append("       🏁 completo — falta encerrar")
+        L.append("")
 
     t = d["telemetria"]
     if t:

@@ -15,5 +15,9 @@
   "contrato": {
     "versao": "1.0",
     "sha256": "716df542b916e62d900b4f2c259da02cc390f945ff130fb4593418aa517cdb27"
+  },
+  "quadro": {
+    "versao": "1.0",
+    "sha256": "71d6e6957dc81861a4ec56ab2e8647d2351d304d2ab301e5ba08fc7c0fa9607b"
   }
 }

@@ -255,7 +255,9 @@ def declaracoes() -> dict:
     sys.path.insert(0, str(RAIZ / "scripts"))
     import ciclo
     import contrato
-    return {"ciclo": ciclo.contrato_publico(), "contrato": contrato.contrato_publico()}
+    import quadro
+    return {"ciclo": ciclo.contrato_publico(), "contrato": contrato.contrato_publico(),
+            "quadro": quadro.contrato_publico()}
 
 
 def digest(decl: dict) -> str:

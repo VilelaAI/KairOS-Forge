@@ -25,6 +25,7 @@ Dois caminhos são bloqueados sem possibilidade de configuração:
 
     .agents/execucoes/**    a trajetória que o /validar usa para corroborar
     .agents/guardrails.json a configuração destes próprios guardrails
+    .agents/quadro/**       o quadro de tarefas que decide o que o time lança
 
 É o mesmo princípio que o `/kairos-forge:otimizar` já aplica ("a métrica é
 sagrada — otimizar o medidor é o modo de falha clássico"), aplicado ao harness.
@@ -101,6 +102,7 @@ SAGRADOS = [
     (".agents/execucoes/**", "a trajetória que o /kairos-forge:validar usa para corroborar evidência"),
     (".agents/guardrails.json", "a configuração destes guardrails"),
     (".agents/ciclo/**", "o estado da máquina do arco /kairos-forge:entregar (ADR-0029)"),
+    (".agents/quadro/**", "o quadro de tarefas do /kairos-forge:mobilizar (ADR-0035)"),
 ]
 
 # --- 4. abertura de PR fora de estado (ADR-0029) -------------------------------------

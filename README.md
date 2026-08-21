@@ -50,7 +50,7 @@ A separação `repo (marketplace) ↔ plugin/ (subdir)` é exigência dos dois C
 /reload-plugins
 ```
 
-Para `/kairos-forge:mobilizar` (Agent Teams paralelo):
+Para `/kairos-forge:mobilizar` (time paralelo via Agent Teams):
 
 ```bash
 export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
@@ -76,6 +76,18 @@ Para ativar o hook de SessionStart, adicione ao `~/.codex/config.toml`:
 codex_hooks = true
 ```
 
+Para `/kairos-forge:mobilizar` (time paralelo via subagents nativos, ADR-0035), instale
+os roles das 71 personas — é o que faz `spawn_agent(agent_type: "carlos-dba")` resolver
+o agente em vez de receber a persona colada no prompt:
+
+```bash
+mkdir -p ~/.codex/agents
+cp <plugin>/.codex/agents/*.toml ~/.codex/agents/
+```
+
+O teto de concorrência do Codex (`agents.max_concurrent_threads_per_session`, default 6)
+coincide com o teto de onda da fábrica. Se você baixar um, baixe o outro junto.
+
 ### Cursor
 
 Sem marketplace no Cursor — a instalação é uma cópia única da distribuição gerada `.cursor/` (requer Cursor 2.4+ para os subagents):
@@ -90,7 +102,7 @@ cp -R kairos-forge/plugin/.cursor /caminho/do/projeto/.cursor
 cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
 ```
 
-Isso entrega os 71 subagents, as 18 skills no menu `/`, a rule com o banner da fábrica e os arquivos de suporte (`grafo.py`, `telemetria.py`, `guardrail.py`, templates). `mobilizar` detecta o Cursor e redireciona pra `rodar`.
+Isso entrega os 71 subagents, as 18 skills no menu `/`, a rule com o banner da fábrica e os arquivos de suporte (`grafo.py`, `telemetria.py`, `guardrail.py`, templates). `mobilizar` detecta que o Cursor não lança worker em paralelo e roda o mesmo quadro em série, em vez de recusar.
 
 ### Hermes Agent (bot 24/7 — ponte)
 
@@ -126,7 +138,7 @@ Ou etapa por etapa, quando você quer conduzir:
 ```
 /kairos-forge:especificar <ideia>     # Laura aciona arquitetos, produz SPEC
 /kairos-forge:rodar                   # execução conversacional sequencial
-/kairos-forge:mobilizar SPEC-NNN      # paralelo via Agent Teams (Claude Code)
+/kairos-forge:mobilizar SPEC-NNN      # time paralelo (Claude Code e Codex)
 /kairos-forge:validar SPEC-NNN        # aceite contra SPEC, corroborado pela trajetória
 /kairos-forge:revisar                 # Helena + Patrícia + outros
 /kairos-forge:lancar                  # deploy com gates, health check e rollback anotado

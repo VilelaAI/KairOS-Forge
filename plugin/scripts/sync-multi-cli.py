@@ -14,6 +14,8 @@ não tem conceito de plugin — recebe um diretório `.cursor/` completo:
                   .cursor/skills/…             (gerado, mirror — Agent Skills padrão)
                   .cursor/rules/kairos-forge.mdc  (gerado — banner alwaysApply)
                   .cursor/scripts/, .cursor/templates/  (gerados — suporte às skills)
+    Catálogo:     .claude-plugin/ativos.manifest.json  (gerado — manifesto de
+                  ativos de IA por agente/skill, direção do ADR-0032)
 
 Uso:
     python3 scripts/sync-multi-cli.py
@@ -70,6 +72,8 @@ AGENTS_SRC = ROOT / "agents"
 SKILLS_SRC = ROOT / "skills"
 CODEX_DIR = ROOT / ".agents"
 CURSOR_DIR = ROOT / ".cursor"
+PLUGIN_JSON = ROOT / ".claude-plugin" / "plugin.json"
+MANIFESTO_ATIVOS = ROOT / ".claude-plugin" / "ativos.manifest.json"
 PRESERVAR = {"plugins"}  # subdir mantido (marketplace.json fica em .agents/plugins/)
 
 FERRAMENTAS_ESCRITA = {"Write", "Edit", "NotebookEdit", "Bash"}
@@ -329,6 +333,127 @@ def sincronizar_cursor():
     return n_agents, n_skills
 
 
+def extrair_frontmatter(texto: str) -> dict[str, str]:
+    """Frontmatter YAML simples (chave: valor por linha) — mesmo estilo do
+    check-agent-security.py; sem dependência de PyYAML de propósito."""
+    linhas = texto.split("\n")
+    if not linhas or linhas[0].strip() != "---":
+        return {}
+    try:
+        fim = linhas[1:].index("---") + 1
+    except ValueError:
+        return {}
+    campos: dict[str, str] = {}
+    for linha in linhas[1:fim]:
+        if ":" in linha and not linha.lstrip().startswith("#"):
+            chave, _, valor = linha.partition(":")
+            campos[chave.strip()] = valor.strip()
+    return campos
+
+
+# Campos admitidos no metadata de cada ativo: identidade + permissões declaradas.
+# Nunca corpo de prompt, nunca dado pessoal — o manifesto alimenta um catálogo
+# externo e só carrega o que os canônicos já declaram publicamente.
+METADATA_PERMITIDA = {"tools", "descricao", "time", "squad", "model"}
+
+
+def gerar_manifesto_ativos() -> tuple[int, int]:
+    """Consolida agentes e skills em .claude-plugin/ativos.manifest.json.
+
+    É a direção adotada no ADR-0032 — catálogo como estrutura de dados gerada
+    pelo sync, nunca mantida à mão. Cada ativo carrega identidade (`chave`,
+    `versao`, `origem`) e a allow-list de tools declarada no canônico.
+    Determinístico: ordenação estável por (tipoAtivo, chave), tools na ordem
+    declarada, versão lida do plugin.json.
+    """
+    versao = json.loads(PLUGIN_JSON.read_text(encoding="utf-8"))["version"]
+    ativos = []
+
+    for agent_md in sorted(AGENTS_SRC.glob("*.md")):
+        texto = agent_md.read_text(encoding="utf-8")
+        fm = extrair_frontmatter(texto)
+        tools = [t.strip() for t in fm.get("tools", "").split(",") if t.strip()]
+        metadata: dict = {"tools": tools, "descricao": fm.get("description", "")}
+        m = re.search(r"\*\*Time:\*\*\s*(.+)", texto)
+        if m:
+            metadata["time"] = m.group(1).strip()
+            if metadata["time"].startswith("Apoio · "):
+                metadata["squad"] = metadata["time"].removeprefix("Apoio · ")
+        if fm.get("model"):
+            metadata["model"] = fm["model"]
+        ativos.append({
+            "tipoAtivo": "agente",
+            "chave": agent_md.stem,
+            "versao": versao,
+            "origem": "in_house",
+            "metadata": metadata,
+        })
+
+    for skill_md in sorted(SKILLS_SRC.glob("*/SKILL.md")):
+        fm = extrair_frontmatter(skill_md.read_text(encoding="utf-8"))
+        ativos.append({
+            "tipoAtivo": "skill",
+            "chave": skill_md.parent.name,
+            "versao": versao,
+            "origem": "in_house",
+            # Skills não declaram allow-list própria — rodam com as tools de
+            # quem as invoca. Lista vazia = nada declarado (derivado, não inventado).
+            "metadata": {"tools": [], "descricao": fm.get("description", "")},
+        })
+
+    ativos.sort(key=lambda a: (a["tipoAtivo"], a["chave"]))
+    manifesto = {"geradoPor": "sync-multi-cli", "versaoPlugin": versao, "ativos": ativos}
+    MANIFESTO_ATIVOS.write_text(
+        json.dumps(manifesto, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    n_agentes = sum(1 for a in ativos if a["tipoAtivo"] == "agente")
+    return n_agentes, len(ativos) - n_agentes
+
+
+def validar_manifesto() -> list[str]:
+    """Auto-teste barato: recarrega o manifesto gerado e confere shape e contagens
+    contra o filesystem — mesma disciplina do release.py com as contagens."""
+    problemas: list[str] = []
+    try:
+        manifesto = json.loads(MANIFESTO_ATIVOS.read_text(encoding="utf-8"))
+    except Exception as e:
+        return [f"{MANIFESTO_ATIVOS.name}: JSON inválido — {e}"]
+
+    if set(manifesto) != {"geradoPor", "versaoPlugin", "ativos"}:
+        problemas.append(f"{MANIFESTO_ATIVOS.name}: chaves de topo fora do contrato")
+
+    vistos: set[tuple] = set()
+    n_por_tipo = {"agente": 0, "skill": 0}
+    for ativo in manifesto.get("ativos", []):
+        tipo, chave = ativo.get("tipoAtivo"), ativo.get("chave")
+        if tipo not in n_por_tipo:
+            problemas.append(f"ativo '{chave}': tipoAtivo '{tipo}' inválido")
+            continue
+        n_por_tipo[tipo] += 1
+        if (tipo, chave) in vistos:
+            problemas.append(f"ativo '{chave}': duplicado")
+        vistos.add((tipo, chave))
+        if not chave or ativo.get("versao") != manifesto.get("versaoPlugin") \
+                or ativo.get("origem") != "in_house":
+            problemas.append(f"ativo '{chave}': chave/versao/origem fora do contrato")
+        metadata = ativo.get("metadata", {})
+        if not isinstance(metadata.get("tools"), list):
+            problemas.append(f"ativo '{chave}': metadata.tools ausente ou não-lista")
+        elif tipo == "agente" and not metadata["tools"]:
+            problemas.append(f"agente '{chave}': allow-list vazia (regra 4 do CLAUDE.md)")
+        extras = set(metadata) - METADATA_PERMITIDA
+        if extras:
+            problemas.append(f"ativo '{chave}': metadata com campo(s) fora do "
+                             f"admitido: {sorted(extras)}")
+
+    esperado = {"agente": len(list(AGENTS_SRC.glob("*.md"))),
+                "skill": len(list(SKILLS_SRC.glob("*/SKILL.md")))}
+    for tipo, qtd in esperado.items():
+        if n_por_tipo[tipo] != qtd:
+            problemas.append(f"manifesto tem {n_por_tipo[tipo]} {tipo}(s), "
+                             f"filesystem tem {qtd}")
+    return problemas
+
+
 def main() -> int:
     if not AGENTS_SRC.exists():
         print(f"❌ agents/ não encontrado em {ROOT}", file=sys.stderr)
@@ -355,8 +480,20 @@ def main() -> int:
     print(f"  ✓ {n_agents} subagents adaptados em .cursor/agents/")
     print(f"  ✓ {n_skills} skills espelhadas em .cursor/skills/ + rule, scripts e templates")
 
-    print(f"\n✅ Sincronizado: .agents/ (Codex) e .cursor/ (Cursor)")
-    print("\nLembre-se de commitar .agents/ e .cursor/ no git para que usuários de Codex e Cursor peguem os arquivos prontos.")
+    print("🗂️ gerando manifesto de ativos de IA (ADR-0032)...")
+    n_ativos_ag, n_ativos_sk = gerar_manifesto_ativos()
+    problemas = validar_manifesto()
+    if problemas:
+        print(f"❌ manifesto de ativos inconsistente ({len(problemas)} problema(s)):",
+              file=sys.stderr)
+        for p in problemas:
+            print(f"  ✗ {p}", file=sys.stderr)
+        return 1
+    print(f"  ✓ {n_ativos_ag} agentes + {n_ativos_sk} skills em "
+          f"{MANIFESTO_ATIVOS.relative_to(ROOT)}")
+
+    print(f"\n✅ Sincronizado: .agents/ (Codex), .cursor/ (Cursor) e manifesto de ativos")
+    print("\nLembre-se de commitar .agents/, .cursor/ e .claude-plugin/ativos.manifest.json no git para que usuários de Codex e Cursor peguem os arquivos prontos.")
     print("\nNota: skills/ é compartilhado entre Claude Code e Codex; o Cursor recebe mirror gerado em .cursor/skills/.")
     return 0
 

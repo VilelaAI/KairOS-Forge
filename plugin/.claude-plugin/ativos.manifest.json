@@ -1,0 +1,1454 @@
+{
+  "geradoPor": "sync-multi-cli",
+  "versaoPlugin": "0.27.1",
+  "ativos": [
+    {
+      "tipoAtivo": "agente",
+      "chave": "ada-acessibilidade",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para auditar acessibilidade de componentes, adicionar ARIA, validar contraste, garantir navegação por teclado, ou rodar axe-core. Pode editar componentes para corrigir.",
+        "time": "Frontend"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "alice-evals",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para avaliar sistemas de IA de forma independente — eval harness com gold sets, red team de prompts (injeção, jailbreak), testes de alucinação e fundamentação, regressão de prompt como gate de CI. Avalia o que Gabriel e Milena constroem; nunca constrói a feature que avalia. Não use para testes de código convencional (Ricardo) nem para segurança clássica (Helena).",
+        "time": "Qualidade",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "aline-aiops",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para IA aplicada a operações — detecção de anomalia, correlação e deduplicação de alertas (redução de ruído), RCA assistida, análise preditiva de capacidade e observabilidade aumentada com LLM sobre a telemetria que a Renata instrumenta.",
+        "time": "Plataforma"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "andre-busca",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para implementar busca — full-text search, vetorial (pgvector), hybrid, RAG. Mede precision/recall com queries reais antes de aprovar.",
+        "time": "Dados"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-alvaro-inversao",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob"
+        ],
+        "descricao": "Agente de apoio do squad apoio-revisao-arquitetural. Quando precisar questionar uma decisão, fazer pre-mortem, red team, ou debate estruturado entre alternativas. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: revisão arquitetural, review de arquitetura, pre-mortem, red team, steelman.",
+        "time": "Apoio · Revisão Arquitetural",
+        "squad": "Revisão Arquitetural",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-breno-riscos",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-gestao. Quando precisar gerir riscos de projeto e entrega de forma contínua — registro RAID vivo, probabilidade × impacto com dono e gatilho, dependências externas rastreadas. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: risco, RAID, dependência externa, bloqueio, \"e se der errado\", contingência.",
+        "time": "Apoio · Gestão",
+        "squad": "Gestão",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-bruno-taxonomia",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-naming. Quando precisar nomear features, componentes, design tokens, ou definir taxonomia/voz do produto. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: naming, nome de feature, nome de componente, taxonomia, design tokens.",
+        "time": "Apoio · Naming",
+        "squad": "Naming"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-caio-aceite",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-requisitos. Quando precisar transformar desejo em critério de aceite verificável, caçar ambiguidade em requisitos (\"rápido\", \"fácil\", \"seguro\" sem número) ou escrever user stories testáveis antes de implementar. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: critério de aceite, user story, ambiguidade, requisito testável, WHEN THEN.",
+        "time": "Apoio · Requisitos",
+        "squad": "Requisitos",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-celina-microcopy",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-microcopy. Quando precisar de textos de interface, mensagens de erro, empty states ou revisão textual. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: microcopy, texto de erro, mensagem de erro, empty state, tooltip.",
+        "time": "Apoio · Microcopy",
+        "squad": "Microcopy"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-clara-comunidade",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-dx. Quando precisar melhorar experiência do contribuidor, definir contributor ladder, ou medir DORA. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: developer experience, DX, contribuidor, onboarding de dev, DORA metrics.",
+        "time": "Apoio · DX",
+        "squad": "DX"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-cora-voz",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-naming. Quando precisar nomear features, componentes, design tokens, ou definir taxonomia/voz do produto. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: naming, nome de feature, nome de componente, taxonomia, design tokens.",
+        "time": "Apoio · Naming",
+        "squad": "Naming"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-dante-desbloqueio",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob"
+        ],
+        "descricao": "Agente de apoio do squad apoio-narrativa. Quando precisar estruturar specs, ADRs, demos para stakeholders, ou destravar decisões em impasse. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: narrativa, storytelling, apresentação, demo, ADR.",
+        "time": "Apoio · Narrativa",
+        "squad": "Narrativa"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-elisa-naming",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-naming. Quando precisar nomear features, componentes, design tokens, ou definir taxonomia/voz do produto. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: naming, nome de feature, nome de componente, taxonomia, design tokens.",
+        "time": "Apoio · Naming",
+        "squad": "Naming"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-enzo-dx",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-dx. Quando precisar melhorar experiência do contribuidor, definir contributor ladder, ou medir DORA. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: developer experience, DX, contribuidor, onboarding de dev, DORA metrics.",
+        "time": "Apoio · DX",
+        "squad": "DX"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-felix-provocador",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob"
+        ],
+        "descricao": "Agente de apoio do squad apoio-revisao-arquitetural. Quando precisar questionar uma decisão, fazer pre-mortem, red team, ou debate estruturado entre alternativas. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: revisão arquitetural, review de arquitetura, pre-mortem, red team, steelman.",
+        "time": "Apoio · Revisão Arquitetural",
+        "squad": "Revisão Arquitetural",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-helena-apresentacao",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-narrativa. Quando precisar estruturar specs, ADRs, demos para stakeholders, ou destravar decisões em impasse. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: narrativa, storytelling, apresentação, demo, ADR.",
+        "time": "Apoio · Narrativa",
+        "squad": "Narrativa"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-hugo-priorizacao",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-valor. Quando precisar priorizar backlog, planejar lançamento, ou auditar custo-benefício/ROI. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: priorização, valor, ROI, custo-benefício, tech debt.",
+        "time": "Apoio · Valor",
+        "squad": "Valor",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-iara-planejamento",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-gestao. Quando precisar planejar um projeto ou entrega — quebrar em marcos verificáveis, estimar com faixas e buffer, mapear dependências e caminho crítico, sequenciar pelo risco. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: cronograma, prazo, marco, estimativa, caminho crítico, plano de projeto.",
+        "time": "Apoio · Gestão",
+        "squad": "Gestão",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-ingrid-localizacao",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-microcopy. Quando o produto precisar falar mais de uma língua — glossário multi-idioma, políticas de data/moeda/fuso/plural, processo de tradução com contexto, pseudo-localização como teste. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: i18n, l10n, tradução, multi-idioma, internacionalização, \"lançar em espanhol\", fuso horário, moeda.",
+        "time": "Apoio · Microcopy",
+        "squad": "Microcopy"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-joana-elicitacao",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-requisitos. Quando o pedido chegar vago (\"o cliente quer um dashboard\") e for preciso escavar a necessidade real, entrevistar stakeholders ou separar necessidade de solução antes de especificar. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: elicitação, levantamento de requisitos, stakeholder, \"o que o cliente quer\", escopo confuso.",
+        "time": "Apoio · Requisitos",
+        "squad": "Requisitos"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-leticia-revisao",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob"
+        ],
+        "descricao": "Agente de apoio do squad apoio-microcopy. Quando precisar de textos de interface, mensagens de erro, empty states ou revisão textual. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: microcopy, texto de erro, mensagem de erro, empty state, tooltip.",
+        "time": "Apoio · Microcopy",
+        "squad": "Microcopy"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-lia-instrumentacao",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-observabilidade. Quando precisar definir o que medir, criar tracking plan, métricas AARRR, ou design de experimento. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: tracking, analytics, métricas, eventos, feature flag.",
+        "time": "Apoio · Observabilidade",
+        "squad": "Observabilidade"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-lucia-principios",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob"
+        ],
+        "descricao": "Agente de apoio do squad apoio-revisao-arquitetural. Quando precisar questionar uma decisão, fazer pre-mortem, red team, ou debate estruturado entre alternativas. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: revisão arquitetural, review de arquitetura, pre-mortem, red team, steelman.",
+        "time": "Apoio · Revisão Arquitetural",
+        "squad": "Revisão Arquitetural",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-marcos-specs",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-narrativa. Quando precisar estruturar specs, ADRs, demos para stakeholders, ou destravar decisões em impasse. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: narrativa, storytelling, apresentação, demo, ADR.",
+        "time": "Apoio · Narrativa",
+        "squad": "Narrativa",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-norma-nfr",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-requisitos. Quando precisar levantar requisitos não-funcionais esquecidos (desempenho, segurança, confiabilidade, custo), detectar conflitos entre requisitos ou checar completude de uma SPEC antes de implementar. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: requisito não-funcional, NFR, conflito de requisitos, completude da SPEC, \"esqueceram de\".",
+        "time": "Apoio · Requisitos",
+        "squad": "Requisitos",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-otavio-metricas",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-observabilidade. Quando precisar definir o que medir, criar tracking plan, métricas AARRR, ou design de experimento. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: tracking, analytics, métricas, eventos, feature flag.",
+        "time": "Apoio · Observabilidade",
+        "squad": "Observabilidade"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-paula-politicas",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-governanca. Quando precisar escrever políticas de acesso técnico (quem lê/escreve o quê, por quê), matriz de ownership de dados e sistemas, ou plano de revisão periódica de acessos com menor privilégio. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: política de acesso, ownership, menor privilégio, revisão de acessos, \"quem pode ver\", \"quem aprova\".",
+        "time": "Apoio · Governança",
+        "squad": "Governança",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-regina-qualidade",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-governanca. Quando precisar transformar qualidade de dados em requisito com número (completude, unicidade, validade, freshness), definir contratos de dados entre produtor e consumidor ou diagnosticar degradação de dados. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: qualidade de dados, dado sujo, contrato de dados, freshness, duplicado, \"número não bate\".",
+        "time": "Apoio · Governança",
+        "squad": "Governança"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-renato-docs",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-microcopy. Quando precisar de textos de interface, mensagens de erro, empty states ou revisão textual. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: microcopy, texto de erro, mensagem de erro, empty state, tooltip.",
+        "time": "Apoio · Microcopy",
+        "squad": "Microcopy"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-rui-audit",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-valor. Quando precisar priorizar backlog, planejar lançamento, ou auditar custo-benefício/ROI. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: priorização, valor, ROI, custo-benefício, tech debt.",
+        "time": "Apoio · Valor",
+        "squad": "Valor",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-sofia-lancamento",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-valor. Quando precisar priorizar backlog, planejar lançamento, ou auditar custo-benefício/ROI. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: priorização, valor, ROI, custo-benefício, tech debt.",
+        "time": "Apoio · Valor",
+        "squad": "Valor"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-talita-entregas",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-gestao. Quando precisar de status honesto de entrega para stakeholder, follow-ups com dono e data, cadência de acompanhamento ou comunicação de atraso com opções. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: status report, entrega, atraso, follow-up, acompanhamento, \"como está o projeto\".",
+        "time": "Apoio · Gestão",
+        "squad": "Gestão"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-tomas-impacto",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "WebSearch",
+          "WebFetch"
+        ],
+        "descricao": "Agente de apoio do squad apoio-dx. Quando precisar melhorar experiência do contribuidor, definir contributor ladder, ou medir DORA. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: developer experience, DX, contribuidor, onboarding de dev, DORA metrics.",
+        "time": "Apoio · DX",
+        "squad": "DX"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-vera-growth",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-observabilidade. Quando precisar definir o que medir, criar tracking plan, métricas AARRR, ou design de experimento. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: tracking, analytics, métricas, eventos, feature flag.",
+        "time": "Apoio · Observabilidade",
+        "squad": "Observabilidade"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "apoio-vitor-catalogo",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Write",
+          "Edit"
+        ],
+        "descricao": "Agente de apoio do squad apoio-governanca. Quando precisar catalogar os dados do produto (o que existe, onde, quem é dono), documentar linhagem (de onde vem, o que transforma, quem consome) ou montar dicionário de dados. NÃO implementa código — produz artefatos textuais (docs, specs, análises, listas, planos). Sinais de ativação: catálogo de dados, linhagem, dicionário de dados, \"de onde vem esse dado\", \"quem é dono dessa tabela\".",
+        "time": "Apoio · Governança",
+        "squad": "Governança"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "beatriz-docs",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob"
+        ],
+        "descricao": "Use para escrever ou revisar documentação — README, ADR, changelog, runbook, onboarding. Foco em quem vai ler, não em quem escreveu.",
+        "time": "Documentação"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "bento-analytics",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para engenharia de analytics — modelagem dimensional, marts, camada semântica (estilo dbt), métricas com definição única e testada, documentação de modelos analíticos. Fica entre a Juliana (que move o dado bruto) e o Davi (que analisa). Não use para o schema transacional do produto (Fernanda) nem para dashboards de growth (apoio-observabilidade).",
+        "time": "Dados"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "camila-pm",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob"
+        ],
+        "descricao": "Use para definir escopo, fatiar features grandes em incrementos, escrever user stories, ou questionar se algo é MVP. Camila não escreve código.",
+        "time": "Produto"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "carlos-dba",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para implementar migrations, otimizar queries, criar índices justificados, configurar RLS ou escrever triggers. Trabalha em par com Fernanda (Arquiteta de Dados) quando há design novo.",
+        "time": "Dados"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "davi-ciencia-dados",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para análise exploratória de dados, estatística (testes de hipótese, significância, intervalos), formulação de hipóteses e desenho de experimentos. Aciona Milena quando a análise pede modelo e Otávio quando o tema é métrica de produto. Não use para features de IA com LLM (Gabriel) nem para ML de operações (Aline).",
+        "time": "Ciência de Dados",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "diego-sistemas",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "WebSearch",
+          "WebFetch"
+        ],
+        "descricao": "Use para desenhar a arquitetura de uma feature antes de codar — fluxos, contratos, eventos, componentes. Diego produz SPECs em docs/specs/.",
+        "time": "Arquitetura",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "elisa-cloud",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "WebSearch",
+          "WebFetch"
+        ],
+        "descricao": "Use para escolher provedor cloud, dimensionar infra, analisar custo (FinOps), residência de dados ou trade-offs de lock-in. Toda decisão de provedor vira ADR.",
+        "time": "Plataforma",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "felipe-api-docs",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob"
+        ],
+        "descricao": "Use para documentar APIs — OpenAPI/Swagger, exemplos curl, error codes, collections Postman. Cada endpoint tem exemplo executável.",
+        "time": "Documentação"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "fernanda-dados",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "WebSearch",
+          "WebFetch"
+        ],
+        "descricao": "Use para modelar schemas de banco, planejar migrations, definir estratégia de indexação, RLS, ou backup. Trabalha em par com Carlos (DBA) quando há implementação.",
+        "time": "Arquitetura",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "gabriel-ia",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para implementar features que envolvem LLM — prompt engineering, tool use, RAG, evals, orquestração de agentes. Versiona prompts como código.",
+        "time": "Backend"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "gael-gitops",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para entrega contínua declarativa — ArgoCD, Kustomize, sincronização Git→cluster, progressive delivery (canary/blue-green). O Git é a fonte da verdade; nada aplicado à mão no cluster. Rollback é git revert.",
+        "time": "Plataforma"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "heitor-mlops",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para levar modelos de ML a produção e mantê-los saudáveis — deploy batch/online, monitoramento de drift e de qualidade de predição, política de retraining, model registry e rollback de modelo. Não use para CI/CD da aplicação (Marcos) nem para treinar o modelo em si (Milena).",
+        "time": "Ciência de Dados"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "helena-security",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use proativamente antes de qualquer PR para auditar segurança. Aplica checklist OWASP, audita RLS, procura secrets em commit, valida tratamento de input. Não modifica código — sinaliza.",
+        "time": "Plataforma",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "igor-iac",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para escrever infraestrutura como código — módulos Terraform, state remoto, plan/apply, detecção de drift, ambientes (workspaces). Toda mudança de infra passa por plan revisado antes de aplicar.",
+        "time": "Plataforma"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "isabela-ux",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob"
+        ],
+        "descricao": "Use para validar fluxos de usuário, mapear jornadas, identificar pain points em telas existentes, ou aplicar heurísticas de Nielsen. Não codifica.",
+        "time": "Produto"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "ivan-modernizacao",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para conduzir modernização de legado — strangler fig, migração de framework/versão, decomposição incremental de monolito, dívida estrutural como programa contínuo com rollback por etapa. Consome o mapa do /mapear-arquitetura. Não use para decidir SE migra (Rafael/ADR) nem para desenhar a arquitetura-alvo do zero (Diego).",
+        "time": "Arquitetura",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "juliana-etl",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para construir pipelines de dados, ETLs, jobs agendados, exports formatados ou validações de qualidade de dados. Pipelines são idempotentes por padrão.",
+        "time": "Backend"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "kaique-kubernetes",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para orquestração de containers — manifests Kubernetes/EKS, Helm charts, autoscaling (HPA/Karpenter), Ingress e Load Balancer, health checks e limites de recurso. Todo workload declara requests/limits, readiness e liveness.",
+        "time": "Plataforma"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "laura-tech-lead",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use proativamente como ponto de entrada de qualquer feature ou bug não-trivial. Laura analisa complexidade e aciona apenas os agentes relevantes da fábrica. É a única que decide quem entra em cada tarefa.",
+        "time": "Liderança",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "lucas-backend",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para implementar endpoints, services, validação de input, tratamento de erro e transações. Stack default é TS — adapte se diferente.",
+        "time": "Backend"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "marcos-devops",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para configurar CI/CD, Dockerfile, pipeline de deploy, secrets, rollback ou SLOs. Toda config tem plano de rollback documentado.",
+        "time": "Plataforma"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "marina-frontend",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para implementar telas, componentes, hooks e estado de aplicação. Stack default é React+TS — adapte ao stack real do projeto se diferente.",
+        "time": "Frontend"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "milena-ml",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para machine learning clássico do produto — feature engineering, treino, avaliação honesta (baseline primeiro, validação sem leakage), versionamento de modelo e dataset. Não use para features com LLM (Gabriel), ML sobre telemetria de operações (Aline) nem deploy/monitoramento de modelo (Heitor).",
+        "time": "Ciência de Dados"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "murilo-eventos",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para arquitetura de eventos e streaming — mensageria (filas, Kafka), event-driven, padrão outbox, idempotência e deduplicação, replay, contratos e versionamento de eventos, DLQs. Não use para desenho geral de fluxo entre componentes (Diego) nem para APIs síncronas (Thiago).",
+        "time": "Arquitetura"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "nina-redes",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para rede e borda — VPC, subnets, roteamento, DNS, Application Load Balancer, CDN (CloudFront), WAF, TLS/certificados e regras de segurança de rede. Menor superfície de exposição possível; TLS ponta a ponta.",
+        "time": "Plataforma"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "olivia-grafos",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para construir, atualizar, consultar ou diagnosticar o grafo de conhecimento do projeto (.agents/grafo/) — extração de entidades e relações com proveniência, resolução de aliases, perfis de hubs e consultas multi-hop fundamentadas em arestas. Dona da skill mapear-conhecimento. Acione quando uma pergunta exigir encadear fatos de documentos diferentes ou quando agentes precisarem de memória compartilhada.",
+        "time": "Dados",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "pablo-ui",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para implementar componentes visuais, dashboards, gráficos, animações e tokens de design. Trabalha em par com Marina (Frontend) e Ada (Acessibilidade).",
+        "time": "Frontend"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "patricia-qa",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob"
+        ],
+        "descricao": "Use para definir estratégia de testes, planejar cobertura, fazer triage de bugs ou identificar regressão. Não escreve testes — isso é com Ricardo.",
+        "time": "Qualidade"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "rafael-staff",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "WebSearch",
+          "WebFetch"
+        ],
+        "descricao": "Use para decisões arquiteturais irreversíveis, escolhas de tecnologia, padrões de código que afetam o time inteiro, ou qualquer trade-off de escala. Rafael produz ADRs em docs/adr/.",
+        "time": "Liderança",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "renata-observabilidade",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para instrumentar código com logs estruturados, métricas, traces ou alertas. Adiciona correlation IDs em fluxos cross-component.",
+        "time": "Plataforma"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "ricardo-testes",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para escrever e manter testes — unitários, integração, e2e, contract. Stack default Vitest+Playwright — adapte se diferente. Teste antes do código de produção quando possível.",
+        "time": "Qualidade"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "sergio-sre",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para o ciclo de incidente — triagem por severidade, runbooks, war room, mitigação, postmortem blameless, MTTR/MTTD, error budgets e design de auto-remediation. Todo incidente vira postmortem sem culpado e um item de prevenção.",
+        "time": "Plataforma"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "theo-distribuicao",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para o ciclo de release de apps mobile — build assinado, publicação nas lojas (App Store/Play), review guidelines, release trains, rollout gradual, crash reporting e monitoramento de release. Não use para construir o app em si (Yasmin) nem para CI/CD de aplicação web (Marcos).",
+        "time": "Mobile"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "thiago-integracoes",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "WebSearch",
+          "WebFetch"
+        ],
+        "descricao": "Use para desenhar APIs (REST/webhook), definir contratos OpenAPI, decidir auth (OAuth/JWT), rate limiting ou estratégia de idempotência. Trabalha em par com Lucas (Backend) na implementação.",
+        "time": "Arquitetura",
+        "model": "opus"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "vinicius-performance",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para investigar lentidão, definir budget de performance, fazer profiling/benchmark, otimizar bundle ou rodar load test. Mede antes de otimizar.",
+        "time": "Qualidade"
+      }
+    },
+    {
+      "tipoAtivo": "agente",
+      "chave": "yasmin-mobile",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Grep",
+          "Glob",
+          "Bash"
+        ],
+        "descricao": "Use para desenvolvimento mobile multiplataforma — React Native/Flutter, navegação e estado, offline-first, push notifications, deep links, performance de app. Não use para frontend web (Marina) nem para publicação nas lojas e release de app (Théo).",
+        "time": "Mobile"
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "analisar-ameacas",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Produz um modelo de ameaças (threat model) para uma feature ou área do sistema. Use ANTES de implementar features sensíveis — auth, PII, multi-tenant, upload, integrações externas, IA, billing, RBAC. Coordenada por Helena. Identifica ativos, trust boundaries, capacidades realistas do atacante, abuse paths e mitigações por componente. Read-only: produz docs/seguranca/AMEACAS-*.md. Não use para auditar código já escrito — isso é /kairos-forge:revisar; aqui é desenho de segurança antes de implementar."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "auditar",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Audita o estado da fábrica no projeto atual. Use semanalmente (sugestão sexta-feira) ou quando sentir que o setup está estagnando. Pontua 0–120 em seis dimensões — Fundação, Pipeline, Guardrails, Conhecimento, Estrutura, Autonomia — e devolve as 3 lacunas de maior alavancagem para corrigir na próxima semana. Read-only: não modifica nenhum arquivo. Não audita o código do produto nem aceite de SPEC — para o diff use revisar, para aceite use validar."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "avaliar",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Constrói e roda a avaliação de um comportamento não-determinístico — feature com LLM, agente, extração, classificação, roteamento — com gold set versionado, rubrica explícita nos cinco eixos (sucesso da tarefa, uso de ferramenta, conformidade de trajetória, alucinação, qualidade de resposta), limiar de regressão e gate no CI. Dona é Alice, que nunca avalia o que ela mesma construiu. Não use para teste de código determinístico (isso é Ricardo e a matriz de testes da SPEC) nem para segurança clássica como SQLi e autenticação (isso é Helena e o revisar)."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "desenhar",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Produz o handoff de design entre a SPEC e a implementação para features com UI — fluxos de tela, os cinco estados de cada view, responsivo, acessibilidade e critérios de aceite visuais em docs/design/DESIGN-NNN.md. Modo verificar inspeciona a implementação real contra o DESIGN. Dona é Isabela (UX), com Pablo (UI) e Ada (Acessibilidade). Não use para feature sem UI nem para criar a SPEC (isso é especificar)."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "diagnosticar",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Produz o diagnóstico técnico de um sistema existente — mede o que dá para medir, pontua seis dimensões com rubrica publicada, prioriza achados por impacto × esforço e entrega um roadmap por horizonte em docs/diagnosticos/. Dono é Rafael (Staff), com os especialistas medindo cada dimensão. Use como porta de entrada de projeto legado ou de terceiro, antes de decidir o que atacar. Não use para pontuar a fábrica (isso é auditar), para mapear só a estrutura sem julgamento de saúde (isso é mapear-arquitetura) nem para revisar um diff (isso é revisar)."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "entregar",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Conduz o ciclo completo da fábrica de ponta a ponta com o arco fechado — especificar, aprovar, construir, validar, corrigir, revisar, corrigir e abrir PR — roteando cada falha de volta ao agente responsável dentro de um orçamento declarado de rodadas, sem o usuário digitar o próximo comando. Use quando quiser entregar uma feature inteira em vez de encadear skills à mão. Não use para uma etapa isolada (chame a skill dela direto) nem para deploy em produção — isso é lancar, que tem gate humano próprio."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "especificar",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Inicia o fluxo de spec-driven development para uma feature ou mudança. Use no início de qualquer trabalho não-trivial — antes de escrever código. Aciona Laura (Tech Lead) que classifica complexidade, decide arquitetos, registra requisitos rastreáveis e gates. Resultado é uma SPEC em docs/specs/SPEC-NNN-slug.md pronta para /mobilizar, /rodar e /validar. Não use para mudança trivial (1 arquivo, menos de 20 linhas) — nesse caso execute direto, sem SPEC."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "evoluir",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Conduz entrevista semanal de evolução da fábrica. Use depois do /kairos-forge:auditar, tipicamente sexta-feira. Faz 5 perguntas sobre a semana que passou e identifica UMA capacidade nova para construir na próxima (skill, agente, hook ou contexto). Cada execução = um item entregue na semana seguinte. Não constrói nada agora — produz especificação do que será construído. Não use para melhorar uma métrica específica já existente — isso é /kairos-forge:otimizar."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "lancar",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Conduz o lançamento do merge ao mundo com gates — checklist pré-deploy, aprovação explícita do usuário, deploy, health check em três camadas, plano de rollback com gatilho objetivo e follow-up com handoff de observação. Dono é Marcos (DevOps), com Sérgio (SRE) e Renata (Observabilidade). Não use para monitoramento contínuo (isso é do host 24/7) nem para revisar código (isso é revisar)."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "mapear-arquitetura",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Faz inventário estrutural do código existente — componentes, acoplamento, duplicação de domínio, bounded contexts e plano incremental de decomposição. Use em projetos brownfield antes de refatorações grandes, antes de extrair serviço, ao herdar codebase ou quando o usuário disser \"está virando um monolito\". Read-only: produz mapa em docs/arquitetura/MAPA-YYYY-MM-DD.md. Não modifica código. Não use para mapear fatos/decisões do projeto — isso é mapear-conhecimento (grafo); aqui o mapa é da estrutura do código."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "mapear-conhecimento",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Constrói, atualiza, consulta e diagnostica o grafo de conhecimento do projeto em .agents/grafo/ — entidades, relações com proveniência, perfis de hubs e respostas multi-hop que citam arestas. Use quando specs/ADRs/decisões acumularem, quando /mobilizar precisar de memória compartilhada entre agentes, quando /validar precisar fundamentar afirmações, ou quando uma pergunta exigir encadear fatos de documentos diferentes. Olívia coordena. Não use para achar um trecho por similaridade (busca é com o André) nem para inventário estrutural de código (use mapear-arquitetura)."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "migrar",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Conduz modernização de legado por estrangulamento (strangler fig) — fatia a fatia, com testes de caracterização antes de tocar qualquer coisa, rota de corte com rollback e decisão manter-ou-reverter por fatia. Use para migrar monolito para serviços, trocar framework/linguagem, substituir sistema legado em produção. Dono é Ivan (Modernização). Não use para refactor pequeno (3+ arquivos → especificar normal) nem para otimização de métrica em código são (isso é otimizar)."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "mobilizar",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Monta um Agent Team paralelo do Claude Code para executar uma SPEC rastreável ou um conjunto de tarefas com múltiplos agentes da fábrica trabalhando em paralelo, cada um com file ownership, requisitos, gates e Definition of Done próprios. Use quando a SPEC tem tarefas independentes que podem rodar simultaneamente. Exclusiva do Claude Code (Agent Teams). Não use para tarefa sequencial, pequena ou de discussão — use rodar; em Codex/OpenCode/Cursor a skill redireciona para rodar."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "onboardar",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Entrevista de onboarding que prepara um projeto para usar a fábrica kairos-forge. Use na primeira vez em um projeto, depois de instalar o plugin. Faz 7 perguntas, gera CLAUDE.md preenchido, cria estrutura de pastas, contexto de testes, estado operacional e ativa o ciclo dos agentes. Leva ~15 minutos. Não use em projeto já onboardado — para reconfigurar, edite o CLAUDE.md direto ou rode auditar para ver o que falta."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "otimizar",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Conduz um ciclo de catraca (ratchet) de otimização guiado por métrica — uma mudança por rodada, medir, manter se melhorou ou reverter via git, registrando a linhagem completa. Use quando houver uma métrica mensurável por comando a melhorar (latência, bundle, custo de query, F1 de extração, cobertura) dentro de um orçamento de rodadas. Requer métrica honesta, git limpo e arquivos mutáveis delimitados; a skill se recusa sem isso. Não use sem métrica (\"deixar o código melhor\" é revisar) nem para escolher a capacidade da semana (isso é evoluir)."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "revisar",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Revisa o diff atual da branch antes de PR ou push. Use sempre antes de abrir PR, antes de fazer push para branch protegida, ou quando quiser segunda opinião sobre código recém-escrito. Aciona equipe de revisão da fábrica — Helena (segurança), Patrícia (QA), Vinícius (performance) e Marcos (infra) conforme o que foi modificado. Cada uma produz parecer em primeira pessoa com severidade (crítico/alto/médio/baixo). Não valida aceite contra SPEC — isso é validar, que roda antes desta."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "rodar",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Executa um ou mais agentes da fábrica em primeira pessoa. Use quando o usuário disser \"rodar squad\", \"rodar fábrica\", \"ativar time\", \"chamar a Laura\", ou quando uma tarefa for grande o suficiente para envolver múltiplos especialistas. Os agentes se identificam pelo nome (Laura, Marina, Helena, etc.) e colaboram entre si. Não use para executar SPEC em paralelo com file ownership (isso é mobilizar) nem para produzir a SPEC em si (isso é especificar)."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "validar",
+      "versao": "0.27.1",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Valida uma implementação contra uma SPEC rastreável antes da revisão pré-PR. Use depois de /kairos-forge:mobilizar ou /kairos-forge:rodar e antes de /kairos-forge:revisar. Compara requisitos, tarefas, critérios de aceite, gates de teste e evidências. Produz relatório em docs/specs/validacoes/. Não é code review — segurança, performance e qualidade do diff são o revisar; aqui a pergunta é só \"cumpre o contrato da SPEC?\"."
+      }
+    }
+  ]
+}

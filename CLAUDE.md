@@ -33,7 +33,7 @@ Os arquivos canônicos são **`agents/`** e **`skills/`** (formato Claude Code).
 
 ```bash
 python3 scripts/sync-multi-cli.py
-git add agents/ skills/ .agents/ .cursor/
+git add agents/ skills/ .agents/ .cursor/ .claude-plugin/ativos.manifest.json
 ```
 
 Sem o sync, usuários de Codex CLI e Cursor pegam versão desatualizada.
@@ -59,6 +59,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 |---|---|---|
 | `.claude-plugin/plugin.json` | Manifest Claude Code | manual |
 | `.claude-plugin/marketplace.json` | Catalog do marketplace Claude Code | manual |
+| `.claude-plugin/ativos.manifest.json` | Manifesto consolidado de ativos de IA: identidade (`chave`, `versao`, `origem`) + allow-list de tools de cada agente/skill, derivado dos canônicos. Consumido pelo seed do catálogo de ativos do ecossistema KairOS (SPEC-E006) — direção do ADR-0032 | **gerado** por `scripts/sync-multi-cli.py` |
 | `.codex-plugin/plugin.json` | Manifest Codex CLI | manual |
 | `.agents/plugins/marketplace.json` | Catalog do marketplace Codex (mesmo conteúdo do Claude Code mas em path próprio) | manual |
 | `agents/<id>.md` | 71 subagentes (canônico Claude Code) | manual |

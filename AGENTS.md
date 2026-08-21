@@ -18,6 +18,7 @@ The two plugins are independent — one does not import from the other. The core
 ## Plugin Structure
 
 - `.claude-plugin/plugin.json` — Plugin manifest (Claude Code)
+- `.claude-plugin/ativos.manifest.json` — **Generated** consolidated AI-asset manifest: identity (`chave`, `versao`, `origem`) plus the declared tool allow-list of every agent/skill, derived from the canonical sources by the sync script. Feeds the KairOS ecosystem asset-catalog seed (SPEC-E006) — the direction adopted in ADR-0032. Never edited by hand
 - `agents/` — 71 subagents as `<id>.md` files (Claude Code format)
 - `skills/<name>/SKILL.md` — 18 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
 - `hooks/hooks.json` — Claude Code hooks (SessionStart banner, PostToolUse pedagogical reminder, and the deterministic execution recorder wired at four lifecycle points — ADR-0021)

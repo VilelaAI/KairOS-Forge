@@ -109,7 +109,7 @@ description: "Fábrica de software kairos-forge — 71 agentes e 18 skills em PT
 alwaysApply: true
 ---
 
-🔥 kairos-forge v0.28 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
+🔥 kairos-forge v0.29 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
 
 - As skills da fábrica estão no menu `/` (Agent Skills): {lista}. A skill
   `mobilizar` roda aqui: o agente principal orquestra os subagents em paralelo

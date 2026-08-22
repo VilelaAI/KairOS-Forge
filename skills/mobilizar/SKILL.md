@@ -163,8 +163,13 @@ pagar.
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/quadro.py abrir forge-<spec-ou-feature-slug> \
-    --spec SPEC-NNN --cli <claude-code|codex> --teto-onda 6 --rodadas 2
+    --spec SPEC-NNN --cli <claude-code|codex|opencode|cursor> \
+    --teto-onda 6 --rodadas 2 --tempo-limite 60
 ```
+
+`--tempo-limite` é o ponto em que "ainda trabalhando" e "morreu sem avisar" deixam de
+ser distinguíveis (ADR-0036) — não é estimativa de esforço. Tarefa que costuma demorar
+mais recebe o seu próprio no `adicionar`.
 
 Naming: sempre prefixado `forge-`, kebab-case, sem espaços.
 
@@ -290,32 +295,9 @@ o agente não escreve a própria telemetria (ADR-0022). O guardrail bloqueia
 
 Adapte ao stack real do projeto; o default é:
 
-| Agente | File ownership |
-|---|---|
-| Carlos (DBA) | `migrations/`, `**/*.sql`, `db/seed*` |
-| Fernanda (Arq Dados) | (não modifica — só desenha; produz docs) |
-| Lucas (Backend) | `api/`, `server/`, `services/`, `src/lib/api/` |
-| Gabriel (IA) | `prompts/`, `src/lib/ai/`, `src/lib/llm/` |
-| Juliana (ETL) | `pipelines/`, `etl/`, `jobs/` |
-| Marina (Frontend) | `src/components/`, `src/pages/`, `src/hooks/`, `src/stores/` |
-| Pablo (UI) | `src/components/ui/`, `src/styles/`, `tailwind.config.*` |
-| Ada (Acessib) | qualquer JSX/TSX para adicionar ARIA, mas só esses arquivos |
-| Ricardo (Testes) | `**/*.test.*`, `**/*.spec.*`, `tests/`, `e2e/`, `playwright/` |
-| Marcos (DevOps) | `.github/`, `Dockerfile*`, `docker-compose*`, `scripts/deploy*` |
-| Renata (Observ) | `src/lib/logger.*`, `src/lib/metrics.*`, instrumentação |
-| Davi (Ciência de Dados) | `notebooks/`, `analysis/`, `analises/` |
-| Milena (ML) | `ml/`, `models/`, `features/` |
-| Heitor (MLOps) | `ml/pipelines/`, `ml/serving/`, monitoramento de modelo |
-| Yasmin (Mobile) | `app/`, `mobile/`, `src-mobile/` |
-| Théo (Distribuição) | `fastlane/`, `android/app/build.gradle*`, `ios/*.plist` |
-| Alice (Evals IA) | `evals/`, `**/*.eval.*`, gold sets |
-| Bento (Analytics) | `dbt/`, `marts/`, `analytics/` |
-| Murilo (Eventos) | `events/`, contratos de evento, config de mensageria |
-| Ivan (Modernização) | (definido por SPEC — refactor atravessa módulos, sempre serializado) |
-| Beatriz (Docs) | `README.md`, `docs/`, `CHANGELOG.md` |
-| Felipe (API Docs) | `openapi.*`, `docs/api/`, `postman/` |
-| Helena (Security) | (não modifica — audita; produz relatório) |
-| Patrícia (QA) | (não modifica — planeja; produz checklist) |
+A tabela default por agente está em
+`${CLAUDE_PLUGIN_ROOT}/skills/mobilizar/references/posse-de-arquivo.md` — consulte na
+hora de escrever os `--posse`, e adapte ao stack real do projeto.
 
 O quadro resolve sobreposição com duas regras, as mesmas que CODEOWNERS e gitignore já
 usam: **o caminho mais fundo manda** (Pablo em `src/components/ui/**` manda ali dentro,
@@ -383,12 +365,43 @@ estrutural do *shared memory* no padrão orquestrador–workers (ADR-0009):
    exatamente o resumo fluente por cima de resultado parcial que ele existe para impedir.
    Ao concluir, ele já diz o que a conclusão liberou — essa é a sua próxima onda.
 
-2. **Bloqueio é estado, não conversa.** `quadro.py bloquear <slug> T3 --motivo "..."`.
+2. **Worker que não responde tem prazo.** Antes de cada onda nova, varra:
+
+   ```bash
+   quadro.py varrer forge-<slug>        # --dry-run para só ver
+   ```
+
+   Tarefa em voo além do tempo limite vira `bloqueada` e **devolve a vaga da onda**.
+   Sem isso, um worker que morreu sem avisar segura a vaga para sempre: o teto nunca
+   libera, a onda seguinte nunca sai, e nada nunca dá erro — travar em silêncio é pior
+   que falhar alto. Ao reabrir, decida antes: o worker morreu (relance) ou a tarefa é
+   grande demais para o limite (aumente o `--tempo-limite` dela).
+
+3. **Falha tardia compensa, não reinicia (ADR-0036).** Quando uma tarefa **já
+   concluída** se revela inválida — mudou a premissa, o requisito, o schema — não
+   declare lacuna nem refaça tudo:
+
+   ```bash
+   quadro.py compensar forge-<slug> T1 --motivo "..."            # mostra o plano
+   quadro.py compensar forge-<slug> T1 --motivo "..." --aplicar   # executa
+   ```
+
+   O quadro devolve **T1 e só o que foi construído sobre ela**, na ordem inversa da
+   execução, cada uma com o `--reverter` que você declarou no Passo 4. O que não
+   dependia de T1 permanece concluído — é essa preservação que separa compensação de
+   reinício. Execute os `desfazer` **nessa ordem** antes de relançar: derrubar a base
+   antes do que se apoia nela deixa o repositório num estado que ninguém desenhou.
+
+   Se alguma tarefa do plano não declarou `--reverter`, o plano inteiro é recusado.
+   Compensação pela metade é pior que não ter começado, e tarefa irreversível para no
+   usuário (ADR-0024).
+
+4. **Bloqueio é estado, não conversa.** `quadro.py bloquear <slug> T3 --motivo "..."`.
    Resolvido, `reabrir` devolve à fila e **queima uma rodada**. Esgotado o orçamento de
    rodadas daquela tarefa, `reabrir` recusa: escale ou encerre com a lacuna declarada.
    Não existe "mais uma rodadinha".
 
-3. **Checkpoint a cada 3 tasks.** Valide alinhamento com a SPEC e renderize:
+5. **Checkpoint a cada 3 tasks.** Valide alinhamento com a SPEC e renderize:
 
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/painel.py SPEC-NNN   # SPEC + ciclo + quadro
@@ -399,10 +412,10 @@ estrutural do *shared memory* no padrão orquestrador–workers (ADR-0009):
    em "Pronto" com gate rodado — os cards andam porque os agentes construíram e
    provaram, não porque alguém arrastou.
 
-4. **Fan-in em camadas.** Com mais de ~6 teammates, não consolide todos os outputs crus
+6. **Fan-in em camadas.** Com mais de ~6 teammates, não consolide todos os outputs crus
    de uma vez. Agrupe por domínio, resuma cada grupo, e sintetize **os resumos**.
 
-5. **Encerramento.** Quando o quadro disser completo:
+7. **Encerramento.** Quando o quadro disser completo:
 
    ```bash
    quadro.py ledger forge-<slug>       # a tabela do relatório, montada do estado

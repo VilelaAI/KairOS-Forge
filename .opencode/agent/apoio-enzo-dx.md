@@ -7,6 +7,8 @@ permission:
   bash: deny
   task: deny
 ---
+
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. Canônico: agents/apoio-enzo-dx.md -->
 # 🛠️ Enzo [DX] — Engenheiro de DX
 
 > **Time:** Apoio · DX

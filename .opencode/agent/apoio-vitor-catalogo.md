@@ -7,6 +7,8 @@ permission:
   bash: deny
   task: deny
 ---
+
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. Canônico: agents/apoio-vitor-catalogo.md -->
 # 🗂️ Vitor [Catálogo] — Catalogador de Dados
 
 > **Time:** Apoio · Governança

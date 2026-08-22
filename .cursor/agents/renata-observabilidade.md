@@ -3,6 +3,9 @@ name: renata-observabilidade
 description: Use para instrumentar código com logs estruturados, métricas, traces ou alertas. Adiciona correlation IDs em fluxos cross-component.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 👁️ Renata — Observability Engineer
 
 > **Time:** Plataforma

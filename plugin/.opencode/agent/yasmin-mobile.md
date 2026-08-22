@@ -7,6 +7,8 @@ permission:
   bash: allow
   task: deny
 ---
+
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. Canônico: agents/yasmin-mobile.md -->
 # 📱 Yasmin — Engenheira Mobile
 
 > **Time:** Mobile

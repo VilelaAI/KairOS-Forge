@@ -4,6 +4,9 @@ description: Agente de apoio do squad apoio-dx. Quando precisar melhorar experi�
 readonly: true
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 📈 Tomás [Impacto] — Analista de Impacto
 
 > **Time:** Apoio · DX

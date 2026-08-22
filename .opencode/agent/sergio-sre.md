@@ -7,6 +7,8 @@ permission:
   bash: allow
   task: deny
 ---
+
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. Canônico: agents/sergio-sre.md -->
 # 🧯 Sérgio — SRE / Incident Commander
 
 > **Time:** Plataforma

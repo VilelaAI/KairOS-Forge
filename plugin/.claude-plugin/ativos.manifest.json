@@ -1,11 +1,11 @@
 {
   "geradoPor": "sync-multi-cli",
-  "versaoPlugin": "0.27.1",
+  "versaoPlugin": "0.28.1",
   "ativos": [
     {
       "tipoAtivo": "agente",
       "chave": "ada-acessibilidade",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -23,7 +23,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "alice-evals",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -42,7 +42,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "aline-aiops",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -60,7 +60,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "andre-busca",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -78,7 +78,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-alvaro-inversao",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -95,7 +95,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-breno-riscos",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -114,7 +114,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-bruno-taxonomia",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -132,7 +132,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-caio-aceite",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -151,7 +151,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-celina-microcopy",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -169,7 +169,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-clara-comunidade",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -187,7 +187,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-cora-voz",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -205,7 +205,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-dante-desbloqueio",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -221,7 +221,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-elisa-naming",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -239,7 +239,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-enzo-dx",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -257,7 +257,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-felix-provocador",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -274,7 +274,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-helena-apresentacao",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -292,7 +292,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-hugo-priorizacao",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -311,7 +311,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-iara-planejamento",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -330,7 +330,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-ingrid-localizacao",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -348,7 +348,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-joana-elicitacao",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -366,7 +366,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-leticia-revisao",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -382,7 +382,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-lia-instrumentacao",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -400,7 +400,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-lucia-principios",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -417,7 +417,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-marcos-specs",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -436,7 +436,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-norma-nfr",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -455,7 +455,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-otavio-metricas",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -473,7 +473,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-paula-politicas",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -492,7 +492,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-regina-qualidade",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -510,7 +510,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-renato-docs",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -528,7 +528,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-rui-audit",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -547,7 +547,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-sofia-lancamento",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -565,7 +565,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-talita-entregas",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -583,7 +583,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-tomas-impacto",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -601,7 +601,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-vera-growth",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -619,7 +619,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "apoio-vitor-catalogo",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -637,7 +637,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "beatriz-docs",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -654,7 +654,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "bento-analytics",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -672,7 +672,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "camila-pm",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -687,7 +687,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "carlos-dba",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -705,7 +705,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "davi-ciencia-dados",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -724,7 +724,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "diego-sistemas",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -742,7 +742,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "elisa-cloud",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -760,7 +760,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "felipe-api-docs",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -777,7 +777,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "fernanda-dados",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -795,7 +795,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "gabriel-ia",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -813,7 +813,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "gael-gitops",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -831,7 +831,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "heitor-mlops",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -849,7 +849,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "helena-security",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -866,7 +866,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "igor-iac",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -884,7 +884,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "isabela-ux",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -899,7 +899,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "ivan-modernizacao",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -918,7 +918,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "juliana-etl",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -936,7 +936,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "kaique-kubernetes",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -954,7 +954,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "laura-tech-lead",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -971,7 +971,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "lucas-backend",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -989,7 +989,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "marcos-devops",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1007,7 +1007,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "marina-frontend",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1025,7 +1025,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "milena-ml",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1043,7 +1043,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "murilo-eventos",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1061,7 +1061,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "nina-redes",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1079,7 +1079,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "olivia-grafos",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1098,7 +1098,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "pablo-ui",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1116,7 +1116,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "patricia-qa",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1131,7 +1131,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "rafael-staff",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1149,7 +1149,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "renata-observabilidade",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1167,7 +1167,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "ricardo-testes",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1185,7 +1185,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "sergio-sre",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1203,7 +1203,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "theo-distribuicao",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1221,7 +1221,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "thiago-integracoes",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1239,7 +1239,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "vinicius-performance",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1255,7 +1255,7 @@
     {
       "tipoAtivo": "agente",
       "chave": "yasmin-mobile",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [
@@ -1273,7 +1273,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "analisar-ameacas",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1283,7 +1283,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "auditar",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1293,7 +1293,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "avaliar",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1303,7 +1303,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "desenhar",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1313,7 +1313,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "diagnosticar",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1323,7 +1323,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "entregar",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1333,7 +1333,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "especificar",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1343,7 +1343,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "evoluir",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1353,7 +1353,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "lancar",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1363,7 +1363,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "mapear-arquitetura",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1373,7 +1373,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "mapear-conhecimento",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1383,7 +1383,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "migrar",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1393,17 +1393,17 @@
     {
       "tipoAtivo": "skill",
       "chave": "mobilizar",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
-        "descricao": "Monta um Agent Team paralelo do Claude Code para executar uma SPEC rastreável ou um conjunto de tarefas com múltiplos agentes da fábrica trabalhando em paralelo, cada um com file ownership, requisitos, gates e Definition of Done próprios. Use quando a SPEC tem tarefas independentes que podem rodar simultaneamente. Exclusiva do Claude Code (Agent Teams). Não use para tarefa sequencial, pequena ou de discussão — use rodar; em Codex/OpenCode/Cursor a skill redireciona para rodar."
+        "descricao": "Monta um time paralelo para executar uma SPEC rastreável ou um conjunto de tarefas, com múltiplos agentes da fábrica trabalhando ao mesmo tempo, cada um com file ownership, requisitos, gates e Definition of Done próprios. Use quando a SPEC tem tarefas independentes que podem rodar simultaneamente. Roda nos quatro CLIs — Claude Code (Agent Teams), Codex (spawn_agent), OpenCode (task) e Cursor (subagents orquestrados); o quadro de tarefas é um arquivo do repositório, então sobrevive a troca de sessão e de CLI. Não use para tarefa sequencial, pequena ou de discussão — use rodar; em CLI sem lançamento paralelo a skill roda o mesmo quadro em série."
       }
     },
     {
       "tipoAtivo": "skill",
       "chave": "onboardar",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1413,7 +1413,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "otimizar",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1423,7 +1423,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "revisar",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1433,7 +1433,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "rodar",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],
@@ -1443,7 +1443,7 @@
     {
       "tipoAtivo": "skill",
       "chave": "validar",
-      "versao": "0.27.1",
+      "versao": "0.28.1",
       "origem": "in_house",
       "metadata": {
         "tools": [],

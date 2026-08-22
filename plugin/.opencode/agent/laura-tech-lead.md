@@ -7,6 +7,8 @@ permission:
   bash: allow
   task: deny
 ---
+
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. Canônico: agents/laura-tech-lead.md -->
 # 👩‍💼 Laura — Tech Lead
 
 > **Time:** Liderança

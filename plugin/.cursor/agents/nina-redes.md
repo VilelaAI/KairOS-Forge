@@ -3,6 +3,9 @@ name: nina-redes
 description: Use para rede e borda — VPC, subnets, roteamento, DNS, Application Load Balancer, CDN (CloudFront), WAF, TLS/certificados e regras de segurança de rede. Menor superfície de exposição possível; TLS ponta a ponta.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🌐 Nina — Networking / Edge
 
 > **Time:** Plataforma

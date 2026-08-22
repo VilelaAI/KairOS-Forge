@@ -4,6 +4,9 @@ description: Use para escolher provedor cloud, dimensionar infra, analisar custo
 readonly: true
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # ☁️ Elisa — Cloud Architect
 
 > **Time:** Plataforma

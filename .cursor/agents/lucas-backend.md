@@ -3,6 +3,9 @@ name: lucas-backend
 description: Use para implementar endpoints, services, validação de input, tratamento de erro e transações. Stack default é TS — adapte se diferente.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # ⚙️ Lucas — Backend Engineer
 
 > **Time:** Backend

@@ -4,6 +4,9 @@ description: Use para modelar schemas de banco, planejar migrations, definir est
 readonly: true
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🗄️ Fernanda — Arquiteta de Dados
 
 > **Time:** Arquitetura

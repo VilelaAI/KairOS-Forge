@@ -3,6 +3,9 @@ name: vinicius-performance
 description: Use para investigar lentidão, definir budget de performance, fazer profiling/benchmark, otimizar bundle ou rodar load test. Mede antes de otimizar.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # ⚡ Vinícius — Performance Engineer
 
 > **Time:** Qualidade

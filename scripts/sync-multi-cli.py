@@ -18,7 +18,9 @@ não tem conceito de plugin — recebe um diretório `.cursor/` completo:
                   ativos de IA por agente/skill, direção do ADR-0032)
 
 Uso:
-    python3 scripts/sync-multi-cli.py
+    python3 scripts/sync-multi-cli.py                      # regenera tudo (default)
+    python3 scripts/sync-multi-cli.py instalar --cli codex  # instala as personas no CLI
+    python3 scripts/sync-multi-cli.py instalar --cli todos --escopo global --dry-run
 
 Roda este script sempre que mudar arquivos em agents/ ou skills/. O resultado é
 commitado no git. Usuário final do Codex/Cursor pega os arquivos prontos.
@@ -61,7 +63,9 @@ NÃO modifica:
     - .codex-plugin/plugin.json e .agents/plugins/marketplace.json (manuais)
 """
 from pathlib import Path
+import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -77,6 +81,12 @@ MANIFESTO_ATIVOS = ROOT / ".claude-plugin" / "ativos.manifest.json"
 PRESERVAR = {"plugins"}  # subdir mantido (marketplace.json fica em .agents/plugins/)
 
 FERRAMENTAS_ESCRITA = {"Write", "Edit", "NotebookEdit", "Bash"}
+
+# Assinatura dos arquivos que este script gera. O `instalar` depende dela para uma
+# distinção que importa: arquivo com a marca é nosso e pode ser sobrescrito; arquivo
+# sem a marca é do usuário e é PRESERVADO, mesmo que o nome coincida. Sem isso, um
+# agente próprio chamado `carlos-dba.md` seria silenciosamente destruído por um sync.
+MARCA_GERADO = "GERADO por scripts/sync-multi-cli.py (kairos-forge)"
 
 # Scripts referenciados pelas skills via ${CLAUDE_PLUGIN_ROOT}/scripts/ — o Cursor
 # precisa deles ao lado das skills. Copiados se existirem (a lista tolera ausência
@@ -180,7 +190,7 @@ def gerar_roles_codex():
         escreve = bool(ferramentas & FERRAMENTAS_ESCRITA)
 
         linhas = [
-            "# GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui.",
+            f"# {MARCA_GERADO} — não edite aqui.",
             f"# Canônico: agents/{agent_md.name}",
             "",
             f'name = "{agent_id}"',
@@ -241,6 +251,8 @@ def gerar_agentes_opencode():
             "  task: deny",   # decompor é da Laura, não do teammate
             "---",
             "",
+            f"<!-- {MARCA_GERADO} — não edite aqui. Canônico: agents/{agent_md.name} -->",
+            "",
         ]
         (destino / f"{agent_id}.md").write_text("\n".join(frente) + corpo + "\n", encoding="utf-8")
         contagem += 1
@@ -294,7 +306,8 @@ def transformar_agente_cursor(texto: str) -> str:
     if tools and not (ferramentas & FERRAMENTAS_ESCRITA):
         mantidas.append("readonly: true")
 
-    return "\n".join(["---", *mantidas, "---", *corpo])
+    marca = f"\n<!-- {MARCA_GERADO} — não edite aqui. -->\n"
+    return "\n".join(["---", *mantidas, "---", marca, *corpo])
 
 
 def sincronizar_cursor():
@@ -454,7 +467,107 @@ def validar_manifesto() -> list[str]:
     return problemas
 
 
-def main() -> int:
+# --- instalação nos CLIs (ADR-0035) --------------------------------------------------
+# Codex e OpenCode descobrem subagents no diretório de config DELES, não no do plugin.
+# Até aqui isso era um `cp` no README — passo manual, fácil de esquecer e de errar o
+# caminho, e o sintoma (a persona não resolve) não aponta para a causa.
+ALVOS = {
+    "codex": {
+        "origem": ".codex/agents", "padrao": "*.toml",
+        "projeto": ".codex/agents", "global": "~/.codex/agents",
+        "nota": "`spawn_agent(agent_type: \"<id>\")` passa a resolver a persona",
+    },
+    "opencode": {
+        "origem": ".opencode/agent", "padrao": "*.md",
+        "projeto": ".opencode/agent", "global": None,   # XDG — resolvido em destino_de()
+        "nota": "`task(subagent_type: \"<id>\")` passa a delegar com permission enforced",
+    },
+    "cursor": {
+        "origem": ".cursor/agents", "padrao": "*.md",
+        "projeto": ".cursor/agents", "global": "~/.cursor/agents",
+        "nota": "os subagents aparecem para o agente principal orquestrar",
+    },
+}
+
+
+def destino_de(cli: str, escopo: str) -> Path:
+    if escopo == "projeto":
+        return Path.cwd() / ALVOS[cli]["projeto"]
+    if cli == "opencode":
+        # OpenCode segue XDG: $XDG_CONFIG_HOME/opencode, com ~/.config de fallback.
+        base = os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")
+        return Path(base) / "opencode" / "agent"
+    return Path(ALVOS[cli]["global"]).expanduser()
+
+
+def instalar(cli: str, escopo: str, destino: Path | None, dry_run: bool) -> int:
+    alvo = ALVOS[cli]
+    origem = ROOT / alvo["origem"]
+    if not origem.is_dir():
+        print(f"❌ {alvo['origem']} não existe — rode o sync primeiro.", file=sys.stderr)
+        return 1
+    arquivos = sorted(origem.glob(alvo["padrao"]))
+    if not arquivos:
+        print(f"❌ nenhum arquivo em {alvo['origem']} — rode o sync primeiro.", file=sys.stderr)
+        return 1
+
+    pasta = destino or destino_de(cli, escopo)
+    rotulo = "simulação" if dry_run else "instalação"
+    print(f"📦 {cli} ({escopo}) → {pasta}  [{rotulo}]")
+
+    novos = atualizados = iguais = 0
+    preservados: list[str] = []
+    if not dry_run:
+        pasta.mkdir(parents=True, exist_ok=True)
+
+    esperados = set()
+    for arq in arquivos:
+        esperados.add(arq.name)
+        alvo_arq = pasta / arq.name
+        conteudo = arq.read_bytes()
+        if not alvo_arq.exists():
+            novos += 1
+        else:
+            atual = alvo_arq.read_bytes()
+            if atual == conteudo:
+                iguais += 1
+                continue
+            # Nome coincide mas o arquivo não é nosso: é do usuário. Não toque.
+            if MARCA_GERADO not in atual.decode("utf-8", errors="replace"):
+                preservados.append(arq.name)
+                continue
+            atualizados += 1
+        if not dry_run:
+            alvo_arq.write_bytes(conteudo)
+
+    # Persona renomeada/removida no canônico deixa um órfão que ainda casa em
+    # `agent_type` — só removemos o que carrega a nossa marca.
+    removidos = 0
+    if pasta.is_dir():
+        for existente in sorted(pasta.glob(alvo["padrao"])):
+            if existente.name in esperados:
+                continue
+            if MARCA_GERADO in existente.read_text(encoding="utf-8", errors="replace"):
+                removidos += 1
+                if not dry_run:
+                    existente.unlink()
+
+    partes = [f"{novos} novo(s)", f"{atualizados} atualizado(s)", f"{iguais} inalterado(s)"]
+    if removidos:
+        partes.append(f"{removidos} órfão(s) removido(s)")
+    print(f"  ✓ {' · '.join(partes)}")
+    if preservados:
+        print(f"  ⚠️  {len(preservados)} arquivo(s) SEUS preservados (nome coincide, "
+              f"conteúdo não é gerado): {', '.join(preservados[:5])}"
+              + ("…" if len(preservados) > 5 else ""))
+        print("      Renomeie o seu ou o nosso — enquanto os dois disputam o nome, "
+              "o CLI resolve um só.")
+    if not dry_run and (novos or atualizados or removidos):
+        print(f"  → {alvo['nota']}")
+    return 0
+
+
+def sincronizar_tudo() -> int:
     if not AGENTS_SRC.exists():
         print(f"❌ agents/ não encontrado em {ROOT}", file=sys.stderr)
         return 1
@@ -496,6 +609,39 @@ def main() -> int:
     print("\nLembre-se de commitar .agents/, .cursor/ e .claude-plugin/ativos.manifest.json no git para que usuários de Codex e Cursor peguem os arquivos prontos.")
     print("\nNota: skills/ é compartilhado entre Claude Code e Codex; o Cursor recebe mirror gerado em .cursor/skills/.")
     return 0
+
+
+def main() -> int:
+    argv = sys.argv[1:]
+    if not argv:                       # comportamento default: o sync, como sempre
+        return sincronizar_tudo()
+
+    ap = argparse.ArgumentParser(prog="sync-multi-cli.py",
+                                 description="Sincroniza e instala os canônicos por CLI.")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("sync", help="regenera .agents/, .codex/, .opencode/, .cursor/ (default)")
+
+    p = sub.add_parser("instalar", help="copia as personas para o diretório do CLI")
+    p.add_argument("--cli", required=True, choices=[*ALVOS, "todos"])
+    p.add_argument("--escopo", default="projeto", choices=["projeto", "global"])
+    p.add_argument("--destino", type=Path, default=None,
+                   help="sobrescreve o diretório de destino (implica um --cli só)")
+    p.add_argument("--dry-run", action="store_true", help="mostra o que faria")
+
+    a = ap.parse_args(argv)
+    if a.cmd == "sync":
+        return sincronizar_tudo()
+
+    clis = list(ALVOS) if a.cli == "todos" else [a.cli]
+    if a.destino and len(clis) > 1:
+        print("❌ --destino exige um --cli específico.", file=sys.stderr)
+        return 1
+    codigo = 0
+    for cli in clis:
+        codigo |= instalar(cli, a.escopo, a.destino, a.dry_run)
+    if a.dry_run:
+        print("\n(simulação — nada foi escrito; repita sem --dry-run para instalar)")
+    return codigo
 
 
 if __name__ == "__main__":

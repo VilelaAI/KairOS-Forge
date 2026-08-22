@@ -7,6 +7,8 @@ permission:
   bash: deny
   task: deny
 ---
+
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. Canônico: agents/apoio-regina-qualidade.md -->
 # 🧪 Regina [Qualidade] — Analista de Qualidade de Dados
 
 > **Time:** Apoio · Governança

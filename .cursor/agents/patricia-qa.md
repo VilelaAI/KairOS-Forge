@@ -4,6 +4,9 @@ description: Use para definir estratégia de testes, planejar cobertura, fazer t
 readonly: true
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # ✅ Patrícia — QA Lead
 
 > **Time:** Qualidade

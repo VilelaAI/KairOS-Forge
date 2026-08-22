@@ -99,9 +99,10 @@ como o file ownership vira ficção.
 `~/.codex` (pessoal) ou `.codex/` do projeto. Se o plugin não estiver nesse caminho:
 
 ```bash
-mkdir -p ~/.codex/agents
-cp <plugin>/.codex/agents/*.toml ~/.codex/agents/
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/sync-multi-cli.py instalar --cli codex --escopo global
 ```
+
+(`--escopo projeto` instala em `.codex/agents/` do projeto; `--dry-run` mostra antes.)
 
 Confira com `codex` iniciando uma sessão: `spawn_agent` deve listar os tipos
 disponíveis. Se `agent_type: "carlos-dba"` responder "agent type is currently not

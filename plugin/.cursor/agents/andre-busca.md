@@ -3,6 +3,9 @@ name: andre-busca
 description: Use para implementar busca — full-text search, vetorial (pgvector), hybrid, RAG. Mede precision/recall com queries reais antes de aprovar.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🔎 André — Search Engineer
 
 > **Time:** Dados

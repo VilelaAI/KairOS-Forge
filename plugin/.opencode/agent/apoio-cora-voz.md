@@ -7,6 +7,8 @@ permission:
   bash: deny
   task: deny
 ---
+
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. Canônico: agents/apoio-cora-voz.md -->
 # 🗣️ Cora [Voz] — Designer de Voz
 
 > **Time:** Apoio · Naming

@@ -7,6 +7,8 @@ permission:
   bash: allow
   task: deny
 ---
+
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. Canônico: agents/davi-ciencia-dados.md -->
 # 🔬 Davi — Cientista de Dados
 
 > **Time:** Ciência de Dados

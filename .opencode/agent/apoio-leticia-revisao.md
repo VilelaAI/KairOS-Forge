@@ -7,6 +7,8 @@ permission:
   bash: deny
   task: deny
 ---
+
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. Canônico: agents/apoio-leticia-revisao.md -->
 # 🔍 Letícia [Revisão] — Revisora Textual
 
 > **Time:** Apoio · Microcopy

@@ -3,6 +3,9 @@ name: carlos-dba
 description: Use para implementar migrations, otimizar queries, criar índices justificados, configurar RLS ou escrever triggers. Trabalha em par com Fernanda (Arquiteta de Dados) quando há design novo.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🛢️ Carlos — DBA
 
 > **Time:** Dados

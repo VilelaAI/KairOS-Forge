@@ -3,6 +3,9 @@ name: beatriz-docs
 description: Use para escrever ou revisar documentação — README, ADR, changelog, runbook, onboarding. Foco em quem vai ler, não em quem escreveu.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 📝 Beatriz — Technical Writer
 
 > **Time:** Documentação

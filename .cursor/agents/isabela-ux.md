@@ -4,6 +4,9 @@ description: Use para validar fluxos de usuário, mapear jornadas, identificar p
 readonly: true
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🔬 Isabela — UX Researcher
 
 > **Time:** Produto

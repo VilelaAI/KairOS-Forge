@@ -4,6 +4,9 @@ description: Agente de apoio do squad apoio-revisao-arquitetural. Quando precisa
 readonly: true
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 😈 Félix [Provocador] — Red Teamer
 
 > **Time:** Apoio · Revisão Arquitetural

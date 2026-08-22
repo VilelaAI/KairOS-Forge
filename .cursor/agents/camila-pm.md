@@ -4,6 +4,9 @@ description: Use para definir escopo, fatiar features grandes em incrementos, es
 readonly: true
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🎯 Camila — PM Técnico
 
 > **Time:** Produto

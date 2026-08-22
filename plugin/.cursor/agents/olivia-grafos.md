@@ -3,6 +3,9 @@ name: olivia-grafos
 description: Use para construir, atualizar, consultar ou diagnosticar o grafo de conhecimento do projeto (.agents/grafo/) — extração de entidades e relações com proveniência, resolução de aliases, perfis de hubs e consultas multi-hop fundamentadas em arestas. Dona da skill mapear-conhecimento. Acione quando uma pergunta exigir encadear fatos de documentos diferentes ou quando agentes precisarem de memória compartilhada.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🕸️ Olívia — Engenheira de Conhecimento
 
 > **Time:** Dados

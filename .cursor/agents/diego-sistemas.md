@@ -4,6 +4,9 @@ description: Use para desenhar a arquitetura de uma feature antes de codar — f
 readonly: true
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 📐 Diego — Arquiteto de Sistemas
 
 > **Time:** Arquitetura

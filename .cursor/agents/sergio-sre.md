@@ -3,6 +3,9 @@ name: sergio-sre
 description: Use para o ciclo de incidente — triagem por severidade, runbooks, war room, mitigação, postmortem blameless, MTTR/MTTD, error budgets e design de auto-remediation. Todo incidente vira postmortem sem culpado e um item de prevenção.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🧯 Sérgio — SRE / Incident Commander
 
 > **Time:** Plataforma

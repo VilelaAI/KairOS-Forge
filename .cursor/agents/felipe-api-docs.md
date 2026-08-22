@@ -3,6 +3,9 @@ name: felipe-api-docs
 description: Use para documentar APIs — OpenAPI/Swagger, exemplos curl, error codes, collections Postman. Cada endpoint tem exemplo executável.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 📖 Felipe — API Documentation Engineer
 
 > **Time:** Documentação

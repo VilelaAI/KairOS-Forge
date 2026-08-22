@@ -3,6 +3,9 @@ name: gabriel-ia
 description: Use para implementar features que envolvem LLM — prompt engineering, tool use, RAG, evals, orquestração de agentes. Versiona prompts como código.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🤖 Gabriel — AI Engineer
 
 > **Time:** Backend

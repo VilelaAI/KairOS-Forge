@@ -3,6 +3,9 @@ name: juliana-etl
 description: Use para construir pipelines de dados, ETLs, jobs agendados, exports formatados ou validações de qualidade de dados. Pipelines são idempotentes por padrão.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 📊 Juliana — Data Engineer
 
 > **Time:** Backend

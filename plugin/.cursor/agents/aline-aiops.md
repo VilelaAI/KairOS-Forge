@@ -3,6 +3,9 @@ name: aline-aiops
 description: Use para IA aplicada a operações — detecção de anomalia, correlação e deduplicação de alertas (redução de ruído), RCA assistida, análise preditiva de capacidade e observabilidade aumentada com LLM sobre a telemetria que a Renata instrumenta.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🔮 Aline — Engenheira AIOps
 
 > **Time:** Plataforma

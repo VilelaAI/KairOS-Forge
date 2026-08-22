@@ -4,6 +4,9 @@ description: Use para decisões arquiteturais irreversíveis, escolhas de tecnol
 readonly: true
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🧭 Rafael — Staff Engineer
 
 > **Time:** Liderança

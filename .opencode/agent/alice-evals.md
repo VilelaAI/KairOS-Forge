@@ -7,6 +7,8 @@ permission:
   bash: allow
   task: deny
 ---
+
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. Canônico: agents/alice-evals.md -->
 # 🎯 Alice — Especialista em Evals de IA
 
 > **Time:** Qualidade

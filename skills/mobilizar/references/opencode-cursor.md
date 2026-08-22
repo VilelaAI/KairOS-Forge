@@ -55,9 +55,11 @@ persona carrega, mas não fica delegável, e a onda paralela simplesmente não a
 Use os arquivos gerados:
 
 ```bash
-mkdir -p .opencode/agent
-cp <plugin>/.opencode/agent/*.md .opencode/agent/     # ou no config global
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/sync-multi-cli.py instalar --cli opencode
 ```
+
+Isso escreve em `.opencode/agent/` do projeto; `--escopo global` usa
+`$XDG_CONFIG_HOME/opencode/agent` (por padrão `~/.config/opencode/agent`).
 
 ### A allow-list atravessa inteira — e só aqui
 
@@ -114,7 +116,7 @@ corrige rota com uma mensagem; aqui, não. Duas consequências práticas:
   que está rodando. Registre a rodada no quadro (`bloquear` → `reabrir`) para o
   orçamento continuar valendo.
 
-As personas já estão em `.cursor/agents/` (geradas pelo sync). A allow-list degrada para
+As personas vão para `.cursor/agents/` com `sync-multi-cli.py instalar --cli cursor` (ou `--escopo global`, em `~/.cursor/agents/`). A allow-list degrada para
 `readonly: true` quando o canônico não tem ferramenta de escrita — é instrução, não
 fronteira; onde a supervisão humana sai do caminho, use worktree (Passo 6.1 da skill).
 

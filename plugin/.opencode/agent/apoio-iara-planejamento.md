@@ -7,6 +7,8 @@ permission:
   bash: deny
   task: deny
 ---
+
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. Canônico: agents/apoio-iara-planejamento.md -->
 # 🗓️ Iara [Planejamento] — Planejadora de Projeto
 
 > **Time:** Apoio · Gestão

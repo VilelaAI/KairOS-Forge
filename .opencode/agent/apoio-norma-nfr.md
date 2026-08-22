@@ -7,6 +7,8 @@ permission:
   bash: deny
   task: deny
 ---
+
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. Canônico: agents/apoio-norma-nfr.md -->
 # 📏 Norma [NFR] — Engenheira de Requisitos Não-Funcionais
 
 > **Time:** Apoio · Requisitos

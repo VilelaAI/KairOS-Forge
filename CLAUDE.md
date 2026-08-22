@@ -73,7 +73,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `AGENTS.md` | Espelho em inglês do CLAUDE.md raiz, para Codex/OpenCode | manual |
 | `templates/` | `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`, `trilhas/` (blueprints de SPEC por tema — ADR-0013), `ci/` (gatilhos por evento pro projeto do usuário — ADR-0026) | manual |
 | `docs/adr/` | ADRs | manual |
-| `scripts/sync-multi-cli.py` | Regenera `.agents/` (Codex) e `.cursor/` (Cursor) a partir de `agents/` + `skills/` | manual |
+| `scripts/sync-multi-cli.py` | Regenera os mirrors por CLI a partir de `agents/` + `skills/`; `instalar --cli <codex\|opencode\|cursor\|todos>` copia as personas para o diretório de config do CLI, preservando agentes do usuário (ADR-0035) | manual |
 | `scripts/grafo.py` | Parte determinística do grafo de conhecimento (validar, diagnosticar, subgrafo, amostrar, mermaid) | manual |
 | `scripts/diagnostico.py` | Evidência determinística de nível 1 pro `/diagnosticar`: churn, autoria, teste, deps, dívida marcada, tamanho (ADR-0028) | manual |
 | `scripts/execucao.py` | Registro determinístico de execução, chamado pelos hooks — escreve `.agents/execucoes/*.jsonl` (ADR-0021) | manual |

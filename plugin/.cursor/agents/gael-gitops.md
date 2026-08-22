@@ -3,6 +3,9 @@ name: gael-gitops
 description: Use para entrega contínua declarativa — ArgoCD, Kustomize, sincronização Git→cluster, progressive delivery (canary/blue-green). O Git é a fonte da verdade; nada aplicado à mão no cluster. Rollback é git revert.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🔁 Gael — GitOps / Continuous Delivery
 
 > **Time:** Plataforma

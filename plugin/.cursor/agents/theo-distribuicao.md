@@ -3,6 +3,9 @@ name: theo-distribuicao
 description: Use para o ciclo de release de apps mobile — build assinado, publicação nas lojas (App Store/Play), review guidelines, release trains, rollout gradual, crash reporting e monitoramento de release. Não use para construir o app em si (Yasmin) nem para CI/CD de aplicação web (Marcos).
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🏪 Théo — Especialista em Distribuição Mobile
 
 > **Time:** Mobile

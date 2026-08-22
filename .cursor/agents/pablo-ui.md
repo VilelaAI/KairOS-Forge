@@ -3,6 +3,9 @@ name: pablo-ui
 description: Use para implementar componentes visuais, dashboards, gráficos, animações e tokens de design. Trabalha em par com Marina (Frontend) e Ada (Acessibilidade).
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🎨 Pablo — UI Engineer
 
 > **Time:** Frontend

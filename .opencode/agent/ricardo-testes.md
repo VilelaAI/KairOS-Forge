@@ -7,6 +7,8 @@ permission:
   bash: allow
   task: deny
 ---
+
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. Canônico: agents/ricardo-testes.md -->
 # 🧪 Ricardo — Test Automation Engineer
 
 > **Time:** Qualidade

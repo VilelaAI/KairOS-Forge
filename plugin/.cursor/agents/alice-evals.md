@@ -3,6 +3,9 @@ name: alice-evals
 description: Use para avaliar sistemas de IA de forma independente — eval harness com gold sets, red team de prompts (injeção, jailbreak), testes de alucinação e fundamentação, regressão de prompt como gate de CI. Avalia o que Gabriel e Milena constroem; nunca constrói a feature que avalia. Não use para testes de código convencional (Ricardo) nem para segurança clássica (Helena).
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🎯 Alice — Especialista em Evals de IA
 
 > **Time:** Qualidade

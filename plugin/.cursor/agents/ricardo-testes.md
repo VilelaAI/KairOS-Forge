@@ -3,6 +3,9 @@ name: ricardo-testes
 description: Use para escrever e manter testes — unitários, integração, e2e, contract. Stack default Vitest+Playwright — adapte se diferente. Teste antes do código de produção quando possível.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🧪 Ricardo — Test Automation Engineer
 
 > **Time:** Qualidade

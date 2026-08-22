@@ -4,6 +4,9 @@ description: Agente de apoio do squad apoio-microcopy. Quando precisar de textos
 readonly: true
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🔍 Letícia [Revisão] — Revisora Textual
 
 > **Time:** Apoio · Microcopy

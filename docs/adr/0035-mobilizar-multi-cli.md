@@ -93,6 +93,18 @@ papel.
 **5. `estado --json` do quadro entra no contrato assinado (ADR-0034)**, junto com
 `ciclo` e `contrato`.
 
+**6. A instalação por CLI vira comando, não parágrafo de README.** Codex e OpenCode
+descobrem subagents no diretório de config *deles*, não no do plugin — então havia um
+`cp` manual entre "instalei o plugin" e "as personas funcionam". Passo manual num
+caminho que ninguém revisita erra em silêncio, e o sintoma (a persona não resolve, o
+spawn cai no agente genérico) não aponta para a causa.
+
+`sync-multi-cli.py instalar --cli <codex|opencode|cursor|todos> [--escopo global]
+[--dry-run]` faz a cópia com três garantias que o `cp` não dava: é idempotente, remove
+órfão de persona renomeada, e **preserva arquivo do usuário** quando o nome coincide —
+detectado por uma marca de arquivo gerado, não por heurística. Um agente próprio chamado
+`carlos-dba.toml` sobrevive ao sync; sem a marca, ele seria destruído em silêncio.
+
 ## Sobre a posse de arquivo: a heurística é declarada
 
 Decidir se dois globs se sobrepõem não tem resposta barata no caso geral. O `quadro.py`

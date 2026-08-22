@@ -81,9 +81,12 @@ os roles das 71 personas — é o que faz `spawn_agent(agent_type: "carlos-dba")
 o agente em vez de receber a persona colada no prompt:
 
 ```bash
-mkdir -p ~/.codex/agents
-cp <plugin>/.codex/agents/*.toml ~/.codex/agents/
+python3 <plugin>/scripts/sync-multi-cli.py instalar --cli codex --escopo global
 ```
+
+Use `--escopo projeto` para instalar só no projeto atual, `--dry-run` para ver o que
+mudaria antes, e `--cli todos` para instalar Codex, OpenCode e Cursor de uma vez. O
+comando é idempotente e **preserva agentes seus** que tenham nome coincidente.
 
 O teto de concorrência do Codex (`agents.max_concurrent_threads_per_session`, default 6)
 coincide com o teto de onda da fábrica. Se você baixar um, baixe o outro junto.

@@ -7,6 +7,8 @@ permission:
   bash: deny
   task: deny
 ---
+
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. Canônico: agents/apoio-hugo-priorizacao.md -->
 # ⚖️ Hugo [Priorização] — Engenheiro de Valor
 
 > **Time:** Apoio · Valor

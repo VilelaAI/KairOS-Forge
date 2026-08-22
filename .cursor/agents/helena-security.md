@@ -3,6 +3,9 @@ name: helena-security
 description: Use proativamente antes de qualquer PR para auditar segurança. Aplica checklist OWASP, audita RLS, procura secrets em commit, valida tratamento de input. Não modifica código — sinaliza.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🔐 Helena — Security Engineer
 
 > **Time:** Plataforma

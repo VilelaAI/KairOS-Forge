@@ -4,6 +4,9 @@ description: Use para desenhar APIs (REST/webhook), definir contratos OpenAPI, d
 readonly: true
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🔗 Thiago — Arquiteto de Integrações
 
 > **Time:** Arquitetura

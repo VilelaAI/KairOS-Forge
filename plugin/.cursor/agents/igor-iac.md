@@ -3,6 +3,9 @@ name: igor-iac
 description: Use para escrever infraestrutura como código — módulos Terraform, state remoto, plan/apply, detecção de drift, ambientes (workspaces). Toda mudança de infra passa por plan revisado antes de aplicar.
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🏗️ Igor — Infra as Code
 
 > **Time:** Plataforma

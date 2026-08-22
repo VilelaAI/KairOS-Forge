@@ -4,6 +4,9 @@ description: Agente de apoio do squad apoio-narrativa. Quando precisar estrutura
 readonly: true
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 🔓 Dante [Desbloqueio] — Desbloqueador de Decisões
 
 > **Time:** Apoio · Narrativa

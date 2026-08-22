@@ -4,6 +4,9 @@ description: Agente de apoio do squad apoio-revisao-arquitetural. Quando precisa
 readonly: true
 ---
 
+<!-- GERADO por scripts/sync-multi-cli.py (kairos-forge) — não edite aqui. -->
+
+
 # 📏 Lúcia [Princípios] — Guardiã de Princípios
 
 > **Time:** Apoio · Revisão Arquitetural

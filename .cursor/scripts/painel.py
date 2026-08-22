@@ -302,6 +302,8 @@ def render_terminal(d: dict) -> str:
                 partes.append("pode lançar: " + ", ".join(q["prontas"]))
             if q["bloqueadas"]:
                 partes.append("bloqueadas: " + ", ".join(q["bloqueadas"]))
+            if q.get("vencidas"):     # em voo além do prazo — segura a onda (ADR-0036)
+                partes.append("⏱️ vencidas: " + ", ".join(q["vencidas"]))
             if partes:
                 L.append("       " + " | ".join(partes))
             for texto in q["lacunas"]:

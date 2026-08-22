@@ -48,6 +48,9 @@ Uso:
     quadro.py prontas <slug> [--json]          # a próxima onda, decidida por código
     quadro.py iniciar <slug> T1 [--agente <id/task_name do worker>]
     quadro.py concluir <slug> T1 --evidencia "..." [--gate-ok | --gate-pulado "motivo"]
+    quadro.py varrer <slug> [--dry-run]         # bloqueia quem venceu o tempo limite
+    quadro.py compensar <slug> T1 --motivo "..." [--aplicar]   # Saga: desfaz T1 e o que
+                                                # foi construído sobre ela, ordem inversa
     quadro.py depender <slug> T4 --de T1        # serializa uma colisão de posse
     quadro.py bloquear <slug> T1 --motivo "..."
     quadro.py reabrir <slug> T1                # bloqueio resolvido volta pra fila
@@ -80,9 +83,15 @@ PASTA = Path(".agents/quadro")
 #
 # MENOR (1.x): campo novo, estado novo. Consumidor antigo continua válido.
 # MAIOR (x.0): campo removido/renomeado, semântica alterada.
-CONTRATO_VERSAO = "1.0"
+CONTRATO_VERSAO = "1.1"
 
 ESTADOS_TASK = ("planejada", "em_progresso", "concluida", "bloqueada")
+
+# Tempo limite padrão de uma tarefa em voo, em minutos (ADR-0036). Não é estimativa de
+# esforço — é o ponto em que "ainda trabalhando" e "morreu sem avisar" deixam de ser
+# distinguíveis. Sem isso, worker que não responde segura a vaga da onda para sempre e
+# a mobilização trava sem nunca dar erro.
+TEMPO_LIMITE_PADRAO = 60
 TERMINAIS_TASK = ("concluida",)
 TIERS = ("rapido", "padrao", "preciso")
 
@@ -106,6 +115,7 @@ CAMPOS_ESTADO = {
     "em_voo": "string[]",           # ids em_progresso
     "prontas": "string[]",          # ids que a próxima onda pode lançar
     "bloqueadas": "string[]",
+    "vencidas": "string[]",         # em_progresso além do tempo limite (ADR-0036)
     "lacunas": "string[]",
     "tasks": "object",
 }
@@ -189,6 +199,36 @@ def posses_colidem(a: list[str], b: list[str]) -> list[tuple[str, str]]:
 # --- persistência --------------------------------------------------------------------
 def agora() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def minutos_desde(carimbo: str | None) -> float | None:
+    """Minutos decorridos desde um ISO-8601 UTC. `None` quando não dá para saber."""
+    if not carimbo:
+        return None
+    try:
+        inicio = datetime.fromisoformat(carimbo)
+    except ValueError:
+        return None
+    if inicio.tzinfo is None:
+        inicio = inicio.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - inicio).total_seconds() / 60
+
+
+def vencidas_de(q: dict) -> list[str]:
+    """Tarefas em voo além do próprio tempo limite (ADR-0036).
+
+    Só relata — quem age é o `varrer`. Separar as duas coisas é de propósito: o
+    relato pode aparecer em qualquer render (painel, estado) sem efeito colateral.
+    """
+    saida = []
+    for tid, t in q["tasks"].items():
+        if t["estado"] != "em_progresso":
+            continue
+        limite = t.get("tempo_limite") or q.get("tempo_limite_padrao") or TEMPO_LIMITE_PADRAO
+        decorrido = minutos_desde(t.get("iniciado_em"))
+        if decorrido is not None and decorrido > limite:
+            saida.append(tid)
+    return saida
 
 
 def caminho(slug: str) -> Path:
@@ -281,6 +321,57 @@ def calcular_prontas(q: dict) -> tuple[list[str], dict[str, str]]:
     return selecionadas, motivos
 
 
+def dependentes_de(tasks: dict, raiz: str) -> list[str]:
+    """Tarefas que dependem de `raiz`, direta ou transitivamente."""
+    atingidos: set[str] = set()
+    fronteira = [raiz]
+    while fronteira:
+        atual = fronteira.pop()
+        for tid, t in tasks.items():
+            if atual in t.get("depende", []) and tid not in atingidos:
+                atingidos.add(tid)
+                fronteira.append(tid)
+    return sorted(atingidos)
+
+
+def plano_de_compensacao(q: dict, raiz: str) -> list[str]:
+    """Quais tarefas desfazer, e em que ordem, quando a saída de `raiz` se revela inválida.
+
+    O padrão Saga aplicado ao quadro: em vez de tratar a mobilização inteira como uma
+    transação indivisível — reiniciar tudo por precaução — cada tarefa é uma transação
+    com a própria ação de desfazer (o `--reverter`, que o ADR-0024 já exigia).
+
+    Compensa-se `raiz` e o que foi construído SOBRE ela; o que não dependia dela
+    permanece válido e intocado. É essa preservação que separa compensação de reinício.
+
+    A ordem é a inversa da execução: os dependentes mais profundos primeiro, a raiz por
+    último. Desfazer na ordem direta derrubaria a base antes do que se apoia nela.
+    """
+    tasks = q["tasks"]
+    afetados = [t for t in dependentes_de(tasks, raiz) if tasks[t]["estado"] == "concluida"]
+
+    def profundidade(tid: str) -> int:
+        """Distância máxima até a raiz — quanto maior, mais tarde foi construído."""
+        vistos, nivel, fronteira = {tid}, 0, [tid]
+        while fronteira:
+            proxima = []
+            for atual in fronteira:
+                for dep in tasks[atual].get("depende", []):
+                    if dep == raiz:
+                        return nivel + 1
+                    if dep in tasks and dep not in vistos:
+                        vistos.add(dep)
+                        proxima.append(dep)
+            fronteira = proxima
+            nivel += 1
+            if nivel > len(tasks):        # cinto de segurança; o grafo é acíclico
+                break
+        return nivel
+
+    afetados.sort(key=lambda t: (-profundidade(t), t))
+    return afetados + [raiz]
+
+
 def lacunas_declaradas(q: dict) -> set[str]:
     """Ids citados nas lacunas. `encerrar --lacuna "T7: sem ambiente"` cobre T7."""
     ids = set()
@@ -318,6 +409,7 @@ def vista_publica(q: dict) -> dict:
         "em_voo": [tid for tid, t in tasks.items() if t["estado"] == "em_progresso"],
         "prontas": prontas,
         "bloqueadas": [tid for tid, t in tasks.items() if t["estado"] == "bloqueada"],
+        "vencidas": vencidas_de(q),
         "lacunas": list(q.get("lacunas", [])),
         "tasks": tasks,
     }
@@ -333,6 +425,7 @@ def contrato_publico() -> dict:
         "terminais_task": list(TERMINAIS_TASK),
         "tiers": list(TIERS),
         "teto_onda_padrao": TETO_ONDA_PADRAO,
+        "tempo_limite_padrao_min": TEMPO_LIMITE_PADRAO,
         "campos": CAMPOS_ESTADO,
         "regras": [
             "prontas: estado planejada + dependências concluídas + posse livre + vaga na onda",
@@ -341,6 +434,10 @@ def contrato_publico() -> dict:
             "encerrar exige quadro completo OU lacuna declarada para cada tarefa aberta",
             "dependência inexistente é recusada na inserção; ciclo é recusado em `depender`",
             "onda nova começa quando nada está em voo (fan-in), não a cada lançamento",
+            "vencidas: em_progresso além do tempo limite; `varrer` as bloqueia e libera a vaga",
+            "compensar: desfaz a tarefa e o que foi construído sobre ela, em ordem inversa",
+            "compensar recusa o plano inteiro se alguma tarefa afetada não declara reverter",
+            "concluir e encerrar são idempotentes — repetir não duplica efeito",
         ],
     }
 
@@ -359,6 +456,7 @@ def cmd_abrir(a) -> int:
         "encerrado_em": None,
         "onda": 0,
         "teto_onda": a.teto_onda,
+        "tempo_limite_padrao": a.tempo_limite,
         "orcamento": {"tasks": a.max_tasks, "rodadas_por_task": a.rodadas},
         "tasks": {},
         "lacunas": [],
@@ -368,7 +466,8 @@ def cmd_abrir(a) -> int:
     salvar(q)
     teto_tasks = f"{a.max_tasks} tasks" if a.max_tasks else "tasks sem teto"
     print(f"✅ quadro '{a.slug}' aberto · teto de onda {a.teto_onda} · "
-          f"orçamento: {teto_tasks} / {a.rodadas} rodadas por task")
+          f"orçamento: {teto_tasks} / {a.rodadas} rodadas por task · "
+          f"tempo limite {a.tempo_limite} min por tarefa")
     return 0
 
 
@@ -413,16 +512,19 @@ def cmd_adicionar(a) -> int:
         "tier": a.tier,
         "posse": posse,
         "gate": a.gate,
+        "tempo_limite": a.tempo_limite,
         "pronto_quando": a.pronto_quando,
         "reverter": a.reverter,
         "depende": depende,
         "estado": "planejada",
         "agente": None,
+        "iniciado_em": None,
         "onda": None,
         "rodadas": 0,
         "evidencia": None,
         "gate_resultado": None,
         "bloqueio": None,
+        "compensacoes": [],
     }
     registrar(q, "adicionou", task=a.id, dono=a.dono, depende=depende)
     salvar(q)
@@ -500,11 +602,14 @@ def cmd_iniciar(a) -> int:
         q["onda"] = q.get("onda", 0) + 1
     t["estado"] = "em_progresso"
     t["agente"] = a.agente or t["dono"]
+    t["iniciado_em"] = agora()
     t["onda"] = q["onda"]
     t["bloqueio"] = None
     registrar(q, "iniciou", task=a.task, agente=t["agente"], onda=q["onda"])
     salvar(q)
-    print(f"▶️  {a.task} em progresso com {t['agente']} (onda {q['onda']}).")
+    limite = t.get("tempo_limite") or q.get("tempo_limite_padrao") or TEMPO_LIMITE_PADRAO
+    print(f"▶️  {a.task} em progresso com {t['agente']} (onda {q['onda']}) · "
+          f"tempo limite {limite} min.")
     return 0
 
 
@@ -528,6 +633,7 @@ def cmd_concluir(a) -> int:
               "se não foi possível. Silêncio sobre o gate não é opção.")
         return 1
     t["estado"] = "concluida"
+    t["iniciado_em"] = None
     t["evidencia"] = a.evidencia
     t["gate_resultado"] = "ok" if a.gate_ok else f"pulado: {a.gate_pulado}"
     registrar(q, "concluiu", task=a.task, gate=t["gate_resultado"])
@@ -549,6 +655,7 @@ def cmd_bloquear(a) -> int:
         print(f"❌ tarefa '{a.task}' não existe.")
         return 1
     t["estado"] = "bloqueada"
+    t["iniciado_em"] = None
     t["bloqueio"] = a.motivo
     registrar(q, "bloqueou", task=a.task, motivo=a.motivo)
     salvar(q)
@@ -558,6 +665,125 @@ def cmd_bloquear(a) -> int:
     if t["rodadas"] >= teto:
         print("   🚨 orçamento de rodadas esgotado nesta tarefa. Não relance: "
               "escale ao usuário ou encerre com a lacuna declarada.")
+    return 0
+
+
+def cmd_varrer(a) -> int:
+    """Bloqueia tarefas em voo além do tempo limite, liberando a vaga da onda (ADR-0036).
+
+    A fábrica audita o sistema do usuário por timeout e retry na `/diagnosticar`, e o
+    Murilo é dono do assunto — mas o próprio orquestrador não tinha nenhum dos dois.
+    Worker que morre sem avisar segurava a vaga para sempre: o teto nunca liberava, a
+    onda seguinte nunca saía, e nada nunca dava erro. Travar em silêncio é pior que
+    falhar alto.
+
+    Bloquear, e não concluir: o tempo estourou, não há evidência nenhuma de que a
+    tarefa ficou pronta.
+    """
+    q = carregar(a.slug)
+    vencidas = vencidas_de(q)
+    if not vencidas:
+        em_voo = [tid for tid, t in q["tasks"].items() if t["estado"] == "em_progresso"]
+        print(f"✅ nada vencido · {len(em_voo)} em voo dentro do prazo.")
+        return 0
+    if a.dry_run:
+        print(f"⏱️  {len(vencidas)} vencida(s) — simulação, nada alterado:")
+    for tid in vencidas:
+        t = q["tasks"][tid]
+        limite = t.get("tempo_limite") or q.get("tempo_limite_padrao") or TEMPO_LIMITE_PADRAO
+        decorrido = minutos_desde(t.get("iniciado_em")) or 0
+        motivo = (f"tempo limite excedido: {decorrido:.0f} min em voo, limite {limite} min "
+                  f"(agente {t.get('agente')})")
+        print(f"   ⏱️  {tid} · {motivo}")
+        if a.dry_run:
+            continue
+        t["estado"] = "bloqueada"
+        t["iniciado_em"] = None
+        t["bloqueio"] = motivo
+        registrar(q, "venceu", task=tid, minutos=round(decorrido))
+    if a.dry_run:
+        print("\n(simulação — repita sem --dry-run para bloquear e liberar as vagas)")
+        return 0
+    salvar(q)
+    vista = vista_publica(q)
+    print(f"   → {len(vencidas)} vaga(s) liberada(s) na onda.")
+    if vista["prontas"]:
+        print(f"   🔓 pode lançar agora: {', '.join(vista['prontas'])}")
+    print("   Antes de reabrir, decida: o worker morreu (relance) ou a tarefa é grande\n"
+          "   demais para o limite (aumente o --tempo-limite dela). Relançar sem decidir\n"
+          "   é como o orçamento de rodadas vira ficção.")
+    return 0
+
+
+def cmd_compensar(a) -> int:
+    """Desfaz uma tarefa inválida e o que foi construído sobre ela — padrão Saga (ADR-0036).
+
+    Até aqui, falha tardia só tinha duas saídas: declarar lacuna e parar, ou refazer
+    tudo. A primeira desperdiça o trabalho ainda válido; a segunda desperdiça o trabalho
+    todo. O que faltava era o meio-termo — e ele já estava quase pronto, porque o
+    `--reverter` do ADR-0024 é exatamente a ação compensatória que o Saga pede.
+    """
+    q = carregar(a.slug)
+    t = q["tasks"].get(a.task)
+    if not t:
+        print(f"❌ tarefa '{a.task}' não existe.")
+        return 1
+    if t["estado"] != "concluida":
+        print(f"❌ {a.task} está '{t['estado']}' — só se compensa o que foi concluído. "
+              "Para tarefa em aberto, use `bloquear`.")
+        return 1
+
+    plano = plano_de_compensacao(q, a.task)
+    sem_reverter = [tid for tid in plano if not q["tasks"][tid].get("reverter")]
+    if sem_reverter:
+        print(f"❌ {len(sem_reverter)} tarefa(s) do plano não declaram como desfazer: "
+              f"{', '.join(sem_reverter)}")
+        print("   O plano inteiro é recusado: compensação parcial deixa o repositório num")
+        print("   estado que ninguém desenhou — pior que não ter começado.")
+        print("   Tarefa cujo revert você não consegue escrever é irreversível, e")
+        print("   irreversível para no usuário (ADR-0024).")
+        return 1
+
+    preservadas = [tid for tid, x in q["tasks"].items()
+                   if x["estado"] == "concluida" and tid not in plano]
+    print(f"🔄 Plano de compensação de {a.task} — {len(plano)} tarefa(s), ordem inversa:")
+    for i, tid in enumerate(plano, 1):
+        x = q["tasks"][tid]
+        papel = "raiz (saída inválida)" if tid == a.task else "construída sobre a raiz"
+        print(f"   {i}. {tid} · {x['dono']} · {papel}")
+        print(f"      desfazer: {x['reverter']}")
+    if preservadas:
+        print(f"   ✅ preservadas (não dependiam de {a.task}): {', '.join(preservadas)}")
+    else:
+        print("   ⚠️  nenhuma tarefa concluída sobrou preservada — neste caso compensar "
+              "equivale a refazer tudo.")
+
+    if not a.aplicar:
+        print(f"\n(simulação — repita com --aplicar para executar o plano e devolver "
+              f"as {len(plano)} tarefas à fila)")
+        return 0
+
+    for tid in plano:
+        x = q["tasks"][tid]
+        x.setdefault("compensacoes", []).append(
+            {"em": agora(), "por": a.task, "motivo": a.motivo, "reverteu": x["reverter"]})
+        x["estado"] = "planejada"
+        x["evidencia"] = None
+        x["gate_resultado"] = None
+        x["iniciado_em"] = None
+    # A rodada queima só na raiz: ela produziu a saída errada. As dependentes estavam
+    # certas sobre uma base que mudou — cobrar orçamento delas seria punir o inocente.
+    q["tasks"][a.task]["rodadas"] += 1
+    registrar(q, "compensou", task=a.task, plano=plano, motivo=a.motivo)
+    salvar(q)
+
+    teto = q["orcamento"].get("rodadas_por_task", RODADAS_PADRAO)
+    print(f"\n✅ {len(plano)} tarefa(s) de volta à fila. Execute os `desfazer` acima "
+          "NESTA ORDEM antes de relançar.")
+    print(f"   Rodada queimada só em {a.task} ({q['tasks'][a.task]['rodadas']} de {teto}) "
+          "— as dependentes não erraram, foram invalidadas.")
+    if q["tasks"][a.task]["rodadas"] >= teto:
+        print("   🚨 orçamento da raiz esgotado. Se compensar de novo, escale ao usuário.")
     return 0
 
 
@@ -763,6 +989,8 @@ def main() -> int:
     p.add_argument("--teto-onda", type=int, default=TETO_ONDA_PADRAO)
     p.add_argument("--max-tasks", type=int, default=0)
     p.add_argument("--rodadas", type=int, default=RODADAS_PADRAO)
+    p.add_argument("--tempo-limite", type=int, default=TEMPO_LIMITE_PADRAO,
+                   help="minutos que uma tarefa pode ficar em voo (default: 60)")
     p.set_defaults(fn=cmd_abrir)
 
     p = sub.add_parser("adicionar", help="adiciona uma tarefa atômica")
@@ -777,6 +1005,8 @@ def main() -> int:
     p.add_argument("--depende", default="")
     p.add_argument("--tier", default="padrao")
     p.add_argument("--reverter", default=None)
+    p.add_argument("--tempo-limite", type=int, default=None,
+                   help="minutos em voo só desta tarefa (default: o do quadro)")
     p.set_defaults(fn=cmd_adicionar)
 
     p = sub.add_parser("prontas", help="o que a próxima onda pode lançar")
@@ -797,6 +1027,18 @@ def main() -> int:
     p.add_argument("--gate-ok", action="store_true")
     p.add_argument("--gate-pulado", default=None)
     p.set_defaults(fn=cmd_concluir)
+
+    p = sub.add_parser("varrer", help="bloqueia tarefas em voo além do tempo limite")
+    p.add_argument("slug")
+    p.add_argument("--dry-run", action="store_true")
+    p.set_defaults(fn=cmd_varrer)
+
+    p = sub.add_parser("compensar", help="desfaz uma tarefa inválida e o que veio sobre ela")
+    p.add_argument("slug")
+    p.add_argument("task")
+    p.add_argument("--motivo", required=True)
+    p.add_argument("--aplicar", action="store_true", help="sem isso, só mostra o plano")
+    p.set_defaults(fn=cmd_compensar)
 
     p = sub.add_parser("depender", help="adiciona aresta: serializa uma colisão")
     p.add_argument("slug")

@@ -11,5 +11,6 @@ Modo guiado: o usuário pode pedir só o tema ("quero login", "preciso de checko
 | [trilha-painel-admin.md](trilha-painel-admin.md) | CRUD, filtros, permissões, auditoria | Sim se multi-tenant/PII |
 | [trilha-api.md](trilha-api.md) | Endpoints tipados, validação, versionamento, docs | Sim se input externo/auth |
 | [trilha-seed-dados.md](trilha-seed-dados.md) | Seeds, fixtures e dados de teste | Não (mas nunca em produção) |
+| [trilha-pipeline-dados.md](trilha-pipeline-dados.md) | Ingestão, zonas com contrato, qualidade como gate, linhagem | Sim se dado pessoal/financeiro/saúde |
 
 Regras: trilha é stack-agnóstica (o arquiteto traduz pro stack do projeto, lido de `contextos/stack.md`); IDs de requisito são renumerados na SPEC real; tarefas/gates são sugestão de partida — o plano final é da Laura.

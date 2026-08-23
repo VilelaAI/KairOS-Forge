@@ -71,7 +71,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `hooks/hooks.json` | Hooks Claude Code: banner, telemetria em 4 pontos do ciclo (ADR-0021), guardrails que bloqueiam em `PreToolUse`/`PostToolUse` (ADR-0022) e alerta de patinação em voo (ADR-0030) | manual |
 | `.codex/hooks.json` | Hooks Codex (apenas SessionStart — Codex não suporta `Write\|Edit` matcher) | manual |
 | `AGENTS.md` | Espelho em inglês do CLAUDE.md raiz, para Codex/OpenCode | manual |
-| `templates/` | `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`, `trilhas/` (blueprints de SPEC por tema — ADR-0013), `ci/` (gatilhos por evento pro projeto do usuário — ADR-0026) | manual |
+| `templates/` | `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`, `trilhas/` (blueprints de SPEC por tema, incl. pipeline de dados — ADR-0013/0037), `ci/` (gatilhos por evento pro projeto do usuário — ADR-0026) | manual |
 | `docs/adr/` | ADRs | manual |
 | `scripts/sync-multi-cli.py` | Regenera os mirrors por CLI a partir de `agents/` + `skills/`; `instalar --cli <codex\|opencode\|cursor\|todos>` copia as personas para o diretório de config do CLI, preservando agentes do usuário (ADR-0035) | manual |
 | `scripts/grafo.py` | Parte determinística do grafo de conhecimento (validar, diagnosticar, subgrafo, amostrar, mermaid) | manual |
@@ -79,7 +79,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `scripts/execucao.py` | Registro determinístico de execução, chamado pelos hooks — escreve `.agents/execucoes/*.jsonl` (ADR-0021) | manual |
 | `scripts/telemetria.py` | Agrega o registro: `resumo` (números do `/auditar`), `sessoes`, `corroborar` (usado pelo `/validar`) | manual |
 | `scripts/ciclo.py` | Máquina de estados determinística do arco `/entregar`: planejamento em fases, transição, orçamento dos três gates e escalação decididos por código (ADR-0029/0033) | manual |
-| `scripts/guardrail.py` | Guardrails determinísticos: comando destrutivo, arquivo protegido, integridade da SPEC, PR fora de estado, contrato de relatório. Modo hook (exit 2 bloqueia) e modo CLI para os demais CLIs e o CI (ADR-0022/0032) | manual |
+| `scripts/guardrail.py` | Guardrails determinísticos: comando destrutivo, arquivo protegido, **artefato gerado** (ADR-0037), integridade da SPEC, PR fora de estado, contrato de relatório. Modo hook (exit 2 bloqueia) e modo CLI para os demais CLIs e o CI (ADR-0022/0032/0037) | manual |
 | `scripts/contrato.py` | Módulo puro dos contratos de fronteira dos relatórios: fences `kairos-critica`/`kairos-validacao`/`kairos-revisao`, coerência, prova de cobertura e independência dos críticos. Nunca lança, sem I/O (ADR-0032/0033) | manual |
 | `scripts/quadro.py` | Quadro de tarefas determinístico do `/mobilizar`: dependências, teto de onda, colisão de posse, tempo limite por tarefa, compensação em ordem inversa (Saga) e recusa de encerrar com lacuna escondida (ADR-0035/0036) | manual |
 | `scripts/painel.py` | Quadro vivo: renderiza SPEC + ciclo + relatórios + trajetória no terminal, em HTML autocontido ou JSON. Renderização, nunca estado — não escreve nada (ADR-0013/0032) | manual |

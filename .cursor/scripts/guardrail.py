@@ -8,29 +8,32 @@ sugeria lembrar do Ricardo e não impedia nada. As regras duras da fábrica mora
 todas em prosa que o modelo pode driftar — a inversão exata do que o paper
 recomenda.
 
-Este script é a parte que **bloqueia**. Quatro classes de risco:
+Este script é a parte que **bloqueia**. Cinco classes de risco:
 
   1. Comando destrutivo      — apagar a raiz, force-push em branch protegida,
                                DROP/TRUNCATE fora de migration, curl|sh, chmod 777
-  2. Arquivo protegido       — segredos, config de CI, e os dois arquivos que o
+  2. Arquivo protegido       — segredos, config de CI, e os arquivos que o
                                agente NUNCA pode escrever (ver "Goodhart" abaixo)
-  3. Integridade da SPEC     — status "Concluído" sem célula `verificado:`
-  4. Contrato de relatório   — bloco ```kairos-validacao / ```kairos-revisao
+  3. Artefato gerado         — mirror por CLI e manifesto: editar ali não dá erro,
+                               dá silêncio (ADR-0037). Edite o canônico e sincronize
+  4. Integridade da SPEC     — status "Concluído" sem célula `verificado:`
+  5. Contrato de relatório   — bloco ```kairos-validacao / ```kairos-revisao
                                malformado, incoerente, ou limpo sem prova de
                                cobertura (ADR-0032)
 
 ## Goodhart: o agente não escreve o próprio medidor
 
-Dois caminhos são bloqueados sem possibilidade de configuração:
+Quatro caminhos são bloqueados sem possibilidade de configuração:
 
     .agents/execucoes/**    a trajetória que o /validar usa para corroborar
     .agents/guardrails.json a configuração destes próprios guardrails
+    .agents/ciclo/**        o estado da máquina do arco /entregar
     .agents/quadro/**       o quadro de tarefas que decide o que o time lança
 
 É o mesmo princípio que o `/kairos-forge:otimizar` já aplica ("a métrica é
 sagrada — otimizar o medidor é o modo de falha clássico"), aplicado ao harness.
 Corroboração que o agente pode reescrever não corrobora nada, e guardrail que o
-agente pode afrouxar não guarda nada. Quem edita esses dois arquivos é o humano.
+agente pode afrouxar não guarda nada. Quem edita esses arquivos é o humano.
 
 ## Modos
 
@@ -57,7 +60,8 @@ onde não existe PreToolUse (exit 1 se houver achado):
       "modos":           {"contrato": "aviso"}     // por classe (ADR-0030):
     }                                              // bloqueio (default) | aviso
 
-Classes de regra, para o campo `modos`: `comando`, `protegido`, `spec`, `contrato`.
+Classes de regra, para o campo `modos`: `comando`, `protegido`, `gerado`, `spec`,
+`contrato`.
 Os caminhos sagrados nunca degradam — não há `modos` que os afrouxe.
 
 Só stdlib.
@@ -103,6 +107,41 @@ SAGRADOS = [
     (".agents/guardrails.json", "a configuração destes guardrails"),
     (".agents/ciclo/**", "o estado da máquina do arco /kairos-forge:entregar (ADR-0029)"),
     (".agents/quadro/**", "o quadro de tarefas do /kairos-forge:mobilizar (ADR-0035)"),
+]
+
+# --- 2b. artefato gerado (ADR-0037) -------------------------------------------------
+# Os mirrors por CLI, as skills espelhadas e o manifesto de ativos são GERADOS por
+# `sync-multi-cli.py` a partir dos canônicos `agents/` e `skills/`. Até aqui a proteção
+# era um comentário dentro do arquivo dizendo "não edite aqui" — e a lição recorrente
+# deste repositório é que prosa não impõe.
+#
+# Editar um gerado não dá erro: dá um silêncio. A mudança sobrevive até o próximo sync,
+# some sem aviso, e o CI acusa "diff pendente" — sintoma que não aponta para a causa.
+#
+# A regra é por CONTEÚDO, não por caminho, e é isso que a torna precisa em qualquer
+# projeto: bloqueia sobrescrever arquivo que JÁ CARREGA a marca de gerado. O grafo do
+# usuário em `.agents/grafo/`, um agente próprio em `.cursor/agents/` e qualquer arquivo
+# novo continuam livres — nenhum deles tem a marca.
+MARCA_GERADO = "GERADO por scripts/sync-multi-cli.py (kairos-forge)"
+
+# Dois sinais, e a divisão entre eles não é arbitrária — ela segue quem PODE ter
+# arquivo próprio ali:
+#
+#   marca (conteúdo) → diretórios de agente: `.cursor/agents/`, `.codex/agents/`,
+#       `.opencode/agent/`. O `sync-multi-cli.py instalar` PRESERVA arquivo do usuário
+#       nesses caminhos, então bloquear por caminho contradiria a promessa do
+#       instalador. Só o que carrega a marca é nosso.
+#
+#   caminho → mirrors puros: cópias byte a byte do canônico (`.agents/<id>/AGENT.md`,
+#       `.cursor/skills/`) e artefatos derivados. Marcar a cópia faria ela divergir do
+#       original que existe para espelhar, e ninguém guarda arquivo próprio ali.
+GERADOS_PADRAO = [
+    ".agents/*/AGENT.md",
+    ".cursor/skills/**",
+    ".cursor/scripts/**",
+    ".cursor/templates/**",
+    ".cursor/rules/kairos-forge.mdc",
+    ".claude-plugin/ativos.manifest.json",
 ]
 
 # --- 4. abertura de PR fora de estado (ADR-0029) -------------------------------------
@@ -288,6 +327,29 @@ def checar_escrita(payload: dict) -> int:
                 "nem a própria regra. Corroboração que o agente reescreve não corrobora, "
                 "e guardrail que o agente afrouxa não guarda.",
                 "Quem edita este arquivo é o humano. Explique o que precisa mudar e por quê.",
+            )
+
+    # Artefato gerado (ADR-0037), por dois sinais: a marca dentro do arquivo (o que o
+    # sync escreve) e o caminho (o que ele copia byte a byte).
+    if not any(casa(rel, lib) for lib in liberados):
+        alvo = raiz / rel
+        try:
+            ja_gerado = alvo.is_file() and MARCA_GERADO in alvo.read_text(
+                encoding="utf-8", errors="replace")
+        except OSError:
+            ja_gerado = False
+        if ja_gerado or any(casa(rel, g) for g in GERADOS_PADRAO):
+            modo_g = modo_de(cfg, "gerado")
+            registrar_recusa(raiz, "gerado", "artefato gerado pelo sync", rel, modo_g)
+            return bloquear(
+                f"escrita bloqueada em `{rel}` — arquivo GERADO por `sync-multi-cli.py`",
+                "Editar aqui não dá erro, dá silêncio: sua mudança some no próximo sync "
+                "e o CI acusa só um 'diff pendente', que não aponta para a causa.",
+                "Edite o canônico (`agents/<id>.md` ou `skills/<nome>/SKILL.md`) e rode "
+                "`python3 scripts/sync-multi-cli.py`. Se este arquivo é seu e não do "
+                "plugin, remova a linha de marca ou libere o caminho em "
+                "`.agents/guardrails.json` (campo `liberados`).",
+                modo_g,
             )
 
     if any(casa(rel, exc) or casa(Path(rel).name, exc) for exc in EXCECOES):

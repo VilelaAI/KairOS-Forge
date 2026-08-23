@@ -21,9 +21,39 @@ Idealmente o usuário acabou de rodar `/kairos-forge:auditar`. Se não rodou, su
 
 Se o usuário disser para seguir sem auditar, prossiga.
 
-## Antes da entrevista: evidência da semana (se houver memória de sessão)
+## Antes da entrevista: evidência da semana
 
-Se as tools MCP `memory_*` estiverem disponíveis (ai-memory, ADR-0010), colete evidência antes de perguntar: `memory_recent` e `memory_query` sobre a semana (prompts repetidos, tarefas que apareceram várias vezes, sessões longas no mesmo problema). Use como **provocação concreta** nas perguntas — "vi que você pediu geração de fixture 4 vezes esta semana; isso é a repetição?" — em vez de depender só da lembrança do usuário. A resposta continua sendo dele: evidência sugere, não decide.
+Colete evidência **antes** de perguntar. A regra vale para as duas fontes abaixo:
+evidência provoca a pergunta, nunca responde por ela. A escolha continua sendo do
+usuário — e é ele, não você, quem decide o que a fábrica vira (ADR-0022).
+
+### Trajetória do próprio harness (ADR-0021)
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/telemetria.py resumo --dias 7
+```
+
+A fábrica registra a própria execução desde a v0.17, e até aqui esse registro só
+alimentava o `/kairos-forge:auditar` — quem **relata**. O `/evoluir`, que é quem
+**melhora**, perguntava de memória. Instrumento sem consumidor do lado da melhoria é
+metade do laço.
+
+Leia os números como perguntas, não como diagnóstico:
+
+| O que o resumo mostra | O que perguntar |
+|---|---|
+| Autonomia baixa | Onde você teve de intervir? É sempre no mesmo ponto? |
+| Gate verde de primeira baixo | O gate está pegando erro real ou está mal calibrado? |
+| Muitas rodadas de correção | Qual agente patina? Falta contexto ou falta critério? |
+| Recusas de guardrail por classe | Regra apertada demais, ou hábito que precisa mudar? |
+
+Sem hooks no CLI, `.agents/execucoes/` fica vazio e o resumo vem zerado. Isso é
+comportamento honesto, não bug: **diga que não há trajetória** e siga para a entrevista
+sem inventar tendência a partir de nada.
+
+### Memória de sessão (se houver)
+
+Se as tools MCP `memory_*` estiverem disponíveis (ai-memory, ADR-0010): `memory_recent` e `memory_query` sobre a semana (prompts repetidos, tarefas que apareceram várias vezes, sessões longas no mesmo problema). Use como **provocação concreta** nas perguntas — "vi que você pediu geração de fixture 4 vezes esta semana; isso é a repetição?" — em vez de depender só da lembrança do usuário. A resposta continua sendo dele: evidência sugere, não decide.
 
 ## A entrevista — 5 perguntas
 

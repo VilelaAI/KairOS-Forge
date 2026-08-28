@@ -49,6 +49,11 @@ onde não existe PreToolUse (exit 1 se houver achado):
 
     guardrail.py verificar [CAMINHO]
 
+O modo CLI cobre as mesmas classes, com uma assimetria deliberada em `gerado`: o hook
+conhece a INTENÇÃO de escrita e recusa; o CLI roda depois do fato e só consegue observar
+que o arquivo mudou — o que um sync legítimo também faz. Por isso ali o default é
+`aviso`. Quem quer o check duro no CI põe `{"modos": {"gerado": "bloqueio"}}`.
+
 ## Configuração (opcional)
 
 `.agents/guardrails.json` no projeto:
@@ -72,6 +77,7 @@ import fnmatch
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -481,6 +487,40 @@ def checar_contrato(payload: dict) -> int:
 
 # --- modo CLI (Codex/OpenCode/Cursor, CI, pre-commit) -------------------------------
 
+def gerados_modificados(raiz: Path) -> list[str]:
+    """Artefatos gerados alterados em relação ao HEAD, segundo o git.
+
+    No hook dá para bloquear com precisão porque existe INTENÇÃO de escrita para
+    interceptar. Aqui não: o modo CLI roda depois do fato, e o que sobra é observar
+    estado. O git é o registro desse estado.
+
+    Fora de um repositório git (ou sem git instalado) devolve vazio — silêncio honesto
+    é melhor que achado inventado.
+    """
+    try:
+        r = subprocess.run(["git", "-C", str(raiz), "diff", "--name-only", "HEAD"],
+                           capture_output=True, text=True, timeout=15)
+        if r.returncode != 0:
+            return []
+        nomes = [linha.strip() for linha in r.stdout.splitlines() if linha.strip()]
+    except (OSError, subprocess.SubprocessError):
+        return []
+
+    achados = []
+    for rel in nomes:
+        if any(casa(rel, g) for g in GERADOS_PADRAO):
+            achados.append(rel)
+            continue
+        alvo = raiz / rel
+        try:
+            if alvo.is_file() and MARCA_GERADO in alvo.read_text(
+                    encoding="utf-8", errors="replace"):
+                achados.append(rel)
+        except OSError:
+            continue
+    return achados
+
+
 def verificar(alvo: Path) -> int:
     """Sem PreToolUse não há bloqueio prévio — então o mesmo contrato roda depois."""
     problemas: list[str] = []
@@ -503,6 +543,32 @@ def verificar(alvo: Path) -> int:
                     problemas.append(f"{rel}: contrato [{r.codigo}] — {r.erro}")
     except Exception:
         pass
+
+    # Artefato gerado (ADR-0037) nos CLIs sem hook e no CI. Default `aviso`, não
+    # `bloqueio`, e a assimetria é deliberada: o hook conhece a intenção e por isso
+    # pode recusar; aqui só se observa que o arquivo mudou, e mudou por sync legítimo
+    # é indistinguível de mudou por edição à mão. Avisar é o que a evidência sustenta.
+    # Projeto que quer o check duro põe `{"modos": {"gerado": "bloqueio"}}`.
+    if alvo.is_dir():
+        modificados = gerados_modificados(raiz)
+        if modificados:
+            # `modo_de` cai em MODO_PADRAO ("bloqueio"), que é o certo no hook e o
+            # errado aqui. No CLI só endurece com opt-in EXPLÍCITO do projeto.
+            escolhido = (carregar_config(raiz).get("modos", {}) or {}).get("gerado")
+            duro = escolhido == "bloqueio"
+            cabeca = "🛑" if duro else "⚠️ "
+            print(f"{cabeca} {len(modificados)} artefato(s) gerado(s) modificado(s) "
+                  "desde o HEAD:")
+            for rel in modificados[:10]:
+                print(f"   {rel}")
+            if len(modificados) > 10:
+                print(f"   … e mais {len(modificados) - 10}")
+            print("   Se veio de `sync-multi-cli.py` ou de `instalar`, é esperado — "
+                  "commite.\n   Se foi edição à mão, ela some no próximo sync: edite o "
+                  "canônico\n   (`agents/<id>.md` ou `skills/<nome>/SKILL.md`) e sincronize.")
+            if duro:
+                problemas.append(f"{len(modificados)} artefato(s) gerado(s) modificado(s) "
+                                 "— `modos.gerado` está em bloqueio neste projeto")
 
     for padrao, motivo in PROTEGIDOS_PADRAO[:5]:  # só os de segredo, não o de CI
         for achado in raiz.rglob(padrao.replace("**/", "")):

@@ -460,9 +460,34 @@ def render_html(d: dict) -> str:
         corpo.append('<section class="c"><p class="l dim">Sem telemetria neste projeto '
                      "(ADR-0021) — o painel mostra só o que está no disco.</p></section>")
 
+    for q in d.get("quadros", []):          # mobilizações (ADR-0035/0036)
+        pe, total = q["por_estado"], q["total"]
+        pct = int(round(100 * pe["concluida"] / total)) if total else 0
+        marca = "🏁" if q["encerrado"] else "🔄"
+        etiquetas = "".join(f'<span class="tag">{_e(x)}</span>'
+                            for x in (q.get("spec"), q.get("cli")) if x)
+        linhas = [f'<p class="l">{barra(pct)} {pct}% · {pe["concluida"]}/{total} '
+                  f'concluídas · onda {q["onda"]} (teto {q["teto_onda"]})</p>']
+        if q["em_voo"]:
+            linhas.append(f'<p class="l">Em voo: {_chips(q["em_voo"])}</p>')
+        if q["prontas"] and not q["encerrado"]:
+            linhas.append(f'<p class="l">Pode lançar: {_chips(q["prontas"])}</p>')
+        if q["bloqueadas"]:
+            linhas.append(f'<p class="l no">⛔ Bloqueadas: {_chips(q["bloqueadas"])}</p>')
+        if q.get("vencidas"):   # em voo além do prazo — segura a onda (ADR-0036)
+            linhas.append(f'<p class="l warn">⏱️ Vencidas: {_chips(q["vencidas"])} — '
+                          "<code>quadro.py varrer</code> devolve a vaga</p>")
+        for texto in q["lacunas"]:
+            linhas.append(f'<p class="l warn">⚠ Lacuna: {_e(texto)}</p>')
+        if not q["encerrado"] and q["completo"]:
+            linhas.append('<p class="l">🏁 Completo — falta <code>encerrar</code></p>')
+        corpo.append(f'<section class="c"><div class="h"><b>{marca} {_e(q["slug"])}</b>'
+                     f'{etiquetas}</div>{"".join(linhas)}</section>')
+
     if not corpo:
         corpo.append('<section class="c"><p class="l dim">Nada para mostrar: sem SPEC em '
-                     "docs/specs/ e sem ciclo em .agents/ciclo/.</p></section>")
+                     "docs/specs/, sem ciclo em .agents/ciclo/ e sem quadro em "
+                     ".agents/quadro/.</p></section>")
 
     return f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -471,8 +496,8 @@ def render_html(d: dict) -> str:
 <p class="sub">{_e(d['raiz'])} · gerado em {_e(d['gerado_em'][:16].replace('T', ' '))} UTC</p>
 {''.join(corpo)}
 <footer>Renderização do estado canônico — <code>.agents/ciclo/</code>,
-<code>.agents/execucoes/</code>, coluna Status/Verificação da SPEC e blocos de contrato
-dos relatórios. O painel não guarda estado: se o número está errado, o bug está na fonte.</footer>
+<code>.agents/quadro/</code>, <code>.agents/execucoes/</code>, coluna Status/Verificação
+da SPEC e blocos de contrato dos relatórios. O painel não guarda estado: se o número está errado, o bug está na fonte.</footer>
 </main></body></html>"""
 
 

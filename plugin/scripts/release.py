@@ -45,8 +45,17 @@ ORCAMENTO_ESTATICO = {
     "banner SessionStart": 600,
     "rule Cursor (alwaysApply)": 2500,
     "templates/CLAUDE.md.template": 8000,
+    # As descriptions são o maior custo estático e ficaram fora do check até a
+    # v0.30 (limitação declarada no ADR-0027). Entram no ADR-0038: cada skill e
+    # cada agente carrega a sua em toda sessão, e o Codex encurta descrições
+    # quando a soma não cabe — o modelo passa a ver menos de cada uma.
+    "descriptions das skills (soma)": 4500,
+    "descriptions dos agentes (soma)": 12500,
 }
 LIMITE_LINHAS_SKILL = 500  # regra 3 do CLAUDE.md, agora verificada
+# Teto por description (ADR-0038): o que faz, quando usar, uma negativa de
+# roteamento — e nada de lista de artefatos, dono e resumo do fluxo.
+LIMITE_CHARS_DESCRIPTION = {"skill": 300, "agente": 260}
 
 # Vocabulário fechado do gold set de comportamento da fábrica (ADR-0031).
 # Fechado de propósito: capacidade nova entra por ADR, não por linha nova no JSONL.
@@ -401,10 +410,26 @@ def checar():
     # Orçamento de contexto estático (ADR-0027)
     try:
         banner = json.loads((RAIZ / "hooks/hooks.json").read_text(encoding="utf-8"))
+        descs = {"skill": [], "agente": []}
+        for tipo, glob_ in (("skill", "skills/*/SKILL.md"), ("agente", "agents/*.md")):
+            for p in sorted(RAIZ.glob(glob_)):
+                m = re.search(r"^description:\s*(.*)$", p.read_text(encoding="utf-8"), re.M)
+                d = m.group(1).strip() if m else ""
+                if not d:
+                    problemas.append(f"{p.relative_to(RAIZ)}: sem description")
+                elif len(d) > LIMITE_CHARS_DESCRIPTION[tipo]:
+                    problemas.append(
+                        f"{p.relative_to(RAIZ)}: description com {len(d)} chars, teto "
+                        f"{LIMITE_CHARS_DESCRIPTION[tipo]} (ADR-0038) — o que faz, quando usar, "
+                        "uma negativa; dono, artefatos e fluxo vão para o corpo"
+                    )
+                descs[tipo].append(d)
         estatico = {
             "banner SessionStart": banner["hooks"]["SessionStart"][0]["hooks"][0]["command"],
             "rule Cursor (alwaysApply)": (RAIZ / ".cursor/rules/kairos-forge.mdc").read_text(encoding="utf-8"),
             "templates/CLAUDE.md.template": (RAIZ / "templates/CLAUDE.md.template").read_text(encoding="utf-8"),
+            "descriptions das skills (soma)": "".join(descs["skill"]),
+            "descriptions dos agentes (soma)": "".join(descs["agente"]),
         }
         for nome, texto in estatico.items():
             teto = ORCAMENTO_ESTATICO[nome]

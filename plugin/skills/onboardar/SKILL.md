@@ -1,6 +1,6 @@
 ---
 name: onboardar
-description: Entrevista de onboarding que prepara um projeto para usar a fábrica kairos-forge. Use na primeira vez em um projeto, depois de instalar o plugin. Faz 7 perguntas, gera CLAUDE.md preenchido, cria estrutura de pastas, contexto de testes, estado operacional e ativa o ciclo dos agentes. Leva ~15 minutos. Não use em projeto já onboardado — para reconfigurar, edite o CLAUDE.md direto ou rode auditar para ver o que falta.
+description: Primeira vez num projeto: 7 perguntas, gera CLAUDE.md, pastas, contexto de testes e estado operacional. Projeto já onboardado edita o CLAUDE.md ou roda o auditar.
 ---
 
 # Onboardar — entrevista inicial do kairos-forge

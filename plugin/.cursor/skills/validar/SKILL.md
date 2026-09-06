@@ -1,6 +1,6 @@
 ---
 name: validar
-description: Valida uma implementação contra uma SPEC rastreável antes da revisão pré-PR. Use depois de /kairos-forge:mobilizar ou /kairos-forge:rodar e antes de /kairos-forge:revisar. Compara requisitos, tarefas, critérios de aceite, gates de teste e evidências. Produz relatório em docs/specs/validacoes/. Não é code review — segurança, performance e qualidade do diff são o revisar; aqui a pergunta é só "cumpre o contrato da SPEC?".
+description: Aceite da implementação contra a SPEC: requisitos, tarefas, critérios, gates e evidências; relatório em docs/specs/validacoes/. Depois de mobilizar/rodar, antes de revisar. Não é code review.
 ---
 
 # Validar — aceite contra SPEC

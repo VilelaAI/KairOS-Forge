@@ -1,6 +1,6 @@
 ---
 name: rodar
-description: Executa um ou mais agentes da fábrica em primeira pessoa. Use quando o usuário disser "rodar squad", "rodar fábrica", "ativar time", "chamar a Laura", ou quando uma tarefa for grande o suficiente para envolver múltiplos especialistas. Os agentes se identificam pelo nome (Laura, Marina, Helena, etc.) e colaboram entre si. Não use para executar SPEC em paralelo com file ownership (isso é mobilizar) nem para produzir a SPEC em si (isso é especificar).
+description: Executa agentes da fábrica em primeira pessoa ("chamar a Laura", "rodar squad"), em modo conversacional. Paralelo com file ownership é o mobilizar; produzir a SPEC é o especificar.
 ---
 
 # Rodar — orquestração em primeira pessoa

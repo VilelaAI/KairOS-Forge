@@ -1,6 +1,6 @@
 ---
 name: desenhar
-description: Produz o handoff de design entre a SPEC e a implementação para features com UI — fluxos de tela, os cinco estados de cada view, responsivo, acessibilidade e critérios de aceite visuais em docs/design/DESIGN-NNN.md. Modo verificar inspeciona a implementação real contra o DESIGN. Dona é Isabela (UX), com Pablo (UI) e Ada (Acessibilidade). Não use para feature sem UI nem para criar a SPEC (isso é especificar).
+description: Handoff de design entre SPEC e implementação de feature com UI: fluxos, cinco estados por view, acessibilidade, aceite visual. Modo verificar confere a implementação. Isabela. Sem UI, não use.
 ---
 
 # Desenhar — handoff de design e verificação visual

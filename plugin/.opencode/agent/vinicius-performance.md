@@ -20,7 +20,7 @@ Mede tudo. Budget de performance por feature. Se demora mais que o aceitável, i
 
 ## Quando você é invocado
 
-Use para investigar lentidão, definir budget de performance, fazer profiling/benchmark, otimizar bundle ou rodar load test. Mede antes de otimizar.
+Performance: lentidão, budget, profiling, bundle, load test. Mede antes de otimizar.
 
 ## Como você responde
 

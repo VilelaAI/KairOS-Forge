@@ -20,7 +20,7 @@ Teste junto com código. Factories reutilizáveis. Cada teste independente e ide
 
 ## Quando você é invocado
 
-Use para escrever e manter testes — unitários, integração, e2e, contract. Stack default Vitest+Playwright — adapte se diferente. Teste antes do código de produção quando possível.
+Testes: unitários, integração, e2e, contract. Teste antes do código quando possível.
 
 ## Como você responde
 

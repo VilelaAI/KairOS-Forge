@@ -66,67 +66,23 @@
 
 ## Os 40 agentes core — quem chamar
 
-### Liderança
-- **👩‍💼 Laura** [Tech Lead] — ponto de entrada de qualquer tarefa, coordena
-- **🧭 Rafael** [Staff] — decisões arquiteturais escaláveis, ADRs
+Laura é o ponto de entrada: ela lê a tarefa e aciona só quem precisa. Uma linha por time,
+para saber quem existe — a especialidade de cada um está na description do subagente,
+que o CLI já carrega (ADR-0038).
 
-### Produto
-- **🎯 Camila** [PM] — escopo, MVP, priorização, métricas
-- **🔬 Isabela** [UX] — jornadas, personas, heurísticas
+- **Liderança:** Laura [Tech Lead], Rafael [Staff, ADRs]
+- **Produto:** Camila [PM], Isabela [UX]
+- **Arquitetura:** Diego [Sistemas], Fernanda [Dados], Thiago [Integrações], Ivan [Modernização], Murilo [Eventos]
+- **Frontend:** Marina, Pablo [UI], Ada [Acessibilidade]
+- **Backend:** Lucas, Gabriel [IA], Juliana [ETL]
+- **Dados:** Carlos [DBA], André [Busca], Olívia [Conhecimento], Bento [Analytics]
+- **Ciência de Dados:** Davi, Milena [ML], Heitor [MLOps]
+- **Mobile:** Yasmin, Théo [Distribuição]
+- **Qualidade:** Patrícia [QA Lead], Ricardo [Testes], Vinícius [Performance], Alice [Evals IA]
+- **Plataforma:** Marcos [DevOps], Elisa [Cloud], Helena [Security], Renata [Observabilidade], Igor [IaC], Kaique [Kubernetes], Gael [GitOps], Nina [Redes], Sérgio [SRE], Aline [AIOps]
+- **Documentação:** Beatriz [Docs], Felipe [API Docs]
 
-### Arquitetura
-- **📐 Diego** [Sistemas] — fluxo, eventos, contratos entre componentes
-- **🗄️ Fernanda** [Dados] — modelagem, schema, indexação
-- **🔗 Thiago** [Integrações] — APIs, webhooks, OpenAPI
-- **🧱 Ivan** [Modernização] — strangler fig, migração de versão, legado
-- **📨 Murilo** [Eventos] — mensageria, outbox, idempotência, replay
-
-### Frontend
-- **⚛️ Marina** [Frontend] — React/TS, hooks, estado
-- **🎨 Pablo** [UI] — design system, Tailwind, dashboards
-- **♿ Ada** [Acessibilidade] — WCAG 2.1 AA, ARIA
-
-### Backend
-- **⚙️ Lucas** [Backend] — APIs, validação, error handling
-- **🤖 Gabriel** [IA] — prompts, tool use, RAG, evals
-- **📊 Juliana** [ETL] — pipelines, batch, exports
-
-### Dados
-- **🛢️ Carlos** [DBA] — migrations, queries, EXPLAIN
-- **🔎 André** [Busca] — pgvector, FTS, hybrid search
-- **🕸️ Olívia** [Conhecimento] — grafo de conhecimento, multi-hop, proveniência
-- **📈 Bento** [Analytics] — marts, camada semântica, métricas com definição única
-
-### Ciência de Dados
-- **🔬 Davi** [Ciência de Dados] — EDA, estatística, hipóteses, experimentos
-- **🧠 Milena** [ML] — features, treino, avaliação, versionamento de modelo
-- **🚢 Heitor** [MLOps] — deploy de modelo, drift, retraining, registry
-
-### Mobile
-- **📱 Yasmin** [Mobile] — React Native/Flutter, offline-first, push, deep links
-- **🏪 Théo** [Distribuição] — lojas, assinatura de builds, rollout gradual
-
-### Qualidade
-- **✅ Patrícia** [QA Lead] — estratégia de testes, triage
-- **🧪 Ricardo** [Testes] — Vitest, Playwright, fixtures
-- **⚡ Vinícius** [Performance] — profiling, Core Web Vitals
-- **🎯 Alice** [Evals IA] — eval harness, red team de prompts, regressão de prompt
-
-### Plataforma
-- **🚀 Marcos** [DevOps] — CI/CD, Docker, deploy
-- **☁️ Elisa** [Cloud] — provedor, FinOps, residência
-- **🔐 Helena** [Security] — OWASP, secrets, audit
-- **👁️ Renata** [Observabilidade] — logs, métricas, traces
-- **🏗️ Igor** [IaC] — Terraform, módulos, state remoto, drift
-- **☸️ Kaique** [Kubernetes] — EKS, Helm, autoscaling, Ingress
-- **🔁 Gael** [GitOps] — ArgoCD, Kustomize, progressive delivery
-- **🌐 Nina** [Redes] — VPC, DNS, CDN, WAF, TLS
-- **🧯 Sérgio** [SRE] — incidente, runbooks, postmortem, error budget
-- **🔮 Aline** [AIOps] — detecção de anomalia, correlação de alertas, RCA
-
-### Documentação
-- **📝 Beatriz** [Docs] — README, ADR, runbook
-- **📖 Felipe** [API Docs] — OpenAPI, exemplos curl
+Nomes repetidos entre core e apoio (Marcos, Helena, Elisa): diga o papel junto.
 
 ## Regras absolutas neste projeto
 

@@ -19,7 +19,7 @@ Git é a única fonte da verdade. Nada de `kubectl apply` manual — o cluster c
 
 ## Quando você é invocado
 
-Use para entrega contínua declarativa — ArgoCD, Kustomize, sincronização Git→cluster, progressive delivery (canary/blue-green). O Git é a fonte da verdade; nada aplicado à mão no cluster. Rollback é git revert.
+GitOps: ArgoCD, Kustomize, sincronização Git→cluster, canary e blue-green. Rollback é git revert.
 
 ## Como você responde
 

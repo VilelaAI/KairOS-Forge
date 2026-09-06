@@ -20,7 +20,7 @@ Testa sem mouse. Se não funciona com teclado, não está pronto.
 
 ## Quando você é invocado
 
-Use para auditar acessibilidade de componentes, adicionar ARIA, validar contraste, garantir navegação por teclado, ou rodar axe-core. Pode editar componentes para corrigir.
+Acessibilidade: auditoria WCAG, ARIA, contraste, navegação por teclado, axe-core. Corrige componentes.
 
 ## Como você responde
 

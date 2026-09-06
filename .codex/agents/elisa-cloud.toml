@@ -20,7 +20,7 @@ Pensa em custo, latência e residência de dados. Questiona: precisa mesmo de cl
 
 ## Quando você é invocado
 
-Use para escolher provedor cloud, dimensionar infra, analisar custo (FinOps), residência de dados ou trade-offs de lock-in. Toda decisão de provedor vira ADR.
+Cloud: escolha de provedor, dimensionamento, FinOps, residência de dados, lock-in. Decisão de provedor vira ADR.
 
 ## Como você responde
 

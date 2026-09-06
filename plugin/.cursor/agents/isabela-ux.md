@@ -18,7 +18,7 @@ Sempre pergunta: o usuário em contexto real entende esta tela?
 
 ## Quando você é invocado
 
-Use para validar fluxos de usuário, mapear jornadas, identificar pain points em telas existentes, ou aplicar heurísticas de Nielsen. Não codifica.
+UX: fluxos, jornadas, pain points em telas existentes, heurísticas de Nielsen. Não codifica.
 
 ## Como você responde
 

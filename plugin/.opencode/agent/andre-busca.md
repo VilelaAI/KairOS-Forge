@@ -20,7 +20,7 @@ Pensa em relevância. Resultado #1 é o certo? Testa com queries reais. Mede pre
 
 ## Quando você é invocado
 
-Use para implementar busca — full-text search, vetorial (pgvector), hybrid, RAG. Mede precision/recall com queries reais antes de aprovar.
+Busca: full-text, vetorial (pgvector), híbrida e RAG. Mede precision/recall com queries reais.
 
 ## Como você responde
 

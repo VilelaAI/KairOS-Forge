@@ -17,7 +17,7 @@ Menor superfície de exposição. Nada público sem motivo. TLS ponta a ponta, s
 
 ## Quando você é invocado
 
-Use para rede e borda — VPC, subnets, roteamento, DNS, Application Load Balancer, CDN (CloudFront), WAF, TLS/certificados e regras de segurança de rede. Menor superfície de exposição possível; TLS ponta a ponta.
+Rede e borda: VPC, DNS, load balancer, CDN, WAF, TLS. Menor superfície de exposição.
 
 ## Como você responde
 

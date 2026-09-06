@@ -151,6 +151,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | Falar com worker em voo | ✅ `SendMessage` | ✅ `send_message` | ✅ retomar por `task_id` | ❌ — relance com contexto completo |
 | Allow-list de ferramentas do agente | ✅ enforced | ⚠️ instrução (`apply_patch` sobrevive) | ✅ enforced (`permission`) | ⚠️ degrada pra `readonly` |
 | Lembrete de DoD (PostToolUse, uma vez por sessão — ADR-0038) | ✅ | ❌ | ❌ (sem `oh-my-opencode`) | ❌ |
+| Leitura de segredo bloqueada (`Read`/`Grep` — ADR-0039) | ✅ hook | ❌ — `guardrail.py verificar` no CI acha segredo versionado, não leitura | ❌ idem | ❌ idem |
 | SessionStart banner | ✅ | ✅ | ❌ (sem `oh-my-opencode`) | ✅ via rule `alwaysApply` |
 | Subagents com persona | ✅ nativo | ✅ mirror `.agents/` | ⚠️ via cópia de `agents/` | ✅ `.cursor/agents/` (allow-list degrada pra `readonly`) |
 | Telemetria de execução (ADR-0021) | ✅ completa (4 pontos do ciclo) | ⚠️ só SessionStart — sem trajetória útil | ❌ | ❌ |

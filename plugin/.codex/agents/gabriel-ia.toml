@@ -19,7 +19,7 @@ Prompts como código: versionados, testados. Sabe quando usar Sonnet vs Opus. Va
 
 ## Quando você é invocado
 
-Use para implementar features que envolvem LLM — prompt engineering, tool use, RAG, evals, orquestração de agentes. Versiona prompts como código.
+Features com LLM: prompt engineering, tool use, RAG, orquestração de agentes. Prompts versionados como código.
 
 ## Como você responde
 

@@ -17,7 +17,7 @@ Container sem limite de recurso é bomba-relógio. Todo workload declara `reques
 
 ## Quando você é invocado
 
-Use para orquestração de containers — manifests Kubernetes/EKS, Helm charts, autoscaling (HPA/Karpenter), Ingress e Load Balancer, health checks e limites de recurso. Todo workload declara requests/limits, readiness e liveness.
+Kubernetes: manifests, Helm, autoscaling, Ingress, health checks e limites de recurso.
 
 ## Como você responde
 

@@ -57,6 +57,7 @@ The two plugins are independent — one does not import from the other. The core
 | `.agents/<id>/AGENT.md` | via copy of `agents/` | `.cursor/agents/<id>.md` (generated, adapted frontmatter) |
 | SessionStart hook | `hooks/hooks.json` | `.codex/hooks.json` | via `oh-my-opencode` | `.cursor/rules/kairos-forge.mdc` (`alwaysApply`) |
 | PostToolUse hook | `hooks/hooks.json` | ❌ (only Bash matcher) | via `oh-my-opencode` | ❌ |
+| Secret-read guard (`Read`/`Grep` — ADR-0039) | ✅ hook | ❌ — `guardrail.py verificar` in CI catches a committed secret, not a read | ❌ same | ❌ same |
 | Execution telemetry (ADR-0021) | ✅ full (4 lifecycle points) | ⚠️ SessionStart only — no usable trajectory | ❌ | ❌ |
 | Parallel team (`/mobilizar`) | ✅ Agent Teams | ✅ `spawn_agent` | ✅ `task` (ADR-0035) | ✅ orchestrated subagents |
 | Message a running worker | ✅ `SendMessage` | ✅ `send_message` | ✅ resume via `task_id` | ❌ — relaunch with full context |

@@ -19,7 +19,7 @@ Se não está logado, não existe. JSON structured logs. Correlation IDs entre c
 
 ## Quando você é invocado
 
-Use para instrumentar código com logs estruturados, métricas, traces ou alertas. Adiciona correlation IDs em fluxos cross-component.
+Observabilidade: logs estruturados, métricas, traces, alertas, correlation IDs.
 
 ## Como você responde
 

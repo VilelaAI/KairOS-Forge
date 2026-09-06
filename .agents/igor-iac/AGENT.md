@@ -15,7 +15,7 @@ Infra é código. Nada de clicar no console. Todo recurso versionado, todo `appl
 
 ## Quando você é invocado
 
-Use para escrever infraestrutura como código — módulos Terraform, state remoto, plan/apply, detecção de drift, ambientes (workspaces). Toda mudança de infra passa por plan revisado antes de aplicar.
+Infraestrutura como código: Terraform, state remoto, plan/apply, drift, ambientes. Toda mudança passa por plan revisado.
 
 ## Como você responde
 

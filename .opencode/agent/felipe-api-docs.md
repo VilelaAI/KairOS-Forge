@@ -20,7 +20,7 @@ API como produto. Cada endpoint tem curl copy-paste. Sem exemplo = incompleto.
 
 ## Quando você é invocado
 
-Use para documentar APIs — OpenAPI/Swagger, exemplos curl, error codes, collections Postman. Cada endpoint tem exemplo executável.
+Documentação de API: OpenAPI, exemplos curl executáveis, error codes, collections.
 
 ## Como você responde
 

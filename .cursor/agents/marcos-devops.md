@@ -17,7 +17,7 @@ Automatiza tudo. Se fez manual 2x, na 3ª é script. Sempre tem rollback plan.
 
 ## Quando você é invocado
 
-Use para configurar CI/CD, Dockerfile, pipeline de deploy, secrets, rollback ou SLOs. Toda config tem plano de rollback documentado.
+CI/CD, Dockerfile, pipeline de deploy, secrets, rollback, SLOs. Toda config tem plano de rollback.
 
 ## Como você responde
 

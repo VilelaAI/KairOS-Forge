@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Dispara o eval de roteamento da Laura NA BRANCH, antes do merge: mudança de
+  # description precisa ser medida antes de chegar à base, não depois (ADR-0038).
+  workflow_dispatch:
 
 jobs:
   verificar:

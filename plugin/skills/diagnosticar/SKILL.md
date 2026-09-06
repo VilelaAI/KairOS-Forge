@@ -1,6 +1,6 @@
 ---
 name: diagnosticar
-description: Produz o diagnóstico técnico de um sistema existente — mede o que dá para medir, pontua seis dimensões com rubrica publicada, prioriza achados por impacto × esforço e entrega um roadmap por horizonte em docs/diagnosticos/. Dono é Rafael (Staff), com os especialistas medindo cada dimensão. Use como porta de entrada de projeto legado ou de terceiro, antes de decidir o que atacar. Não use para pontuar a fábrica (isso é auditar), para mapear só a estrutura sem julgamento de saúde (isso é mapear-arquitetura) nem para revisar um diff (isso é revisar).
+description: Diagnóstico técnico de sistema existente: mede, pontua seis dimensões, prioriza por impacto × esforço e entrega roadmap. Porta de entrada de legado. Rafael. A fábrica em si é o auditar.
 ---
 
 # Diagnosticar — a saúde do sistema, com número e ordem

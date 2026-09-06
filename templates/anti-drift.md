@@ -30,11 +30,11 @@ Exemplos:
 - "Pra fazer essa migration, preciso saber se vamos usar UUID ou bigint nas FKs do projeto" → pergunta pra Fernanda via Laura.
 - "Esse endpoint vai ser síncrono ou async?" → pergunta pra Diego.
 
-### 4. Checkpoint a cada 3 tasks
+### 4. Checkpoint por onda, não por contagem
 
-Quando você marcar 3 tasks como `completed`, **pare** e espere a Laura fazer um checkpoint de alinhamento. Não puxe a 4ª task antes do OK dela.
+Você não puxa tarefa: a onda é lançada pela Laura a partir do quadro (`quadro.py prontas` decide o que cabe), e a sua tarefa chega no seu prompt. Terminou, reporte com evidência e o resultado do gate e **encerre** — a próxima vem no lançamento seguinte, depois do checkpoint da Laura contra a SPEC. Não comece nada que não esteja no seu prompt.
 
-Por que: drift acumula silenciosamente. Checkpoint frequente captura cedo.
+Por que: drift acumula silenciosamente e o checkpoint entre ondas pega cedo. A onda é a unidade que o quadro já controla (ADR-0035) — parar por contagem de tarefas era regra de antes de o quadro existir, e uma parada a mais que a fábrica não precisava.
 
 ### 5. Idioma e padrão de commit
 

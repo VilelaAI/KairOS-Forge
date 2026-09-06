@@ -1,6 +1,6 @@
 ---
 name: analisar-ameacas
-description: Produz um modelo de ameaças (threat model) para uma feature ou área do sistema. Use ANTES de implementar features sensíveis — auth, PII, multi-tenant, upload, integrações externas, IA, billing, RBAC. Coordenada por Helena. Identifica ativos, trust boundaries, capacidades realistas do atacante, abuse paths e mitigações por componente. Read-only: produz docs/seguranca/AMEACAS-*.md. Não use para auditar código já escrito — isso é /kairos-forge:revisar; aqui é desenho de segurança antes de implementar.
+description: Modelo de ameaças antes de implementar feature sensível (auth, PII, multi-tenant, upload, IA, billing). Read-only, Helena coordena. Código já escrito é o revisar.
 ---
 
 # Analisar ameaças — modelo de ameaças

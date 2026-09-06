@@ -1,6 +1,6 @@
 ---
 name: mapear-arquitetura
-description: Faz inventário estrutural do código existente — componentes, acoplamento, duplicação de domínio, bounded contexts e plano incremental de decomposição. Use em projetos brownfield antes de refatorações grandes, antes de extrair serviço, ao herdar codebase ou quando o usuário disser "está virando um monolito". Read-only: produz mapa em docs/arquitetura/MAPA-YYYY-MM-DD.md. Não modifica código. Não use para mapear fatos/decisões do projeto — isso é mapear-conhecimento (grafo); aqui o mapa é da estrutura do código.
+description: Inventário estrutural de código brownfield: componentes, acoplamento, bounded contexts, plano de decomposição. Read-only, docs/arquitetura/. Fatos e decisões do projeto são o mapear-conhecimento.
 ---
 
 # Mapear arquitetura — inventário estrutural do código

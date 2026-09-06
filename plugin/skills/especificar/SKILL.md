@@ -1,11 +1,13 @@
 ---
 name: especificar
-description: Inicia o fluxo de spec-driven development para uma feature ou mudança. Use no início de qualquer trabalho não-trivial — antes de escrever código. Aciona Laura (Tech Lead) que classifica complexidade, decide arquitetos, registra requisitos rastreáveis e gates. Resultado é uma SPEC em docs/specs/SPEC-NNN-slug.md pronta para /mobilizar, /rodar e /validar. Não use para mudança trivial (1 arquivo, menos de 20 linhas) — nesse caso execute direto, sem SPEC.
+description: Inicia o spec-driven development: Laura classifica, arquitetos interrogam, SPEC rastreável em docs/specs/. Use antes de codar qualquer mudança não-trivial; trivial (1 arquivo, <20 linhas) vai direto.
 ---
 
 # Especificar — fluxo spec-driven
 
 Você está sendo invocado para iniciar o ciclo de design **antes** da implementação.
+Esta raiz dá o fluxo, os checkpoints e os pontos de decisão; o detalhe de cada etapa
+está em `references/` (índice no fim) — leia só o que a etapa em curso pede.
 
 ## Regra de ouro
 
@@ -15,12 +17,7 @@ Não codifique. Não chame teammate de implementação. Esta skill produz **arte
 
 ### 1. Laura entra primeiro
 
-Invoque o agente `laura-tech-lead`. Ela vai:
-
-- Ouvir a descrição do usuário
-- Classificar o tamanho usando a matriz abaixo
-- Decidir quais arquitetos da fábrica entram
-- Definir o nível de cerimônia necessário
+Invoque o agente `laura-tech-lead`. Ela ouve a descrição do usuário, classifica o tamanho pela matriz abaixo, decide quais arquitetos da fábrica entram e define o nível de cerimônia necessário.
 
 ### 1.1. Auto-sizing obrigatório
 
@@ -40,13 +37,9 @@ Se for trivial, pare e diga por que a SPEC não compensa. Se for pequeno ou maio
 
 ### 1.2. Trilhas por tema (modo guiado — ADR-0013)
 
-Antes de interrogar do zero, cheque se a feature casa com uma trilha em `${CLAUDE_PLUGIN_ROOT}/templates/trilhas/` (índice em `TRILHAS.md`): auth, pagamentos, painel-admin, api, seed-dados. Sinais são diretos — "quero login" → trilha-auth; "checkout"/"cobrar" → trilha-pagamentos; "painel"/"admin" → trilha-painel-admin.
-
-Se casar, **parta da trilha em vez do zero**: os requisitos típicos viram rascunho da tabela (renumerados pro projeto), as "perguntas que o arquiteto DEVE fazer" entram na interrogação, os riscos alimentam o `/kairos-forge:analisar-ameacas` (obrigatório nas trilhas marcadas como sensíveis), e as tarefas/gates sugeridos são o ponto de partida do plano. **Trilha é rascunho, não fôrma**: o arquiteto adapta ao stack (`contextos/stack.md`) e corta o que não se aplica. Pro usuário iniciante, isso é o modo guiado — ele diz o tema, a fábrica já sabe o caminho e o que perguntar.
+Antes de interrogar do zero, cheque se a feature casa com uma trilha em `${CLAUDE_PLUGIN_ROOT}/templates/trilhas/` (índice em `TRILHAS.md`): auth, pagamentos, painel-admin, api, seed-dados. Se casar, **parta da trilha em vez do zero** — trilha é rascunho, não fôrma: o arquiteto adapta ao stack (`contextos/stack.md`) e corta o que não se aplica. Como cada parte da trilha entra na SPEC: `references/trilhas.md`.
 
 ### 2. Laura aciona o(s) arquiteto(s)
-
-Mapeamento que Laura usa:
 
 | Tipo de mudança | Arquiteto principal |
 |---|---|
@@ -72,17 +65,10 @@ Decisões, dependências e restrições já registradas (com fonte) entram na SP
 
 ### 3. Arquiteto(s) interrogam em primeira pessoa
 
-Perguntas típicas por agente:
+Cada arquiteto pergunta no seu eixo — repertório por persona em `references/perguntas-arquitetos.md`. Duas regras valem em toda interrogação:
 
-- **Diego**: "Qual o fluxo de dados? Quem chama quem? Eventos síncronos ou assíncronos?"
-- **Fernanda**: "Quantos registros esperados? Cardinalidade? Padrão de leitura/escrita?"
-- **Thiago**: "Quem consome essa API? Versionamento? Auth?"
-- **Rafael**: "Por que essa abordagem e não a alternativa óbvia? Trade-off de escala?"
-- **Camila**: "Isso é MVP ou V2? Qual métrica de sucesso — e qual o valor dela **hoje**?"
-
-**Métrica de sucesso sem baseline não é métrica.** "Reduzir o tempo de onboarding em 30%" não é verificável sem saber de quanto para quanto; "de 5 para 3,5 minutos até setembro" é. Se o valor atual não for conhecido, o requisito P1 vira **medir primeiro** — e isso é honesto, não atraso.
-
-**Pergunta com default recomendado (ADR-0019):** escolha **reversível** não trava o fluxo — o arquiteto declara o default ("recomendo X por Y; sigo com isso se você não disser o contrário"), registra a premissa na SPEC e continua. O Pare e Pergunte (ADR-0015) permanece absoluto no **irreversível e no conteúdo inventável**: lá não existe default, existe pergunta.
+- **Métrica de sucesso sem baseline não é métrica.** "De 5 para 3,5 minutos até setembro" é verificável; "reduzir 30%" sem o valor atual não é. Se o valor de hoje não for conhecido, o requisito P1 vira **medir primeiro**.
+- **Pergunta com default recomendado (ADR-0019):** escolha **reversível** não trava o fluxo — o arquiteto declara o default ("recomendo X por Y; sigo com isso se você não disser o contrário"), registra a premissa na SPEC e continua. No **irreversível e no conteúdo inventável** não existe default, existe pergunta (passo 4.1).
 
 ### 4. Espelhar entendimento
 
@@ -92,17 +78,7 @@ Inclua o **Working Backwards** (ADR-0015): "se isso fosse lançado hoje, o que o
 
 ### 4.1. Pare e Pergunte — condições de parada (ADR-0015)
 
-Antes de escrever qualquer requisito, verifique se dá para escrevê-lo **honestamente**. Se a tarefa cair numa condição abaixo, **pare e faça a pergunta** — nunca preencha a lacuna com achismo, placeholder ou texto genérico:
-
-| Situação | Pergunta obrigatória |
-|---|---|
-| Conteúdo institucional/jurídico/regulatório citado sem fonte oficial | "De onde vem o texto? Você cola o oficial, ou adiamos até ter a fonte?" — proibido redigir "com base na legislação aplicável" (domínio regulado de verdade → kairos-ai) |
-| Integração externa sem provedor definido (pagamento, e-mail, mapa) | "Qual provedor exatamente?" |
-| Cálculo de negócio (preço, imposto, prazo) sem fórmula | "Qual a fórmula exata? Arredondamento? Qual o caso-teste esperado?" |
-| Dados pessoais reais que apareceriam como exemplo/conteúdo | "Confirma esses dados? Posso usar exatamente assim?" — nunca 'Fulano de Tal' achando que alguém revisa depois |
-| "Igual ao site X" sem URL acessível ou screenshot | "Tem referência que carrega? Sem ela não é pixel-perfect, é estimativa" |
-| Asset de terceiro (PDF, imagem, vídeo) em domínio alheio | "Linko a URL externa (risco de 404) ou baixamos e hospedamos? Decisão registrada na SPEC" |
-| Tela/funcionalidade vaga ("dashboard") sem saber o que mostra | "O que exatamente essa tela mostra? Quais dados, quais ações?" (caso pra Joana, do apoio-requisitos) |
+Antes de escrever qualquer requisito, verifique se dá para escrevê-lo **honestamente**. Situações que obrigam a parar e perguntar — nunca preencher com achismo, placeholder ou texto genérico: conteúdo institucional/jurídico/regulatório sem fonte oficial · integração externa sem provedor definido · cálculo de negócio sem fórmula · dados pessoais reais como exemplo · "igual ao site X" sem referência acessível · asset de terceiro em domínio alheio · tela vaga ("dashboard") sem saber o que mostra. A pergunta obrigatória de cada situação está em `references/pare-e-pergunte.md`.
 
 **Regra de ouro:** se a única forma de escrever o requisito é inventar conteúdo que aparecerá ao usuário final como verdade, **pare**. Inventar é dívida silenciosa — só aparece quando alguém de fora descobre o erro.
 
@@ -110,39 +86,11 @@ Antes de escrever qualquer requisito, verifique se dá para escrevê-lo **honest
 
 Cada uma com trade-offs explícitos (complexidade, custo, reversibilidade). Recomendar uma.
 
+**Feature Pequena segue com o default (ADR-0038).** Na classificação **Pequeno** do auto-sizing, os passos 4 e 5 vão numa mensagem só: o entendimento espelhado e **a abordagem recomendada como premissa** ("sigo com X por Y; diga se não for isso"), registrada na SPEC. Não há 2-3 alternativas para comparar — em mudança pequena e reversível isso é teatro, e a segunda parada não compra nada (ADR-0019). Médio, Grande e Complexo mantêm as alternativas e as duas confirmações. O Pare e Pergunte e a aprovação da SPEC (passo 8) valem para todo porte.
+
 ### 5.1. Modo RFC — decisões arquiteturalmente significativas (ADR-0018)
 
-Quando a mudança for **Complexa**, cruzar **2+ times**, ter **reversibilidade baixa** (migração, troca de tecnologia, contrato público) — ou o usuário invocar `especificar rfc` — as abordagens do passo 5 não morrem no chat: viram RFC em `docs/rfcs/RFC-<NNN>-<slug>.md` ANTES da SPEC:
-
-```markdown
-# RFC-NNN — <decisão em uma frase>
-
-- **Status:** rascunho | em discussão | aceito | recusado
-- **Drivers:** o que pesa na decisão (custo, prazo, reversibilidade, time)
-
-## Contexto
-## Decisão proposta
-## Diagrama
-
-(bloco Mermaid do fluxo proposto — se o grafo existir, parta de
-`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py mermaid "<entidade>" --saltos 2`)
-
-## Alternativas consideradas
-
-| Alternativa | Por que não |
-|---|---|
-
-## Consequências
-
-Positivas e negativas — inclusive o que fica mais difícil.
-```
-
-Regras do modo RFC:
-
-- **Rafael revisa todo RFC.** Decisão de tecnologia/padrão é o território dele.
-- **RFC "em discussão" contestado** → `/kairos-forge:rodar debate` estrutura o confronto (Álvaro/Lúcia/Félix) e a síntese volta pro RFC.
-- **RFC aceito** → vira ADR curto em `decisoes/` (o porquê, permanente) e a SPEC referencia ambos (`RFC-NNN` no Contexto). SPEC continua sendo o contrato do *o quê* — o RFC guarda o *porquê*.
-- **RFC recusado fica no repo.** Alternativa descartada com o motivo registrado é o que impede a fábrica de redescobri-la daqui a 6 meses.
+Quando a mudança for **Complexa**, cruzar **2+ times**, ter **reversibilidade baixa** (migração, troca de tecnologia, contrato público) — ou o usuário invocar `especificar rfc` — as abordagens do passo 5 não morrem no chat: viram RFC em `docs/rfcs/RFC-<NNN>-<slug>.md` ANTES da SPEC. **Rafael revisa todo RFC.** Template e regras (RFC contestado → `/kairos-forge:rodar debate`; aceito → ADR em `decisoes/`; recusado fica no repo): `references/modo-rfc.md`.
 
 > **Os passos 4, 5 e 7 são checkpoints de verdade, não formalidade** (ADR-0033). Em
 > sessão, você espelha o entendimento, o usuário confirma, e a conversa segue — o
@@ -151,146 +99,36 @@ Regras do modo RFC:
 > aguardando_abordagem → especificando → criticando → aguardando_aprovacao`. É a mesma
 > disciplina, escrita — porque sem ninguém lendo, uma premissa errada não é pega no
 > passo 4; é pega depois de o orçamento inteiro construir a coisa errada.
+> Por isso o atalho da feature Pequena acima é **de sessão**: conduzido pelo `ciclo.py`,
+> cada gate humano continua esperando `confirmado`/`escolhida` — o contrato não muda.
 
 ### 6. Após aprovação, escrever a SPEC
 
-Em `docs/specs/SPEC-<NNN>-<slug>.md` no projeto do usuário, com seções:
+Em `docs/specs/SPEC-<NNN>-<slug>.md` no projeto do usuário. Seções obrigatórias (Contexto → Próximo passo), template mínimo, prioridades P1/P2/P3 e os estados de Status × Verificação: `references/modelo-spec.md`.
 
-- **Contexto e problema** — qual dor real (referencie o RFC, se houver)
-- **Objetivo** — uma frase
-- **Não-objetivos** — o que está fora
-- **Invariantes** — o que precisa ser verdade ao final
-- **Diagrama** — em SPEC Média+ com fluxo entre componentes, bloco Mermaid do desenho (à mão ou via `grafo.py mermaid`); o diagrama deriva do texto, nunca o substitui
-- **Requisitos rastreáveis** — IDs estáveis, prioridade, critério de aceite e status
-- **Plano de implementação** — tarefas atômicas, cada item ≤ 1 dia, com agente, arquivos, dependências e gates
-- **Matriz de testes** — tipo de teste por requisito/tarefa, comando esperado e responsável
-- **Riscos e mitigações**
-- **Perguntas abertas** — se houver qualquer incerteza bloqueante
-- **Próximo passo** — sugestão de comando (`/kairos-forge:mobilizar SPEC-<NNN>`)
+Em SPEC Média+ com fluxo entre componentes, inclua um bloco Mermaid do desenho — à mão ou partindo do grafo:
 
-Use este template mínimo:
-
-```markdown
-# SPEC-NNN — <título>
-
-## Contexto e problema
-
-## Objetivo
-
-## Não-objetivos
-
-## Invariantes
-
-## Requisitos rastreáveis
-
-| ID | Requisito | Prioridade | Critério de aceite | Status | Verificação |
-|---|---|---|---|---|---|
-| <SLUG>-01 | Como <persona>, quero <ação>, para <resultado>. | P1 | WHEN <evento> THEN <resultado> SHALL <comportamento verificável>. | Pendente | — |
-
-Prioridades:
-- **P1**: necessário para entregar a mudança
-- **P2**: importante, mas pode sair em follow-up se explicitamente aprovado
-- **P3**: desejável, não bloqueia entrega
-
-Estados de Status × conteúdo obrigatório em Verificação:
-- **Pendente** → Verificação = `—` (ainda não iniciado).
-- **Em progresso** → Verificação começa com `em progresso: <o que ainda falta>`. Conta 0.5 no progresso da SPEC.
-- **Concluído** → Verificação começa com `verificado: <como confirmei> (<dd/mm>)`. Sem essa linha, a `/validar` trata como "sem evidência" e bloqueia P1.
-
-## Plano de implementação
-
-| Tarefa | Agente | Requisito(s) | Arquivos/áreas | Depende de | Done when | Gate |
-|---|---|---|---|---|---|---|
-| T1 | [Carlos] | <SLUG>-01 | `migrations/` | - | Schema aplicado e rollback definido. | `npm test -- migrations` |
-
-## Matriz de testes
-
-| Requisito | Tipo | Responsável | Comando/gate | Evidência esperada |
-|---|---|---|---|---|
-| <SLUG>-01 | unit/integration/e2e/manual | [Ricardo] | `<comando real ou a definir>` | Caminho feliz + 1 erro cobertos. |
-
-## Riscos e mitigações
-
-## Perguntas abertas
-
-## Validação
-
-Antes de `/kairos-forge:revisar`, rode:
-
-`/kairos-forge:validar SPEC-NNN`
-
-## Próximo passo
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py mermaid "<entidade>" --saltos 2
 ```
 
-### 7. Crítica adversarial antes da aprovação (ADR-0033)
-
-A SPEC escrita **não vai direto para o usuário**. Antes, ao menos **dois críticos que
-não a escreveram** atacam o documento.
-
-Por que dois, e por que não os autores: um olhar só é revisão, não crítica. E quem
-escreveu já decidiu que está bom — pedir para ele reler sem âncora externa é o mesmo
-autocorreção intrínseca que o anti-drift recusa (Huang et al., ICLR 2024). O que
-funciona é olhar independente com critério explícito.
-
-Escolha entre as personas que **não participaram da redação**, pelo eixo de risco:
-
-| Eixo | Quem ataca | Pergunta |
-|---|---|---|
-| Requisito | Joana, Norma | Requisito ambíguo, sem critério de aceite verificável, ou inventado sem fonte? |
-| Arquitetura | Diego, Fernanda, Thiago | Abordagem cria acoplamento, contradiz o que existe, ou ignora carga real? |
-| Testabilidade | Ricardo, Patrícia | Dá para provar cada P1? Comando existe? Evidência é observável? |
-| Segurança | Helena | Toca auth, PII, autorização ou input externo sem mitigação declarada? |
-| Escopo | Camila, Hugo | O apetite comporta? O P1 é mesmo P1? |
-
-Cada crítico produz achados **com localização** — seção, ID do requisito, linha do
-plano. "A SPEC parece boa" não é crítica; se não achou nada, diga qual seção leu e
-contra qual critério.
-
-Salve em `docs/specs/criticas/CRITICA-SPEC-NNN-YYYY-MM-DD.md`:
-
-```markdown
-# Crítica — SPEC-NNN — YYYY-MM-DD
-
-**Críticos:** Joana (requisitos), Ricardo (testabilidade)
-**Veredicto:** aprovado / bloqueado
-
-## Achados
-
-| # | Onde | Crítico | Achado | Severidade |
-|---|---|---|---|---|
-| 1 | EXP-03 | Joana | Critério de aceite não é verificável ("rápido o bastante") | 🔴 |
-
-## O que foi examinado
-
-- Objetivo e não-objetivos · Requisitos EXP-01..EXP-08 · Plano (7 tarefas) · Matriz de testes
-
-```kairos-critica
-{
-  "spec": "SPEC-NNN",
-  "veredicto": "aprovado | bloqueado",
-  "achados": 0,
-  "criticado_por": ["Joana", "Ricardo"],
-  "examinado": ["objetivo", "EXP-01..EXP-08", "plano de implementação", "matriz de testes"]
-}
-```
-```
-
-O bloco é o contrato lido pelo `ciclo.py` — **três regras verificadas por código**
-(`contrato.py`), as duas primeiras iguais às dos outros relatórios e a terceira só
-daqui:
-
-1. **Coerência** — `bloqueado` exige `achados ≥ 1`; qualquer outro veredicto exige 0.
-2. **Prova de cobertura** — `achados: 0` exige `examinado` não-vazio.
-3. **Independência** — ao menos **2 críticos distintos** em `criticado_por`. Um só é
-   recusado pelo parser, não pelo bom senso.
-
-Achado 🔴 volta para a SPEC (`registrar com_achados`); corrigido, a crítica **reabre**,
-igual ao arco de validação. Achado que você discorda: corrija ou **escreva na SPEC por
-que não** — deixar sem resposta não é opção.
+O diagrama deriva do texto, nunca o substitui.
 
 Se o projeto tiver `contextos/testes.md`, use os comandos de lá. Se não tiver, registre o gate como `<a definir>` e recomende preencher esse contexto.
 
-### 7. Confirmação ao usuário
+### 7. Crítica adversarial antes da aprovação (ADR-0033)
+
+A SPEC escrita **não vai direto para o usuário**. Antes, ao menos **dois críticos que não a escreveram** atacam o documento, escolhidos pelo eixo de risco: requisito (Joana, Norma) · arquitetura (Diego, Fernanda, Thiago) · testabilidade (Ricardo, Patrícia) · segurança (Helena) · escopo (Camila, Hugo). Cada achado vem **com localização** — seção, ID do requisito, linha do plano; "a SPEC parece boa" não é crítica.
+
+Salve em `docs/specs/criticas/CRITICA-SPEC-NNN-YYYY-MM-DD.md` com a fence `kairos-critica` — o contrato lido pelo `ciclo.py`, com **três regras verificadas por código** (`contrato.py`):
+
+1. **Coerência** — `bloqueado` exige `achados ≥ 1`; qualquer outro veredicto exige 0.
+2. **Prova de cobertura** — `achados: 0` exige `examinado` não-vazio.
+3. **Independência** — ao menos **2 críticos distintos** em `criticado_por`.
+
+Achado 🔴 volta para a SPEC (`registrar com_achados`); corrigido, a crítica **reabre**, igual ao arco de validação. Achado que você discorda: corrija ou **escreva na SPEC por que não** — deixar sem resposta não é opção. Tabela de críticos por eixo, formato do arquivo com a fence e o porquê de dois críticos: `references/critica-adversarial.md`.
+
+### 8. Confirmação ao usuário
 
 ```
 ✅ SPEC-NNN-<slug>.md criada por <Diego/Fernanda/etc>.
@@ -333,3 +171,16 @@ NÃO pule pra:
 - **Todo requisito P1 precisa de critério de aceite verificável.** Se não dá para verificar, ainda não é requisito pronto.
 - **Todo item de implementação precisa de gate.** Pode ser teste automatizado, build, lint ou validação manual explícita.
 - **Status "Concluído" exige célula Verificação iniciando com `verificado:`.** A regra existe para impedir o anti-padrão de marcar pronto sem rodar nada. Inspirada no checklist do Replit-Orchestrator (`briefing.md`): só vale verificado depois que o agente rodou o comando, abriu a URL ou executou o teste. Confiança em "escrevi o código, deve funcionar" não conta.
+
+## Referências
+
+Leia sob demanda, na etapa correspondente — caminho completo `${CLAUDE_PLUGIN_ROOT}/skills/especificar/references/<arquivo>`:
+
+| Arquivo | Quando ler |
+|---|---|
+| `references/trilhas.md` | Passo 1.2 — a feature casa com auth, pagamentos, painel-admin, api ou seed-dados |
+| `references/perguntas-arquitetos.md` | Passo 3 — repertório de perguntas de Diego, Fernanda, Thiago, Rafael e Camila |
+| `references/pare-e-pergunte.md` | Passo 4.1 — tabela completa de situação × pergunta obrigatória, antes do primeiro requisito |
+| `references/modo-rfc.md` | Passo 5.1 — template do RFC e regras (Rafael, debate, RFC aceito/recusado) |
+| `references/modelo-spec.md` | Passo 6 — seções obrigatórias, template mínimo e estados de Status × Verificação |
+| `references/critica-adversarial.md` | Passo 7 — críticos por eixo, formato do arquivo de crítica e a fence `kairos-critica` |

@@ -1,6 +1,6 @@
 ---
 name: lancar
-description: Conduz o lançamento do merge ao mundo com gates — checklist pré-deploy, aprovação explícita do usuário, deploy, health check em três camadas, plano de rollback com gatilho objetivo e follow-up com handoff de observação. Dono é Marcos (DevOps), com Sérgio (SRE) e Renata (Observabilidade). Não use para monitoramento contínuo (isso é do host 24/7) nem para revisar código (isso é revisar).
+description: Deploy com gates: checklist, aprovação explícita, health check em três camadas, rollback com gatilho objetivo. Marcos. Revisar código é o revisar; monitoramento contínuo não é aqui.
 ---
 
 # Lançar — do merge ao mundo, com gates

@@ -20,7 +20,7 @@ Não duplique funcionalidade entre os dois. Se algo é **regulatório**, vai pro
 
 1. **PT-BR em tudo.** Skills, agentes, comandos, comentários, mensagens de commit, ADRs. Exceção única: `AGENTS.md` na raiz é em inglês (formato padrão Codex/OpenCode).
 2. **Verbos no infinitivo nos nomes de skills.** `especificar`, não `spec`.
-3. **Skills ≤ 500 linhas no SKILL.md.** Material pesado vai em `references/` da skill.
+3. **Skills ≤ 500 linhas no SKILL.md, com a raiz como roteador.** Material pesado vai em `references/` da skill. `description` de skill ≤ 300 chars e de agente ≤ 260 — o que faz, quando usar, uma negativa de roteamento; dono, artefatos e resumo do fluxo ficam no corpo (ADR-0038). O `release.py check` cobra os tetos e a soma.
 4. **Agentes têm allow-list explícita de ferramentas.** Nunca dar acesso total a todos.
 5. **Acentuação PT-BR correta.** `solução`, não `solucao`. Verifique antes de commitar.
 6. **Personas consistentes.** Os 71 agentes têm nomes e personalidades fixas. Não invente novos — use existentes ou peça via ADR.
@@ -68,7 +68,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `.opencode/agent/<id>.md` | Subagents do OpenCode com `mode: subagent` e a allow-list traduzida para `permission`, que ali é enforced (ADR-0035) | **gerado** por `scripts/sync-multi-cli.py` |
 | `.cursor/` | Distribuição Cursor completa: agents adaptados (readonly quando consultivo), skills espelhadas, rule `alwaysApply` (lista de skills derivada), scripts de suporte, templates (ADR-0011) | **gerado** por `scripts/sync-multi-cli.py` |
 | `skills/<verbo>/SKILL.md` | 18 skills (compartilhadas — Claude Code e Codex leem da mesma pasta) | manual |
-| `hooks/hooks.json` | Hooks Claude Code: banner, telemetria em 4 pontos do ciclo (ADR-0021), guardrails que bloqueiam em `PreToolUse`/`PostToolUse` (ADR-0022) e alerta de patinação em voo (ADR-0030) | manual |
+| `hooks/hooks.json` | Hooks Claude Code: banner, telemetria em 4 pontos do ciclo (ADR-0021), guardrails que bloqueiam em `PreToolUse`/`PostToolUse` (ADR-0022), alerta de patinação em voo (ADR-0030) e lembrete de Definition of Done **uma vez por sessão** no primeiro arquivo de produção editado (ADR-0038) | manual |
 | `.codex/hooks.json` | Hooks Codex (apenas SessionStart — Codex não suporta `Write\|Edit` matcher) | manual |
 | `AGENTS.md` | Espelho em inglês do CLAUDE.md raiz, para Codex/OpenCode | manual |
 | `templates/` | `CLAUDE.md.template`, `squad-fabrica.yaml`, `anti-drift.md`, `trilhas/` (blueprints de SPEC por tema, incl. pipeline de dados — ADR-0013/0037), `ci/` (gatilhos por evento pro projeto do usuário — ADR-0026) | manual |
@@ -135,6 +135,8 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 - **ADR-0035**: `/mobilizar` deixa de ser exclusivo do Claude Code — das quatro ferramentas nativas que a skill citava, só o **quadro de tarefas** não tinha equivalente no Codex, então o quadro sai da sessão e vira arquivo do repo (`quadro.py`). Teto de onda, colisão de posse e contagem final passam de prosa a código. Os quatro CLIs sabem lançar worker em paralelo — o que variava era só o adaptador — então a skill passa a rodar em Claude Code, Codex, OpenCode e Cursor, com as 71 personas geradas no formato nativo de cada um (v0.28.0)
 
 - **ADR-0036**: tempo limite e compensação — as três coisas que faltavam ao `/mobilizar` para lidar com falha depois que o trabalho começou. Worker que morre sem avisar segurava a vaga da onda para sempre e **nada dava erro**; agora `varrer` bloqueia por prazo e devolve a vaga. Falha tardia só tinha tudo-ou-nada (declarar lacuna ou refazer tudo); agora `compensar` desfaz a tarefa inválida e só o que foi construído sobre ela, em ordem inversa — o `--reverter` do ADR-0024 já era a ação compensatória que o Saga pede, faltava a orquestração. Ironia que originou o ADR: a `/diagnosticar` audita timeout, retry e idempotência no sistema do usuário, e o orquestrador da fábrica não tinha nenhum dos três (v0.29.0)
+- **ADR-0037**: artefato gerado é inegociável — editar mirror por CLI ou manifesto entra no `guardrail.py` como classe `gerado` (bloqueia e aponta o canônico e o sync); o `/evoluir` passa a ler a trajetória (`telemetria.py resumo`) antes da entrevista; trilha de pipeline de dados (v0.30.0)
+- **ADR-0038**: instruções enxutas — auditoria do plugin contra o guia de skills e prompts para modelos novos (Provencher, Codex, set/2026). `description` de skill e agente cortada para o que faz + quando usar + uma negativa (agentes: 19k → 8,8k chars; skills: 8,8k → 3,3k), e a soma entra no orçamento estático do `release.py check`, que o ADR-0027 deixava de fora; as cinco skills maiores viram roteador + `references/`; o hook pedagógico avisa uma vez por sessão em vez de a cada edição; o boilerplate repetido nas 71 personas vira um parágrafo; checkpoint por onda no anti-drift (a contagem de 3 tasks era de antes do quadro) e, em sessão, feature Pequena segue com o default recomendado nos dois primeiros checkpoints do planejamento — o `ciclo.py` e o contrato v1.0 não mudam (v0.31.0)
 
 ## Limitações conhecidas por CLI
 
@@ -143,7 +145,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `/kairos-forge:mobilizar` (time paralelo) | ✅ Agent Teams | ✅ `spawn_agent` | ✅ `task` (ADR-0035) | ✅ subagents orquestrados |
 | Falar com worker em voo | ✅ `SendMessage` | ✅ `send_message` | ✅ retomar por `task_id` | ❌ — relance com contexto completo |
 | Allow-list de ferramentas do agente | ✅ enforced | ⚠️ instrução (`apply_patch` sobrevive) | ✅ enforced (`permission`) | ⚠️ degrada pra `readonly` |
-| Hook PostToolUse pedagógico | ✅ | ❌ | ❌ (sem `oh-my-opencode`) | ❌ |
+| Lembrete de DoD (PostToolUse, uma vez por sessão — ADR-0038) | ✅ | ❌ | ❌ (sem `oh-my-opencode`) | ❌ |
 | SessionStart banner | ✅ | ✅ | ❌ (sem `oh-my-opencode`) | ✅ via rule `alwaysApply` |
 | Subagents com persona | ✅ nativo | ✅ mirror `.agents/` | ⚠️ via cópia de `agents/` | ✅ `.cursor/agents/` (allow-list degrada pra `readonly`) |
 | Telemetria de execução (ADR-0021) | ✅ completa (4 pontos do ciclo) | ⚠️ só SessionStart — sem trajetória útil | ❌ | ❌ |

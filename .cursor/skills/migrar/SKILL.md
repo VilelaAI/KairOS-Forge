@@ -1,6 +1,6 @@
 ---
 name: migrar
-description: Conduz modernização de legado por estrangulamento (strangler fig) — fatia a fatia, com testes de caracterização antes de tocar qualquer coisa, rota de corte com rollback e decisão manter-ou-reverter por fatia. Use para migrar monolito para serviços, trocar framework/linguagem, substituir sistema legado em produção. Dono é Ivan (Modernização). Não use para refactor pequeno (3+ arquivos → especificar normal) nem para otimização de métrica em código são (isso é otimizar).
+description: Modernização de legado por estrangulamento: testes de caracterização, rota de corte com rollback, manter-ou-reverter por fatia. Ivan. Refactor pequeno é o especificar; métrica em código são, o otimizar.
 ---
 
 # Migrar — modernização por estrangulamento

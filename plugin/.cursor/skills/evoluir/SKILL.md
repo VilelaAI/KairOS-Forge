@@ -1,6 +1,6 @@
 ---
 name: evoluir
-description: Conduz entrevista semanal de evolução da fábrica. Use depois do /kairos-forge:auditar, tipicamente sexta-feira. Faz 5 perguntas sobre a semana que passou e identifica UMA capacidade nova para construir na próxima (skill, agente, hook ou contexto). Cada execução = um item entregue na semana seguinte. Não constrói nada agora — produz especificação do que será construído. Não use para melhorar uma métrica específica já existente — isso é /kairos-forge:otimizar.
+description: Entrevista semanal depois do auditar: escolhe UMA capacidade nova da fábrica para a próxima semana. Não constrói, especifica. Melhorar métrica específica é o otimizar.
 ---
 
 # Evoluir — ciclo semanal de aprendizado

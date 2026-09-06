@@ -89,6 +89,16 @@ class TestSubagentes(unittest.TestCase):
             self.assertEqual(m["subagentes_lancados"], 2)
 
 
+class TestSubagenteEmSessaoLonga(unittest.TestCase):
+    def test_inicio_antes_de_500_eventos_ainda_conta(self):
+        with Repositorio() as raiz:
+            hook("subagente_inicio", raiz, agent_id="longo", agent_type="ricardo-testes")
+            for _ in range(500):
+                hook("ferramenta", raiz, tool_name="Write", tool_input={"file_path": "src/a.py"})
+            hook("subagente_fim", raiz, agent_id="longo", agent_type="ricardo-testes")
+            self.assertIn("duracao_s", eventos(raiz)[-1])
+
+
 class TestPatinacaoECorroboracao(unittest.TestCase):
     def _falha(self, raiz, cmd):
         hook("ferramenta", raiz, tool_name="Bash", tool_input={"command": cmd},

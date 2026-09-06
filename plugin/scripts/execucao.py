@@ -250,10 +250,26 @@ def ev_subagente_inicio(p: dict) -> dict:
 
 
 def _inicio_do_subagente(p: dict, agente_id: str) -> str | None:
-    """Carimbo do último `subagente_inicio` desta instância, nesta sessão."""
-    for ev in reversed(_eventos_da_sessao(p, limite=2000)):
-        if ev.get("tipo") == "subagente_inicio" and ev.get("agente_id") == agente_id:
-            return ev.get("t")
+    """Carimbo do último `subagente_inicio` desta instância, nesta sessão.
+
+    Lê o arquivo do mês inteiro, não a janela de 400 linhas da patinação: um
+    subagente pode ter começado muito antes das últimas 400 linhas.
+    """
+    try:
+        arq = destino(p)
+        if not arq.is_file():
+            return None
+        sessao = (p.get("session_id") or "?")[:16]
+        for linha in reversed(arq.read_text(encoding="utf-8").splitlines()):
+            try:
+                ev = json.loads(linha)
+            except Exception:
+                continue
+            if (ev.get("sessao") == sessao and ev.get("tipo") == "subagente_inicio"
+                    and ev.get("agente_id") == agente_id):
+                return ev.get("t")
+    except Exception:
+        pass
     return None
 
 

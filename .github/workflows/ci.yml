@@ -31,6 +31,14 @@ jobs:
         # e é ela que apodrece em silêncio.
         run: python3 scripts/release.py check
 
+      - name: Suíte do próprio plugin (ADR-0039)
+        # 103+ testes só-stdlib: scripts como CLI em repositório temporário, hooks
+        # EXECUTADOS com payload sintético, falha injetada na publicação de estado,
+        # saneamento da trajetória, invariantes do pacote e somente-leitura.
+        # `tests/__init__.py` existe para o discover achar os módulos — sem ele o
+        # discover roda zero testes e parece verde.
+        run: python3 -m unittest discover -s tests -t . -v
+
       - name: Segurança dos agentes (allow-lists, hooks e segredos)
         # O argumento é a RAIZ DA ÁRVORE, não a pasta de agentes. Passar `agents`
         # fazia o script procurar `agents/agents/` e reportar verde sobre 0 agentes

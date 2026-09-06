@@ -8,7 +8,7 @@ sugeria lembrar do Ricardo e não impedia nada. As regras duras da fábrica mora
 todas em prosa que o modelo pode driftar — a inversão exata do que o paper
 recomenda.
 
-Este script é a parte que **bloqueia**. Cinco classes de risco:
+Este script é a parte que **bloqueia**. Seis classes de risco:
 
   1. Comando destrutivo      — apagar a raiz, force-push em branch protegida,
                                DROP/TRUNCATE fora de migration, curl|sh, chmod 777
@@ -20,6 +20,9 @@ Este script é a parte que **bloqueia**. Cinco classes de risco:
   5. Contrato de relatório   — bloco ```kairos-validacao / ```kairos-revisao
                                malformado, incoerente, ou limpo sem prova de
                                cobertura (ADR-0032)
+  6. Leitura de segredo      — `Read`/`Grep` em `.env`, chave privada, chave SSH
+                               (ADR-0039). Escrever era bloqueado; ler, não — e é
+                               lendo que o segredo vaza para o transcript
 
 ## Goodhart: o agente não escreve o próprio medidor
 
@@ -41,8 +44,14 @@ Hook (payload do hook em stdin, exit 2 = bloqueia e o motivo vai para o modelo):
 
     guardrail.py comando    # PreToolUse  matcher Bash
     guardrail.py escrita    # PreToolUse  matcher Write|Edit
+    guardrail.py leitura    # PreToolUse  matcher Read|Grep|Glob
     guardrail.py spec       # PostToolUse matcher Write|Edit
     guardrail.py contrato   # PostToolUse matcher Write|Edit
+
+Payload ilegível num modo de PreToolUse **bloqueia** (ADR-0039). Até a v0.31 qualquer
+erro saía silencioso com 0 — um hook que libera quando não consegue ler o que vai
+liberar não é guardrail, é decoração. Bug do próprio script continua falhando aberto
+(ver `main`); o que muda é o caso em que o INPUT não é o que o contrato do hook promete.
 
 CLI, sem hook — o caminho para Codex/OpenCode/Cursor e para CI/pre-commit,
 onde não existe PreToolUse (exit 1 se houver achado):
@@ -66,7 +75,7 @@ que o arquivo mudou — o que um sync legítimo também faz. Por isso ali o defa
     }                                              // bloqueio (default) | aviso
 
 Classes de regra, para o campo `modos`: `comando`, `protegido`, `gerado`, `spec`,
-`contrato`.
+`contrato`, `leitura`.
 Os caminhos sagrados nunca degradam — não há `modos` que os afrouxe.
 
 Só stdlib.
@@ -91,9 +100,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # para importar contra
 COMANDOS = [
     (r"\brm\s+(-\w+\s+)*-\w*[rf]\w*\s+(/|~|\$HOME|/\*|~/\*)(\s|$|;)",
      "apagar a raiz do sistema ou o home inteiro"),
-    (r"\bgit\s+push\b.*(--force|-f)\b(?!.*--force-with-lease).*\b(main|master|develop|production|prod)\b",
+    # `--force-with-lease` é a alternativa que a mensagem recomenda — o lookahead negativo
+    # colado ao `--force` é o que impede o regex de bloquear a própria recomendação.
+    (r"\bgit\s+push\b.*(?:--force(?!-with-lease)|\s-f)\b.*\b(main|master|develop|production|prod)\b",
      "force-push em branch protegida (use --force-with-lease em branch própria)"),
-    (r"\bgit\s+push\b.*\b(origin\s+)?(main|master|production|prod)\b.*(--force|-f)\b",
+    (r"\bgit\s+push\b.*\b(origin\s+)?(main|master|production|prod)\b.*(?:--force(?!-with-lease)|\s-f)\b",
      "force-push em branch protegida"),
     (r"(?i)\bdrop\s+(table|database|schema)\b", "DROP de tabela/banco/schema"),
     (r"(?i)\btruncate\s+table\b", "TRUNCATE de tabela"),
@@ -157,11 +168,16 @@ FECHA_PR = re.compile(r"\bgh\s+pr\s+merge\b")
 PROTEGIDOS_PADRAO = [
     (".env", "arquivo de segredos"),
     (".env.*", "arquivo de segredos"),
+    (".envrc", "arquivo de segredos (direnv)"),
     ("**/*.pem", "chave privada"),
     ("**/*.key", "chave privada"),
     ("**/id_rsa*", "chave SSH"),
+    ("**/id_ed25519*", "chave SSH"),
     (".github/workflows/**", "configuração de CI — mexer nos próprios gates é Goodhart"),
 ]
+# Só os de segredo — o que vale para leitura (ADR-0039) e para a varredura do CLI.
+# CI é protegido contra escrita (Goodhart), não contra leitura.
+SEGREDOS_PADRAO = [(p, m) for p, m in PROTEGIDOS_PADRAO if not p.startswith(".github/")]
 
 # Casam com um padrão protegido mas existem para ser versionados e editados.
 EXCECOES = ["*.example", "*.sample", "*.template", "*.dist", "*.md"]
@@ -379,6 +395,56 @@ def checar_escrita(payload: dict) -> int:
     return 0
 
 
+# --- modo hook: leitura de segredo (ADR-0039) ---------------------------------------
+# Escrever em `.env` era bloqueado desde o ADR-0022; ler, não. E é lendo que o segredo
+# vaza — para o transcript, para a memória episódica, para o próximo prompt. `Read` e
+# `Grep` (com `path` apontando para o arquivo) entram aqui; `Glob` só lista nomes e
+# passa. Limite declarado: `Grep` com `path` em DIRETÓRIO não é inspecionado — decidir
+# se a varredura alcança um segredo exigiria replicar o Grep aqui.
+
+def alvo_de_leitura(payload: dict) -> str:
+    entrada = payload.get("tool_input") or {}
+    ferramenta = str(payload.get("tool_name") or "")
+    if ferramenta == "Glob":
+        return ""
+    return str(entrada.get("file_path") or entrada.get("path") or "")
+
+
+def checar_leitura(payload: dict) -> int:
+    caminho = alvo_de_leitura(payload)
+    if not caminho:
+        return 0
+    raiz = Path(payload.get("cwd") or ".")
+    alvo = raiz / caminho if not Path(caminho).is_absolute() else Path(caminho)
+    if alvo.is_dir():
+        return 0
+    rel = relativo(str(alvo), raiz)
+    nome = Path(rel).name
+    if any(casa(rel, exc) or casa(nome, exc) for exc in EXCECOES):
+        return 0
+    cfg = carregar_config(raiz)
+    liberados = cfg.get("liberados", [])
+    protegidos = list(SEGREDOS_PADRAO) + [
+        (p, "protegido pelo projeto") for p in cfg.get("protegidos", [])
+    ]
+    modo = modo_de(cfg, "leitura")
+    for padrao, motivo in protegidos:
+        if (casa(rel, padrao) or casa(nome, padrao)) and not any(
+                casa(rel, lib) for lib in liberados):
+            registrar_recusa(raiz, "leitura", motivo, rel, modo)
+            return bloquear(
+                f"leitura bloqueada em `{rel}` — {motivo}",
+                "Ler um segredo o copia para o transcript e para tudo que lê o transcript "
+                "depois (memória, próximo prompt, log). Escrever já era bloqueado; ler "
+                "vaza do mesmo jeito (ADR-0039).",
+                "Use a variante `.example`/`.sample` para saber a forma, ou peça ao usuário "
+                "o valor específico que você precisa. Para liberar um caminho: "
+                "`.agents/guardrails.json` (campo `liberados`) — o que o usuário edita.",
+                modo,
+            )
+    return 0
+
+
 # --- modo hook: integridade da SPEC -------------------------------------------------
 
 def linhas_incoerentes(texto: str) -> list[str]:
@@ -570,7 +636,7 @@ def verificar(alvo: Path) -> int:
                 problemas.append(f"{len(modificados)} artefato(s) gerado(s) modificado(s) "
                                  "— `modos.gerado` está em bloqueio neste projeto")
 
-    for padrao, motivo in PROTEGIDOS_PADRAO[:5]:  # só os de segredo, não o de CI
+    for padrao, motivo in SEGREDOS_PADRAO:  # só os de segredo, não o de CI
         for achado in raiz.rglob(padrao.replace("**/", "")):
             if achado.is_file() and ".git/" not in str(achado):
                 problemas.append(f"{achado}: {motivo} versionado no projeto?")
@@ -584,8 +650,11 @@ def verificar(alvo: Path) -> int:
     return 0
 
 
-MODOS = {"comando": checar_comando, "escrita": checar_escrita, "spec": checar_spec,
-         "contrato": checar_contrato}
+MODOS = {"comando": checar_comando, "escrita": checar_escrita, "leitura": checar_leitura,
+         "spec": checar_spec, "contrato": checar_contrato}
+# Modos de PreToolUse: os que decidem ANTES da ferramenta rodar. Só neles faz sentido
+# falhar fechado quando o payload não é legível — depois do fato não há o que impedir.
+PREVIOS = {"comando", "escrita", "leitura"}
 
 
 def main() -> int:
@@ -604,10 +673,28 @@ def main() -> int:
         return 1
     try:
         bruto = sys.stdin.read()
-        payload = json.loads(bruto) if bruto.strip() else {}
+    except Exception:
+        return 0
+    if bruto.strip():
+        try:
+            payload = json.loads(bruto)
+        except Exception:
+            # Payload que não é o JSON do hook: em PreToolUse, liberar seria decidir
+            # sem ver o que se libera (ADR-0039). Bloqueia e diz por quê.
+            if args[0] in PREVIOS:
+                return bloquear(
+                    f"guardrail `{args[0]}` recebeu payload ilegível — bloqueado por precaução",
+                    f"Início do que chegou: {bruto[:120]!r}",
+                    "Se isto se repetir, o formato do hook mudou: reporte, e degrade a classe "
+                    "para `aviso` em `.agents/guardrails.json` enquanto isso.",
+                )
+            return 0
+    else:
+        payload = {}
+    try:
         return modo(payload)
     except Exception:
-        # Guardrail quebrado nunca trava a sessão — falha aberta, mas silenciosa.
+        # Bug do próprio guardrail nunca trava a sessão — falha aberta, mas silenciosa.
         # (Bloquear por bug próprio seria pior que a ausência do check.)
         return 0
 

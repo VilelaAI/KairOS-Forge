@@ -1,5 +1,6 @@
 ---
 name: lancar
+disable-model-invocation: true
 description: Deploy com gates: checklist, aprovação explícita, health check em três camadas, rollback com gatilho objetivo. Marcos. Revisar código é o revisar; monitoramento contínuo não é aqui.
 ---
 

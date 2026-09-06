@@ -31,6 +31,16 @@ busca — e as duas coisas produzem o mesmo texto tranquilizador. A regra já ex
 prosa no `anti-drift.md` ("olhei e parece bom não é crítica"); aqui ela vira código
 que recusa.
 
+## Gate que não rodou não é veredicto sobre o trabalho (ADR-0040)
+
+`status` do gate e `verdict` sobre a feature são coisas diferentes. Um relatório pode
+declarar `"executado": false` com `"motivo"` — o ambiente caiu, a dependência não
+instala, o comando não existe. Nesse caso o `veredicto` é `nao_executado`, contagem
+nenhuma, e o `ciclo.py` **não avança nem queima rodada**: não há achado sobre o
+trabalho, há um problema de infraestrutura para alguém resolver. Sem esse campo, uma
+reprovação legítima e um gate quebrado produziam o mesmo `bloqueado` — e o laço de
+correção corrigia código para consertar um ambiente.
+
 Uso como biblioteca:
 
     from contrato import ler_validacao, ler_revisao
@@ -65,6 +75,7 @@ FENCE_CRITICA = "kairos-critica"
 MIN_CRITICOS = 2
 
 VEREDICTOS = ("aprovado", "aprovado_com_ressalvas", "bloqueado")
+NAO_EXECUTADO = "nao_executado"   # só com "executado": false (ADR-0040)
 FAIXAS = (1, 2, 3)
 
 # --- contrato de integração (ADR-0034) ----------------------------------------------
@@ -75,7 +86,7 @@ FAIXAS = (1, 2, 3)
 #
 # MENOR (1.x): campo opcional novo, fence nova, mensagem de erro diferente.
 # MAIOR (x.0): campo obrigatório novo ou removido, regra de aceitação mais estrita.
-CONTRATO_VERSAO = "1.0"
+CONTRATO_VERSAO = "1.1"   # 1.1: campo opcional `executado` + veredicto `nao_executado` (ADR-0040)
 
 # Teto de itens nas listas de cobertura. Existe para o parser não virar vetor de
 # payload absurdo, não porque 200 seja um número especial.
@@ -146,6 +157,36 @@ def _inteiro_de(valor, campo: str) -> tuple[int | None, str | None]:
     return valor, None
 
 
+def _nao_executado(dados: dict, tipo: str, campo_contagem: str) -> Resultado | None:
+    """Trata `"executado": false` (ADR-0040). Devolve o Resultado pronto, ou None.
+
+    Regras: `executado` é opcional e default `true`; `false` exige `motivo` não-vazio e
+    veredicto `nao_executado`; `nao_executado` sem `executado: false` é incoerência.
+    Nenhuma checagem de contagem ou cobertura se aplica — não houve gate.
+    """
+    executado = dados.get("executado", True)
+    if not isinstance(executado, bool):
+        return _falha(ESTRUTURAL, "campo 'executado' precisa ser booleano")
+    veredicto = str(dados.get("veredicto", "")).strip().lower().replace(" ", "_")
+    if executado:
+        if veredicto == NAO_EXECUTADO:
+            return _falha(ESTRUTURAL, f"veredicto '{NAO_EXECUTADO}' exige "
+                                      "\"executado\": false — se o gate rodou, diga o que ele disse")
+        return None
+    if veredicto != NAO_EXECUTADO:
+        return _falha(ESTRUTURAL, f"\"executado\": false exige veredicto '{NAO_EXECUTADO}' — "
+                                  "gate que não rodou não aprova nem bloqueia")
+    motivo = str(dados.get("motivo", "")).strip()
+    if not motivo:
+        return _falha(ESTRUTURAL, "\"executado\": false exige 'motivo' — o que impediu o gate "
+                                  "de rodar é o que alguém vai consertar")
+    return Resultado(ok=True, dados={
+        "tipo": tipo, "veredicto": NAO_EXECUTADO, campo_contagem: None,
+        "executado": False, "motivo": motivo[:300],
+        "spec": str(dados.get("spec", "")).strip() or None,
+    })
+
+
 def _carregar(texto: str, fence: str) -> tuple[dict | None, Resultado | None]:
     bruto = extrair_ultimo_bloco(texto, fence)
     if bruto is None:
@@ -166,6 +207,9 @@ def ler_validacao(texto: str) -> Resultado:
     dados, erro = _carregar(texto, FENCE_VALIDACAO)
     if erro:
         return erro
+    pronto = _nao_executado(dados, "validacao", "bloqueios")
+    if pronto is not None:
+        return pronto
 
     veredicto = str(dados.get("veredicto", "")).strip().lower().replace(" ", "_")
     if veredicto not in VEREDICTOS:
@@ -200,6 +244,7 @@ def ler_validacao(texto: str) -> Resultado:
         "veredicto": veredicto,
         "bloqueios": bloqueios,
         "verificado": verificado,
+        "executado": True,
         "spec": str(dados.get("spec", "")).strip() or None,
     })
 
@@ -211,6 +256,9 @@ def ler_revisao(texto: str) -> Resultado:
     dados, erro = _carregar(texto, FENCE_REVISAO)
     if erro:
         return erro
+    pronto = _nao_executado(dados, "revisao", "criticos")
+    if pronto is not None:
+        return pronto
 
     veredicto = str(dados.get("veredicto", "")).strip().lower().replace(" ", "_")
     if veredicto not in VEREDICTOS:
@@ -250,6 +298,7 @@ def ler_revisao(texto: str) -> Resultado:
         "faixa": faixa,
         "criticos": criticos,
         "examinado": examinado,
+        "executado": True,
     })
 
 
@@ -265,6 +314,9 @@ def ler_critica(texto: str) -> Resultado:
     dados, erro = _carregar(texto, FENCE_CRITICA)
     if erro:
         return erro
+    pronto = _nao_executado(dados, "critica", "achados")
+    if pronto is not None:
+        return pronto
 
     veredicto = str(dados.get("veredicto", "")).strip().lower().replace(" ", "_")
     if veredicto not in VEREDICTOS:
@@ -308,6 +360,7 @@ def ler_critica(texto: str) -> Resultado:
         "achados": achados,
         "criticado_por": criticos,
         "examinado": examinado,
+        "executado": True,
         "spec": str(dados.get("spec", "")).strip() or None,
     })
 
@@ -327,12 +380,18 @@ def contrato_publico() -> dict:
              "tolera CRLF, fence colada no preâmbulo e indentação até 3 espaços",
              "bloco não fechado NÃO conta — parcial é pior que ausente",
              "coerência: veredicto 'bloqueado' ⟺ contagem de achados ≥ 1",
-             f"listas com no máximo {MAX_ITENS} itens"]
+             f"listas com no máximo {MAX_ITENS} itens",
+             "executado (opcional, default true): false exige 'motivo' e veredicto "
+             f"'{NAO_EXECUTADO}' — gate que não rodou não aprova, não bloqueia e não "
+             "queima rodada (ADR-0040)"]
+    opcionais_comuns = {"executado": "boolean (default true)",
+                        "motivo": "string (obrigatório quando executado=false)"}
     return {
         "nome": "kairos-forge/contrato",
         "versao": CONTRATO_VERSAO,
         "comando": "contrato.py <criticar|validar|revisar> <arquivo.md>",
         "veredictos": list(VEREDICTOS),
+        "veredicto_sem_gate": NAO_EXECUTADO,
         "codigos_de_erro": {
             AUSENTE: "nenhum bloco com a fence esperada",
             JSON_INVALIDO: "bloco não é JSON válido",
@@ -346,7 +405,7 @@ def contrato_publico() -> dict:
                 "arquivo": "CRITICA-<SPEC>-<AAAA-MM-DD>.md",
                 "obrigatorios": {"veredicto": "string", "achados": "integer>=0",
                                  "criticado_por": "string[]", "examinado": "string[]"},
-                "opcionais": {"spec": "string"},
+                "opcionais": {"spec": "string", **opcionais_comuns},
                 "regras": comum + [
                     "cobertura: achados=0 exige 'examinado' não-vazio",
                     f"independência: ao menos {MIN_CRITICOS} nomes DISTINTOS em "
@@ -359,7 +418,7 @@ def contrato_publico() -> dict:
                 "arquivo": "VALIDACAO-<SPEC>-<AAAA-MM-DD>.md",
                 "obrigatorios": {"veredicto": "string", "bloqueios": "integer>=0",
                                  "verificado": "string[]"},
-                "opcionais": {"spec": "string"},
+                "opcionais": {"spec": "string", **opcionais_comuns},
                 "regras": comum + ["cobertura: bloqueios=0 exige 'verificado' não-vazio"],
             },
             "revisao": {
@@ -368,7 +427,7 @@ def contrato_publico() -> dict:
                 "arquivo": "REVISAO-<SPEC ou slug>-<AAAA-MM-DD>.md",
                 "obrigatorios": {"veredicto": "string", "faixa": "1|2|3",
                                  "criticos": "integer>=0", "examinado": "string[]"},
-                "opcionais": {},
+                "opcionais": dict(opcionais_comuns),
                 "regras": comum + [
                     "cobertura: criticos=0 exige 'examinado' não-vazio",
                     "faixa 3 (difícil de reverter) nunca fecha por evidência — ADR-0031",

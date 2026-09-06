@@ -178,6 +178,11 @@ Formato:
 O bloco ` ```kairos-validacao ` no fim do relatório é o que o `ciclo.py` lê. Não é
 decoração de formato: **é a fronteira entre a sua leitura e a decisão da máquina.**
 
+**Gate que não rodou (ADR-0040):** se o comando do gate não pôde executar — ambiente
+caído, dependência que não instala — o relatório declara `"executado": false`,
+`"veredicto": "nao_executado"` e `"motivo"`. Não é aprovação nem bloqueio: o
+`ciclo.py` recusa avançar e **não cobra rodada**, porque não há achado sobre o trabalho.
+
 Três regras, todas verificadas por código (`contrato.py`), não por lembrança:
 
 1. **Fence própria.** Validação usa `kairos-validacao`; revisão usa `kairos-revisao`.

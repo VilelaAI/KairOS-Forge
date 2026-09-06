@@ -141,6 +141,13 @@ tarefa irreversível, e irreversível para no usuário. O quadro avisa quando fa
    ```bash
    quadro.py concluir forge-<slug> T1 --evidencia "<arquivos, requisitos, gate>" --gate-ok
    ```
+
+   **Prova de trabalho (ADR-0040):** `concluir` só aceita se o HEAD avançou desde o
+   `iniciar` ou se há diff nos arquivos de posse. Tarefa que legitimamente não muda
+   arquivo (decisão, análise) declara `--sem-diff "motivo"`, que fica registrado.
+   Quando o worker é um processo deste host, passe `--pid` no `iniciar`: o `varrer`
+   mata o processo antes de devolver a vaga e a retém se não provar que ele morreu.
+
 2. **Worker que não responde tem prazo.** Antes de cada onda nova, varra: além do tempo
    limite a tarefa vira `bloqueada` e devolve a vaga; ao reabrir, relance ou aumente o `--tempo-limite`.
    ```bash

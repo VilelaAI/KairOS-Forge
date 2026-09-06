@@ -13,11 +13,11 @@
     "sha256": "cb2401bb25f24d38a34a182dfe97812573ed2d85b9165bb3a3ce5e6d8cec296d"
   },
   "contrato": {
-    "versao": "1.0",
-    "sha256": "716df542b916e62d900b4f2c259da02cc390f945ff130fb4593418aa517cdb27"
+    "versao": "1.1",
+    "sha256": "bbb8d35bcfa8be06367ece92d7978bf91656033d28ad6a59449713a57a2c0209"
   },
   "quadro": {
-    "versao": "1.1",
-    "sha256": "bf14cb2822671c7e3f039d3e0c63b2197f42cac305c66ff9dff2da4f0cd38e63"
+    "versao": "1.2",
+    "sha256": "cb86bc602849430af98e45f2f3654f99391a6f0e256cacb2311cd3ae04e1c810"
   }
 }

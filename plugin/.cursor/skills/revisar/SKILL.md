@@ -155,6 +155,11 @@ O bloco ` ```kairos-revisao ` é o contrato, com as mesmas três regras do `/val
 
 ### 6. Regras de bloqueio
 
+**Gate que não rodou (ADR-0040):** se a revisão não pôde executar — ambiente
+caído, dependência que não instala — o relatório declara `"executado": false`,
+`"veredicto": "nao_executado"` e `"motivo"`. Não é aprovação nem bloqueio: o
+`ciclo.py` recusa avançar e **não cobra rodada**, porque não há achado sobre o trabalho.
+
 - **Qualquer 🔴** de qualquer revisor → veredicto agregado é ❌ bloqueado.
 - **2+ 🟠** → ⚠️ aprovado com ressalvas, com recomendação forte de corrigir antes.
 - Só 🟡 ou 🔵 → ✅ aprovado.

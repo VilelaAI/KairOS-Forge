@@ -277,7 +277,16 @@ def gravar(p: Path, d: dict) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp, p)  # troca atômica — crash no meio não corrompe o estado
+    try:
+        os.replace(tmp, p)  # troca atômica — crash no meio não corrompe o estado
+    except OSError:
+        # Falhou a publicação: o estado anterior continua válido e nenhum `.tmp` sobra
+        # para ser confundido com estado (ADR-0040).
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
 
 
 # --- corroboração do veredicto -----------------------------------------------------
@@ -437,6 +446,18 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
     fonte = "ausente"
     if gate_do_estado:
         veredicto, contagem, fonte = ler_relatorio(d["spec"], gate_do_estado)
+
+    # Gate que não rodou não é veredicto sobre o trabalho (ADR-0040): nem avança, nem
+    # queima rodada. Uma reprovação legítima e um ambiente quebrado produziam o mesmo
+    # `bloqueado`, e o laço de correção corrigia código para consertar o ambiente.
+    if gate_do_estado and veredicto == "nao_executado":
+        pasta, _, _ = FONTE_DO_GATE[gate_do_estado]
+        print(f"🛑 recusado: o relatório mais recente em {pasta}/ diz que o gate NÃO RODOU "
+              f"(executado: false).\n   Isso não é achado sobre o trabalho — nenhuma rodada "
+              "é cobrada. Conserte o que impediu o gate e rode-o de novo; se não der, "
+              f"`ciclo.py escalar --motivo \"gate {gate_do_estado} não executa: ...\"`.",
+              file=sys.stderr)
+        return 1
 
     if resultado in LIMPO_DO_GATE.get(estado, ()):
         pasta, _, _ = FONTE_DO_GATE[gate_do_estado]

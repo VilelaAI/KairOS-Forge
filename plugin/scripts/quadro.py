@@ -46,9 +46,13 @@ Uso:
                            --pronto-quando "..." [--gate "npm test"] [--depende T0,T2]
                            [--tier rapido|padrao|preciso] [--reverter "git revert <sha>"]
     quadro.py prontas <slug> [--json]          # a próxima onda, decidida por código
-    quadro.py iniciar <slug> T1 [--agente <id/task_name do worker>]
+    quadro.py iniciar <slug> T1 [--agente <id/task_name do worker>] [--pid <pid>]
     quadro.py concluir <slug> T1 --evidencia "..." [--gate-ok | --gate-pulado "motivo"]
-    quadro.py varrer <slug> [--dry-run]         # bloqueia quem venceu o tempo limite
+                                [--sem-diff "motivo"]   # tarefa que legitimamente não
+                                                        # muda arquivo de posse
+    quadro.py varrer <slug> [--dry-run]         # bloqueia quem venceu o tempo limite;
+                                                # com --pid, mata o processo antes e só
+                                                # devolve a vaga se provar que ele morreu
     quadro.py compensar <slug> T1 --motivo "..." [--aplicar]   # Saga: desfaz T1 e o que
                                                 # foi construído sobre ela, ordem inversa
     quadro.py depender <slug> T4 --de T1        # serializa uma colisão de posse
@@ -60,14 +64,31 @@ Uso:
     quadro.py listar
     quadro.py contrato [--json]
 
+Prova de trabalho (ADR-0040): `concluir` recusa "DONE" que o git não enxerga. A tarefa
+precisa ter movido o HEAD desde o `iniciar` ou deixado diff nos arquivos de posse —
+ou declarar `--sem-diff "motivo"`, que fica registrado. JSON bem formado descrevendo
+trabalho que ninguém fez é exatamente o que isto pega. Fora de repositório git a
+checagem não roda, e diz isso.
+
+Posse do processo (ADR-0040): `varrer` sem `--pid` devolvia a vaga por prazo com o
+worker possivelmente vivo — dois workers na mesma posse. Com `--pid` registrado no
+`iniciar`, `varrer` envia TERM, espera, envia KILL, e só libera a vaga quando prova
+que o processo (e o grupo dele) morreu. Se não conseguir provar, **retém a vaga** e
+diz que um humano precisa olhar: vaga retida é sinal; vaga liberada por cima de um
+processo vivo é silêncio.
+
 Só stdlib.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import signal
+import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -83,7 +104,7 @@ PASTA = Path(".agents/quadro")
 #
 # MENOR (1.x): campo novo, estado novo. Consumidor antigo continua válido.
 # MAIOR (x.0): campo removido/renomeado, semântica alterada.
-CONTRATO_VERSAO = "1.1"
+CONTRATO_VERSAO = "1.2"   # 1.2: prova de trabalho no concluir, posse de processo no varrer (ADR-0040)
 
 ESTADOS_TASK = ("planejada", "em_progresso", "concluida", "bloqueada")
 
@@ -235,6 +256,132 @@ def caminho(slug: str) -> Path:
     return PASTA / f"{re.sub(r'[^A-Za-z0-9_-]', '-', slug)}.json"
 
 
+# --- git: prova de trabalho (ADR-0040) ----------------------------------------------
+
+def _git(*args: str) -> str | None:
+    """stdout do git, ou None fora de repositório / sem git. Silêncio honesto."""
+    try:
+        r = subprocess.run(["git", *args], capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def head_atual() -> str | None:
+    return _git("rev-parse", "HEAD")
+
+
+def diff_na_posse(posse: list[str]) -> list[str]:
+    """Arquivos alterados (staged, unstaged ou novos) sob os padrões de posse."""
+    if not posse:
+        return []
+    specs = [f":(glob){p}" for p in posse]
+    saida = _git("status", "--porcelain", "--untracked-files=all", "--", *specs)
+    if not saida:
+        return []
+    return [linha[3:] for linha in saida.splitlines() if linha.strip()]
+
+
+def prova_de_trabalho(t: dict) -> tuple[bool | None, str]:
+    """(provou?, como). None quando não há git para perguntar."""
+    head = head_atual()
+    if head is None:
+        return None, "sem repositório git — prova de trabalho não verificada"
+    inicial = t.get("head_inicial")
+    if inicial and head != inicial:
+        return True, f"HEAD avançou {inicial[:7]} → {head[:7]}"
+    mudados = diff_na_posse(t.get("posse", []))
+    if mudados:
+        return True, f"diff em {len(mudados)} arquivo(s) de posse: " + ", ".join(mudados[:3])
+    return False, "HEAD não avançou e nenhum arquivo de posse mudou"
+
+
+def posse_ignorada(posse: list[str]) -> list[str]:
+    """Padrões cujo prefixo estático o git ignora — a prova de trabalho não os enxerga."""
+    achados = []
+    for padrao in posse:
+        prefixo = "/".join(_prefixo_estatico(padrao)) or "."
+        if prefixo == ".":
+            continue
+        # O próprio prefixo e um filho dele: `build/` no .gitignore só casa com
+        # diretório, e um caminho que não existe não é diretório para o git.
+        for candidato in (prefixo, f"{prefixo}/x"):
+            try:
+                r = subprocess.run(["git", "check-ignore", "-q", candidato],
+                                   capture_output=True, timeout=10)
+            except (OSError, subprocess.SubprocessError):
+                return []
+            if r.returncode == 0:
+                achados.append(padrao)
+                break
+    return achados
+
+
+# --- posse do processo (ADR-0040) ---------------------------------------------------
+
+def processo_vivo(pid: int) -> bool:
+    """Vivo de verdade — zumbi conta como morto.
+
+    `kill(pid, 0)` responde sucesso para um zumbi (morreu, ninguém colheu), e quem chama
+    o `varrer` raramente é o pai do worker. Sem esta distinção, todo worker morto num
+    sandbox cujo init não colhe órfãos apareceria como 'sobreviveu a KILL'.
+    """
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        pass            # existe e não é nosso — segue para a checagem de estado
+    except OSError:
+        return False
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8", errors="replace")
+        estado = stat.rsplit(")", 1)[1].split()[0]
+        return estado not in ("Z", "X")
+    except OSError:
+        pass
+    try:  # sem /proc (macOS): pergunte ao ps
+        r = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)],
+                           capture_output=True, text=True, timeout=5)
+        return r.returncode == 0 and not r.stdout.strip().startswith("Z")
+    except (OSError, subprocess.SubprocessError):
+        return True
+
+
+def encerrar_processo(pid: int, espera_s: float = 2.0) -> str:
+    """'ausente' | 'encerrado' | 'vivo'. Tenta o grupo inteiro; cai no processo só.
+
+    Só devolve 'encerrado' depois de PROVAR ausência. 'vivo' é o caso que retém a vaga.
+    """
+    if not processo_vivo(pid):
+        return "ausente"
+
+    def sinalizar(sig) -> None:
+        try:
+            os.killpg(os.getpgid(pid), sig)
+        except (ProcessLookupError, PermissionError, OSError, AttributeError):
+            try:
+                os.kill(pid, sig)
+            except OSError:
+                pass
+
+    def esperar() -> bool:
+        fim = time.monotonic() + espera_s
+        while time.monotonic() < fim:
+            if not processo_vivo(pid):
+                return True
+            time.sleep(0.1)
+        return not processo_vivo(pid)
+
+    sinalizar(getattr(signal, "SIGTERM", signal.SIGTERM))
+    if esperar():
+        return "encerrado"
+    sinalizar(getattr(signal, "SIGKILL", signal.SIGTERM))
+    if esperar():
+        return "encerrado"
+    return "vivo"
+
+
 def carregar(slug: str) -> dict:
     p = caminho(slug)
     if not p.is_file():
@@ -243,10 +390,20 @@ def carregar(slug: str) -> dict:
 
 
 def salvar(q: dict) -> None:
+    """Publicação atômica: escreve ao lado e troca. Falhou a troca, o quadro anterior
+    continua íntegro e nenhum `.tmp` sobra (ADR-0040)."""
     PASTA.mkdir(parents=True, exist_ok=True)
-    caminho(q["slug"]).write_text(
-        json.dumps(q, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    destino = caminho(q["slug"])
+    tmp = destino.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(q, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    try:
+        os.replace(tmp, destino)
+    except OSError:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
 
 
 def registrar(q: dict, evento: str, **dados) -> None:
@@ -438,6 +595,10 @@ def contrato_publico() -> dict:
             "compensar: desfaz a tarefa e o que foi construído sobre ela, em ordem inversa",
             "compensar recusa o plano inteiro se alguma tarefa afetada não declara reverter",
             "concluir e encerrar são idempotentes — repetir não duplica efeito",
+            "prova de trabalho: concluir exige HEAD avançado desde iniciar OU diff nos "
+            "arquivos de posse OU --sem-diff com motivo; sem git, não verifica e avisa",
+            "posse de processo: varrer com pid registrado mata o processo (TERM, KILL) e só "
+            "libera a vaga se provar ausência; processo que sobrevive retém a vaga",
         ],
     }
 
@@ -545,6 +706,11 @@ def cmd_adicionar(a) -> int:
     if not a.reverter:
         print("   ⚠️  sem --reverter declarado. Tarefa cujo revert você não consegue "
               "escrever não é autônoma (ADR-0024): ela para no usuário.")
+    ignorados = posse_ignorada(posse)
+    if ignorados:
+        print(f"   ⚠️  posse ignorada pelo git: {', '.join(ignorados)} — a prova de "
+              "trabalho do `concluir` não enxerga path ignorado (ADR-0040). Ou a tarefa "
+              "declara --sem-diff, ou o path sai do .gitignore.")
     return 0
 
 
@@ -605,11 +771,16 @@ def cmd_iniciar(a) -> int:
     t["iniciado_em"] = agora()
     t["onda"] = q["onda"]
     t["bloqueio"] = None
-    registrar(q, "iniciou", task=a.task, agente=t["agente"], onda=q["onda"])
+    t["head_inicial"] = head_atual()          # prova de trabalho (ADR-0040)
+    t["pid"] = a.pid                          # posse do processo (ADR-0040)
+    t["prova_trabalho"] = None
+    registrar(q, "iniciou", task=a.task, agente=t["agente"], onda=q["onda"],
+              pid=a.pid, head=(t["head_inicial"] or "")[:7] or None)
     salvar(q)
     limite = t.get("tempo_limite") or q.get("tempo_limite_padrao") or TEMPO_LIMITE_PADRAO
     print(f"▶️  {a.task} em progresso com {t['agente']} (onda {q['onda']}) · "
-          f"tempo limite {limite} min.")
+          f"tempo limite {limite} min."
+          + ("" if a.pid else " · sem --pid: posse do processo não provável no varrer"))
     return 0
 
 
@@ -632,11 +803,28 @@ def cmd_concluir(a) -> int:
               "   Use --gate-ok se rodou e passou, ou --gate-pulado \"motivo\" "
               "se não foi possível. Silêncio sobre o gate não é opção.")
         return 1
+    # Prova de trabalho (ADR-0040): o git é quem diz se alguém fez alguma coisa.
+    if a.sem_diff:
+        prova = f"declarado sem diff: {a.sem_diff.strip()}"
+    else:
+        provou, como = prova_de_trabalho(t)
+        if provou is False:
+            print(f"❌ sem prova de trabalho — {como}.\n"
+                  "   'Concluída' que o git não enxerga é JSON descrevendo trabalho que "
+                  "ninguém fez. Commite ou salve o que foi feito nos arquivos de posse; se "
+                  "a tarefa legitimamente não muda arquivo (análise, decisão), declare "
+                  "--sem-diff \"motivo\" — fica registrado.")
+            return 1
+        prova = como
+        if provou is None:
+            print(f"   ⚠️  {como}")
     t["estado"] = "concluida"
     t["iniciado_em"] = None
     t["evidencia"] = a.evidencia
     t["gate_resultado"] = "ok" if a.gate_ok else f"pulado: {a.gate_pulado}"
-    registrar(q, "concluiu", task=a.task, gate=t["gate_resultado"])
+    t["prova_trabalho"] = prova
+    t["pid"] = None
+    registrar(q, "concluiu", task=a.task, gate=t["gate_resultado"], prova=prova)
     salvar(q)
     vista = vista_publica(q)
     feitas = vista["por_estado"]["concluida"]
@@ -688,6 +876,8 @@ def cmd_varrer(a) -> int:
         return 0
     if a.dry_run:
         print(f"⏱️  {len(vencidas)} vencida(s) — simulação, nada alterado:")
+    retidas: list[str] = []
+    liberadas = 0
     for tid in vencidas:
         t = q["tasks"][tid]
         limite = t.get("tempo_limite") or q.get("tempo_limite_padrao") or TEMPO_LIMITE_PADRAO
@@ -697,22 +887,41 @@ def cmd_varrer(a) -> int:
         print(f"   ⏱️  {tid} · {motivo}")
         if a.dry_run:
             continue
+        # Posse do processo (ADR-0040): a vaga só volta quando se prova que o worker
+        # não está mais escrevendo nos arquivos de posse.
+        pid = t.get("pid")
+        if pid:
+            situacao = encerrar_processo(int(pid))
+            if situacao == "vivo":
+                t["processo"] = "vivo_apos_kill"
+                registrar(q, "reteve_vaga", task=tid, pid=pid)
+                retidas.append(tid)
+                print(f"      🚨 pid {pid} sobreviveu a TERM e KILL — vaga RETIDA. "
+                      "Um humano precisa olhar antes de relançar nesta posse.")
+                continue
+            t["processo"] = f"{situacao} (pid {pid})"
+            motivo += f" · processo {situacao}"
+        else:
+            t["processo"] = "nao_provado (sem pid)"
+            motivo += " · posse do processo não provada (sem pid)"
         t["estado"] = "bloqueada"
         t["iniciado_em"] = None
         t["bloqueio"] = motivo
-        registrar(q, "venceu", task=tid, minutos=round(decorrido))
+        liberadas += 1
+        registrar(q, "venceu", task=tid, minutos=round(decorrido), processo=t["processo"])
     if a.dry_run:
         print("\n(simulação — repita sem --dry-run para bloquear e liberar as vagas)")
         return 0
     salvar(q)
     vista = vista_publica(q)
-    print(f"   → {len(vencidas)} vaga(s) liberada(s) na onda.")
+    print(f"   → {liberadas} vaga(s) liberada(s) na onda."
+          + (f" {len(retidas)} retida(s): {', '.join(retidas)}." if retidas else ""))
     if vista["prontas"]:
         print(f"   🔓 pode lançar agora: {', '.join(vista['prontas'])}")
     print("   Antes de reabrir, decida: o worker morreu (relance) ou a tarefa é grande\n"
           "   demais para o limite (aumente o --tempo-limite dela). Relançar sem decidir\n"
           "   é como o orçamento de rodadas vira ficção.")
-    return 0
+    return 1 if retidas else 0
 
 
 def cmd_compensar(a) -> int:
@@ -1018,6 +1227,8 @@ def main() -> int:
     p.add_argument("slug")
     p.add_argument("task")
     p.add_argument("--agente", default=None)
+    p.add_argument("--pid", type=int, default=None,
+                   help="pid do worker, quando ele é um processo deste host (ADR-0040)")
     p.set_defaults(fn=cmd_iniciar)
 
     p = sub.add_parser("concluir", help="marca a tarefa concluída com evidência")
@@ -1026,6 +1237,8 @@ def main() -> int:
     p.add_argument("--evidencia", required=True)
     p.add_argument("--gate-ok", action="store_true")
     p.add_argument("--gate-pulado", default=None)
+    p.add_argument("--sem-diff", default=None,
+                   help="motivo pelo qual a tarefa legitimamente não muda arquivo de posse")
     p.set_defaults(fn=cmd_concluir)
 
     p = sub.add_parser("varrer", help="bloqueia tarefas em voo além do tempo limite")

@@ -17,10 +17,24 @@ Três invariantes, nesta ordem de prioridade:
      entram como contagem e skill detectada, jamais como texto.
 
 Uso (nos hooks):
-    execucao.py inicio      # SessionStart
-    execucao.py prompt      # UserPromptSubmit   → o contador de autonomia
-    execucao.py ferramenta  # PostToolUse (Write|Edit|Bash)
-    execucao.py fim         # Stop
+    execucao.py inicio            # SessionStart
+    execucao.py prompt            # UserPromptSubmit   → o contador de autonomia
+    execucao.py ferramenta        # PostToolUse (Write|Edit|Bash|Agent|Task|Skill)
+    execucao.py subagente_inicio  # SubagentStart      → quem foi lançado (ADR-0039)
+    execucao.py subagente_fim     # SubagentStop       → quanto tempo levou
+    execucao.py fim               # Stop
+
+Subagentes (ADR-0039): até a v0.31 o ramo `delegacao` existia e nunca disparava —
+nenhum matcher de hook incluía `Agent`/`Task`/`Skill`. Agora o lançamento entra pelo
+PostToolUse e a duração por `SubagentStart`/`SubagentStop`, chaveada pelo **id da
+instância** (`agent_id`), nunca pelo tipo: seis teammates da mesma persona numa onda
+(ADR-0033) colidiriam num registro por tipo e a duração viraria a do vizinho.
+
+Saneamento (ADR-0039): além da redação de segredo, nenhum evento carrega chave
+`prompt`, `model`, `description`, `token` ou parecida — o filtro é por nome de campo,
+aplicado no `anexar`, para que um construtor novo não vaze por descuido. Caminho fora
+do projeto vira `…/<dois últimos componentes>`: a trajetória não guarda o layout da
+máquina.
 
 Camada episódica da memória (ADR-0009/0010): o bruto é local e descartável, o
 durável sobe de camada — o agregado vira número no `/kairos-forge:auditar` e
@@ -92,13 +106,31 @@ def redigir(texto: str) -> str:
 
 
 def relativizar(caminho: str, cwd: str | None) -> str:
-    """Caminho relativo à raiz do projeto — mais legível e sem expor a árvore da máquina."""
+    """Caminho relativo à raiz do projeto — mais legível e sem expor a árvore da máquina.
+
+    Fora do projeto, só os dois últimos componentes sobrevivem (`…/pasta/arquivo`):
+    o que importa para a trajetória é o nome, não onde a máquina o guarda (ADR-0039).
+    """
     if not caminho:
         return ""
     try:
         return str(Path(caminho).resolve().relative_to(Path(cwd or ".").resolve()))
     except Exception:
-        return caminho[-LIMITE_ARQ:]
+        partes = [p for p in Path(caminho).parts if p not in ("/", "\\")]
+        return ("…/" + "/".join(partes[-2:]))[-LIMITE_ARQ:]
+
+
+# Chaves que NUNCA entram num evento, seja qual for o construtor (ADR-0039). Prompt e
+# descrição são conteúdo do usuário; modelo é sinal de custo que não é da trajetória;
+# o resto é segredo por definição. Filtro por nome de campo, no `anexar`.
+CHAVES_PROIBIDAS = re.compile(
+    r"(?i)^(prompt|description|descricao|model|modelo|token|api[_-]?key|apikey"
+    r"|secret|password|passwd|senha|credential|credencial)s?$"
+)
+
+
+def sanear(evento: dict) -> dict:
+    return {k: v for k, v in evento.items() if not CHAVES_PROIBIDAS.match(str(k))}
 
 
 def classificar_gate(cmd: str) -> str | None:
@@ -140,11 +172,11 @@ def destino(payload: dict) -> Path:
 
 
 def anexar(payload: dict, evento: dict) -> None:
-    evento = {
+    evento = sanear({
         "t": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "sessao": (payload.get("session_id") or "?")[:16],
         **evento,
-    }
+    })
     with destino(payload).open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(evento, ensure_ascii=False) + "\n")
 
@@ -203,10 +235,51 @@ def ev_fim(p: dict) -> dict:
     return {"tipo": "sessao_fim"}
 
 
+# --- subagentes (ADR-0039) ----------------------------------------------------------
+
+def _id_subagente(p: dict) -> str:
+    return str(p.get("agent_id") or p.get("agentId") or "?")[:40]
+
+
+def ev_subagente_inicio(p: dict) -> dict:
+    return {
+        "tipo": "subagente_inicio",
+        "agente_id": _id_subagente(p),
+        "agente_tipo": str(p.get("agent_type") or p.get("agentType") or "?")[:80],
+    }
+
+
+def _inicio_do_subagente(p: dict, agente_id: str) -> str | None:
+    """Carimbo do último `subagente_inicio` desta instância, nesta sessão."""
+    for ev in reversed(_eventos_da_sessao(p, limite=2000)):
+        if ev.get("tipo") == "subagente_inicio" and ev.get("agente_id") == agente_id:
+            return ev.get("t")
+    return None
+
+
+def ev_subagente_fim(p: dict) -> dict:
+    agente_id = _id_subagente(p)
+    evento = {
+        "tipo": "subagente_fim",
+        "agente_id": agente_id,
+        "agente_tipo": str(p.get("agent_type") or p.get("agentType") or "?")[:80],
+    }
+    inicio = _inicio_do_subagente(p, agente_id)
+    if inicio:
+        try:
+            delta = datetime.now(timezone.utc) - datetime.fromisoformat(inicio)
+            evento["duracao_s"] = max(0, round(delta.total_seconds()))
+        except Exception:
+            pass
+    return evento
+
+
 CONSTRUTORES = {
     "inicio": ev_inicio,
     "prompt": ev_prompt,
     "ferramenta": ev_ferramenta,
+    "subagente_inicio": ev_subagente_inicio,
+    "subagente_fim": ev_subagente_fim,
     "fim": ev_fim,
 }
 

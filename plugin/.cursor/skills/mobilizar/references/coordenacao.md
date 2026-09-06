@@ -62,6 +62,12 @@ estrutural do *shared memory* no padrão orquestrador–workers (ADR-0009):
    quadro.py concluir forge-<slug> T1 --evidencia "<arquivos, requisitos, gate>" --gate-ok
    ```
 
+   **Prova de trabalho (ADR-0040):** `concluir` só aceita se o HEAD avançou desde o
+   `iniciar` ou se há diff nos arquivos de posse. Tarefa que legitimamente não muda
+   arquivo (decisão, análise) declara `--sem-diff "motivo"`, que fica registrado.
+   Quando o worker é um processo deste host, passe `--pid` no `iniciar`: o `varrer`
+   mata o processo antes de devolver a vaga e a retém se não provar que ele morreu.
+
    Sem evidência, ou sem dizer o que houve com o gate (`--gate-ok` ou
    `--gate-pulado "motivo"`), o quadro recusa. Concluir em silêncio sobre o gate é
    exatamente o resumo fluente por cima de resultado parcial que ele existe para impedir.

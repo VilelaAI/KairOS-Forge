@@ -70,6 +70,7 @@ def por_sessao(eventos: list[dict]) -> dict[str, dict]:
         lambda: {
             "prompts": 0, "skills": [], "gates": [], "escritas": 0,
             "producao": 0, "delegacoes": 0, "recusas": [], "inicio": None, "fim": None,
+            "subagentes": 0, "subagentes_s": 0,
         }
     )
     for ev in eventos:
@@ -92,6 +93,10 @@ def por_sessao(eventos: list[dict]) -> dict[str, dict]:
                 d["producao"] += 1
         elif tipo == "delegacao":
             d["delegacoes"] += 1
+        elif tipo == "subagente_inicio":
+            d["subagentes"] += 1
+        elif tipo == "subagente_fim":
+            d["subagentes_s"] += int(ev.get("duracao_s") or 0)
         elif tipo == "recusa":
             d["recusas"].append((ev.get("classe", "?"), ev.get("modo", "?")))
     return dict(s)
@@ -154,6 +159,8 @@ def metricas(sessoes: dict[str, dict]) -> dict:
         "sessoes_com_producao_sem_gate": len(sem_gate),
         "sessoes_totais": len(sessoes),
         "skills_usadas": contar_skills(sessoes),
+        "subagentes_lancados": sum(v["subagentes"] for v in sessoes.values()),
+        "subagentes_tempo_s": sum(v["subagentes_s"] for v in sessoes.values()),
     }
 
 
@@ -232,6 +239,9 @@ def imprimir_resumo(m: dict, dias: int | None) -> None:
         if m["recusas_em_modo_aviso"]:
             print(f"     {m['recusas_em_modo_aviso']} em modo aviso. Taxa baixa e estável "
                   "é o sinal de que a regra pode virar bloqueio.")
+    if m.get("subagentes_lancados"):
+        print(f"  Subagentes lançados:  {m['subagentes_lancados']} "
+              f"({m['subagentes_tempo_s'] // 60} min somados)")
     if m["sessoes_com_producao_sem_gate"]:
         print(f"  ⚠️  Código de produção escrito sem nenhum gate: "
               f"{m['sessoes_com_producao_sem_gate']} sessão(ões)")

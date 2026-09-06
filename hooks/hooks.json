@@ -88,7 +88,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "FILE=$(jq -r '.tool_input.file_path // empty'); if echo \"$FILE\" | grep -qE '\\.(py|ts|tsx|js|jsx|go|rs|java)$' && ! echo \"$FILE\" | grep -qE '(test|spec|__tests__)'; then echo '💡 kairos-forge: arquivo de produção modificado. Lembre de chamar Ricardo (testes), rodar /kairos-forge:validar se houver SPEC e /kairos-forge:revisar antes do PR.'; fi"
+            "command": "IN=$(cat); FILE=$(printf '%s' \"$IN\" | jq -r '.tool_input.file_path // empty'); SID=$(printf '%s' \"$IN\" | jq -r '.session_id // \"sem-sessao\"'); MARCA=\"${TMPDIR:-/tmp}/kairos-forge-lembrete-$SID\"; if [ ! -e \"$MARCA\" ] && printf '%s' \"$FILE\" | grep -qE '\\.(py|ts|tsx|js|jsx|go|rs|java)$' && ! printf '%s' \"$FILE\" | grep -qE '(test|spec|__tests__)'; then touch \"$MARCA\"; echo '💡 kairos-forge: primeiro arquivo de produção desta sessão. A Definition of Done cobre teste (Ricardo), /kairos-forge:validar se houver SPEC e /kairos-forge:revisar antes do PR — este aviso não se repete na sessão.'; fi"
           }
         ]
       }

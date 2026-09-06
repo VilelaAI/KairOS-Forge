@@ -58,7 +58,9 @@ def catalogo() -> tuple[str, list[str]]:
     for p in sorted((RAIZ / "agents").glob("*.md")):
         texto = p.read_text(encoding="utf-8")
         m = re.search(r"^description:\s*(.+)$", texto, re.M)
-        desc = (m.group(1) if m else "")[:110]
+        # Descriptions curtas por contrato (ADR-0038, teto no release.py check):
+        # a Laura vê a description inteira, como o CLI vê.
+        desc = (m.group(1) if m else "").strip()
         linhas.append(f"- {p.stem}: {desc}")
         ids.append(p.stem)
     return "\n".join(linhas), ids

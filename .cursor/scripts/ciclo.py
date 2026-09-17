@@ -60,7 +60,8 @@ Uso:
                             [--teto-validar 6] [--teto-revisar 6] [--spec-aprovada]
     ciclo.py estado [SPEC-001] [--json]
     ciclo.py registrar <resultado> [SPEC-001] [--nota "..."]
-    ciclo.py reaprovar [SPEC-001]   # aceita a SPEC alterada depois da aprovação (humano)
+    ciclo.py reaprovar [SPEC-001]   # aceita a SPEC alterada depois da aprovação (humano);
+                                    # recusado antes de a SPEC ter sido selada
     ciclo.py encerrar [SPEC-001] --motivo "..."
 
 Digest da SPEC (v0.34.1): ao entrar em `construindo` o script grava o sha256 do
@@ -578,6 +579,15 @@ def reaprovar(spec: str | None) -> int:
     d = compatibilizar(ler(p))
     if d["estado"] in TERMINAIS:
         print(f"🛑 ciclo em estado terminal '{d['estado']}' — nada a reaprovar.", file=sys.stderr)
+        return 1
+    if not d.get("spec_digest"):
+        # Achado da POC do MHL (docs/pocs): reaprovar antes da aprovação selava um digest
+        # que ainda não era contrato. Antes de `construindo` a SPEC é rascunho — quem a
+        # aceita é `registrar aprovada` (ou `abrir --spec-aprovada`), não este comando.
+        print(f"🛑 nada a reaprovar: a SPEC {d['spec']} ainda não foi aprovada "
+              f"(estado '{d['estado']}', sem digest selado).\n   O selo nasce em "
+              "`registrar aprovada` ou `abrir --spec-aprovada`; `reaprovar` só existe "
+              "para aceitar mudança DEPOIS disso.", file=sys.stderr)
         return 1
     anterior = d.get("spec_digest")
     selar_spec(d, "reaprovar")

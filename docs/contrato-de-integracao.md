@@ -59,7 +59,7 @@ renomeado; `if aguardando_humano` não.
 ### O laço mínimo
 
 ```
-1. ciclo.py estado --json
+1. ciclo.py estado <SPEC> --json
 2. terminal?           → pare
 3. aguardando_humano?  → leve ao humano pelo SEU canal (issue, chat, PR)
                           e registre a resposta quando vier
@@ -68,12 +68,27 @@ renomeado; `if aguardando_humano` não.
 6. volte ao 1
 ```
 
+Duas coisas que a POC de um runner externo (`docs/pocs/POC-mhl-entregar.md`, na branch
+`poc/mhl-entregar`) mostrou que o consumidor precisa saber:
+
+- **Passe a SPEC sempre.** Sem ela, `estado` resolve "o único ciclo aberto" — conveniência
+  de sessão, não contrato — e **falha quando o ciclo já fechou**: stdout vazio, e o runner
+  fica sem ler `terminal`. Com a SPEC explícita, ciclo encerrado responde normalmente.
+- **`proximo_passo` não nomeia a SPEC.** É instrução do estado, igual para todo ciclo. O
+  prompt que o runner monta para o agente precisa dizer qual SPEC é; um agente que
+  "descobre" a SPEC listando `docs/specs/` pega a primeira, e a primeira pode ser outra.
+
 **O `ciclo.py` já faz o que um runner precisaria fazer sozinho:** recusa resultado
 inválido no estado, cobra o veredicto do artefato, conta ficha com devolução por
 progresso, impõe teto absoluto e escala sozinho. Não reimplemente nada disso — chame.
 
 E o estado vive em `.agents/ciclo/<spec>.json`, atômico via `os.replace`: sobrevive a
 restart do seu daemon, troca de CLI e reset de contexto. Não guarde cópia.
+
+**Registrar é idempotente por construção, e há teste para isso** (`scripts/tests/test_ciclo.py`):
+um runner com semântica at-least-once que repete `registrar <resultado>` depois de um
+crash não avança dois estados — o resultado deixa de ser válido no estado novo e é
+recusado com exit 1. Trate a recusa como "já registrei", releia `estado` e siga.
 
 ## Contrato 2 — os relatórios
 

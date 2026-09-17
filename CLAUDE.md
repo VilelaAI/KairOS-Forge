@@ -85,6 +85,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `scripts/quadro.py` | Quadro de tarefas determinístico do `/mobilizar`: dependências, teto de onda, colisão de posse, tempo limite por tarefa, compensação em ordem inversa (Saga) e recusa de encerrar com lacuna escondida (ADR-0035/0036) | manual |
 | `scripts/painel.py` | Quadro vivo: renderiza SPEC + ciclo + relatórios + trajetória no terminal, em HTML autocontido ou JSON. Renderização, nunca estado — não escreve nada (ADR-0013/0032) | manual |
 | `scripts/release.py` | Bump de versão com contagens calculadas do filesystem, `check` de consistência (CI) e `assinar-contratos` (ADR-0034) | manual |
+| `scripts/tests/` | Testes stdlib (`unittest`) dos contratos que um runner externo depende: idempotência do `registrar`, digest da SPEC, `reaprovar` só depois da aprovação. O CI roda `python3 -m unittest discover -s scripts/tests -t scripts` | manual |
 | `contratos/ASSINATURA.json` | Versão + sha256 dos contratos de integração; o `check` recusa mudança de forma sem reassinar (ADR-0034) | manual |
 | `evals/roteamento-laura/` | Gold set + `rodar.py` headless do eval de roteamento da Laura (dogfooding — só na raiz, não distribui) | manual |
 | `evals/comportamento-fabrica/` | Gold set dos cinco comportamentos que separam harness de pasta de prompts; 8 dos 13 casos verificados sem modelo no caminho (ADR-0031) | manual |

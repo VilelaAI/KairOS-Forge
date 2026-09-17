@@ -78,6 +78,8 @@ Se o projeto tem `.agents/grafo/entidades.jsonl`, use o grafo como base de fatos
 
 Sem grafo no projeto, pule esta etapa sem penalizar o veredicto.
 
+**Camada de código (ADR-0041).** Se existir `.agents/grafo/codigo.jsonl`, para cada arquivo de produção do diff rode `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py contexto <arquivo>` e liste os importadores **fora do diff**: é a regressão que ninguém olhou. Registre no relatório quantos são e se algum gate rodado os cobre; chamador fora do diff sem teste que o exercite vira ressalva — em P1 com contrato alterado (assinatura, retorno), bloqueia.
+
 ### 3.6. Corroborar a evidência contra a trajetória (ADR-0021)
 
 A célula `verificado:` é escrita **pelo mesmo agente que fez o trabalho**. Isso é auto-relato, e o modo de falha mais perigoso de agente não é o erro visível — é a saída fluente que pulou a etapa de verificação e diz que não pulou. Se o projeto tem `.agents/execucoes/`, você não precisa acreditar: dá para conferir.

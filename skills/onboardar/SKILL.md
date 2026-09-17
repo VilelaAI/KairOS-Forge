@@ -163,6 +163,7 @@ O grafo alimenta `/mobilizar` (memória compartilhada entre teammates),
 ## Estado
 
 - Última construção: (ainda não construído)
+- Camada de código: (não construída — `grafo.py codigo`, ADR-0041)
 - Versão do esquema: 1
 - Diagnóstico: —
 

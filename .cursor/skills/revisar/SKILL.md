@@ -67,7 +67,7 @@ custo do erro é a forte.
 | Faixa | O que é | O que a revisão exige |
 |---|---|---|
 | **1 — reversível e contido** | Texto de UI, teste, função isolada com cobertura, doc | Gates verdes. Um merge ruim custa um revert |
-| **2 — reversível mas amplo** | Utilitário compartilhado, adição de schema, contrato interno, qualquer coisa com muitos chamadores | Gates verdes **mais** trajetória limpa: sem patinação registrada, sem recusa de guardrail, evidência corroborada |
+| **2 — reversível mas amplo** | Utilitário compartilhado, adição de schema, contrato interno, qualquer coisa com muitos chamadores — **5+ importadores** em `grafo.py contexto <arquivo>`, quando houver camada de código (ADR-0041) | Gates verdes **mais** trajetória limpa: sem patinação registrada, sem recusa de guardrail, evidência corroborada |
 | **3 — difícil de reverter** | Migration destrutiva, deleção de dados, mudança que escreve em produção, dinheiro, credencial | **Humano decide, sempre** — independente de score, de gates verdes e de histórico |
 
 A faixa 3 é a mesma regra do ADR-0024 vista pelo outro lado: lá, tarefa cujo revert você

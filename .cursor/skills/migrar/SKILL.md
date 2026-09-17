@@ -24,7 +24,8 @@ SPEC da fatia como mudança de comportamento intencional).
 |---|---|
 | Mapa arquitetural do sistema atual | Rode `/kairos-forge:mapear-arquitetura` primeiro — o plano de decomposição de lá é a entrada daqui |
 | ADR dizendo *por que* migrar | Rafael (Staff) escreve antes — migração sem porquê registrado é reforma sem projeto. Decisão contestada? `/kairos-forge:rodar debate` |
-| Grafo de conhecimento (`.agents/grafo/`) | Opcional, mas se existir Ivan puxa dependências reais: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py subgrafo "<sistema>" --saltos 2` |
+| Grafo de conhecimento (`.agents/grafo/`) | Opcional, mas se existir Ivan puxa dependências reais: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py subgrafo "<sistema>" --saltos 2` — e a camada de código (`grafo.py codigo` + `contexto <arquivo>`) para saber quem chama o que a fatia vai cortar (ADR-0041) |
+| **Degrau declarado na escada de prontidão** (ADR-0041) | Ivan diz em que degrau o legado está antes de fatiar, e não pula degrau: (1) build reprodutível em um comando → (2) padronização: formatter, linter, código morto fora → (3) contexto para o agente: CLAUDE.md, mapa de módulos, glossário → (4) testes de caracterização → (5) harness: o agente verifica sozinho. Caracterizar sem build reprodutível é caracterizar o que não roda duas vezes igual. O `/kairos-forge:diagnosticar` reporta o degrau; sem ele, Ivan declara com evidência |
 
 ## Fluxo
 
@@ -88,8 +89,19 @@ mantida ou revertida:
    novo nunca importa modelo do legado; traduz na fronteira.
 4. **Construir** — `/kairos-forge:mobilizar` ou `/kairos-forge:rodar`
    implementam. O legado segue intocado e servindo.
-5. **Cortar** — tráfego muda de rota gradualmente (flag/percentual). Testes
-   de caracterização rodam **contra a rota nova** — mesmo contrato.
+5. **Cortar** — primeiro em **sombra** (ADR-0041), depois por percentual. Na
+   sombra a rota nova recebe **cópia** do tráfego real e um comparador confronta a
+   saída das duas rotas para a mesma entrada; cada divergência é registrada com
+   entrada, as duas saídas e a decisão — bug do legado preservado, bug da rota
+   nova, ou diferença aceita. O critério para virar tráfego de verdade é
+   **divergência zero por tempo suficiente**, declarado por fatia ("7 dias úteis",
+   "10 mil requisições"), nunca "parece estável". Caracterização continua
+   obrigatória — é o contrato antes de tocar; a sombra pega o cenário que ninguém
+   escreveu (a regra de 2009 que ninguém lembrava). Fatia sem sombra possível
+   (efeito colateral não idempotente, custo dobrado inaceitável) diz isso na SPEC
+   e corta por percentual com caracterização reforçada: a ausência é declarada, não
+   silenciosa. Só então flag/percentual; os testes de caracterização rodam
+   **contra a rota nova** — mesmo contrato.
 6. **Medir e decidir** — régua do ciclo de catraca (ADR-0012): métrica da
    fatia (erro, latência, custo) comparada ao legado. **Manter** (rota nova
    assume) **ou reverter** (flag volta, aprendizado registrado, fatia
@@ -133,6 +145,11 @@ documento vê o estrangulamento acontecendo.
   usuário.
 - **Uma fatia por vez em corte.** Duas fatias cortando simultaneamente =
   incidente com duas causas candidatas.
+- **Quem julga é o comportamento do legado, não o modelo.** Divergência na sombra
+  é fato registrado; a decisão sobre cada uma é humana ou tem fonte (ADR-0041).
+- **Erro silencioso vira erro visível.** É o trabalho todo: o legado sem rede de
+  segurança falha meses depois; a fatia com caracterização e sombra falha em
+  segundos, na frente de alguém.
 - **Diagrama acompanha o texto.** Estado atual e alvo em Mermaid no documento
   do programa, atualizado a cada fatia mantida.
 

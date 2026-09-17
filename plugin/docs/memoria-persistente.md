@@ -100,6 +100,6 @@ O forge é multi-CLI por design (ADR-0004/ADR-0011) e o ai-memory fecha o ciclo:
 As camadas 1 e 3 são complementares, não concorrentes:
 
 - **ai-memory** responde "o que aconteceu / o que discutimos" (episódico, busca FTS5, volume alto, decaimento natural).
-- **Grafo** responde "o que depende de quê / o que é verdade sobre X" (estrutural, proveniência obrigatória, multi-hop, precisão > recall).
+- **Grafo** responde "o que depende de quê / o que é verdade sobre X" (estrutural, proveniência obrigatória, multi-hop, precisão > recall). A **camada de código** dele (`codigo.jsonl`, ADR-0041) responde "quem importa este arquivo" por AST, sem modelo — regenerável, nunca curada.
 
 No `/mapear-conhecimento atualizar`, a Olívia pode usar a wiki do ai-memory como fonte adicional de extração — sessões antigas frequentemente contêm decisões que nunca chegaram aos arquivos curados. A extração aplica o filtro normal de precisão: só entra no grafo o que tiver fonte citável.

@@ -51,7 +51,7 @@ Você só marca uma task como `completed` se:
 
 1. ✅ Implementação corresponde ao description da task
 2. ✅ **Autocrítica estruturada feita** (ver abaixo)
-3. ✅ Teste mínimo escrito (caminho feliz + 1 erro) — se for código de produção
+3. ✅ Teste mínimo escrito (caminho feliz + 1 erro) — se for código de produção; o teste novo **falha sem a mudança**, e teste existente não se afrouxa para a suite ficar verde (ADR-0039)
 4. ✅ Commit feito com mensagem PT-BR padronizada
 5. ✅ Não introduziu erro em CI (lint passa, type check passa, testes passam localmente)
 

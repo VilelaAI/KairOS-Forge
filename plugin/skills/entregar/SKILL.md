@@ -43,6 +43,10 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ciclo.py registrar <res> # o que aconteceu
   com relatório dizendo bloqueado, também. Vale igual para `docs/specs/criticas/` e `docs/specs/revisoes/`.
 - **Progresso real devolve a ficha (ADR-0032).** Achados abaixo da melhor marca do gate não cobram
   rodada; um **teto absoluto** segue valendo por cima.
+- **A SPEC aprovada é selada.** Ao entrar em `construindo` o `ciclo.py` grava o digest do contrato da
+  SPEC (Status e Verificação fora). Mudou requisito, critério ou plano depois disso, `estado` avisa e
+  `registrar aprovado`/`limpo` é recusado até o **usuário** aceitar a versão nova (`ciclo.py reaprovar`)
+  ou a SPEC voltar. SPEC reescrita para casar com o construído é o `verificado:` pelo avesso.
 - `gh pr create` fica **bloqueado pelo guardrail** fora de `pronto_para_pr` (ADR-0022).
 - Sem `ciclo.py` disponível, conduza pela prosa e **diga ao usuário** que o orçamento é contado por você, não imposto.
 

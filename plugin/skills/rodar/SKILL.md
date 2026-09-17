@@ -20,6 +20,7 @@ Diferente das outras skills, esta não cria SPECs nem audita o projeto. Ela ativ
 | `/kairos-forge:rodar <time>` | Ativa um time inteiro core (ex: `rodar arquitetura` ativa Diego, Fernanda, Thiago) |
 | `/kairos-forge:rodar apoio-<squad>` | Ativa um squad de apoio (ex: `rodar apoio-naming` ativa Elisa, Bruno e Cora) |
 | `/kairos-forge:rodar debate <decisão>` | Confronto estruturado do apoio-revisao-arquitetural sobre uma decisão travada (ADR-0018) |
+| `/kairos-forge:rodar explorar <missão>` | POC descartável em worktree para feature incerta: a fábrica tenta sozinha dentro de um tempo-box e devolve notas, nunca PR (ADR-0040) |
 | `/kairos-forge:rodar fabrica-completa` | Ativa todos os 40 agentes core em modo conversacional — uso raro |
 
 ## Squads de apoio
@@ -116,6 +117,29 @@ Triplas com proveniência substituem "deixa eu reler os docs". Quando a discuss�
 Os 71 agentes (40 core + 31 apoio) vivem em `${CLAUDE_PLUGIN_ROOT}/agents/*.md`, cada um com seu frontmatter (`name`, `description`, `tools`, `model`) e corpo (comportamento + limites). Esta skill não duplica o conteúdo — só coordena o fluxo entre eles.
 
 A definição de **times** e **regra de acionamento** está em `${CLAUDE_PLUGIN_ROOT}/templates/squad-fabrica.yaml`.
+
+## Modo explorar — POC descartável (ADR-0040)
+
+Para feature **incerta** — tecnologia que ninguém do time usou, integração sem documentação
+confiável, ideia que pode não caber — especificar antes de tocar é interrogar sobre o que
+ninguém viu. O modo explorar inverte: tenta primeiro, especifica com o que a tentativa
+revelou.
+
+1. **Missão e limites, antes de começar.** O usuário dá a missão em uma frase e a Laura
+   declara o que falta: tempo-box (default recomendado: 2 h), credenciais disponíveis, o
+   que **não** tocar. Sem tempo-box não começa.
+2. **Worktree próprio.** `git worktree add .worktrees/poc-<slug> -b poc/<slug>` (com
+   `.worktrees/` no `.gitignore`). Laura chama 1 ou 2 devs; eles trabalham e commitam só ali.
+3. **Saída obrigatória: as notas.** `docs/pocs/POC-<slug>.md` com: o que funcionou, o que
+   não funcionou e por quê, decisões que a tentativa revelou (com o arquivo da POC como
+   evidência), custo real contra o tempo-box, e **o que jogar fora**.
+4. **O código é descartável por contrato.** A POC não vira PR — o `guardrail.py` bloqueia
+   `gh pr create` em branch `poc/*` — e o `/kairos-forge:especificar` lê as notas, não o
+   código. O que sobreviver é reconstruído com SPEC, teste e revisão. Terminado, a Laura
+   remove o worktree; a branch fica até o usuário apagar.
+
+Estourou o tempo-box sem conclusão: as notas registram até onde chegou e o que travou —
+POC que "quase" funciona é resultado, não falha.
 
 ## O que esta skill NÃO faz
 

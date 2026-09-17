@@ -8,10 +8,11 @@ sugeria lembrar do Ricardo e não impedia nada. As regras duras da fábrica mora
 todas em prosa que o modelo pode driftar — a inversão exata do que o paper
 recomenda.
 
-Este script é a parte que **bloqueia**. Cinco classes de risco:
+Este script é a parte que **bloqueia**. Seis classes de risco:
 
   1. Comando destrutivo      — apagar a raiz, force-push em branch protegida,
-                               DROP/TRUNCATE fora de migration, curl|sh, chmod 777
+                               DROP/TRUNCATE fora de migration, curl|sh, chmod 777;
+                               e `gh pr create` em branch `poc/*` (ADR-0040)
   2. Arquivo protegido       — segredos, config de CI, e os arquivos que o
                                agente NUNCA pode escrever (ver "Goodhart" abaixo)
   3. Artefato gerado         — mirror por CLI e manifesto: editar ali não dá erro,
@@ -20,6 +21,11 @@ Este script é a parte que **bloqueia**. Cinco classes de risco:
   5. Contrato de relatório   — bloco ```kairos-validacao / ```kairos-revisao
                                malformado, incoerente, ou limpo sem prova de
                                cobertura (ADR-0032)
+  6. Teste existente         — edição em arquivo de teste que já existia no HEAD.
+                               Suite verde que o agente afrouxou não é evidência
+                               (ADR-0039). Default `aviso`: registra na trajetória
+                               e avisa uma vez por arquivo na sessão; o
+                               `/validar` cobra a justificativa por arquivo
 
 ## Goodhart: o agente não escreve o próprio medidor
 
@@ -66,7 +72,9 @@ que o arquivo mudou — o que um sync legítimo também faz. Por isso ali o defa
     }                                              // bloqueio (default) | aviso
 
 Classes de regra, para o campo `modos`: `comando`, `protegido`, `gerado`, `spec`,
-`contrato`.
+`contrato`, `teste`. Todas nascem em `bloqueio`, menos `teste`, que nasce em `aviso`
+(refactor legítimo também edita teste — a regra existe para deixar rastro, não para
+impedir; promova a `bloqueio` num projeto onde só o humano toca a suite).
 Os caminhos sagrados nunca degradam — não há `modos` que os afrouxe.
 
 Só stdlib.
@@ -153,6 +161,8 @@ GERADOS_PADRAO = [
 # --- 4. abertura de PR fora de estado (ADR-0029) -------------------------------------
 ABRE_PR = re.compile(r"\bgh\s+pr\s+create\b")
 FECHA_PR = re.compile(r"\bgh\s+pr\s+merge\b")
+# Branch de POC (ADR-0040): o código é descartável por contrato — vira notas, nunca PR.
+PREFIXO_POC = "poc/"
 
 PROTEGIDOS_PADRAO = [
     (".env", "arquivo de segredos"),
@@ -186,11 +196,15 @@ def carregar_config(raiz: Path) -> dict:
 # Promoção não é por gosto: migre para `bloqueio` quando a taxa de aviso cair — o
 # `telemetria.py resumo` mostra o número.
 MODO_PADRAO = "bloqueio"
+# Classe que nasce em observação (ADR-0039): editar teste existente é legítimo com
+# frequência demais para bloquear por default — o valor está no rastro.
+MODO_PADRAO_POR_CLASSE = {"teste": "aviso"}
 
 
 def modo_de(cfg: dict, classe: str) -> str:
-    modo = (cfg.get("modos", {}) or {}).get(classe) or cfg.get("modo") or MODO_PADRAO
-    return modo if modo in ("bloqueio", "aviso") else MODO_PADRAO
+    padrao = MODO_PADRAO_POR_CLASSE.get(classe, MODO_PADRAO)
+    modo = (cfg.get("modos", {}) or {}).get(classe) or cfg.get("modo") or padrao
+    return modo if modo in ("bloqueio", "aviso") else padrao
 
 
 def registrar_recusa(raiz: Path, classe: str, regra: str, alvo: str, modo: str) -> None:
@@ -262,6 +276,15 @@ def ciclo_aberto(raiz: Path) -> dict | None:
     return None
 
 
+def branch_atual(raiz: Path) -> str:
+    try:
+        r = subprocess.run(["git", "-C", str(raiz), "rev-parse", "--abbrev-ref", "HEAD"],
+                           capture_output=True, text=True, timeout=10)
+        return r.stdout.strip() if r.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
 def checar_comando(payload: dict) -> int:
     cmd = str((payload.get("tool_input") or {}).get("command") or "")
     if not cmd.strip():
@@ -291,6 +314,16 @@ def checar_comando(payload: dict) -> int:
                 "trabalho que o arco existe para absorver. Rode `ciclo.py estado` e siga o "
                 "próximo passo que ele indica.",
             )
+
+    if ABRE_PR.search(cmd) and branch_atual(raiz).startswith(PREFIXO_POC):
+        registrar_recusa(raiz, "comando", "PR de branch de POC", cmd[:200], "bloqueio")
+        return bloquear(
+            f"abertura de PR bloqueada — a branch atual é de POC (`{branch_atual(raiz)}`)",
+            "POC é descartável por contrato (ADR-0040): o /kairos-forge:especificar lê as "
+            "notas em `docs/pocs/`, não o código.",
+            "Escreva/complete `docs/pocs/POC-<slug>.md` com o que a tentativa revelou e "
+            "reconstrua o que sobreviver com SPEC, teste e revisão numa branch normal.",
+        )
 
     regras = list(COMANDOS) + [(r, "regra do projeto") for r in cfg.get("comandos_extra", [])]
     modo = modo_de(cfg, "comando")
@@ -358,6 +391,27 @@ def checar_escrita(payload: dict) -> int:
                 modo_g,
             )
 
+    # Teste existente (ADR-0039). Só o que JÁ ESTAVA no HEAD: teste novo é o trabalho
+    # esperado; teste antigo que muda no mesmo diff da feature é o medidor sendo
+    # tocado. O rastro fica na trajetória sempre; o aviso, uma vez por arquivo na
+    # sessão, para não virar ruído que o usuário aprende a ignorar.
+    if not any(casa(rel, lib) for lib in liberados) and teste_existente(raiz, rel):
+        modo_t = modo_de(cfg, "teste")
+        registrar_recusa(raiz, "teste", "edição em teste existente", rel, modo_t)
+        if modo_t == "bloqueio" or primeira_vez_na_sessao(payload, rel):
+            return bloquear(
+                f"edição em teste existente `{rel}`",
+                "Teste que já existia é a prova do comportamento anterior. Afrouxar "
+                "asserção, pular caso ou apagar teste deixa a suite verde sem provar "
+                "nada — e o `/kairos-forge:validar` lista todo teste existente alterado "
+                "no diff (`prova.py testes-alterados`) e cobra o porquê, arquivo a arquivo.",
+                "Se a mudança é legítima (refactor, contrato que mudou de propósito), "
+                "diga o motivo no commit e no relatório. Se o teste está certo e o "
+                "código errado, conserte o código.",
+                modo_t,
+            )
+        return 0
+
     if any(casa(rel, exc) or casa(Path(rel).name, exc) for exc in EXCECOES):
         return 0
 
@@ -377,6 +431,42 @@ def checar_escrita(payload: dict) -> int:
                 modo,
             )
     return 0
+
+
+def teste_existente(raiz: Path, rel: str) -> bool:
+    """Arquivo de teste que existia ANTES do diff atual — não o que o diff está criando.
+
+    "Antes" é o merge-base com a branch base (o teste novo da feature, já commitado,
+    continua sendo novo); sem base conhecida, cai para o HEAD.
+    """
+    try:
+        from prova import eh_teste, base_padrao, ponto_de_partida
+    except Exception:
+        return False
+    if not eh_teste(rel):
+        return False
+    try:
+        base = base_padrao(raiz)
+        ponto = (ponto_de_partida(raiz, base) if base else None) or "HEAD"
+        r = subprocess.run(["git", "-C", str(raiz), "cat-file", "-e", f"{ponto}:{rel}"],
+                           capture_output=True, timeout=10)
+        return r.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def primeira_vez_na_sessao(payload: dict, rel: str) -> bool:
+    """Marcador em $TMPDIR por (sessão, arquivo) — mesma técnica do lembrete de DoD."""
+    sid = str(payload.get("session_id") or "sem-sessao")[:32]
+    chave = re.sub(r"[^A-Za-z0-9_.-]", "_", rel)[-80:]
+    marca = Path(os.environ.get("TMPDIR") or "/tmp") / f"kairos-forge-teste-{sid}-{chave}"
+    if marca.exists():
+        return False
+    try:
+        marca.touch()
+    except OSError:
+        pass
+    return True
 
 
 # --- modo hook: integridade da SPEC -------------------------------------------------
@@ -569,6 +659,34 @@ def verificar(alvo: Path) -> int:
             if duro:
                 problemas.append(f"{len(modificados)} artefato(s) gerado(s) modificado(s) "
                                  "— `modos.gerado` está em bloqueio neste projeto")
+
+    # Teste existente alterado (ADR-0039) — mesma assimetria do `gerado`: aqui só se
+    # observa o diff, e refactor legítimo é indistinguível de afrouxamento pelo git.
+    # Avisa com os sinais (asserção removida, caso pulado, arquivo apagado); endurece
+    # só com `{"modos": {"teste": "bloqueio"}}`.
+    if alvo.is_dir():
+        try:
+            from prova import testes_alterados
+            r = testes_alterados(raiz, None)
+        except Exception:
+            r = {"testes": []}
+        suspeitos = [t for t in r.get("testes", []) if t.get("sinal")]
+        if suspeitos:
+            duro = (carregar_config(raiz).get("modos", {}) or {}).get("teste") == "bloqueio"
+            print(f"{'🛑' if duro else '⚠️ '} {len(suspeitos)} teste(s) existente(s) com sinal "
+                  f"de afrouxamento no diff contra {r.get('base')}:")
+            for t in suspeitos[:10]:
+                if t["status"] == "D":
+                    print(f"   {t['arquivo']} — arquivo removido")
+                else:
+                    print(f"   {t['arquivo']} — {len(t['assercoes_removidas'])} asserção(ões) "
+                          f"removida(s), {len(t['casos_removidos'])} caso(s) removido(s), "
+                          f"{len(t['pulos_adicionados'])} pulo(s) adicionado(s)")
+            print("   Refactor legítimo também muda teste — a diferença é a justificativa "
+                  "escrita.\n   Detalhe: `python3 scripts/prova.py testes-alterados`.")
+            if duro:
+                problemas.append(f"{len(suspeitos)} teste(s) existente(s) com sinal de "
+                                 "afrouxamento — `modos.teste` está em bloqueio neste projeto")
 
     for padrao, motivo in PROTEGIDOS_PADRAO[:5]:  # só os de segredo, não o de CI
         for achado in raiz.rglob(padrao.replace("**/", "")):

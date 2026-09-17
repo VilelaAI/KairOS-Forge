@@ -14,6 +14,8 @@ Uso:
     telemetria.py corroborar "<comando>" [--dias 30] [--json]
                                                   # usado pelo /validar: esse gate
                                                   # realmente rodou? com que resultado?
+    telemetria.py ruido [--dias 90] [--json]      # achados de revisão descartados por
+                                                  # revisor — calibra quem grita à toa
 
 Definições (explícitas de propósito — métrica sem definição é chute com casa decimal):
 
@@ -27,12 +29,18 @@ Definições (explícitas de propósito — métrica sem definição é chute co
   correção
   indeterminado saída do comando não permitiu afirmar sucesso nem falha. Conta
                 separado — nunca vira "verde" por otimismo.
+  ruído         achado de revisão que o humano marcou `descartado: <motivo>` na
+                linha do achado, em `docs/specs/revisoes/`. Revisor com 30% de
+                ruído é revisor que o time aprende a ignorar (ADR-0039) — e
+                aí o 🔴 verdadeiro passa junto. Sem marcação, ruído é 0 e o
+                número é declarado "não medido", não "bom".
 
 Só stdlib.
 """
 from __future__ import annotations
 
 import json
+import re
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -204,6 +212,96 @@ def corroborar(eventos: list[dict], alvo: str) -> dict:
             "execucoes": achados[-5:], "total": len(achados)}
 
 
+# --- ruído da revisão (ADR-0039) ---------------------------------------------------
+# Lê os relatórios salvos pelo /revisar, não a trajetória: o achado e a marcação de
+# descarte vivem no arquivo. Convenção mínima, verificável por olho: a linha do achado
+# começa com `- [Revisor]` e, se o humano o descartou, contém `descartado: <motivo>`.
+
+SEVERIDADES = {"🔴": "critico", "🟠": "alto", "🟡": "medio", "🔵": "baixo"}
+ACHADO = re.compile(r"^\s*[-*]\s*\[(?P<revisor>[^\]]+)\]\s*(?P<texto>.+)$")
+DESCARTADO = re.compile(r"(?i)\bdescartad[oa]\s*:")
+DATA_NO_NOME = re.compile(r"(\d{4}-\d{2}-\d{2})")
+
+
+def achados_de(texto: str) -> list[dict]:
+    achados, severidade = [], None
+    for linha in texto.splitlines():
+        if linha.startswith("#"):
+            severidade = next((v for k, v in SEVERIDADES.items() if k in linha), None)
+            continue
+        if linha.startswith("```"):
+            severidade = None
+            continue
+        if severidade is None:
+            continue
+        m = ACHADO.match(linha)
+        if not m:
+            continue
+        achados.append({"revisor": m.group("revisor").strip(), "severidade": severidade,
+                        "descartado": bool(DESCARTADO.search(m.group("texto")))})
+    return achados
+
+
+def ruido(raiz: Path, dias: int | None) -> dict:
+    pasta = raiz / "docs" / "specs" / "revisoes"
+    corte = (datetime.now(timezone.utc) - timedelta(days=dias)).date() if dias else None
+    por_revisor: dict[str, dict] = defaultdict(lambda: {"achados": 0, "descartados": 0})
+    por_severidade: dict[str, dict] = defaultdict(lambda: {"achados": 0, "descartados": 0})
+    relatorios = 0
+    for arq in sorted(pasta.glob("*.md")) if pasta.is_dir() else []:
+        if corte:
+            m = DATA_NO_NOME.search(arq.name)
+            try:
+                if m and datetime.strptime(m.group(1), "%Y-%m-%d").date() < corte:
+                    continue
+            except ValueError:
+                pass
+        relatorios += 1
+        for a in achados_de(arq.read_text(encoding="utf-8", errors="replace")):
+            for bucket in (por_revisor[a["revisor"]], por_severidade[a["severidade"]]):
+                bucket["achados"] += 1
+                bucket["descartados"] += int(a["descartado"])
+    total = sum(v["achados"] for v in por_revisor.values())
+    descartados = sum(v["descartados"] for v in por_revisor.values())
+
+    def taxa(b: dict) -> float | None:
+        return round(100 * b["descartados"] / b["achados"]) if b["achados"] else None
+
+    return {
+        "relatorios": relatorios,
+        "achados": total,
+        "descartados": descartados,
+        "ruido_pct": taxa({"achados": total, "descartados": descartados}),
+        "medido": descartados > 0,
+        "por_revisor": {k: {**v, "ruido_pct": taxa(v)}
+                        for k, v in sorted(por_revisor.items(),
+                                           key=lambda kv: -kv[1]["achados"])},
+        "por_severidade": {k: {**v, "ruido_pct": taxa(v)} for k, v in por_severidade.items()},
+    }
+
+
+def imprimir_ruido(r: dict, dias: int | None) -> None:
+    janela = f"últimos {dias} dias" if dias else "todo o histórico"
+    print(f"📣 Ruído da revisão — {janela}\n")
+    if not r["relatorios"]:
+        print("  nenhum relatório em docs/specs/revisoes/ — o /revisar salva um por rodada.")
+        return
+    print(f"  Relatórios: {r['relatorios']}   Achados: {r['achados']}   "
+          f"Descartados: {r['descartados']}")
+    if not r["medido"]:
+        print("  Ruído: não medido — nenhum achado marcado `descartado: <motivo>`.\n"
+              "  Zero descartes em muitos achados é mais provável ser ninguém marcando do que\n"
+              "  revisor perfeito. A marcação é do humano, na linha do achado.")
+        return
+    print(f"  Ruído geral: {r['ruido_pct']}%   (limiar de atenção: 30% — o time passa a ignorar)\n")
+    print(f"  {'revisor':<14} {'achados':>8} {'descart.':>9} {'ruído':>7}")
+    print("  " + "-" * 42)
+    for nome, v in r["por_revisor"].items():
+        pct = f"{v['ruido_pct']}%" if v["ruido_pct"] is not None else "—"
+        alerta = "  ⚠️" if (v["ruido_pct"] or 0) >= 30 and v["achados"] >= 3 else ""
+        print(f"  {nome:<14} {v['achados']:>8} {v['descartados']:>9} {pct:>7}{alerta}")
+
+
 # --- apresentação ------------------------------------------------------------------
 
 def imprimir_resumo(m: dict, dias: int | None) -> None:
@@ -284,6 +382,14 @@ def main() -> int:
 
     if comando == "sessoes":
         imprimir_sessoes(por_sessao(eventos))
+        return 0
+
+    if comando == "ruido":
+        r = ruido(raiz, dias)
+        if como_json:
+            print(json.dumps(r, ensure_ascii=False, indent=2))
+        else:
+            imprimir_ruido(r, dias)
         return 0
 
     if comando == "corroborar":

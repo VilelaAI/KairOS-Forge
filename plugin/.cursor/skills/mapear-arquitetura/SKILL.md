@@ -61,10 +61,17 @@ Registre os 10 maiores módulos por linhas.
 
 #### 3.2. Acoplamento
 
+Comece pela camada de código do grafo (ADR-0041) — determinística, e cega a vocabulário:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py codigo            # hubs (mais importados), órfãos, contagem por predicado
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py contexto <arquivo> # quem importa, o que importa, quem herda
+```
+
 Para cada módulo grande, levantar:
 
-- **Quem importa esse módulo:** grep por path do módulo nos `import`/`require`/`use`.
-- **O que esse módulo importa:** ler arquivos de barril (`index.ts`, `__init__.py`, `mod.rs`).
+- **Quem importa esse módulo:** `contexto` (Python, JS/TS, Go); grep por path nos `import`/`require`/`use` para as demais linguagens.
+- **O que esse módulo importa:** `contexto`, e ler arquivos de barril (`index.ts`, `__init__.py`, `mod.rs`) para o que a camada não cobre.
 - **Direção dos imports:** se módulo A importa B e B importa A, registrar como **acoplamento bidirecional**.
 - **Volatilidade:** `git log --since='90 days ago' --pretty=format: --name-only -- <módulo>/ | sort | uniq -c | sort -rn` mostra hotspots de mudança.
 

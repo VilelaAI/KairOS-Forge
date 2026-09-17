@@ -88,6 +88,16 @@ especificação sendo reescrita para casar com o que foi construído — o `veri
 avesso. Nem sempre é isso (SPEC viva também é revisada por bom motivo), e por isso o
 script reporta e não julga.
 
+Junto dela, a camada de código do grafo (ADR-0041), também de nível 1:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py codigo    # hubs (mais importados), arquivos órfãos, imports não resolvidos
+```
+
+Hub com autor único é concentração de conhecimento **e** de acoplamento; arquivo que
+ninguém importa e ninguém mudou em 90 dias é candidato a código morto — dado, não
+veredicto.
+
 O script **não** pontua nem infere causa de propósito. Ler "arquivo X mudou 25
 vezes e tem autor único" é dado; dizer "X é o gargalo de manutenção" é
 julgamento — e o julgamento é seu, rotulado como `inferido`.
@@ -206,6 +216,15 @@ qual a primeira coisa a fazer. Sem jargão — este parágrafo é o que o deciso
 
 (Lista explícita: o que exigiria nível 2 ou 3, e o que muda na conclusão se for
 medido. Esta seção é obrigatória e nunca fica vazia num diagnóstico de nível 1.)
+
+## Prontidão para trabalhar com IA
+
+Degrau atual na escada (ADR-0041), com a evidência: **<1 · 2 · 3 · 4 · 5>**
+(1) build reprodutível em um comando → (2) padronização: formatter, linter, código morto fora →
+(3) contexto para o agente: CLAUDE.md, mapa de módulos, glossário → (4) testes de caracterização →
+(5) harness: o agente verifica sozinho. Cada degrau depende do anterior; o próximo degrau é o
+primeiro encaminhamento de qualquer `/kairos-forge:migrar`. Não se pontua — declara-se, com
+o que foi visto (o `diagnostico.py` mede parte de 1 e 2; 3 a 5 são leitura com fonte citada).
 
 ## Encaminhamento
 

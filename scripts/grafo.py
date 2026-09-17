@@ -9,22 +9,42 @@ resolver, sintetizar, responder); lógica determinística pro resto. Este script
     diagnosticar   nós, arestas, componentes conexos, densidade, compressão, hubs
     subgrafo       serializa vizinhança k-hop de uma entidade como triplas
     amostrar       nó aleatório com arestas e perfil, pra amostra humana
+    codigo         camada de CÓDIGO (ADR-0041): arestas importa/herda/instancia
+                   extraídas por AST/regex — sem modelo — para codigo.jsonl
+    contexto       vizinhança de 1 salto de um ARQUIVO na camada de código: quem
+                   importa, o que importa, quem herda — mais as entidades de
+                   conhecimento que citam o arquivo como fonte
 
 Uso:
     python3 scripts/grafo.py validar [--dir .agents/grafo]
     python3 scripts/grafo.py diagnosticar [--dir .agents/grafo]
     python3 scripts/grafo.py subgrafo "API de relatórios" [--saltos 2] [--dir .agents/grafo]
     python3 scripts/grafo.py amostrar [--dir .agents/grafo]
+    python3 scripts/grafo.py codigo [--raiz .] [--dir .agents/grafo]
+    python3 scripts/grafo.py contexto src/api/relatorios.py [--saltos 1] [--json]
 
-Somente stdlib. Não modifica nenhum arquivo — leitura apenas.
+Por que uma camada de código separada: o grafo de conhecimento é extraído de documentos
+pelo modelo (precisão > recall, com julgamento). Dependência entre arquivos não precisa
+de julgamento — o import está no texto — e é o que o modelo mais erra ao navegar: o
+paper *The Navigation Paradox* (2026) mostra que grafo de imports ganha 23 pontos sobre
+busca textual nas tarefas em que o arquivo certo não compartilha vocabulário com a
+pergunta. `codigo.jsonl` é regenerável a qualquer momento e nunca passa pelo modelo.
+
+Somente stdlib. Leitura apenas, com uma exceção declarada: `codigo` escreve
+`codigo.jsonl` e `codigo.meta.json` no diretório do grafo — e só eles.
 """
 from collections import Counter, defaultdict, deque
 from pathlib import Path
 import argparse
+import ast
 import json
+import os
 import random
+import re
+import subprocess
 import sys
 import unicodedata
+from datetime import datetime, timezone
 
 CAMPOS_ENTIDADE = {"nome", "tipo", "descricao", "fontes"}
 CAMPOS_RELACAO = {"origem", "predicado", "destino", "fonte"}
@@ -268,15 +288,411 @@ def cmd_amostrar(g: Grafo) -> int:
     return 0
 
 
+# --- camada de código (ADR-0041) -------------------------------------------------------
+
+IGNORAR_DIRS = {".git", "node_modules", ".venv", "venv", "vendor", "dist", "build",
+                ".worktrees", "__pycache__", ".agents", ".cursor", ".codex", ".opencode",
+                "coverage", ".next", ".turbo", ".cache", "target", ".tox", ".mypy_cache"}
+EXT_PY = {".py"}
+EXT_JS = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
+EXT_GO = {".go"}
+PREDICADOS_CODIGO = ("importa", "herda", "instancia")
+
+RE_JS_IMPORT = re.compile(
+    r"""(?:^|\n)\s*(?:import|export)\s+(?P<bind>[^'"\n;]*?)\s*from\s*['"](?P<spec>[^'"]+)['"]"""
+    r"""|(?:^|\n)\s*import\s*['"](?P<spec2>[^'"]+)['"]"""
+    r"""|require\(\s*['"](?P<spec3>[^'"]+)['"]\s*\)"""
+    r"""|import\(\s*['"](?P<spec4>[^'"]+)['"]\s*\)""")
+RE_JS_EXTENDS = re.compile(r"\bclass\s+\w+\s+extends\s+([A-Za-z_$][\w$]*)")
+RE_JS_NEW = re.compile(r"\bnew\s+([A-Za-z_$][\w$]*)\s*[(<]")
+RE_GO_IMPORT = re.compile(r'"([^"]+)"')
+
+
+def arquivos_de_codigo(raiz: Path) -> list[str]:
+    """Arquivos rastreados pelo git (respeita .gitignore); sem git, os.walk com exclusões."""
+    exts = EXT_PY | EXT_JS | EXT_GO
+    try:
+        r = subprocess.run(["git", "-C", str(raiz), "ls-files", "-z"], capture_output=True,
+                           text=True, timeout=60)
+        if r.returncode == 0:
+            nomes = [n for n in r.stdout.split("\0") if n]
+            return sorted(n for n in nomes if Path(n).suffix in exts
+                          and not (set(Path(n).parts[:-1]) & IGNORAR_DIRS))
+    except (OSError, subprocess.SubprocessError):
+        pass
+    achados = []
+    for dirpath, dirnames, filenames in os.walk(raiz):
+        dirnames[:] = [d for d in dirnames if d not in IGNORAR_DIRS]
+        for f in filenames:
+            if Path(f).suffix in exts:
+                achados.append(str((Path(dirpath) / f).relative_to(raiz)).replace("\\", "/"))
+    return sorted(achados)
+
+
+def _normalizar(caminho: Path) -> str:
+    return os.path.normpath(str(caminho)).replace("\\", "/").lstrip("./") or "."
+
+
+def _resolver_python(rel: str, modulo: str | None, nivel: int, nomes: list[str],
+                     conjunto: set[str], raizes: list[str]) -> list[str]:
+    """Candidatos de arquivo para um import Python; devolve os que existem no projeto."""
+    partes = modulo.split(".") if modulo else []
+    bases: list[Path]
+    if nivel > 0:
+        pacote = Path(rel).parent
+        for _ in range(nivel - 1):
+            pacote = pacote.parent
+        bases = [pacote]
+    else:
+        bases = [Path(r) for r in raizes]
+    achados = []
+    for base in bases:
+        alvo = base.joinpath(*partes) if partes else base
+        candidatos = []
+        # `from a.b import c` — c pode ser submódulo; `import a.b` — a/b.py ou a/b/__init__.py
+        for nome in nomes or [None]:
+            if nome:
+                candidatos += [alvo / f"{nome}.py", alvo / nome / "__init__.py"]
+        if partes:
+            candidatos += [alvo.with_suffix(".py"), alvo / "__init__.py"]
+        for c in candidatos:
+            n = _normalizar(c)
+            if n in conjunto and n != rel and n not in achados:
+                achados.append(n)
+    return achados
+
+
+def extrair_python(raiz: Path, rel: str, conjunto: set[str]) -> tuple[list[dict], int]:
+    try:
+        arvore = ast.parse((raiz / rel).read_text(encoding="utf-8", errors="replace"))
+    except (SyntaxError, ValueError, OSError):
+        return [], 0
+    raizes = ["."]
+    if (raiz / "src").is_dir():
+        raizes.append("src")
+    pai = Path(rel).parent
+    while str(pai) not in (".", ""):
+        raizes.append(str(pai))
+        pai = pai.parent
+    arestas, externos = [], 0
+    nome_para_arquivo: dict[str, str] = {}
+    for no in ast.walk(arvore):
+        if isinstance(no, ast.Import):
+            for a in no.names:
+                alvos = _resolver_python(rel, a.name, 0, [], conjunto, raizes)
+                if alvos:
+                    arestas.append((alvos[0], "importa", no.lineno))
+                    nome_para_arquivo[(a.asname or a.name).split(".")[0]] = alvos[0]
+                else:
+                    externos += 1
+        elif isinstance(no, ast.ImportFrom):
+            nomes = [a.name for a in no.names if a.name != "*"]
+            alvos = _resolver_python(rel, no.module, no.level, nomes, conjunto, raizes)
+            if alvos:
+                for alvo in alvos:
+                    arestas.append((alvo, "importa", no.lineno))
+                # símbolo importado → arquivo do módulo (o primeiro candidato de módulo)
+                modulo_arq = _resolver_python(rel, no.module, no.level, [], conjunto, raizes)
+                for a in no.names:
+                    destino = None
+                    sub = _resolver_python(rel, no.module, no.level, [a.name], conjunto, raizes)
+                    if sub:
+                        destino = sub[0]
+                    elif modulo_arq:
+                        destino = modulo_arq[0]
+                    if destino:
+                        nome_para_arquivo[a.asname or a.name] = destino
+            elif no.module or no.level:
+                externos += 1
+    for no in ast.walk(arvore):
+        if isinstance(no, ast.ClassDef):
+            for base in no.bases:
+                raiz_nome = base.id if isinstance(base, ast.Name) else (
+                    base.value.id if isinstance(base, ast.Attribute)
+                    and isinstance(base.value, ast.Name) else None)
+                if raiz_nome in nome_para_arquivo:
+                    arestas.append((nome_para_arquivo[raiz_nome], "herda", no.lineno))
+        elif isinstance(no, ast.Call):
+            f = no.func
+            nome = f.id if isinstance(f, ast.Name) else (
+                f.value.id if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name)
+                else None)
+            if nome in nome_para_arquivo and nome[:1].isupper():
+                arestas.append((nome_para_arquivo[nome], "instancia", no.lineno))
+    return [{"origem": rel, "predicado": p, "destino": d, "fonte": f"{rel}:{ln}"}
+            for d, p, ln in arestas], externos
+
+
+def _resolver_js(rel: str, spec: str, conjunto: set[str], aliases: dict[str, str]) -> str | None:
+    if spec.startswith("."):
+        base = Path(rel).parent / spec
+    else:
+        prefixo = next((a for a in aliases if spec == a.rstrip("/") or spec.startswith(a)), None)
+        if prefixo is None:
+            return None
+        base = Path(aliases[prefixo]) / spec[len(prefixo):]
+    candidatos = [base] + [base.with_suffix(base.suffix + e) if base.suffix not in EXT_JS
+                           else base for e in sorted(EXT_JS)]
+    candidatos += [base / f"index{e}" for e in sorted(EXT_JS)]
+    for c in candidatos:
+        n = _normalizar(c)
+        if n in conjunto and n != rel:
+            return n
+    return None
+
+
+def _aliases_js(raiz: Path) -> dict[str, str]:
+    """Aliases de caminho comuns: `@/` e `~/` → src/ (ou raiz), lidos do tsconfig se houver."""
+    aliases = {}
+    for nome in ("tsconfig.json", "jsconfig.json"):
+        p = raiz / nome
+        if not p.is_file():
+            continue
+        try:
+            texto = re.sub(r"//[^\n]*|/\*.*?\*/", "", p.read_text(encoding="utf-8"), flags=re.S)
+            cfg = json.loads(texto)
+            opts = cfg.get("compilerOptions", {}) or {}
+            base = opts.get("baseUrl", ".")
+            for chave, alvos in (opts.get("paths") or {}).items():
+                if chave.endswith("/*") and alvos:
+                    aliases[chave[:-1]] = _normalizar(Path(base) / alvos[0].rstrip("*"))
+        except Exception:
+            continue
+    for atalho in ("@/", "~/"):
+        if atalho not in aliases:
+            aliases[atalho] = "src" if (raiz / "src").is_dir() else "."
+    return aliases
+
+
+def extrair_js(raiz: Path, rel: str, conjunto: set[str], aliases: dict[str, str]) -> tuple[list[dict], int]:
+    try:
+        texto = (raiz / rel).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return [], 0
+    arestas, externos = [], 0
+    nome_para_arquivo: dict[str, str] = {}
+    for m in RE_JS_IMPORT.finditer(texto):
+        spec = m.group("spec") or m.group("spec2") or m.group("spec3") or m.group("spec4")
+        destino = _resolver_js(rel, spec, conjunto, aliases)
+        linha = texto.count("\n", 0, m.start()) + 1
+        if destino is None:
+            if spec.startswith(".") or any(spec.startswith(a) for a in aliases):
+                externos += 1
+            continue
+        arestas.append((destino, "importa", linha))
+        bind = m.group("bind") or ""
+        for nome in re.findall(r"[A-Za-z_$][\w$]*", bind.replace("type ", " ")):
+            if nome not in ("as", "default", "type"):
+                nome_para_arquivo[nome] = destino
+    for m in RE_JS_EXTENDS.finditer(texto):
+        if m.group(1) in nome_para_arquivo:
+            arestas.append((nome_para_arquivo[m.group(1)], "herda",
+                            texto.count("\n", 0, m.start()) + 1))
+    for m in RE_JS_NEW.finditer(texto):
+        if m.group(1) in nome_para_arquivo:
+            arestas.append((nome_para_arquivo[m.group(1)], "instancia",
+                            texto.count("\n", 0, m.start()) + 1))
+    return [{"origem": rel, "predicado": p, "destino": d, "fonte": f"{rel}:{ln}"}
+            for d, p, ln in arestas], externos
+
+
+def _modulo_go(raiz: Path) -> str | None:
+    p = raiz / "go.mod"
+    if not p.is_file():
+        return None
+    m = re.search(r"^module\s+(\S+)", p.read_text(encoding="utf-8", errors="replace"), re.M)
+    return m.group(1) if m else None
+
+
+def extrair_go(raiz: Path, rel: str, pacotes: set[str], modulo: str | None) -> tuple[list[dict], int]:
+    if not modulo:
+        return [], 0
+    try:
+        texto = (raiz / rel).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return [], 0
+    m = re.search(r"^import\s*(\([^)]*\)|\"[^\"]+\")", texto, re.M | re.S)
+    if not m:
+        return [], 0
+    arestas, externos = [], 0
+    pacote_origem = _normalizar(Path(rel).parent)
+    for spec in RE_GO_IMPORT.findall(m.group(1)):
+        if spec == modulo or spec.startswith(modulo + "/"):
+            dir_ = spec[len(modulo):].lstrip("/") or "."
+            if dir_ in pacotes and dir_ != pacote_origem:
+                linha = texto.count("\n", 0, texto.find(f'"{spec}"')) + 1
+                arestas.append({"origem": rel, "predicado": "importa",
+                                "destino": dir_ + "/", "fonte": f"{rel}:{linha}"})
+            else:
+                externos += 1
+    return arestas, externos
+
+
+def cmd_codigo(raiz: Path, diretorio: Path) -> int:
+    arquivos = arquivos_de_codigo(raiz)
+    if not arquivos:
+        print(f"nenhum arquivo .py/.js/.ts/.go em {raiz} — nada a extrair")
+        return 1
+    conjunto = set(arquivos)
+    pacotes_go = {_normalizar(Path(a).parent) for a in arquivos if Path(a).suffix in EXT_GO}
+    modulo_go = _modulo_go(raiz)
+    aliases_js = _aliases_js(raiz)
+    arestas: list[dict] = []
+    externos = 0
+    por_linguagem = Counter()
+    for rel in arquivos:
+        suf = Path(rel).suffix
+        if suf in EXT_PY:
+            por_linguagem["python"] += 1
+            novas, ext = extrair_python(raiz, rel, conjunto)
+        elif suf in EXT_JS:
+            por_linguagem["js/ts"] += 1
+            novas, ext = extrair_js(raiz, rel, conjunto, aliases_js)
+        else:
+            por_linguagem["go"] += 1
+            novas, ext = extrair_go(raiz, rel, pacotes_go, modulo_go)
+        externos += ext
+        vistos = set()
+        for a in novas:  # uma aresta por (origem, predicado, destino); a fonte é a 1ª ocorrência
+            chave = (a["origem"], a["predicado"], a["destino"])
+            if chave not in vistos:
+                vistos.add(chave)
+                arestas.append(a)
+
+    diretorio.mkdir(parents=True, exist_ok=True)
+    with (diretorio / "codigo.jsonl").open("w", encoding="utf-8") as fh:
+        for a in arestas:
+            fh.write(json.dumps(a, ensure_ascii=False) + "\n")
+    entrada = Counter(a["destino"] for a in arestas if a["predicado"] == "importa")
+    por_predicado = Counter(a["predicado"] for a in arestas)
+    meta = {
+        "construido_em": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "raiz": str(raiz), "arquivos": len(arquivos), "por_linguagem": dict(por_linguagem),
+        "arestas": len(arestas), "por_predicado": dict(por_predicado),
+        "imports_nao_resolvidos": externos,
+        "hubs": [{"arquivo": k, "importado_por": v} for k, v in entrada.most_common(10)],
+        "versao_esquema_codigo": 1,
+    }
+    (diretorio / "codigo.meta.json").write_text(
+        json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    print(f"🧩 Camada de código — {len(arquivos)} arquivos "
+          f"({', '.join(f'{k} {v}' for k, v in por_linguagem.items())}) → {len(arestas)} arestas")
+    print("   " + " · ".join(f"{p}: {por_predicado.get(p, 0)}" for p in PREDICADOS_CODIGO)
+          + f" · imports não resolvidos (stdlib, externos ou fora da raiz): {externos}")
+    sem_aresta = len(conjunto - {a["origem"] for a in arestas} - {a["destino"] for a in arestas})
+    print(f"   arquivos sem nenhuma aresta: {sem_aresta}")
+    if entrada:
+        print("   mais importados:")
+        for k, v in entrada.most_common(8):
+            print(f"     {v:>4}  {k}")
+    print(f"   gravado em {diretorio / 'codigo.jsonl'} (+ codigo.meta.json)")
+    return 0
+
+
+def carregar_codigo(diretorio: Path) -> list[dict]:
+    erros: list = []
+    return ler_jsonl(diretorio / "codigo.jsonl", CAMPOS_RELACAO, erros)
+
+
+def cmd_contexto(diretorio: Path, arquivo: str, saltos: int, como_json: bool) -> int:
+    arestas = carregar_codigo(diretorio)
+    if not arestas:
+        print(f"sem camada de código em {diretorio} — rode `grafo.py codigo` primeiro")
+        return 1
+    alvo = _normalizar(Path(arquivo))
+    nos = {a["origem"] for a in arestas} | {a["destino"] for a in arestas}
+    if alvo not in nos:
+        parecidos = [n for n in nos if n.endswith("/" + Path(alvo).name) or Path(alvo).name in n][:5]
+        print(f"`{alvo}` não está na camada de código." +
+              (f" Parecidos: {', '.join(parecidos)}" if parecidos else ""))
+        return 1
+    saida = defaultdict(list)
+    entrada = defaultdict(list)
+    for a in arestas:
+        saida[a["origem"]].append(a)
+        entrada[a["destino"]].append(a)
+    # BFS nos dois sentidos até `saltos`
+    fronteira, vistos, camadas = {alvo}, {alvo}, []
+    for _ in range(saltos):
+        proxima = set()
+        for n in fronteira:
+            proxima |= {a["destino"] for a in saida[n]} | {a["origem"] for a in entrada[n]}
+        proxima -= vistos
+        if not proxima:
+            break
+        camadas.append(sorted(proxima))
+        vistos |= proxima
+        fronteira = proxima
+    r = {
+        "arquivo": alvo,
+        "importado_por": sorted({a["origem"] for a in entrada[alvo] if a["predicado"] == "importa"}),
+        "importa": sorted({a["destino"] for a in saida[alvo] if a["predicado"] == "importa"}),
+        "herda_de": sorted({a["destino"] for a in saida[alvo] if a["predicado"] == "herda"}),
+        "herdado_por": sorted({a["origem"] for a in entrada[alvo] if a["predicado"] == "herda"}),
+        "instancia": sorted({a["destino"] for a in saida[alvo] if a["predicado"] == "instancia"}),
+        "instanciado_por": sorted({a["origem"] for a in entrada[alvo] if a["predicado"] == "instancia"}),
+        "alcance_por_salto": [len(c) for c in camadas],
+        "vizinhanca": camadas,
+    }
+    # ponte com o grafo de conhecimento: entidades que citam o arquivo como fonte
+    erros: list = []
+    entidades = ler_jsonl(diretorio / "entidades.jsonl", CAMPOS_ENTIDADE, erros)
+    r["entidades_de_conhecimento"] = sorted(
+        e["nome"] for e in entidades
+        if any(alvo == _normalizar(Path(str(f))) or str(f).endswith(alvo) for f in (e.get("fontes") or [])))
+    meta_p = diretorio / "codigo.meta.json"
+    if meta_p.is_file():
+        try:
+            r["camada_construida_em"] = json.loads(meta_p.read_text(encoding="utf-8")).get("construido_em")
+        except Exception:
+            pass
+    if como_json:
+        print(json.dumps(r, ensure_ascii=False, indent=2))
+        return 0
+    print(f"🧭 Contexto arquitetural — {alvo}"
+          + (f"  (camada de {r['camada_construida_em'][:10]})" if r.get("camada_construida_em") else ""))
+    for rotulo, chave in (("importado por", "importado_por"), ("importa", "importa"),
+                          ("herda de", "herda_de"), ("herdado por", "herdado_por"),
+                          ("instancia", "instancia"), ("instanciado por", "instanciado_por")):
+        if r[chave]:
+            print(f"   {rotulo} ({len(r[chave])}):")
+            for n in r[chave][:20]:
+                print(f"     · {n}")
+            if len(r[chave]) > 20:
+                print(f"     … e mais {len(r[chave]) - 20}")
+    if saltos > 1 and len(camadas) > 1:
+        print(f"   alcance: {' → '.join(str(n) for n in r['alcance_por_salto'])} arquivos por salto")
+    if r["entidades_de_conhecimento"]:
+        print(f"   no grafo de conhecimento: {', '.join(r['entidades_de_conhecimento'][:8])}")
+    if not r["importado_por"]:
+        print("   ninguém importa este arquivo: ponto de entrada, script, teste — ou código morto.")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Parte determinística do grafo de conhecimento.")
-    parser.add_argument("comando", choices=["validar", "diagnosticar", "subgrafo", "amostrar", "mermaid"])
-    parser.add_argument("entidade", nargs="?", help="entidade-semente (para subgrafo e mermaid)")
-    parser.add_argument("--saltos", type=int, default=2, help="raio do subgrafo (default 2)")
+    parser.add_argument("comando", choices=["validar", "diagnosticar", "subgrafo", "amostrar",
+                                            "mermaid", "codigo", "contexto"])
+    parser.add_argument("entidade", nargs="?",
+                        help="entidade-semente (subgrafo/mermaid) ou arquivo (contexto)")
+    parser.add_argument("--saltos", type=int, default=None,
+                        help="raio (default 2 no subgrafo/mermaid, 1 no contexto)")
     parser.add_argument("--dir", default=".agents/grafo", help="diretório do grafo (default .agents/grafo)")
+    parser.add_argument("--raiz", default=".", help="raiz do código a extrair (codigo; default .)")
+    parser.add_argument("--json", action="store_true", help="saída em JSON (contexto)")
     args = parser.parse_args()
 
     diretorio = Path(args.dir)
+    if args.comando == "codigo":
+        return cmd_codigo(Path(args.raiz).resolve(), diretorio)
+    if args.comando == "contexto":
+        if not args.entidade:
+            print('Informe o arquivo: grafo.py contexto "src/x.py" [--saltos 1]')
+            return 2
+        return cmd_contexto(diretorio, args.entidade, args.saltos or 1, args.json)
+    if args.saltos is None:
+        args.saltos = 2
     if not diretorio.exists():
         print(f"Diretório {diretorio} não existe. Rode /kairos-forge:mapear-conhecimento construir "
               f"(ou /kairos-forge:onboardar num projeto novo).")

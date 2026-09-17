@@ -163,6 +163,7 @@ O grafo alimenta `/mobilizar` (memória compartilhada entre teammates),
 ## Estado
 
 - Última construção: (ainda não construído)
+- Camada de código: (não construída — `grafo.py codigo`, ADR-0041)
 - Versão do esquema: 1
 - Diagnóstico: —
 
@@ -197,7 +198,8 @@ Estrutura criada:
 - .agents/grafo/ (esquema + índice — o grafo em si nasce no primeiro mapear-conhecimento)
 
 Próximos passos sugeridos:
-1. Revise o CLAUDE.md gerado e ajuste o que ficou impreciso
+1. Revise o CLAUDE.md gerado e ajuste o que ficou impreciso — em especial a seção "Porta de entrada" (backlog, rótulos de triagem, design doc)
+1b. [se o projeto tem UI e não tem DESIGN.md na raiz] Peça ao Pablo para extrair o sistema de design do código, ou gere com `npx getdesign.md` — sem ele cada feature inventa o seu (ADR-0040)
 2. Para a próxima feature, rode: /kairos-forge:especificar <descrição>
 3. Depois de implementar uma SPEC, rode: /kairos-forge:validar SPEC-NNN
 4. Sexta-feira, rode: /kairos-forge:auditar para ver pontuação inicial

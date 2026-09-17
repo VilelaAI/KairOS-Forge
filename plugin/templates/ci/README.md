@@ -16,6 +16,7 @@ skill; aqui ela acorda porque um PR abriu, um CI ficou vermelho ou é sexta-feir
 | `kairos-forge-revisar.yml` | PR aberto ou atualizado | Roda `/kairos-forge:revisar` e comenta o parecer | Só comentário |
 | `kairos-forge-corrigir.yml` | CI do projeto falha | Diagnostica e tenta corrigir, **abrindo PR** | Branch nova + PR |
 | `kairos-forge-auditar.yml` | Segunda-feira 09:00 (cron) | Roda `/kairos-forge:auditar` e abre issue com as 3 lacunas | Issue |
+| `kairos-forge-triar.yml` | Issue aberta/reaberta, ou rotulada `forge:triar` | Laura e Joana classificam: `forge:pronto` · `forge:precisa-spec` · `forge:falta-informacao` (com as perguntas) · `forge:aguardar` (ADR-0040) | Rótulo + comentário |
 
 ## Instalação
 
@@ -50,6 +51,16 @@ seguem, e que você deve manter se editá-los:
    de aceitar o resultado — em CI não existe `PreToolUse`, então o mesmo contrato
    é verificado depois (ADR-0022).
 
+## O rótulo da triagem é fila, lock e pausa
+
+No `triar`, o rótulo faz três coisas ao mesmo tempo: é a **fila** (quem consome o backlog
+filtra por ele), o **lock** (issue que já tem `forge:*` não é triada de novo — dois agentes
+nunca pegam a mesma; para re-triar, aplique `forge:triar`) e o **ponto de pausa humano**:
+o workflow nunca aplica `forge:construir`. Esse rótulo é seu — movê-lo é a aprovação de
+intenção, a mesma fronteira do ADR-0023. O que consome `forge:construir` (o arco
+`/entregar` headless) ainda não existe como template, de propósito: entra quando o arco
+headless tiver trajetória medida. Crie os cinco rótulos no repositório antes de instalar.
+
 ## Por que `corrigir` abre PR em vez de commitar direto
 
 Porque L4 é *"o time confia mais no harness do que em revisão individual de
@@ -63,6 +74,7 @@ Autonomia. Não ative auto-merge antes de o número justificar.
 
 ## Custo
 
-Cada disparo consome tokens. Antes de ligar os três, estime: um `revisar` por PR
+Cada disparo consome tokens. Antes de ligar os quatro, estime: um `revisar` por PR
 num repo com 30 PRs/semana é 30 execuções semanais. Comece pelo `auditar`
-(semanal, barato), depois `revisar`, e só então `corrigir`.
+(semanal, barato), depois `triar` (uma leitura por issue) e `revisar`, e só então
+`corrigir`.

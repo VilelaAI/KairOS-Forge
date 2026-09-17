@@ -52,6 +52,11 @@ jobs:
           python3 scripts/guardrail.py verificar .
           python3 plugin/scripts/guardrail.py verificar plugin
 
+      - name: Testes dos scripts (stdlib unittest)
+        # Contratos que um runner externo depende (ADR-0034): idempotência do
+        # `registrar`, digest da SPEC, `reaprovar` só depois da aprovação.
+        run: python3 -m unittest discover -s scripts/tests -t scripts -v
+
   eval-roteamento:
     name: Eval de roteamento da Laura
     runs-on: ubuntu-latest

@@ -37,6 +37,8 @@ Regra de bolso: se a alternativa é passar documentos inteiros (ou resumos de re
 ├── relacoes.jsonl     # {"origem", "predicado", "destino", "fonte"}
 ├── aliases.jsonl      # {"alias", "canonico"}
 ├── perfis/<slug>.md   # perfis sintetizados dos hubs (grau ≥ 3)
+├── codigo.jsonl       # camada de CÓDIGO (ADR-0041): importa/herda/instancia por AST — regenerável, nunca curada
+├── codigo.meta.json   # quando foi construída, arquivos, arestas, hubs
 └── GRAFO.md           # índice humano: última construção, diagnóstico, amostras
 ```
 
@@ -48,6 +50,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py diagnosticar   # componentes, den
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py subgrafo "<entidade>" --saltos 2
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py amostrar       # nó aleatório pra amostra humana
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py mermaid "<entidade>" --saltos 2   # subgrafo como diagrama, colável em SPEC/RFC/ADR
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py codigo                            # camada de código: extrai imports/herança/instanciação (ADR-0041)
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py contexto src/api/x.py             # quem importa, o que importa, quem herda — e as entidades que citam o arquivo
 ```
 
 Princípio: **modelo só onde há julgamento** (extrair, resolver, sintetizar, responder); **lógica determinística pro resto** (validar, contar, serializar).
@@ -151,6 +155,20 @@ Rode `grafo.py diagnosticar` e interprete os sinais:
 
 Depois, **amostra humana**: rode `grafo.py amostrar`, leia o nó com o usuário, cheque 2-3 arestas contra os documentos-fonte. No momento em que ninguém consegue explicar por que um nó tem uma aresta, a compreensão do grafo ficou pra trás do conteúdo — é o sinal de parar e revisar. Registre a amostra em `GRAFO.md`.
 
+## Camada de código — determinística, regenerável (ADR-0041)
+
+O grafo de conhecimento é extraído de **documentos** pelo modelo. Dependência entre
+**arquivos** não precisa de modelo — o import está no texto — e é o caso em que busca
+textual é cega: o arquivo certo raramente compartilha vocabulário com a pergunta
+(*The Navigation Paradox*, 2026: +23 pontos do grafo de imports nas tarefas ocultas).
+`grafo.py codigo` percorre os arquivos rastreados (`.py`, JS/TS, `.go`) e grava
+`codigo.jsonl` com `importa` / `herda` / `instancia`, fonte `arquivo:linha`. Rode no
+`construir` e no `atualizar` — é a única parte do grafo que se regenera inteira, e a
+única escrita do `grafo.py`. `contexto <arquivo>` devolve a vizinhança de 1 salto e as
+entidades de conhecimento que citam o arquivo em `fontes` — a ponte entre as duas camadas.
+Linguagem fora das três: o import que não resolve é contado, não inventado; a
+`/mapear-arquitetura` mantém o grep para ela.
+
 ## Como o resto da fábrica usa o grafo
 
 | Skill | Papel do grafo |
@@ -159,6 +177,7 @@ Depois, **amostra humana**: rode `grafo.py amostrar`, leia o nó com o usuário,
 | `/validar` | **Fundamentação do avaliador**: afirmações checadas contra arestas com proveniência; fato ausente escala pro humano |
 | `/rodar` e `/especificar` | **Consulta**: subgrafo k=2 das entidades citadas antes de opinar/especificar |
 | `/auditar` | **Saúde**: existência, validação limpa e atualização recente pontuam na dimensão Conhecimento |
+| `/mobilizar`, `/validar`, `/revisar`, `/migrar`, `/mapear-arquitetura`, `/diagnosticar` | **Camada de código** (ADR-0041): `contexto <arquivo>` antes de editar arquivo com chamadores; chamadores fora do diff na validação; contagem de importadores na faixa de raio; hubs e órfãos no diagnóstico |
 
 ## Regras
 
@@ -169,6 +188,7 @@ Depois, **amostra humana**: rode `grafo.py amostrar`, leia o nó com o usuário,
 - **Fallback de resolução.** Nome não clusterizado vira cluster unitário. Nunca perca nó em silêncio.
 - **Esquema versionado.** Mudou tipo ou predicado aceito → bump da versão em `esquema.md` + nota em `GRAFO.md`. Entidades de versões diferentes de esquema precisam ser distinguíveis.
 - **Não edite os JSONL à mão sem rodar `grafo.py validar` depois.**
+- **`codigo.jsonl` não se edita nem se cura.** É derivado do código; rodar `grafo.py codigo` substitui. Fato estrutural que veio de documento continua indo para `relacoes.jsonl`.
 - **O grafo é memória, não juiz.** Ele fundamenta decisões; quem decide são os agentes — e o humano.
 - **Read-only sobre o projeto.** Esta skill só escreve em `.agents/grafo/`. Código, specs e docs do usuário não são modificados.
 

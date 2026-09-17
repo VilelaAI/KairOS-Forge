@@ -60,13 +60,24 @@ Uso:
                             [--teto-validar 6] [--teto-revisar 6] [--spec-aprovada]
     ciclo.py estado [SPEC-001] [--json]
     ciclo.py registrar <resultado> [SPEC-001] [--nota "..."]
+    ciclo.py reaprovar [SPEC-001]   # aceita a SPEC alterada depois da aprovação (humano)
     ciclo.py encerrar [SPEC-001] --motivo "..."
+
+Digest da SPEC (v0.34.1): ao entrar em `construindo` o script grava o sha256 do
+CONTRATO da SPEC — o texto com as células de Status e Verificação em branco, porque
+essas mudam de propósito durante a construção. Se requisito, critério, prioridade ou
+plano mudarem depois da aprovação, `estado` avisa, `spec_alterada` fica `true` na
+vista pública e um resultado VERDE de gate (`aprovado`, `aprovado_com_ressalvas`,
+`limpo`) é recusado até `reaprovar` — SPEC reescrita para casar com o construído é
+o `verificado:` pelo avesso, e quem aceita a versão nova é gente.
     ciclo.py listar
     ciclo.py contrato        # contrato de integração (ADR-0034), legível por máquina
 
 Só stdlib.
 """
 from __future__ import annotations
+
+import hashlib
 
 import json
 import os
@@ -92,7 +103,7 @@ PASTA = Path(".agents/ciclo")
 #
 # MENOR (1.x): campo novo, estado novo, aresta nova. Consumidor antigo continua válido.
 # MAIOR (x.0): campo removido/renomeado, semântica alterada, aresta removida.
-CONTRATO_VERSAO = "1.0"
+CONTRATO_VERSAO = "1.1"   # 1.1: campo `spec_alterada` (digest do contrato da SPEC)
 
 # Gates com orçamento próprio. Cada um conta rodadas SEM progresso, tem teto absoluto
 # e guarda a melhor marca já atingida (ADR-0032).
@@ -208,6 +219,7 @@ CAMPOS_ESTADO = {
     "orcamento": "object", "rodadas": "object", "rodadas_totais": "object",
     "teto": "object", "marca": "object",
     "historico": "object[]",
+    "spec_alterada": "boolean|null",  # contrato da SPEC mudou desde a aprovação; null = sem digest
     "motivo_escalacao": "string?", "motivo_encerramento": "string?",
 }
 
@@ -337,6 +349,76 @@ def ler_relatorio(spec: str, gate: str) -> tuple[str | None, int | None, str]:
 
 # --- comandos ----------------------------------------------------------------------
 
+# --- digest do contrato da SPEC ----------------------------------------------------
+# Inspirado no digest de definição do checkpoint do MHL: retomar contra uma definição
+# que mudou é aviso, nunca silêncio. Aqui a definição é a SPEC aprovada.
+
+PASTA_SPECS = Path("docs/specs")
+CELULA_PROGRESSO = re.compile(
+    r"(?i)^(pendente|em progresso|conclu[ií]do|—|-|)$|^(verificado|em progresso)\s*:")
+
+
+def arquivo_da_spec(spec: str) -> Path | None:
+    """`docs/specs/SPEC-001*.md` — o primeiro que casar; subpastas (relatórios) ficam fora."""
+    if not PASTA_SPECS.is_dir():
+        return None
+    achados = sorted(p for p in PASTA_SPECS.glob(f"{spec}*.md") if p.is_file())
+    return achados[0] if achados else None
+
+
+def contrato_da_spec(texto: str) -> str:
+    """O texto da SPEC sem o que muda de propósito durante a construção.
+
+    Células de tabela com Status (Pendente/Em progresso/Concluído) ou Verificação
+    (`verificado:`, `em progresso:`, `—`) são zeradas; espaço em branco é normalizado.
+    O que sobra — requisitos, critérios, prioridades, plano, matriz, não-objetivos —
+    é o contrato que a validação cobra.
+    """
+    linhas = []
+    for linha in texto.splitlines():
+        s = linha.strip()
+        if s.startswith("|") and s.endswith("|"):
+            celulas = [c.strip() for c in s.strip("|").split("|")]
+            celulas = ["" if CELULA_PROGRESSO.match(c) else c for c in celulas]
+            s = "|" + "|".join(celulas) + "|"
+        s = re.sub(r"\s+", " ", s)
+        if s:
+            linhas.append(s)
+    return "\n".join(linhas)
+
+
+def digest_da_spec(spec: str) -> str | None:
+    p = arquivo_da_spec(spec)
+    if p is None:
+        return None
+    try:
+        return hashlib.sha256(contrato_da_spec(p.read_text(encoding="utf-8")).encode("utf-8")).hexdigest()
+    except OSError:
+        return None
+
+
+def selar_spec(d: dict, momento: str) -> None:
+    """Grava o digest do contrato da SPEC. Sem arquivo, grava None e avisa uma vez."""
+    dig = digest_da_spec(d["spec"])
+    d["spec_digest"] = dig
+    d["spec_selada_em"] = agora()
+    d["spec_selada_por"] = momento
+    if dig is None:
+        print(f"   ⚠️  SPEC {d['spec']} não encontrada em {PASTA_SPECS}/ — sem digest, "
+              "alteração da SPEC depois da aprovação não será detectada.", file=sys.stderr)
+
+
+def spec_alterada(d: dict) -> bool | None:
+    """True se o contrato da SPEC mudou desde o selo; None sem selo ou sem arquivo."""
+    selo = d.get("spec_digest")
+    if not selo:
+        return None
+    atual = digest_da_spec(d["spec"])
+    if atual is None:
+        return None
+    return atual != selo
+
+
 def abrir(spec: str, orcamento: dict, teto: dict, spec_aprovada: bool) -> int:
     p = caminho(spec)
     if p.is_file():
@@ -359,6 +441,8 @@ def abrir(spec: str, orcamento: dict, teto: dict, spec_aprovada: bool) -> int:
         "marca": {g: None for g in GATES},
         "historico": [{"t": agora(), "de": None, "para": estado, "resultado": "abrir"}],
     }
+    if spec_aprovada:
+        selar_spec(d, "abrir --spec-aprovada")
     gravar(p, d)
     imprimir(d)
     return 0
@@ -440,6 +524,14 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
 
     if resultado in LIMPO_DO_GATE.get(estado, ()):
         pasta, _, _ = FONTE_DO_GATE[gate_do_estado]
+        if estado != "criticando" and spec_alterada(d):
+            print(f"🛑 recusado: o contrato da SPEC {d['spec']} mudou depois da aprovação "
+                  f"(requisito, critério, prioridade ou plano — Status e Verificação não "
+                  f"contam).\n   Resultado verde contra contrato que se moveu é o "
+                  f"`verificado:` pelo avesso. Mostre o diff da SPEC ao usuário e, se ele "
+                  f"aceitar a versão nova, rode `ciclo.py reaprovar {d['spec']}`; senão, "
+                  f"volte a SPEC.", file=sys.stderr)
+            return 1
         if veredicto == "bloqueado":
             print(f"🛑 recusado: o relatório mais recente de {d['spec']} em {pasta}/ diz "
                   f"BLOQUEADO.\n   Registre o resultado negativo e corrija, ou rode o gate "
@@ -468,6 +560,8 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
     d["estado"] = destino
     if motivo:
         d["motivo_escalacao"] = motivo
+    if destino == "construindo" and estado != "construindo":
+        selar_spec(d, f"registrar {resultado}")
     gravar(p, d)
     imprimir(d)
     if gate_do_estado and fonte == "prosa" and destino not in TERMINAIS:
@@ -475,6 +569,25 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
               "rodada queima ficha.\n       Adicione o bloco ```kairos-"
               f"{'validacao' if gate_do_estado == 'validar' else 'revisao'}"
               " para que progresso conte (ADR-0032).", file=sys.stderr)
+    return 0
+
+
+def reaprovar(spec: str | None) -> int:
+    """O humano aceitou a SPEC alterada: sela o digest novo e registra no histórico."""
+    p = resolver(spec)
+    d = compatibilizar(ler(p))
+    if d["estado"] in TERMINAIS:
+        print(f"🛑 ciclo em estado terminal '{d['estado']}' — nada a reaprovar.", file=sys.stderr)
+        return 1
+    anterior = d.get("spec_digest")
+    selar_spec(d, "reaprovar")
+    d["historico"].append({"t": agora(), "de": d["estado"], "para": d["estado"],
+                           "resultado": "reaprovar",
+                           "digest_anterior": (anterior or "")[:12] or None,
+                           "digest": (d["spec_digest"] or "")[:12] or None})
+    gravar(p, d)
+    print(f"✍️  {d['spec']} reaprovada — contrato selado em {(d['spec_digest'] or '—')[:12]}. "
+          "Decisão humana registrada no histórico.")
     return 0
 
 
@@ -525,6 +638,10 @@ def imprimir(d: dict) -> None:
         print(f"   Motivo: {d['motivo_escalacao']}")
     if d.get("motivo_encerramento"):
         print(f"   Motivo: {d['motivo_encerramento']}")
+    if spec_alterada(d) and e not in TERMINAIS:
+        print(f"   ⚠️  SPEC alterada desde a aprovação (selo {d['spec_digest'][:12]}, "
+              f"{d.get('spec_selada_por', '?')}). Resultado verde de gate será recusado "
+              f"até `ciclo.py reaprovar {d['spec']}` — decisão do humano.")
     print(f"\n   PRÓXIMO PASSO: {INSTRUCAO[e]}")
 
 
@@ -546,6 +663,7 @@ def vista_publica(d: dict) -> dict:
                  "revisando": "revisar"}.get(e),
         "proximo_passo": INSTRUCAO[e],
         "resultados_validos": sorted(TRANSICOES.get(e, {})),
+        "spec_alterada": spec_alterada(d),
     }
 
 
@@ -623,6 +741,8 @@ def main() -> int:
         if not resto:
             sys.exit("erro: uso — ciclo.py registrar <resultado> [SPEC]")
         return registrar(resto[1] if len(resto) > 1 else None, resto[0], nota)
+    if cmd == "reaprovar":
+        return reaprovar(resto[0] if resto else None)
     if cmd == "escalar":
         if not motivo:
             sys.exit("erro: escalar exige --motivo")

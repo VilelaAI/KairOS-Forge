@@ -35,6 +35,11 @@ Três coisas deixam de depender da sua disciplina:
 - **Veredicto vem do artefato.** `registrar aprovado` sem relatório em
   `docs/specs/validacoes/` é recusado; com relatório dizendo bloqueado, também.
   Vale igual para a revisão (`docs/specs/revisoes/`) desde a v0.24.
+- **A SPEC aprovada é selada** (v0.34.1). O digest do contrato da SPEC (texto sem as
+  células de Status e Verificação) é gravado ao entrar em `construindo`. Se mudar,
+  `spec_alterada` vira `true` na vista pública e resultado verde de gate é recusado
+  até `ciclo.py reaprovar` — decisão do humano, registrada no histórico. O `--force`
+  não existe de propósito: a alternativa a reaprovar é voltar a SPEC.
 - **Progresso real devolve a ficha (ADR-0032).** O `ciclo.py` lê a contagem de
   achados do bloco de contrato do relatório e compara com a melhor marca do
   gate. Baixou de 5 para 2, a rodada não é cobrada; continuou em 5, é. Convergir

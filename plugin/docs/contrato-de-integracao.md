@@ -16,7 +16,7 @@ A regra que organiza tudo:
 
 | Contrato | Comando | Versão | Para quê |
 |---|---|---|---|
-| `kairos-forge/ciclo` | `ciclo.py estado --json` | 1.0 | Qual o próximo passo, precisa de humano, o que registrar |
+| `kairos-forge/ciclo` | `ciclo.py estado --json` | 1.1 | Qual o próximo passo, precisa de humano, o que registrar, se a SPEC mudou |
 | `kairos-forge/contrato` | `contrato.py <gate> <arquivo>` | 1.0 | Ler o veredicto dos relatórios sem parsear prosa |
 
 Ambos se publicam sozinhos, legíveis por máquina:
@@ -50,6 +50,7 @@ Campos garantidos:
 | `resultados_validos` | string[] | O que `registrar` aceita **neste** estado |
 | `orcamento`/`rodadas`/`rodadas_totais`/`teto`/`marca` | object | Fichas por gate |
 | `historico` | object[] | Toda transição, com horário e contagem |
+| `spec_alterada` | boolean\|null | **O contrato da SPEC mudou depois da aprovação** (requisito, critério, prioridade, plano — Status e Verificação não contam). `null` = sem digest (SPEC não encontrada, ou ciclo anterior à v1.1). `true` = resultado verde de gate será recusado até um humano rodar `ciclo.py reaprovar`. Desde 1.1 |
 
 Os quatro derivados no topo existem para você **não comparar string de estado**. Um
 consumidor que faz `if estado == "aguardando_aprovacao"` quebra quando um estado é

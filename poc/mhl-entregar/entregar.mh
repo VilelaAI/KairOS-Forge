@@ -1,0 +1,96 @@
+// POC (ADR-0040, `rodar explorar`): o MHL dirigindo o arco /entregar do kairos-forge
+// SÓ pelo contrato público do `ciclo.py` (ADR-0034, v1.1). O runner nunca compara nome
+// de estado: lê `terminal`, `aguardando_humano`, `spec_alterada`, `proximo_passo` e
+// `resultados_validos`. A única exceção declarada é `pronto_para_pr`, que a POC pausa
+// porque abrir PR fica fora do tempo-box.
+//
+// Rode de dentro de `projeto/`:
+//   python3 ../../../scripts/ciclo.py abrir SPEC-001 --spec-aprovada
+//   ../../../../mhl-bin run ../entregar.mh --input spec=SPEC-001 --input modo=simulado
+//   ../../../../mhl-bin run ../entregar.mh --input spec=SPEC-001 --input modo=real
+//   ../../../../mhl-bin run ../entregar.mh --input spec=SPEC-001 --input modo=simulado --resume
+//   (o --resume do MHL NÃO restaura os inputs: repasse-os — achado da POC)
+
+agent Forge {
+    engine: "cli/claude-code"
+    command: "claude"
+    args: [
+        "-p", "${prompt}",
+        "--permission-mode", "bypassPermissions",
+        "--output-format", "json",
+        "--json-schema", "{\"type\":\"object\",\"properties\":{\"resultado\":{\"type\":\"string\"},\"nota\":{\"type\":\"string\"}},\"required\":[\"resultado\"]}"
+    ]
+    log: ".mhl/logs/forge.${context.session_id}.log"
+}
+
+// Mesmo contrato de saída do Forge, sem modelo: faz o trabalho mínimo de cada estado
+// (código, teste, relatório com a fence certa) e devolve o JSON do schema.
+agent ForgeSimulado {
+    command: "sh"
+    args: ["../simulado.sh", "${prompt}"]
+}
+
+memory Trilha {
+    type: "jsonl"
+    path: ".mhl/trilha.jsonl"
+}
+
+tool Ciclo {
+    var script = "../../../scripts/ciclo.py"
+    // A SPEC vai sempre explícita: sem ela, `estado` resolve "o único ciclo aberto" e
+    // falha quando o ciclo já fechou — o runner ficaria sem ler `terminal` (achado da POC).
+    estado(spec: string): object -> json.parse(cmd.exec(["python3", script, "estado", spec, "--json"], timeout: 30s).stdout)
+    registrar(resultado: string, spec: string): {stdout: string, stderr: string, exit_code: number} ->
+        cmd.exec(["python3", script, "registrar", resultado, spec], timeout: 30s)
+}
+
+loop pipeline Entregar {
+    input spec: string
+    input modo: string = "simulado"
+    mem passos = 0
+    mem fim = ""
+
+    repeat: {
+        stop_when: fim != ""
+        max_iterations: 10
+    }
+
+    step Passo {
+        passos = passos + 1
+        var e = Ciclo.estado(spec)
+        Trilha.append({passo: passos, estado: e.estado, gate: e.gate, spec_alterada: e.spec_alterada, humano: e.aguardando_humano})
+
+        if (e.terminal) {
+            fim = e.estado
+            break "arco terminou em ${e.estado} após ${passos} passo(s)"
+        }
+        if (e.spec_alterada == true) {
+            pause("SPEC ${spec} mudou depois da aprovação: rode `ciclo.py reaprovar` ou volte a SPEC, depois `mhl run --resume`")
+        }
+        if (e.aguardando_humano) {
+            pause("${e.estado}: ${e.proximo_passo}")
+        }
+        if (e.estado == "pronto_para_pr") {
+            pause("pronto_para_pr: abrir o PR fica fora da POC. Registre `pr_aberto` à mão e retome com --resume")
+        }
+
+        var pedido = """
+        Você é a fábrica kairos-forge conduzindo o arco /entregar da ${spec}, dirigida por um runner externo.
+        estado=${e.estado}
+        Execute SOMENTE o passo deste estado, no diretório atual: ${e.proximo_passo}
+        Regras: não abra PR, não faça push, não mude de estado por conta própria. Quem registra é o runner.
+        Ao terminar, responda com o JSON do schema: "resultado" é exatamente um de ${e.resultados_validos}, e "nota" resume em uma linha o que fez.
+        """
+        var bruto = if (modo == "real") Forge.run(prompt: pedido) else ForgeSimulado.run(prompt: pedido)
+        var resposta = json.parse(bruto)
+        var resultado = resposta.structured_output.resultado
+        if (!e.resultados_validos.contains(resultado)) {
+            fail("resultado '${resultado}' fora do contrato em ${e.estado}; válidos: ${e.resultados_validos}")
+        }
+        var r = Ciclo.registrar(resultado, spec)
+        Trilha.append({passo: passos, registrar: resultado, exit_code: r.exit_code, nota: resposta.structured_output.nota})
+        if (r.exit_code != 0) {
+            fail("ciclo.py recusou '${resultado}' em ${e.estado}: ${r.stderr}")
+        }
+    }
+}

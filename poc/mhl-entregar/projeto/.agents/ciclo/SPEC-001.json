@@ -1,0 +1,69 @@
+{
+  "spec": "SPEC-001",
+  "estado": "encerrado",
+  "aberto_em": "2026-09-17T14:38:43+00:00",
+  "orcamento": {
+    "criticar": 2,
+    "validar": 2,
+    "revisar": 2
+  },
+  "teto": {
+    "criticar": 6,
+    "validar": 6,
+    "revisar": 6
+  },
+  "rodadas": {
+    "criticar": 0,
+    "validar": 0,
+    "revisar": 0
+  },
+  "rodadas_totais": {
+    "criticar": 0,
+    "validar": 0,
+    "revisar": 0
+  },
+  "marca": {
+    "criticar": null,
+    "validar": null,
+    "revisar": null
+  },
+  "historico": [
+    {
+      "t": "2026-09-17T14:38:43+00:00",
+      "de": null,
+      "para": "construindo",
+      "resultado": "abrir"
+    },
+    {
+      "t": "2026-09-17T14:38:43+00:00",
+      "de": "construindo",
+      "para": "validando",
+      "resultado": "pronto"
+    },
+    {
+      "t": "2026-09-17T14:38:43+00:00",
+      "de": "validando",
+      "para": "revisando",
+      "resultado": "aprovado",
+      "bloqueios": 0,
+      "fonte": "contrato"
+    },
+    {
+      "t": "2026-09-17T14:38:43+00:00",
+      "de": "revisando",
+      "para": "pronto_para_pr",
+      "resultado": "limpo",
+      "bloqueios": 0,
+      "fonte": "contrato"
+    },
+    {
+      "t": "2026-09-17T14:39:16+00:00",
+      "de": "pronto_para_pr",
+      "para": "encerrado",
+      "resultado": "pr_aberto"
+    }
+  ],
+  "spec_digest": "9e2fc0c7a4ad30b96cbba008cff279f6b0aecf1cc7c1b6dae3c9f794474dc2e9",
+  "spec_selada_em": "2026-09-17T14:38:43+00:00",
+  "spec_selada_por": "abrir --spec-aprovada"
+}

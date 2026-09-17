@@ -1,0 +1,5 @@
+# estado do runner e do claude headless — não é evidência, é cache
+.mhl/
+__pycache__/
+# cópia das skills/agentes do plugin (o CI faz o mesmo cp); o canônico é plugin/
+.claude/

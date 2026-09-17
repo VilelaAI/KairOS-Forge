@@ -8,7 +8,7 @@ sugeria lembrar do Ricardo e não impedia nada. As regras duras da fábrica mora
 todas em prosa que o modelo pode driftar — a inversão exata do que o paper
 recomenda.
 
-Este script é a parte que **bloqueia**. Seis classes de risco:
+Este script é a parte que **bloqueia**. Oito classes de risco:
 
   1. Comando destrutivo      — apagar a raiz, force-push em branch protegida,
                                DROP/TRUNCATE fora de migration, curl|sh, chmod 777;
@@ -26,6 +26,26 @@ Este script é a parte que **bloqueia**. Seis classes de risco:
                                (ADR-0039). Default `aviso`: registra na trajetória
                                e avisa uma vez por arquivo na sessão; o
                                `/validar` cobra a justificativa por arquivo
+  7. Leitura de segredo      — `cat .env`, `~/.ssh`, `*.pem`, credencial AWS e o
+                               serviço de metadados, pelo shell ou pela tool Read
+                               (ADR-0042). `grep`, `ls`, `stat`, `test` passam: o
+                               caminho legítimo parecido não é negado. Piso: sem
+                               `modos`, sem `liberados`
+  8. Fiação dos hooks        — escrita que mexe no bloco `hooks` de
+                               `.claude/settings*.json`, ou em `.cursor/hooks.json`
+                               e `.codex/hooks.json`: silenciaria o guardrail inteiro
+                               de uma vez (ADR-0042). Piso, como os sagrados
+
+Mais três regras de comando no piso (ADR-0042), inspiradas no harness-toolkit do
+Tech Leads Club: destruição fora do projeto (`rm -rf` em caminho absoluto que não é
+o repositório nem temp), destruição não provável (`rm -rf` cujo alvo vem de variável
+ou substituição — não dá para provar o que apaga antes de rodar) e controle da
+máquina (`shutdown`, `reboot`, `poweroff`).
+
+E um gate de PARADA (ADR-0042, hook `Stop`): sessão que escreveu código de produção
+e não rodou nenhum gate verde depois da última escrita não encerra em silêncio.
+Default `aviso`; em `bloqueio` o modelo recebe a lista do que ficou sem prova e
+continua. Nunca dispara duas vezes na mesma parada (`stop_hook_active`).
 
 ## Goodhart: o agente não escreve o próprio medidor
 
@@ -47,8 +67,16 @@ Hook (payload do hook em stdin, exit 2 = bloqueia e o motivo vai para o modelo):
 
     guardrail.py comando    # PreToolUse  matcher Bash
     guardrail.py escrita    # PreToolUse  matcher Write|Edit
+    guardrail.py leitura    # PreToolUse  matcher Read           (ADR-0042)
     guardrail.py spec       # PostToolUse matcher Write|Edit
     guardrail.py contrato   # PostToolUse matcher Write|Edit
+    guardrail.py parada     # Stop                               (ADR-0042)
+
+Os mesmos modos servem ao Cursor (ADR-0042): `.cursor/hooks.json`, gerado pelo sync,
+chama este script nos eventos `beforeShellExecution`, `beforeReadFile`, `afterFileEdit`
+e `stop`. O payload do Cursor é reconhecido pela forma (`conversation_id` sem
+`tool_input`) e normalizado; a resposta sai no dialeto dele (`permission`,
+`additional_context`, `followup_message`) em vez de exit 2.
 
 CLI, sem hook — o caminho para Codex/OpenCode/Cursor e para CI/pre-commit,
 onde não existe PreToolUse (exit 1 se houver achado):
@@ -72,10 +100,13 @@ que o arquivo mudou — o que um sync legítimo também faz. Por isso ali o defa
     }                                              // bloqueio (default) | aviso
 
 Classes de regra, para o campo `modos`: `comando`, `protegido`, `gerado`, `spec`,
-`contrato`, `teste`. Todas nascem em `bloqueio`, menos `teste`, que nasce em `aviso`
-(refactor legítimo também edita teste — a regra existe para deixar rastro, não para
-impedir; promova a `bloqueio` num projeto onde só o humano toca a suite).
-Os caminhos sagrados nunca degradam — não há `modos` que os afrouxe.
+`contrato`, `teste`, `parada`. Todas nascem em `bloqueio`, menos `teste` e `parada`,
+que nascem em `aviso` (refactor legítimo também edita teste, e sessão de leitura
+também termina sem gate — a regra existe para deixar rastro; promova a `bloqueio`
+quando a taxa de aviso cair).
+Os caminhos sagrados, a leitura de segredo e a fiação dos hooks nunca degradam — não
+há `modos` nem `liberados` que os afrouxem. É o piso: roda antes de a configuração
+importar, e a configuração é um dos arquivos que o agente não alcança.
 
 Só stdlib.
 """
@@ -112,7 +143,69 @@ COMANDOS = [
     (r"(?i)\b(cat|dotenv|source)\b[^;|]*\.env\b[^;]*\|\s*(curl|nc|wget)",
      "exfiltração de .env por rede"),
     (r"\bgit\s+checkout\s+(.*\s)?--\s+\.(\s|$)", "descartar TODAS as mudanças não commitadas"),
+    # --- piso do ADR-0042 ---
+    (r"(^|[;&|]\s*)(sudo\s+)?(shutdown|reboot|halt|poweroff)\b|\bsystemctl\s+(poweroff|reboot|halt)\b",
+     "controle da máquina (desligar/reiniciar)"),
+    (r"\brm\s+(-\w+\s+)*-\w*[rf]\w*\s+[^;&|]*(\$\{?\w|\$\(|`)",
+     "rm -rf com alvo em variável ou substituição — destruição não provável antes de rodar"),
 ]
+
+# Leitura de segredo (ADR-0042). Nega o comando que MOSTRA o conteúdo; `grep`, `rg`,
+# `ls`, `stat`, `test`, `wc`, `file` e `find` não estão na lista de leitores e passam —
+# procurar o nome de uma variável não é ler o valor dela.
+LEITORES = re.compile(
+    r"^\s*(sudo\s+)?(cat|less|more|head|tail|bat|strings|xxd|od|hexdump|base64|sed|awk"
+    r"|cp|scp|rsync|python3?|node|ruby|perl|tee|nl|tac|rev|cut|paste)\b")
+ALVOS_SEGREDO = re.compile(
+    r"(^|[\s/\"'=])\.env(\.(?!example|sample|template|dist)[\w.-]+)?(?=[\s\"';|&)]|$)"
+    r"|(~|\$HOME|/root|/home/[\w.-]+)/\.(ssh|aws|gnupg)(/|\b)"
+    r"|/\.ssh/|\.aws/credentials|\bid_(rsa|ed25519|ecdsa|dsa)\b"
+    r"|\.(pem|p12|pfx|jks)\b|\.(npmrc|pypirc|netrc|git-credentials)\b")
+METADADOS = re.compile(r"169\.254\.169\.254|metadata\.google\.internal|100\.100\.100\.200")
+SEGREDO_EXCECAO = re.compile(r"\.(example|sample|template|dist)$")
+TEMP = ("/tmp", "/var/tmp", "/private/tmp", "/private/var")
+
+
+def le_segredo(cmd: str) -> str | None:
+    """Motivo, se algum segmento do comando mostra um segredo; None se passa."""
+    if METADADOS.search(cmd) and re.search(r"\b(curl|wget|http|fetch|nc)\b", cmd):
+        return "chamada ao serviço de metadados da nuvem — credencial temporária"
+    for seg in re.split(r"\|\||&&|;|\|", cmd):
+        if LEITORES.match(seg) and ALVOS_SEGREDO.search(seg):
+            return "leitura de segredo pelo shell (o valor entraria no transcript)"
+    return None
+
+
+def destroi_fora_do_projeto(cmd: str, cwd: str) -> str | None:
+    """`rm -rf` (ou -r/-R) em caminho absoluto fora do repositório e fora de temp."""
+    m = re.search(r"\brm\s+((?:-\w+\s+)*)(.+)$", cmd)
+    if not m or not re.search(r"-\w*[rR]", m.group(1)):
+        return None
+    try:
+        raiz = Path(cwd or ".").resolve()
+    except OSError:
+        return None
+    for tok in re.split(r"\s+", m.group(2).strip()):
+        tok = tok.strip("\"'")
+        if not tok or tok.startswith("-"):
+            continue
+        if tok.startswith("$"):
+            continue  # a regra de destruição não provável já cuida de variável
+        if tok.startswith("~"):
+            alvo = os.path.expanduser(tok)
+        elif tok.startswith("/"):
+            alvo = tok
+        elif ".." in tok:
+            alvo = str((raiz / tok).resolve())
+        else:
+            continue
+        alvo_n = alvo.rstrip("/") or "/"
+        dentro = alvo_n == str(raiz) or alvo_n.startswith(str(raiz) + "/")
+        temp = any(alvo_n == t or alvo_n.startswith(t + "/") for t in TEMP) or \
+            alvo_n.startswith((os.environ.get("TMPDIR") or "/nonexistent").rstrip("/"))
+        if not dentro and not temp:
+            return f"rm recursivo fora do projeto (`{tok}` não está em {raiz} nem em temp)"
+    return None
 
 # --- 2. arquivos protegidos ---------------------------------------------------------
 # Inegociáveis: o agente não escreve o próprio medidor nem a própria regra.
@@ -121,7 +214,34 @@ SAGRADOS = [
     (".agents/guardrails.json", "a configuração destes guardrails"),
     (".agents/ciclo/**", "o estado da máquina do arco /kairos-forge:entregar (ADR-0029)"),
     (".agents/quadro/**", "o quadro de tarefas do /kairos-forge:mobilizar (ADR-0035)"),
+    # Fiação dos hooks (ADR-0042): o arquivo em que o editor registra os hooks é o que
+    # silenciaria este guardrail inteiro de uma vez. Para o Claude Code a proteção é
+    # condicional (só o bloco `hooks` de settings*.json — ver `mexe_na_fiacao`).
+    (".cursor/hooks.json", "a fiação dos hooks do Cursor — apagar isto silencia o guardrail (ADR-0042)"),
+    (".codex/hooks.json", "a fiação dos hooks do Codex — apagar isto silencia o guardrail (ADR-0042)"),
 ]
+FIACAO_CLAUDE = [".claude/settings.json", ".claude/settings.local.json"]
+
+
+def mexe_na_fiacao(entrada: dict, alvo: Path) -> bool:
+    """Escrita em settings*.json do Claude Code que altera o bloco `hooks`.
+
+    O agente edita settings.json por motivos legítimos (permissões, env). O que não
+    pode é mexer na fiação. Write: compara o `hooks` atual com o novo. Edit: se a
+    string trocada toca `hooks`, `guardrail` ou `kairos-forge`, é fiação.
+    """
+    try:
+        atual = json.loads(alvo.read_text(encoding="utf-8")) if alvo.is_file() else {}
+    except Exception:
+        atual = {}
+    if "content" in entrada:  # Write
+        try:
+            novo = json.loads(str(entrada.get("content") or ""))
+        except Exception:
+            return bool(atual.get("hooks"))  # conteúdo ilegível sobre um arquivo com hooks
+        return (atual.get("hooks") or {}) != (novo.get("hooks") or {})
+    trecho = str(entrada.get("old_string") or "") + str(entrada.get("new_string") or "")
+    return bool(re.search(r"hooks|guardrail|execucao\.py|kairos-forge", trecho))
 
 # --- 2b. artefato gerado (ADR-0037) -------------------------------------------------
 # Os mirrors por CLI, as skills espelhadas e o manifesto de ativos são GERADOS por
@@ -155,6 +275,7 @@ GERADOS_PADRAO = [
     ".cursor/scripts/**",
     ".cursor/templates/**",
     ".cursor/rules/kairos-forge.mdc",
+    ".cursor/hooks.json",
     ".claude-plugin/ativos.manifest.json",
 ]
 
@@ -198,7 +319,7 @@ def carregar_config(raiz: Path) -> dict:
 MODO_PADRAO = "bloqueio"
 # Classe que nasce em observação (ADR-0039): editar teste existente é legítimo com
 # frequência demais para bloquear por default — o valor está no rastro.
-MODO_PADRAO_POR_CLASSE = {"teste": "aviso"}
+MODO_PADRAO_POR_CLASSE = {"teste": "aviso", "parada": "aviso"}
 
 
 def modo_de(cfg: dict, classe: str) -> str:
@@ -234,6 +355,8 @@ def registrar_recusa(raiz: Path, classe: str, regra: str, alvo: str, modo: str) 
 
 def bloquear(motivo: str, detalhe: str, saida: str, modo: str = "bloqueio") -> int:
     """exit 2 bloqueia e manda o motivo ao modelo; exit 1 avisa e deixa passar."""
+    if _EDITOR["cursor"]:
+        return responder_cursor(1 if modo == "aviso" else 2, motivo, detalhe, saida)
     if modo == "aviso":
         print(f"⚠️  kairos-forge (guardrail, modo aviso): {motivo}\n\n{detalhe}\n\n{saida}\n"
               "Esta regra está em observação — hoje ela avisa, não bloqueia.", file=sys.stderr)
@@ -325,6 +448,27 @@ def checar_comando(payload: dict) -> int:
             "reconstrua o que sobreviver com SPEC, teste e revisão numa branch normal.",
         )
 
+    # Piso (ADR-0042): sem `modos`, sem `comandos_extra` que afrouxe.
+    motivo = le_segredo(cmd)
+    if motivo:
+        registrar_recusa(raiz, "segredo", motivo, cmd[:200], "bloqueio")
+        return bloquear(
+            f"comando bloqueado — {motivo}",
+            f"Comando: {cmd[:300]}",
+            "Segredo lido pelo shell vai para o transcript e para a trajetória. Para saber "
+            "se uma variável existe, `grep -c NOME .env` responde sem mostrar o valor; para "
+            "usá-la, deixe o processo ler o arquivo (`source`, dotenv) sem imprimir.",
+        )
+    motivo = destroi_fora_do_projeto(cmd, str(raiz))
+    if motivo:
+        registrar_recusa(raiz, "comando", motivo, cmd[:200], "bloqueio")
+        return bloquear(
+            f"comando bloqueado — {motivo}",
+            f"Comando: {cmd[:300]}",
+            "Este guardrail só deixa apagar dentro do repositório ou em temp. Fora disso, "
+            "quem apaga é o humano.",
+        )
+
     regras = list(COMANDOS) + [(r, "regra do projeto") for r in cfg.get("comandos_extra", [])]
     modo = modo_de(cfg, "comando")
     for padrao, motivo in regras:
@@ -367,6 +511,17 @@ def checar_escrita(payload: dict) -> int:
                 "e guardrail que o agente afrouxa não guarda.",
                 "Quem edita este arquivo é o humano. Explique o que precisa mudar e por quê.",
             )
+
+    # Fiação dos hooks do Claude Code (ADR-0042): só quando a escrita mexe em `hooks`.
+    if rel in FIACAO_CLAUDE and mexe_na_fiacao(entrada, raiz / rel):
+        registrar_recusa(raiz, "sagrado", "fiação dos hooks", rel, "bloqueio")
+        return bloquear(
+            f"escrita bloqueada em `{rel}` — mexe no bloco `hooks`",
+            "É o arquivo em que o editor registra os hooks: alterar aqui silencia o "
+            "guardrail e a telemetria de uma vez, sem que ninguém veja.",
+            "Permissões e variáveis nesse arquivo continuam livres; o bloco `hooks` é do "
+            "humano. Explique o que precisa mudar e por quê.",
+        )
 
     # Artefato gerado (ADR-0037), por dois sinais: a marca dentro do arquivo (o que o
     # sync escreve) e o caminho (o que ele copia byte a byte).
@@ -575,6 +730,163 @@ def checar_contrato(payload: dict) -> int:
     )
 
 
+# --- modo hook: leitura de segredo pela tool Read (ADR-0042) -----------------------
+
+def checar_leitura(payload: dict) -> int:
+    entrada = payload.get("tool_input") or {}
+    caminho = str(entrada.get("file_path") or "")
+    if not caminho:
+        return 0
+    raiz = Path(payload.get("cwd") or ".")
+    rel = relativo(caminho, raiz)
+    nome = Path(rel).name
+    if SEGREDO_EXCECAO.search(nome):
+        return 0
+    if not ALVOS_SEGREDO.search(" " + rel) and not ALVOS_SEGREDO.search(" " + caminho):
+        return 0
+    registrar_recusa(raiz, "segredo", "leitura de segredo pela tool Read", rel, "bloqueio")
+    return bloquear(
+        f"leitura bloqueada de `{rel}` — arquivo de segredo",
+        "O conteúdo entraria no contexto do modelo e no transcript.",
+        "Para saber quais variáveis existem, `grep -o '^[A-Z_]*=' .env` lista os nomes "
+        "sem os valores. O valor em si é do humano e do processo que o consome.",
+    )
+
+
+# --- modo hook: gate de parada (ADR-0042) -------------------------------------------
+# A DoD da fábrica diz "gate rodado antes de encerrar". Até aqui era prosa. Aqui vira
+# hook `Stop`: a sessão que escreveu código de produção e não rodou nenhum gate verde
+# DEPOIS da última escrita não encerra sem que isso seja dito. É o "ship gate" do
+# harness-toolkit com a evidência que a fábrica já grava: a trajetória do execucao.py.
+#
+# Recorte deliberado: só a sessão atual, só escrita em produção (teste e doc não
+# contam), só o que veio depois do último gate verde. Regra que dispara em sessão de
+# leitura vira ruído, e ruído vira regra desligada.
+
+def eventos_da_sessao(raiz: Path, sessao: str) -> list[dict]:
+    pasta = raiz / ".agents" / "execucoes"
+    if not pasta.is_dir():
+        return []
+    eventos: list[dict] = []
+    for arq in sorted(pasta.glob("*.jsonl"))[-2:]:
+        try:
+            linhas = arq.read_text(encoding="utf-8").splitlines()[-3000:]
+        except OSError:
+            continue
+        for linha in linhas:
+            try:
+                ev = json.loads(linha)
+            except Exception:
+                continue
+            if ev.get("sessao") == sessao:
+                eventos.append(ev)
+    return eventos
+
+
+def pendencia_de_parada(eventos: list[dict]) -> dict | None:
+    """Arquivos de produção escritos depois do último gate verde; None se nada pende."""
+    ultimo_gate_ok = -1
+    for i, ev in enumerate(eventos):
+        if ev.get("tipo") == "comando" and ev.get("gate") and ev.get("ok") is True:
+            ultimo_gate_ok = i
+    pendentes: list[str] = []
+    for ev in eventos[ultimo_gate_ok + 1:]:
+        if ev.get("tipo") == "escrita" and ev.get("producao"):
+            arq = str(ev.get("arquivo") or "?")
+            if arq not in pendentes:
+                pendentes.append(arq)
+    if not pendentes:
+        return None
+    gates_depois = [ev for ev in eventos[ultimo_gate_ok + 1:]
+                    if ev.get("tipo") == "comando" and ev.get("gate")]
+    return {"arquivos": pendentes,
+            "gates_vermelhos": [g.get("cmd", "")[:80] for g in gates_depois if g.get("ok") is False][-3:],
+            "houve_gate_verde": ultimo_gate_ok >= 0}
+
+
+def gates_declarados(raiz: Path) -> list[str]:
+    arq = raiz / "contextos" / "testes.md"
+    if not arq.is_file():
+        return []
+    achados = []
+    for linha in arq.read_text(encoding="utf-8", errors="replace").splitlines():
+        m = re.search(r"`([^`]+)`", linha)
+        if m and linha.lstrip().startswith(("-", "*")):
+            achados.append(m.group(1))
+    return achados[:5]
+
+
+def checar_parada(payload: dict) -> int:
+    # Nunca duas vezes na mesma parada: o Claude Code marca `stop_hook_active`; o
+    # Cursor conta `loop_count`. Sem isso, gate vermelho viraria laço infinito.
+    if payload.get("stop_hook_active") or (payload.get("loop_count") or 0) > 0:
+        return 0
+    raiz = Path(payload.get("cwd") or ".")
+    sessao = str(payload.get("session_id") or "?")[:16]
+    pend = pendencia_de_parada(eventos_da_sessao(raiz, sessao))
+    if pend is None:
+        return 0
+    cfg = carregar_config(raiz)
+    modo = modo_de(cfg, "parada")
+    registrar_recusa(raiz, "parada", "encerrar sem gate verde", ", ".join(pend["arquivos"])[:200], modo)
+    lista = "\n".join(f"  · {a}" for a in pend["arquivos"][:8])
+    if len(pend["arquivos"]) > 8:
+        lista += f"\n  · … e mais {len(pend['arquivos']) - 8}"
+    declarados = gates_declarados(raiz)
+    dica = ("Gates do projeto (contextos/testes.md): " + " · ".join(f"`{g}`" for g in declarados)
+            if declarados else
+            "Rode o teste/lint do projeto (o comando de `contextos/testes.md`, ou o padrão do ecossistema).")
+    vermelhos = ("\nÚltimos gates, todos vermelhos: " + " · ".join(pend["gates_vermelhos"])
+                 if pend["gates_vermelhos"] else "")
+    return bloquear(
+        f"parada sem prova — {len(pend['arquivos'])} arquivo(s) de produção escrito(s) "
+        "sem nenhum gate verde depois",
+        f"Escritos depois do último gate verde nesta sessão:\n{lista}{vermelhos}",
+        f"{dica}\nDepois, encerre de novo. Se não há gate que cubra isso, diga ao usuário "
+        "por quê — a ausência declarada é aceitável; a silenciosa, não (ADR-0042).",
+        modo,
+    )
+
+
+# --- adaptador do Cursor (ADR-0042) -------------------------------------------------
+# O Cursor manda `command`/`file_path` na raiz do payload, `conversation_id` em vez de
+# `session_id` e `workspace_roots` em vez de `cwd`; e espera JSON no stdout, não exit 2.
+# Reconhecido pela FORMA, nunca por configuração — o mesmo princípio do harness-toolkit.
+
+_EDITOR: dict = {"cursor": False, "evento": ""}
+EVENTOS_PERMISSAO = {"beforeShellExecution", "beforeReadFile", "beforeMCPExecution", "subagentStart"}
+EVENTOS_AUDITORIA = {"afterFileEdit", "afterShellExecution", "postToolUse"}
+
+
+def normalizar_payload(payload: dict) -> dict:
+    if "tool_input" in payload or "conversation_id" not in payload:
+        return payload
+    p = dict(payload)
+    p["_cursor"] = True
+    p["session_id"] = p.get("session_id") or p.get("conversation_id")
+    raizes = p.get("workspace_roots") or []
+    p["cwd"] = p.get("cwd") or (raizes[0] if raizes else ".")
+    p["tool_input"] = {k: p[k] for k in ("command", "file_path", "content", "edits") if k in p}
+    _EDITOR["cursor"] = True
+    _EDITOR["evento"] = str(p.get("hook_event_name") or "")
+    return p
+
+
+def responder_cursor(codigo: int, motivo: str, detalhe: str, saida: str) -> int:
+    """Traduz a decisão para o dialeto do Cursor. Sempre exit 0 com JSON no stdout."""
+    ev = _EDITOR["evento"]
+    texto = f"kairos-forge (guardrail): {motivo}\n\n{detalhe}\n\n{saida}"
+    if ev in EVENTOS_PERMISSAO:
+        resp = {"permission": "deny" if codigo == 2 else "allow",
+                "agent_message": texto, "user_message": motivo}
+    elif ev == "stop":
+        resp = {"followup_message": texto} if codigo == 2 else {}
+    else:
+        resp = {"additional_context": texto}
+    print(json.dumps(resp, ensure_ascii=False))
+    return 0
+
+
 # --- modo CLI (Codex/OpenCode/Cursor, CI, pre-commit) -------------------------------
 
 def gerados_modificados(raiz: Path) -> list[str]:
@@ -703,7 +1015,7 @@ def verificar(alvo: Path) -> int:
 
 
 MODOS = {"comando": checar_comando, "escrita": checar_escrita, "spec": checar_spec,
-         "contrato": checar_contrato}
+         "contrato": checar_contrato, "leitura": checar_leitura, "parada": checar_parada}
 
 
 def main() -> int:
@@ -722,7 +1034,7 @@ def main() -> int:
         return 1
     try:
         bruto = sys.stdin.read()
-        payload = json.loads(bruto) if bruto.strip() else {}
+        payload = normalizar_payload(json.loads(bruto) if bruto.strip() else {})
         return modo(payload)
     except Exception:
         # Guardrail quebrado nunca trava a sessão — falha aberta, mas silenciosa.

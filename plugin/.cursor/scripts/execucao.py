@@ -301,11 +301,49 @@ def alertar(payload: dict) -> None:
               "mude de abordagem ou escale (ADR-0030).")
 
 
+# --- adaptador do Cursor (ADR-0042) -------------------------------------------------
+# O `.cursor/hooks.json` gerado pelo sync chama `execucao.py cursor` em todo evento; a
+# ação e a forma Claude Code do payload são derivadas do `hook_event_name`. Reconhecido
+# pela FORMA (conversation_id sem tool_name), nunca por configuração.
+EVENTOS_CURSOR = {
+    "sessionStart": "inicio", "beforeSubmitPrompt": "prompt",
+    "afterShellExecution": "ferramenta", "afterFileEdit": "ferramenta",
+    "subagentStart": "ferramenta", "stop": "fim",
+}
+
+
+def adaptar_cursor(payload: dict) -> tuple[str | None, dict]:
+    if "tool_name" in payload or "conversation_id" not in payload:
+        return None, payload
+    ev = str(payload.get("hook_event_name") or "")
+    p = dict(payload)
+    p["session_id"] = p.get("session_id") or p.get("conversation_id")
+    raizes = p.get("workspace_roots") or []
+    p["cwd"] = p.get("cwd") or (raizes[0] if raizes else ".")
+    if ev == "afterShellExecution":
+        p["tool_name"] = "Bash"
+        p["tool_input"] = {"command": p.get("command", "")}
+        p["tool_response"] = {k: p[k] for k in ("stdout", "stderr", "output", "exit_code") if k in p}
+    elif ev == "afterFileEdit":
+        p["tool_name"] = "Write"
+        p["tool_input"] = {"file_path": p.get("file_path", "")}
+    elif ev == "subagentStart":
+        p["tool_name"] = "Task"
+        p["tool_input"] = {"subagent_type": str(p.get("agent") or p.get("subagent_type") or "")}
+    elif ev == "sessionStart":
+        p["source"] = "cursor"
+    return EVENTOS_CURSOR.get(ev), p
+
+
 def main() -> int:
     try:
         acao = sys.argv[1] if len(sys.argv) > 1 else ""
         bruto = sys.stdin.read()
         payload = json.loads(bruto) if bruto.strip() else {}
+        if acao == "cursor":
+            acao, payload = adaptar_cursor(payload)
+            if acao is None:
+                return 0
 
         # `alerta` é o único modo que fala — e só em PostToolUse, onde stdout não
         # entra no contexto de toda interação (invariante 2 preservada nos demais).

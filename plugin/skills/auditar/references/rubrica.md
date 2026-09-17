@@ -84,6 +84,8 @@ python3 <plugin>/scripts/painel.py --dias 30      # o mesmo estado com as SPECs 
 
 **Regra em modo aviso é regra em observação, não regra cumprida.** Se `recusas_em_modo_aviso` está alto e estável, ou a regra vira `bloqueio` ou ela sai — regra que só avisa para sempre é decoração.
 
+**Ruído da revisão (ADR-0039).** Rode `telemetria.py ruido --dias 90`. Não pontua — reporta: revisor com ≥ 30% de achados marcados `descartado:` (mínimo 3 achados) entra no relatório como lacuna, dona Patrícia (recalibrar a persona ou a segunda passada). `não medido` — nenhum achado marcado — também é achado: significa que ninguém marca, e revisão que ninguém mede não calibra.
+
 Penalidade dura: **sessões com escrita em código de produção e nenhum gate rodado** (campo `sessoes_com_producao_sem_gate`) — subtraia 2 pontos por ocorrência, até zerar a dimensão. Código de produção escrito sem nenhuma verificação é o oposto exato de autonomia confiável; é vibe coding com mais etapas.
 
 **Sem telemetria no projeto:** pontue 0 na dimensão inteira e registre no relatório *"telemetria não instalada — autonomia não medida"*. Não estime. A regra da casa vale aqui com força total: autonomia sem instrumento é chute, e chute otimista sobre autonomia é exatamente como se produz um pipeline sem supervisão.

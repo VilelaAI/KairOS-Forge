@@ -104,11 +104,31 @@ Regras:
 - **Trajetória parcial não penaliza retroativamente.** Se o registro começa depois da data citada no `verificado:`, ou se a telemetria foi instalada no meio do trabalho, registre "fora da janela de telemetria" e não bloqueie por isso. Diga a janela coberta no relatório.
 - **Sem `.agents/execucoes/` no projeto**, pule esta etapa inteira sem penalizar o veredicto — e recomende instalar a telemetria (ADR-0021), porque sem ela a fábrica não consegue medir a própria autonomia.
 
-### 4. Rodar gates
+### 3.7. Prova negativa dos testes (ADR-0039)
 
-Rode apenas comandos relevantes e seguros:
+Gate verde e `verificado:` corroborado ainda aceitam duas formas silenciosas de prova falsa: o teste novo que passa **sem** a mudança, e o teste existente afrouxado para a suite ficar verde. Rode as duas checagens antes dos gates:
 
-- gates declarados na SPEC
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prova.py pre-patch          # teste novo rodado na base, sem o patch
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prova.py testes-alterados   # teste existente modificado ou removido no diff
+```
+
+| Resultado | O que significa | Efeito no veredicto |
+|---|---|---|
+| `falhou_na_base` | O teste novo depende da mudança | Evidência confirmada |
+| `passou_na_base` | O teste novo passa sem a mudança — não prova o que o patch fez | Requisito coberto só por esse teste = **sem evidência**. Exceção declarada pelo autor no relatório: regressão de bug que a base já corrigia |
+| `nao_executado` | Ecossistema sem comando conhecido, ou nada coletado | Registre; passe `--comando "<gate> {arquivo}"` se o projeto tiver o comando |
+| Teste existente **com sinal** (asserção removida, caso pulado, arquivo apagado) | A prova do comportamento anterior mudou junto com o código | Liste arquivo a arquivo e cobre a justificativa. Sem justificativa, **bloqueia** em P1: suite verde afrouxada é evidência contra, não a favor |
+
+Refactor legítimo também muda teste. O que separa refactor de afrouxamento é a justificativa escrita — é isso que você cobra, não a ausência de mudança. A trajetória ajuda: o guardrail registra toda edição em teste existente (`classe: teste`), então "não mexi em teste" é verificável.
+
+### 4. Rodar gates — do barato ao caro
+
+Rode apenas comandos relevantes e seguros, **nesta ordem** (ADR-0039): lint e tipos → unitários → integração → navegador/e2e → segurança e mutação, quando o projeto tiver. Gate barato vermelho **encerra a rodada**: não gaste o gate caro para confirmar o que o lint já disse — a rodada volta ao agente responsável com o achado barato, e o orçamento do `/entregar` não paga o e2e à toa.
+
+Fontes dos comandos:
+
+- gates declarados na SPEC (a coluna Tipo da matriz de testes é a camada de cada um)
 - comandos de `contextos/testes.md`
 - comandos padrão evidentes do projeto (`npm test`, `npm run lint`, `pytest`, `go test ./...`) quando não houver contexto
 
@@ -151,6 +171,10 @@ Formato:
 ## Ressalvas
 
 ## Evidências de teste
+
+## Prova negativa dos testes
+
+(Saída do `prova.py`: testes novos por veredicto; testes existentes alterados, cada um com a justificativa aceita ou "sem justificativa" — que bloqueia em P1.)
 
 ## Fundamentação no grafo
 
@@ -223,6 +247,7 @@ Próximo passo: <corrigir com agente X | rodar /kairos-forge:revisar>.
   `bloqueios: 0` com `verificado` vazio, e está certo em recusar (ADR-0032).
 - **Não esconda P2/P3.** O usuário pode aceitar follow-up, mas precisa aparecer.
 - **Marca "Concluído" na SPEC só com `verificado:` na coluna Verificação.** Diff existe + teste passou + arquivo/comando/URL citado no `verificado:`. Confiança em "código está aí" não é evidência.
+- **Teste que passa sem a mudança não é evidência da mudança** — e teste existente afrouxado sem justificativa é evidência contra (ADR-0039). O `prova.py` mede; você julga a justificativa.
 - **Evidência auto-relatada vale menos que evidência corroborada.** Quando houver trajetória, o `verificado:` é uma alegação a conferir, não um fato a aceitar. Alegação sem lastro na trajetória é "não corroborada" — e em P1 isso bloqueia.
 - **Régua de rastreabilidade (ADR-0012).** Toda saída importante precisa rastrear a cadeia completa: requisito da SPEC → artefato/diff → fonte (gate executado, e aresta do grafo quando houver) → decisão de avaliador. Elo quebrado em requisito P1 = veredicto no máximo "aprovado com ressalvas", nunca "aprovado". É essa cadeia que separa validação de opinião.
 - **PT-BR em tudo.**

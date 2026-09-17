@@ -14,9 +14,9 @@ Em `docs/specs/SPEC-<NNN>-<slug>.md` no projeto do usuário, com seções:
 - **Não-objetivos** — o que está fora
 - **Invariantes** — o que precisa ser verdade ao final
 - **Diagrama** — em SPEC Média+ com fluxo entre componentes, bloco Mermaid do desenho (à mão ou via `grafo.py mermaid`); o diagrama deriva do texto, nunca o substitui
-- **Requisitos rastreáveis** — IDs estáveis, prioridade, critério de aceite e status
-- **Plano de implementação** — tarefas atômicas, cada item ≤ 1 dia, com agente, arquivos, dependências e gates
-- **Matriz de testes** — tipo de teste por requisito/tarefa, comando esperado e responsável
+- **Requisitos rastreáveis** — IDs estáveis, prioridade, critério de aceite **com valor concreto, nunca adjetivo** (ADR-0039) e status
+- **Plano de implementação** — tarefas atômicas, cada item ≤ 1 dia (a unidade de posse do quadro), com agente, arquivos, dependências e gates; **T1 é a fatia fim a fim** (ADR-0039)
+- **Matriz de testes** — tipo de teste por requisito/tarefa, comando esperado e responsável; o tipo é a camada da escada de verificação que o `/validar` sobe do barato ao caro
 - **Riscos e mitigações**
 - **Perguntas abertas** — se houver qualquer incerteza bloqueante
 - **Próximo passo** — sugestão de comando (`/kairos-forge:mobilizar SPEC-<NNN>`)
@@ -38,7 +38,7 @@ Use este template mínimo:
 
 | ID | Requisito | Prioridade | Critério de aceite | Status | Verificação |
 |---|---|---|---|---|---|
-| <SLUG>-01 | Como <persona>, quero <ação>, para <resultado>. | P1 | WHEN <evento> THEN <resultado> SHALL <comportamento verificável>. | Pendente | — |
+| <SLUG>-01 | Como <persona>, quero <ação>, para <resultado>. | P1 | WHEN <evento> THEN <resultado> SHALL <comportamento verificável, com valor: "em ≤ 2 s", "status 403" — nunca "rápido", "correto">. | Pendente | — |
 
 Prioridades:
 - **P1**: necessário para entregar a mudança
@@ -54,13 +54,16 @@ Estados de Status × conteúdo obrigatório em Verificação:
 
 | Tarefa | Agente | Requisito(s) | Arquivos/áreas | Depende de | Done when | Gate |
 |---|---|---|---|---|---|---|
-| T1 | [Carlos] | <SLUG>-01 | `migrations/` | - | Schema aplicado e rollback definido. | `npm test -- migrations` |
+| T1 | [Lucas] | <SLUG>-01 | `api/<slug>/`, `app/<slug>/` | - | **Fatia fim a fim:** o caso mínimo atravessa todas as camadas e é testável de ponta a ponta. | `npm test -- <slug>` |
+| T2 | [Carlos] | <SLUG>-02 | `migrations/` | T1 | Schema completo aplicado e rollback definido. | `npm test -- migrations` |
 
 ## Matriz de testes
 
 | Requisito | Tipo | Responsável | Comando/gate | Evidência esperada |
 |---|---|---|---|---|
-| <SLUG>-01 | unit/integration/e2e/manual | [Ricardo] | `<comando real ou a definir>` | Caminho feliz + 1 erro cobertos. |
+| <SLUG>-01 | unit/integration/e2e/manual | [Ricardo] | `<comando real ou a definir>` | Caminho feliz + 1 erro cobertos; o teste novo falha sem a mudança. |
+
+Tipo é a **camada** da escada de verificação (ADR-0039): `unit` roda antes de `integration`, que roda antes de `e2e` — o `/validar` sobe a escada do barato ao caro e para na primeira camada vermelha.
 
 ## Riscos e mitigações
 

@@ -76,6 +76,7 @@ Acoplamento e duplicação: amostragem manual. Marque como hipótese se não hou
 
 ```bash
 python3 <plugin>/scripts/telemetria.py resumo --dias 30
+python3 <plugin>/scripts/telemetria.py ruido --dias 90    # achados de revisão descartados, por revisor (ADR-0039)
 python3 <plugin>/scripts/painel.py --dias 30      # o mesmo estado com as SPECs ao lado
 ```
 

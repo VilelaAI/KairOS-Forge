@@ -20,9 +20,9 @@ Escolha entre as personas que **não participaram da redação**, pelo eixo de r
 |---|---|---|
 | Requisito | Joana, Norma | Requisito ambíguo, sem critério de aceite verificável, ou inventado sem fonte? |
 | Arquitetura | Diego, Fernanda, Thiago | Abordagem cria acoplamento, contradiz o que existe, ou ignora carga real? |
-| Testabilidade | Ricardo, Patrícia | Dá para provar cada P1? Comando existe? Evidência é observável? |
+| Testabilidade | Ricardo, Patrícia | Dá para provar cada P1? Comando existe? Evidência é observável? Critério tem valor ou adjetivo (ADR-0039)? |
 | Segurança | Helena | Toca auth, PII, autorização ou input externo sem mitigação declarada? |
-| Escopo | Camila, Hugo | O apetite comporta? O P1 é mesmo P1? |
+| Escopo | Camila, Hugo | O apetite comporta? O P1 é mesmo P1? T1 é fatia fim a fim, ou o plano é por camada (ADR-0039)? |
 
 Cada crítico produz achados **com localização** — seção, ID do requisito, linha do
 plano. "A SPEC parece boa" não é crítica; se não achou nada, diga qual seção leu e

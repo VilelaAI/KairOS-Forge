@@ -14,7 +14,7 @@ A revisão é **multi-agente**, com cada especialista olhando sua dimensão:
 | Agente | O que revisa | Sempre roda |
 |---|---|---|
 | **Helena** (Security) | OWASP, secrets, auth, RLS, input validation, PII | ✅ Sempre |
-| **Patrícia** (QA Lead) | Cobertura de teste, edge cases não cobertos, regressão | ✅ Sempre |
+| **Patrícia** (QA Lead) | Cobertura, casos de borda, regressão; **teste afrouxado e alucinação** — import fantasma, símbolo inexistente, código morto (ADR-0039) | ✅ Sempre |
 | **Vinícius** (Performance) | Queries N+1, bundle bloat, latência, profiling | Se diff toca código de produção |
 | **Marcos** (DevOps) | CI/CD, Dockerfile, secrets em config, rollback plan | Se diff toca `.github/`, `Dockerfile`, `docker-compose`, scripts de deploy |
 | **Carlos** (DBA) | Migrations, índices, EXPLAIN ANALYZE, RLS na prática | Se diff toca migrations ou queries SQL |
@@ -97,6 +97,23 @@ Cada revisor lê o diff **na sua dimensão** e produz parecer em primeira pessoa
 > 🟡 **Médio** — `services/relatorio.ts` adicionou função `gerarPDF` sem teste.
 > 🔵 **Baixo** — `components/RelatorioForm.tsx` tem 3 caminhos de erro mas só 1 tem teste.
 
+### 4.5. Segunda passada — o revisor relê os próprios achados (ADR-0039)
+
+Antes de entregar o parecer, cada revisor relê **cada achado** contra o diff e responde duas
+perguntas: *o código citado existe nessa linha?* e *o problema acontece de fato nesse caminho,
+ou só se parece com um padrão conhecido?* Achado que não sobrevive sai antes de ser publicado.
+O motivo é o efeito cry wolf: revisão com 30% de ruído é revisão que o time aprende a ignorar
+em poucos sprints — e aí o 🔴 verdadeiro passa junto.
+
+Patrícia, na passada dela, roda o que é determinístico antes de opinar:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prova.py testes-alterados   # asserção removida, caso pulado, teste apagado
+```
+
+e confere, import a import do diff, se o módulo ou símbolo existe no repositório ou no lockfile.
+Import fantasma e API inventada são o erro que a IA ingênua mais comete e o mais barato de checar.
+
 ### 5. Consolidar veredicto
 
 Ao final, **você (a skill)** consolida os pareceres em um único relatório com veredicto agregado:
@@ -143,6 +160,12 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
 
 **Salve o relatório** em `docs/specs/revisoes/REVISAO-<SPEC-NNN ou slug da branch>-YYYY-MM-DD.md`.
 
+**Descarte é marcado, não apagado (ADR-0039).** Achado que o humano decide não acatar — ou que
+a rodada de correção contesta e o humano concorda — recebe ` · descartado: <motivo>` **na própria
+linha** e fica no relatório. É essa marca que `telemetria.py ruido` lê para medir, por revisor,
+quantos achados foram ruído: o número que calibra a persona e que o `/auditar` reporta. Achado
+apagado é ruído que ninguém mediu.
+
 Antes da v0.24 a revisão só aparecia na tela: o `/kairos-forge:entregar` registrava
 `limpo` ou `critico` na palavra do agente, enquanto a validação já vinha de artefato.
 Era a metade que faltava — agora as duas alimentam o `ciclo.py` do disco (ADR-0032).
@@ -169,6 +192,8 @@ O bloco ` ```kairos-revisao ` é o contrato, com as mesmas três regras do `/val
 - **Zero 🔴 exige lista do que foi lido.** Revisão limpa sem `examinado` é recusada pelo
   contrato — e a recusa está certa (ADR-0032).
 - **Não sugira workaround pra 🔴.** Sugira correção. Workaround vira dívida.
+- **Não publique achado que não releu.** Falso positivo custa a atenção que o 🔴 verdadeiro
+  precisa (ADR-0039); o ruído por revisor é medido e aparece na auditoria.
 
 ## Quando NÃO usar esta skill
 

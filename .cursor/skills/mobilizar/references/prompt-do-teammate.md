@@ -24,7 +24,9 @@ se precisar de mudança fora dela, peça — não faça.
 # Definition of Done
 1. Implementação completa segundo o título e o "Pronto quando" da tarefa
 2. Critério "Pronto quando" satisfeito COM evidência
-3. Teste mínimo (caminho feliz + 1 erro) se for código de produção
+3. Teste mínimo (caminho feliz + 1 erro) se for código de produção — e que **falha sem a
+   sua mudança**. Teste existente você não afrouxa: se ele está certo e o código errado,
+   conserte o código (ADR-0039)
 4. Gate rodado, ou justificativa registrada se não for possível
 5. Commit em Conventional Commits PT-BR
 

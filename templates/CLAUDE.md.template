@@ -133,5 +133,5 @@
 - PT-BR em commits, comentários, mensagens de erro
 - Toda feature não-trivial passa por `/kairos-forge:especificar`
 - Todo PR passa por `/kairos-forge:revisar`
-- Testes passam antes de qualquer push para `main`
+- Testes passam antes de qualquer push para `main` — teste novo falha sem a mudança; teste existente não se afrouxa
 - Laura cobra Definition of Done — sem ela aprovar, não é entregue

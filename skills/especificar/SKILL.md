@@ -169,6 +169,8 @@ NÃO pule pra:
 - **Não invente requisitos.** Se o arquiteto não conseguiu obter clareza, registre como pergunta aberta na SPEC e pare.
 - **Nomeie agentes específicos no plano de implementação.** Não escreva "developer" genérico — escreva "Marina" ou "Lucas".
 - **Todo requisito P1 precisa de critério de aceite verificável.** Se não dá para verificar, ainda não é requisito pronto.
+- **Critério de aceite tem valor, não adjetivo (ADR-0039).** "Rápido", "robusto", "amigável" não são critério; `WHEN <evento> THEN <resultado com valor>` é ("em ≤ 2 s", "status 403", "3 itens"). Adjetivo no critério é o que o crítico de testabilidade recusa.
+- **A primeira tarefa do plano é uma fatia fim a fim (ADR-0039).** Um caminho fino que atravessa todas as camadas e já é testável; as tarefas seguintes aprofundam. Deixado sozinho, o modelo constrói por camada — banco, depois API, depois tela — e não há nada verificável até a última.
 - **Todo item de implementação precisa de gate.** Pode ser teste automatizado, build, lint ou validação manual explícita.
 - **Status "Concluído" exige célula Verificação iniciando com `verificado:`.** A regra existe para impedir o anti-padrão de marcar pronto sem rodar nada. Inspirada no checklist do Replit-Orchestrator (`briefing.md`): só vale verificado depois que o agente rodou o comando, abriu a URL ou executou o teste. Confiança em "escrevi o código, deve funcionar" não conta.
 

@@ -115,7 +115,8 @@ PADROES_HOOK = [
 
 def checar_hooks(raiz: Path) -> int:
     n = 0
-    candidatos = [raiz / "hooks" / "hooks.json", raiz / ".codex" / "hooks.json"]
+    candidatos = [raiz / "hooks" / "hooks.json", raiz / ".codex" / "hooks.json",
+                  raiz / ".cursor" / "hooks.json"]
     for arq in candidatos:
         if not arq.is_file():
             continue

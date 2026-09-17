@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "_gerado": "GERADO por scripts/sync-multi-cli.py (kairos-forge) — ADR-0042. Não edite: o guardrail bloqueia.",
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "python3 .cursor/scripts/execucao.py cursor"
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "python3 .cursor/scripts/execucao.py cursor"
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "python3 .cursor/scripts/guardrail.py comando"
+      }
+    ],
+    "beforeReadFile": [
+      {
+        "command": "python3 .cursor/scripts/guardrail.py leitura"
+      }
+    ],
+    "afterShellExecution": [
+      {
+        "command": "python3 .cursor/scripts/execucao.py cursor"
+      },
+      {
+        "command": "python3 .cursor/scripts/execucao.py alerta"
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "python3 .cursor/scripts/execucao.py cursor"
+      },
+      {
+        "command": "python3 .cursor/scripts/guardrail.py spec"
+      },
+      {
+        "command": "python3 .cursor/scripts/guardrail.py contrato"
+      }
+    ],
+    "subagentStart": [
+      {
+        "command": "python3 .cursor/scripts/execucao.py cursor"
+      }
+    ],
+    "stop": [
+      {
+        "command": "python3 .cursor/scripts/execucao.py cursor"
+      },
+      {
+        "command": "python3 .cursor/scripts/guardrail.py parada"
+      }
+    ]
+  }
+}

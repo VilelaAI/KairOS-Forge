@@ -9,6 +9,7 @@ prioridades e os estados de Status × conteúdo obrigatório em Verificação (q
 
 Em `docs/specs/SPEC-<NNN>-<slug>.md` no projeto do usuário, com seções:
 
+- **Origem** — issue, card ou link do design doc externo de onde o pedido veio, se houver (ADR-0040); o contrato fica aqui, o link é rastro
 - **Contexto e problema** — qual dor real (referencie o RFC, se houver)
 - **Objetivo** — uma frase
 - **Não-objetivos** — o que está fora
@@ -25,6 +26,8 @@ Use este template mínimo:
 
 ```markdown
 # SPEC-NNN — <título>
+
+**Origem:** <issue #123 · card · link do design doc externo — ou "conversa">
 
 ## Contexto e problema
 

@@ -33,6 +33,13 @@
 
 {{RESPOSTA_PERGUNTA_7}}
 
+## Porta de entrada
+
+- Backlog: <GitHub Issues | Linear | Jira> (<time/projeto>). Issue ou card é entrada válida: a fábrica lê via CLI/MCP e registra a Origem na SPEC.
+- Formato de tarefa: o da SPEC (`docs/specs/`) — outras skills instaladas não mudam o formato.
+- Design doc externo: <Notion/Confluence | no repo>. O contrato fica na SPEC; o link é rastro.
+- Rótulos de triagem (`templates/ci/kairos-forge-triar.yml`): `forge:pronto`, `forge:precisa-spec`, `forge:falta-informacao`, `forge:aguardar`. `forge:construir` é seu, não da fábrica.
+
 ---
 
 ## Onde o quê mora
@@ -46,6 +53,8 @@
 | `decisoes/otimizacoes/` | Programas e linhagem dos ciclos de catraca | Skill `/otimizar` |
 | `docs/specs/` | SPECs de features | Diego, Fernanda, Thiago, Rafael |
 | `docs/specs/validacoes/` | Relatórios de aceite contra SPEC | Skill `/validar` |
+| `docs/pocs/` | Notas de POC descartável (`/rodar explorar`) — o código não vira PR | Laura + devs |
+| `DESIGN.md` | Sistema de design (formato getdesign.md) | Pablo |
 | `docs/adr/` | Decisões arquiteturais irreversíveis | Rafael principalmente |
 | `.agents/memory/` | Memórias de incidente (lições caras, uma por arquivo) | Você + agentes |
 | `.agents/grafo/` | Grafo de conhecimento: entidades e relações com proveniência | Olívia + skill `/mapear-conhecimento` |

@@ -11,7 +11,8 @@ recomenda.
 Este script é a parte que **bloqueia**. Seis classes de risco:
 
   1. Comando destrutivo      — apagar a raiz, force-push em branch protegida,
-                               DROP/TRUNCATE fora de migration, curl|sh, chmod 777
+                               DROP/TRUNCATE fora de migration, curl|sh, chmod 777;
+                               e `gh pr create` em branch `poc/*` (ADR-0040)
   2. Arquivo protegido       — segredos, config de CI, e os arquivos que o
                                agente NUNCA pode escrever (ver "Goodhart" abaixo)
   3. Artefato gerado         — mirror por CLI e manifesto: editar ali não dá erro,
@@ -160,6 +161,8 @@ GERADOS_PADRAO = [
 # --- 4. abertura de PR fora de estado (ADR-0029) -------------------------------------
 ABRE_PR = re.compile(r"\bgh\s+pr\s+create\b")
 FECHA_PR = re.compile(r"\bgh\s+pr\s+merge\b")
+# Branch de POC (ADR-0040): o código é descartável por contrato — vira notas, nunca PR.
+PREFIXO_POC = "poc/"
 
 PROTEGIDOS_PADRAO = [
     (".env", "arquivo de segredos"),
@@ -273,6 +276,15 @@ def ciclo_aberto(raiz: Path) -> dict | None:
     return None
 
 
+def branch_atual(raiz: Path) -> str:
+    try:
+        r = subprocess.run(["git", "-C", str(raiz), "rev-parse", "--abbrev-ref", "HEAD"],
+                           capture_output=True, text=True, timeout=10)
+        return r.stdout.strip() if r.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
 def checar_comando(payload: dict) -> int:
     cmd = str((payload.get("tool_input") or {}).get("command") or "")
     if not cmd.strip():
@@ -302,6 +314,16 @@ def checar_comando(payload: dict) -> int:
                 "trabalho que o arco existe para absorver. Rode `ciclo.py estado` e siga o "
                 "próximo passo que ele indica.",
             )
+
+    if ABRE_PR.search(cmd) and branch_atual(raiz).startswith(PREFIXO_POC):
+        registrar_recusa(raiz, "comando", "PR de branch de POC", cmd[:200], "bloqueio")
+        return bloquear(
+            f"abertura de PR bloqueada — a branch atual é de POC (`{branch_atual(raiz)}`)",
+            "POC é descartável por contrato (ADR-0040): o /kairos-forge:especificar lê as "
+            "notas em `docs/pocs/`, não o código.",
+            "Escreva/complete `docs/pocs/POC-<slug>.md` com o que a tentativa revelou e "
+            "reconstrua o que sobreviver com SPEC, teste e revisão numa branch normal.",
+        )
 
     regras = list(COMANDOS) + [(r, "regra do projeto") for r in cfg.get("comandos_extra", [])]
     modo = modo_de(cfg, "comando")

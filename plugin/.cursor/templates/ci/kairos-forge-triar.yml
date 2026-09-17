@@ -1,0 +1,171 @@
+# kairos-forge — triagem automática de issue (ADR-0040)
+#
+# O board é a porta de entrada da fábrica: issue, pedido de usuário, alerta ou item
+# de backlog chegam aqui com a mesma forma, e a primeira estação é classificar.
+# Laura (roteamento) e Joana (elicitação) leem a issue e aplicam UM rótulo:
+#
+#   forge:pronto            escopo claro, critério de aceite verificável, Pequeno —
+#                           dá para construir sem SPEC (bug reproduzível é o caso típico)
+#   forge:precisa-spec      é feature, ou Médio+: passa por /kairos-forge:especificar
+#   forge:falta-informacao  não dá para escrever o requisito honestamente (Pare e
+#                           Pergunte, ADR-0015) — o comentário lista as perguntas
+#   forge:aguardar          depende de outra issue, decisão ou janela
+#
+# O rótulo é fila, lock e ponto de pausa humano ao mesmo tempo:
+#   · fila — quem consome o backlog filtra por rótulo
+#   · lock — issue que já tem rótulo forge:* não é triada de novo (dois agentes
+#     nunca pegam a mesma issue); para re-triar, o humano aplica forge:triar
+#   · pausa — este workflow NUNCA aplica forge:construir. Esse rótulo é do humano:
+#     movê-lo é a aprovação de intenção, a mesma fronteira do ADR-0023. O que
+#     consome forge:construir (o arco /entregar headless) não está aqui — vem
+#     quando o arco headless tiver trajetória medida, não antes.
+#
+# Contrato de segurança (ADR-0026): só escreve rótulo e comentário; permissão
+# mínima; uma execução por issue; timeout; sem credencial, pula com aviso.
+#
+# Instale em .github/workflows/, crie os cinco rótulos forge:* no repositório e o
+# secret ANTHROPIC_API_KEY.
+
+name: kairos-forge — triar issue
+
+on:
+  issues:
+    types: [opened, reopened, labeled]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: forge-triar-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triar:
+    # Dispara em issue nova/reaberta sem rótulo forge:*, ou quando o humano pede
+    # re-triagem com forge:triar. PR não é issue — ignora.
+    if: >
+      !github.event.issue.pull_request &&
+      (
+        github.event.action != 'labeled' ||
+        github.event.label.name == 'forge:triar'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Lock — já foi triada?
+        id: lock
+        env:
+          ROTULOS: ${{ join(github.event.issue.labels.*.name, ' ') }}
+          ACAO: ${{ github.event.action }}
+        run: |
+          if [ "$ACAO" != "labeled" ]; then
+            for r in $ROTULOS; do
+              case "$r" in
+                forge:pronto|forge:precisa-spec|forge:falta-informacao|forge:aguardar|forge:construir)
+                  echo "⏭️  issue já carrega $r — não triando de novo (o rótulo é o lock)."
+                  echo "seguir=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+              esac
+            done
+          fi
+          echo "seguir=true" >> "$GITHUB_OUTPUT"
+
+      - name: Verificar credencial
+        if: steps.lock.outputs.seguir == 'true'
+        id: cred
+        env:
+          CHAVE: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$CHAVE" ]; then
+            echo "⏭️  ANTHROPIC_API_KEY não configurado — triagem pulada."
+            echo "ativo=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ativo=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.cred.outputs.ativo == 'true'
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        if: steps.cred.outputs.ativo == 'true'
+        with:
+          node-version: "20"
+
+      - name: Instalar Claude Code e a fábrica
+        if: steps.cred.outputs.ativo == 'true'
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          git clone --depth 1 https://github.com/VilelaAI/kairos-forge /tmp/forge
+          mkdir -p .claude
+          cp -R /tmp/forge/plugin/skills .claude/skills
+          cp -R /tmp/forge/plugin/agents .claude/agents
+
+      - name: Ler a issue
+        if: steps.cred.outputs.ativo == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMERO: ${{ github.event.issue.number }}
+        run: |
+          gh issue view "$NUMERO" --json title,body,labels,comments \
+            --jq '"# " + .title + "\n\n" + (.body // "") + "\n\n## Comentários\n" + ([.comments[].body] | join("\n---\n"))' \
+            > issue.md
+
+      - name: Triar — Laura roteia, Joana elicita
+        if: steps.cred.outputs.ativo == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude -p "Você é a fábrica kairos-forge fazendo a TRIAGEM de uma issue (ADR-0040). \
+            A issue está em issue.md; o projeto está no diretório atual (leia CLAUDE.md, \
+            contextos/ e docs/specs/ se existirem para não perguntar o que o repo já responde). \
+            Laura classifica e Joana (elicitação) confere se dá para escrever o requisito \
+            honestamente — Pare e Pergunte (ADR-0015): conteúdo sem fonte, integração sem \
+            provedor, cálculo sem fórmula, tela vaga → falta informação. \
+            Escolha EXATAMENTE UM rótulo: forge:pronto (escopo claro, critério de aceite \
+            verificável, tamanho Pequeno — bug reproduzível com passos é o caso típico), \
+            forge:precisa-spec (feature ou Médio+, passa por /kairos-forge:especificar), \
+            forge:falta-informacao (liste as perguntas, uma por linha, com default \
+            recomendado quando a escolha for reversível — ADR-0019), \
+            forge:aguardar (depende de outra issue, decisão ou janela — diga qual). \
+            NUNCA use forge:construir: esse rótulo é do humano. \
+            Não implemente nada, não abra PR, não invente escopo. \
+            Responda em PT-BR. PRIMEIRA LINHA, sozinha: ROTULO: <o rótulo>. \
+            Depois, o parecer em até 15 linhas: tamanho estimado (Trivial/Pequeno/Médio/\
+            Grande/Complexo), quem da fábrica entraria, e o que falta ou o próximo comando." \
+            > triagem.md || true
+          echo "--- parecer ---"; cat triagem.md
+
+      - name: Aplicar rótulo e comentar (nunca forge:construir)
+        if: steps.cred.outputs.ativo == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMERO: ${{ github.event.issue.number }}
+        run: |
+          ROTULO=$(grep -m1 -oE 'ROTULO:\s*forge:(pronto|precisa-spec|falta-informacao|aguardar)' triagem.md \
+                   | sed -E 's/ROTULO:\s*//')
+          if [ -z "$ROTULO" ]; then
+            {
+              echo "## 🔎 Triagem da fábrica — inconclusiva"
+              echo
+              echo "A fábrica leu a issue mas não conseguiu classificar com confiança. Nenhum rótulo aplicado — um humano decide."
+              echo
+              echo '<details><summary>Parecer bruto</summary>'; echo; cat triagem.md; echo; echo '</details>'
+              echo
+              echo "_Gerado por kairos-forge (triar, ADR-0040). Para tentar de novo, aplique o rótulo \`forge:triar\`._"
+            } > comentario.md
+            gh issue comment "$NUMERO" --body-file comentario.md
+            exit 0
+          fi
+          {
+            echo "## 🔎 Triagem da fábrica — \`$ROTULO\`"
+            echo
+            tail -n +2 triagem.md
+            echo
+            echo "---"
+            echo "_Rótulo é fila, lock e pausa: \`forge:construir\` é seu, não da fábrica. Para re-triar, aplique \`forge:triar\`. (kairos-forge, ADR-0040)_"
+          } > comentario.md
+          gh issue edit "$NUMERO" --add-label "$ROTULO" --remove-label "forge:triar" 2>/dev/null \
+            || gh issue edit "$NUMERO" --add-label "$ROTULO"
+          gh issue comment "$NUMERO" --body-file comentario.md

@@ -54,7 +54,8 @@ Foco visível, ordem de tabulação, labels/aria, contraste, alvo de toque.
 Critérios verificáveis, não intenções.
 
 ## Componentes (Pablo)
-O que reusa do design system do projeto e o que nasce novo (novo exige justificativa).
+O que reusa do `DESIGN.md` do projeto e o que nasce novo (novo exige justificativa e
+entra no `DESIGN.md` depois de aprovado).
 
 ## Critérios de aceite visuais
 | ID | Critério verificável | Como verificar |
@@ -70,6 +71,16 @@ Microcopy das telas (mensagens de erro, empty states) é da **Celina**
 produto é multi-idioma, **Ingrid** entra nos requisitos de i18n do layout
 (texto 30% maior quebra o quê?).
 
+## O sistema de design mora em `DESIGN.md` (ADR-0040)
+
+Dois arquivos com nome parecido e papéis diferentes: **`DESIGN.md` na raiz** é o sistema
+de design do projeto — cores, tipografia, espaçamento, componentes — no formato do
+[getdesign.md](https://getdesign.md), dono **Pablo**; **`docs/design/DESIGN-NNN.md`** é
+uma feature. Feature com UI num projeto sem `DESIGN.md`: Pablo extrai o sistema do código
+existente (ou o usuário gera com `npx getdesign.md`) **antes** do DESIGN-NNN, senão cada
+feature inventa o seu. Novo componente só nasce com justificativa e volta para o
+`DESIGN.md` quando aprovado.
+
 ## Modo verificar — depois de implementado
 
 A "prova dos nove" visual, antes do `/revisar`:
@@ -80,6 +91,8 @@ A "prova dos nove" visual, antes do `/revisar`:
 2. Ada verifica os critérios de acessibilidade no resultado real (navegação
    por teclado, leitor de tela nos fluxos críticos, contraste medido).
 3. Responsivo nos breakpoints declarados.
+3.5. Pablo confere a implementação contra o `DESIGN.md`: token de cor, tipografia e
+   espaçamento fora do sistema é ⚠️ divergente, com o valor usado e o do sistema.
 4. Saída: parecer por critério — ✅ conforme / ⚠️ divergente (com o que
    difere) / 🔴 estado ausente. Estado ausente é bloqueio: view sem estado de
    erro definido quebra em produção, não em review.

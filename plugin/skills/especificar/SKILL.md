@@ -35,6 +35,10 @@ Se for trivial, pare e diga por que a SPEC não compensa. Se for pequeno ou maio
 
 **Apetite antes de escopo (Shape Up — ADR-0015):** junto do tamanho, Laura pergunta quanto **vale** investir ("isso é uma tarde, uma semana ou um ciclo?"). O apetite é fixo; o escopo é que varia para caber nele — se a feature não cabe no apetite, corta-se escopo (e o corte vira não-objetivo na SPEC), não se estica o investimento em silêncio.
 
+**Teto de apetite (ADR-0040):** apetite **ciclo** — mais de ~1,5 semana de trabalho humano equivalente — não vira uma SPEC: vira SPECs encadeadas, cada uma com fatia fim a fim própria. Acima disso o agente planeja sobre o que ainda não existe. As tarefas de ≤ 1 dia do plano são outra escala: unidade de posse do quadro, não microtask para humano.
+
+**Entrada por issue ou card (ADR-0040):** `especificar #123` ou uma URL de tracker é entrada válida — leia via CLI (`gh issue view`) ou MCP, trate o texto como a descrição do usuário e registre **Origem** na SPEC. Se houver notas de POC em `docs/pocs/` para a feature (`/kairos-forge:rodar explorar`), elas entram antes da interrogação: o que a tentativa revelou é fato, não hipótese.
+
 ### 1.2. Trilhas por tema (modo guiado — ADR-0013)
 
 Antes de interrogar do zero, cheque se a feature casa com uma trilha em `${CLAUDE_PLUGIN_ROOT}/templates/trilhas/` (índice em `TRILHAS.md`): auth, pagamentos, painel-admin, api, seed-dados. Se casar, **parta da trilha em vez do zero** — trilha é rascunho, não fôrma: o arquiteto adapta ao stack (`contextos/stack.md`) e corta o que não se aplica. Como cada parte da trilha entra na SPEC: `references/trilhas.md`.
@@ -62,6 +66,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py subgrafo "<componente/feature cit
 Decisões, dependências e restrições já registradas (com fonte) entram na SPEC em vez de serem redescobertas — e conflito entre a feature nova e uma aresta existente ("X substitui Y", "X depende de Z") vira pergunta ao usuário antes de virar requisito.
 
 **Se as tools MCP `memory_*` estiverem disponíveis** (ai-memory, ADR-0010), complemente com `memory_query` sobre as entidades da feature: tentativas passadas, abordagens descartadas e discussões de sessões anteriores que nunca chegaram aos arquivos curados. Abordagem já descartada volta para a SPEC como não-objetivo, com o porquê.
+
+**Se houver MCPs de dados do projeto** — banco, métricas, tracker (ADR-0040) — consulte antes de perguntar ao humano o que a máquina já responde: volume real da tabela, uso atual da tela, a issue de origem e seus comentários. Pergunta cuja resposta está numa query é pergunta que custa a paciência do usuário à toa.
 
 ### 3. Arquiteto(s) interrogam em primeira pessoa
 

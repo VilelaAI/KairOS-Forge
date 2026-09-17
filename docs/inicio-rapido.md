@@ -32,7 +32,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver:
 
 ```
-🔥 kairos-forge v0.32 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: ...
+🔥 kairos-forge v0.33 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: ...
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -250,6 +250,21 @@ escreve a própria regra.
 **A evidência passa a ser conferida.** O `/validar` cruza cada `verificado:` com
 o que realmente rodou. Isso significa que uma SPEC otimista não passa mais só
 porque o texto está bem escrito.
+
+## Se você vem de PRD, Design Doc, RFC e task
+
+A fábrica usa os mesmos documentos com outros nomes (ADR-0040):
+
+| Na sua empresa | No forge | Onde |
+|---|---|---|
+| PRD (o porquê, a nível de produto) | Contexto, objetivo e Working Backwards da SPEC; Camila (PM) e o apoio-requisitos quando precisa de mais | `docs/specs/SPEC-NNN.md`, seções iniciais |
+| Design Doc / TDD (problema + solução técnica de alto nível) | A SPEC: abordagem escolhida, diagrama, invariantes | `docs/specs/SPEC-NNN.md` |
+| RFC (opções em aberto para uma decisão) | Modo RFC do `/especificar`, revisado por Rafael | `docs/rfcs/` |
+| ADR (decisão tomada) | ADR | `docs/adr/` |
+| Task / ticket (o quê, sem o porquê) | Plano de implementação da SPEC — tarefas de ≤ 1 dia, unidade de posse do quadro | mesma SPEC, seção Plano |
+| Issue no board | Origem da SPEC; triada por `templates/ci/kairos-forge-triar.yml` | campo Origem |
+| Design doc no Notion/Confluence | Link no campo Origem; o contrato fica no repo | campo Origem |
+| Branch de POC | `/kairos-forge:rodar explorar <missão>` — notas em `docs/pocs/`, código nunca vira PR | `docs/pocs/` |
 
 ## Atalhos úteis
 

@@ -143,7 +143,11 @@ COMANDOS = [
     (r"(?i)\b(cat|dotenv|source)\b[^;|]*\.env\b[^;]*\|\s*(curl|nc|wget)",
      "exfiltração de .env por rede"),
     (r"\bgit\s+checkout\s+(.*\s)?--\s+\.(\s|$)", "descartar TODAS as mudanças não commitadas"),
-    # --- piso do ADR-0042 ---
+]
+
+# Piso do ADR-0042: regras de comando que NÃO obedecem a `modos` — ficavam na lista de
+# cima e um `{"modos": {"comando": "aviso"}}` as rebaixava junto com o resto.
+PISO_COMANDOS = [
     (r"(^|[;&|]\s*)(sudo\s+)?(shutdown|reboot|halt|poweroff)\b|\bsystemctl\s+(poweroff|reboot|halt)\b",
      "controle da máquina (desligar/reiniciar)"),
     (r"\brm\s+(-\w+\s+)*-\w*[rf]\w*\s+[^;&|]*(\$\{?\w|\$\(|`)",
@@ -468,6 +472,15 @@ def checar_comando(payload: dict) -> int:
             "Este guardrail só deixa apagar dentro do repositório ou em temp. Fora disso, "
             "quem apaga é o humano.",
         )
+    for padrao, motivo in PISO_COMANDOS:
+        if re.search(padrao, cmd):
+            registrar_recusa(raiz, "comando", motivo, cmd[:200], "bloqueio")
+            return bloquear(
+                f"comando bloqueado — {motivo}",
+                f"Comando: {cmd[:300]}",
+                "Se for realmente necessário, peça ao usuário para executar. "
+                "Ação irreversível não roda em fluxo autônomo (ADR-0024).",
+            )
 
     regras = list(COMANDOS) + [(r, "regra do projeto") for r in cfg.get("comandos_extra", [])]
     modo = modo_de(cfg, "comando")

@@ -197,5 +197,25 @@ class AdaptadorCursor(Sandbox):
         self.assertIn("src/a.py", json.loads(out)["followup_message"])
 
 
+class VerificarNoCI(Sandbox):
+    def rodar(self) -> tuple[int, str]:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            codigo = guardrail.verificar(self.raiz)
+        return codigo, out.getvalue()
+
+    def test_env_example_passa_e_env_reprova(self) -> None:
+        # As mesmas exceções do hook de escrita: `.env.example` existe para ser versionado.
+        (self.raiz / ".env.example").write_text("API_KEY=\n", encoding="utf-8")
+        (self.raiz / "certs").mkdir()
+        (self.raiz / "certs" / "README.md").write_text("onde ficam as chaves\n", encoding="utf-8")
+        self.assertEqual(self.rodar()[0], 0)
+        (self.raiz / ".env").write_text("API_KEY=x\n", encoding="utf-8")
+        codigo, saida = self.rodar()
+        self.assertEqual(codigo, 1)
+        self.assertIn(".env:", saida)
+        self.assertNotIn(".env.example", saida)
+
+
 if __name__ == "__main__":
     unittest.main()

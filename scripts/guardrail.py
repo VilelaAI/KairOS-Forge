@@ -1015,8 +1015,12 @@ def verificar(alvo: Path) -> int:
 
     for padrao, motivo in PROTEGIDOS_PADRAO[:5]:  # só os de segredo, não o de CI
         for achado in raiz.rglob(padrao.replace("**/", "")):
-            if achado.is_file() and ".git/" not in str(achado):
-                problemas.append(f"{achado}: {motivo} versionado no projeto?")
+            if not achado.is_file() or ".git/" in str(achado):
+                continue
+            # As mesmas exceções do hook de escrita: `.env.example` existe para ser versionado.
+            if any(casa(achado.name, exc) for exc in EXCECOES):
+                continue
+            problemas.append(f"{achado}: {motivo} versionado no projeto?")
 
     if problemas:
         print(f"🛑 guardrail: {len(problemas)} achado(s)")

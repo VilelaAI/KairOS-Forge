@@ -388,6 +388,20 @@ def checar():
         if (RAIZ / rel).read_bytes() != (plugin / rel).read_bytes():
             problemas.append(f"paridade: {rel} difere entre raiz e plugin/")
 
+    # Script citado por skill via ${CLAUDE_PLUGIN_ROOT}/scripts/ chega ao Cursor, que
+    # resolve esse caminho para `.cursor/` (rule alwaysApply). O `prova.py` ficou de
+    # fora da lista do sync do ADR-0039 ao ADR-0043 e nada acusou. O sync-multi-cli.py
+    # é a exceção: só é citado para `instalar` no Codex e no OpenCode.
+    citados = set()
+    for p in sorted((RAIZ / "skills").rglob("*.md")):
+        citados |= set(re.findall(r"\$\{CLAUDE_PLUGIN_ROOT\}/scripts/([\w.-]+\.py)",
+                                  p.read_text(encoding="utf-8")))
+    for nome in sorted(citados - {"sync-multi-cli.py"}):
+        if not (RAIZ / ".cursor/scripts" / nome).is_file():
+            problemas.append(f".cursor/scripts/{nome} ausente — skill cita "
+                             f"${{CLAUDE_PLUGIN_ROOT}}/scripts/{nome}; inclua em "
+                             "SCRIPTS_DE_SUPORTE do sync-multi-cli.py")
+
     # Toda skill aparece nos banners e manifests que listam skills por nome
     for rel in ["hooks/hooks.json", ".codex/hooks.json",
                 ".claude-plugin/plugin.json", ".codex-plugin/plugin.json"]:

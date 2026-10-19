@@ -50,3 +50,12 @@ muda vira visível na prática, porque o construtor aprende os casos por osmose.
 
 **Divergência entre os dois é o sinal mais valioso do eval:** visível em 95% e selado em
 70% não é ruído amostral — é ajuste ao teste, medido.
+
+**Selado que vazou não sela.** O caminho mais curto de um caso selado até o sistema
+avaliado é a cópia: alguém cola o caso como exemplo no prompt, na persona, em
+`contextos/` ou num teste, ou o mesmo caso acaba nos dois arquivos. O
+`prova.py selado` procura cada trecho de seis ou mais palavras de cada caso selado no
+texto do repositório (fora de `evals/` e da trajetória) e no `gold.jsonl` irmão, e sai 1
+se achar. É alarme, não defesa: ele pega cópia literal, e a paráfrase só aparece na
+divergência acima. O Harness² registra o caso que motiva o alarme: num teste de
+validação, um executor **baixou a rubrica da tarefa sem ninguém pedir** (ADR-0043).

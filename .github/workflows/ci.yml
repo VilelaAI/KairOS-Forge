@@ -28,7 +28,8 @@ jobs:
       - name: Versão, contagens, paridade, mirrors e integridade dos gold sets
         # Inclui a boa-formação de evals/comportamento-fabrica/gold.jsonl (ADR-0031):
         # o eval precisa de modelo para rodar, mas a integridade do conjunto não —
-        # e é ela que apodrece em silêncio.
+        # e é ela que apodrece em silêncio. E o `prova.py selado` (ADR-0043): caso
+        # de evals/*/selado.jsonl copiado para persona, skill ou doc reprova.
         run: python3 scripts/release.py check
 
       - name: Segurança dos agentes (allow-lists, hooks e segredos)

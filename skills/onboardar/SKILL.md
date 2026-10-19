@@ -140,6 +140,10 @@ pra entender, causa-raiz não-óbvia, solução contraintuitiva, anti-padrão vo
 fácil em outro lugar). Cada arquivo tem frontmatter (name, description) + corpo
 em formato "Por que (o incidente)" + "Como aplicar".
 
+Lição que nasce de uma mudança na própria fábrica (`/evoluir`, `/otimizar`), e não
+de um incidente, troca o "Por que" por "Quando reconhecer", "Evidência" (o contraste
+antes × depois) e "Confiança". Sem contraste, não vira memória (ADR-0043).
+
 ## Memórias deste projeto
 
 (Vazio inicialmente — adicione uma linha por memória conforme criar:)

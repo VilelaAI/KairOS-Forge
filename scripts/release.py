@@ -497,6 +497,24 @@ def checar():
         for cap in sorted(CAPACIDADES_FABRICA - set(capacidades)):
             problemas.append(f"comportamento-fabrica: capacidade '{cap}' sem nenhum caso")
 
+    # Conjunto selado fora do texto de instrução (ADR-0043). Só o selado aprova, e
+    # selado copiado para persona, skill ou doc aprova quem já leu a resposta.
+    try:
+        sys.dont_write_bytecode = True
+        sys.path.insert(0, str(RAIZ / "scripts"))
+        import prova
+        sel = prova.selado(RAIZ)
+        for v in sel["vazamentos"]:
+            problemas.append(f"{v['selado']} linha {v['linha']}: caso selado aparece em "
+                             f"{', '.join(v['onde'][:3])} — tire de lá e rotacione o caso")
+        for v in sel["no_visivel"]:
+            problemas.append(f"{v['selado']} linha {v['linha']}: caso selado repetido no "
+                             f"visível {v['visivel']}")
+        for v in sel["ilegiveis"]:
+            problemas.append(f"{v['selado']} linha {v['linha']}: JSON inválido — {v['erro']}")
+    except Exception as e:
+        problemas.append(f"conjunto selado: não foi possível verificar — {e}")
+
     # Contratos de integração assinados (ADR-0034). O digest existe para que mudança
     # de forma não passe em silêncio — quem consome do outro lado não descobre em
     # produção. Mesma disciplina do digest de certificação do ADR-0030.

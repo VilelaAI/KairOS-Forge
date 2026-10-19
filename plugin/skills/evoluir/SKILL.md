@@ -55,6 +55,44 @@ sem inventar tendência a partir de nada.
 
 Se as tools MCP `memory_*` estiverem disponíveis (ai-memory, ADR-0010): `memory_recent` e `memory_query` sobre a semana (prompts repetidos, tarefas que apareceram várias vezes, sessões longas no mesmo problema). Use como **provocação concreta** nas perguntas — "vi que você pediu geração de fixture 4 vezes esta semana; isso é a repetição?" — em vez de depender só da lembrança do usuário. A resposta continua sendo dele: evidência sugere, não decide.
 
+## Fechar a evolução anterior (ADR-0043)
+
+Antes de escolher a próxima, dê veredicto à última. Abra o `decisoes/evolucoes/EVOL-*.md`
+mais recente, leia o critério de pronto e a linha de base que ele gravou, e compare com a
+evidência que você acabou de coletar. Escreva **um** veredicto, com o contraste que o
+sustenta:
+
+| Veredicto | Quando |
+|---|---|
+| `ajudou` | O que o critério de pronto nomeia mudou na direção prevista, comparado com a linha de base |
+| `piorou` | O que a evolução devia melhorar piorou, ou ela trouxe custo novo (atrito, recusa, rodada a mais) |
+| `sem efeito observado` | Entrou na fábrica e nada do que ela nomeava mudou |
+| `confundido` | Mais de uma coisa mudou na semana (outra capacidade, modelo, tipo de trabalho), ou uma ocorrência só sustenta a diferença. **É o default** quando não dá para isolar |
+
+- **Adoção não é evidência.** "Está instalada e o usuário gostou" não é `ajudou`: a
+  pergunta é o que mudou em relação à linha de base, não se a coisa existe.
+- **Prefira `confundido` a uma atribuição inventada.** Lição errada envenena todo ciclo
+  seguinte; `confundido` honesto é registro útil.
+- **`piorou` volta à mesa.** A candidata natural da semana passa a ser desfazer ou
+  corrigir a evolução anterior, não construir por cima dela.
+- **Sem registro anterior, ou registro sem linha de base** (anteriores ao ADR-0043):
+  diga isso e siga. O veredicto começa a valer a partir do primeiro EVOL com linha de base.
+
+**Lição só com contraste.** Com `ajudou` ou `piorou` e contraste concreto, a lição que
+transfere pode subir para `.agents/memory/<slug>.md`, com quatro campos:
+
+- **Quando reconhecer:** a forma da situação, não o fato deste projeto.
+- **Como aplicar:** a operação na fábrica, nomeando o componente (skill, hook, persona,
+  contexto, guardrail).
+- **Evidência:** linha de base → agora, e onde se viu.
+- **Confiança:** alta, média ou baixa, e por quê.
+
+Genérica demais não muda nada ("documentar melhor"); específica demais nunca dispara de
+novo ("o teste de pagamento demora 40 s"). O alvo fica entre as duas: "quando o mesmo gate
+fica vermelho por fixture faltando em sessões seguidas, um script que gera a fixture corta
+mais rodadas de correção do que uma instrução na skill". Sem contraste, o registro diz
+`sem lição` — o veredicto continua valendo.
+
 ## A entrevista — 5 perguntas
 
 Faça **uma pergunta por vez**. Sem enfileirar.
@@ -127,7 +165,20 @@ Se houver: candidato a virar background task, scheduled job ou hook proativo.
 
 ## Critério de pronto
 
-Como saberemos que está funcionando. Concreto, verificável.
+Como saberemos que está funcionando. Concreto, verificável — e o contraste que vai
+provar: o que muda em relação à linha de base abaixo.
+
+## Linha de base
+
+(O número ou comportamento que o critério de pronto vai comparar no próximo ciclo,
+medido agora: linha do `telemetria.py resumo`, contagem, ocorrência. Sem trajetória,
+diga como vai observar.)
+
+## Veredicto da evolução anterior
+
+**Item:** <nome> (EVOL-YYYY-MM-DD) · **Veredicto:** ajudou | piorou | sem efeito observado | confundido
+**Contraste:** <linha de base → agora, e onde se viu>
+**Lição:** <.agents/memory/<slug>.md> | sem lição
 
 ## Outros candidatos descartados nesta rodada
 
@@ -151,6 +202,8 @@ Outros candidatos ficaram registrados para os próximos ciclos.
 
 ## Regras
 
+- **Veredicto antes da escolha.** A evolução anterior recebe veredicto antes de a próxima
+  ser escolhida. `confundido` é resposta válida; `ajudou` sem contraste não é.
 - **Uma pergunta por vez.** Não enfileire as 5.
 - **Não construa nada agora.** Esta skill produz a SPEC do que será construído. A construção é trabalho do arquiteto + codificador na semana seguinte.
 - **Recomende UM item.** Mesmo que apareçam 5 candidatos. Disciplina é o que faz a fábrica evoluir consistentemente.

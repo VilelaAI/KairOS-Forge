@@ -29,11 +29,18 @@ Laura em `evals/roteamento-laura/gold.jsonl`". Para cada caso ela apresenta o
 `pedido` à Laura (sem revelar o esperado), registra qual agente foi acionado e
 fecha o relatório com acurácia e os erros caso a caso.
 
-**Headless (uma amostra):**
+**Headless (ADR-0025):** o `rodar.py` apresenta cada `pedido` à Laura via `claude -p`,
+com o catálogo de ids injetado, compara com o `esperado` e falha abaixo do limiar:
 
 ```bash
-claude -p "Como Laura (Tech Lead) do kairos-forge, diga apenas o id do agente que você acionaria para: 'A fila está entregando a mesma mensagem duas vezes'"
+python3 evals/roteamento-laura/rodar.py                  # todos os casos, limiar 90%
+python3 evals/roteamento-laura/rodar.py --amostra 15     # subconjunto barato
+python3 evals/roteamento-laura/rodar.py --limiar 85 --json
 ```
+
+Sem o CLI `claude` ou sem credencial ele sai 0 e diz que pulou: CLI deslogado é eval
+que não rodou, não 0% de acurácia. No CI, o job `eval-roteamento` roda no merge para
+`main` ou por disparo manual — não em todo PR, porque custa tokens.
 
 ## Critérios
 
@@ -47,6 +54,15 @@ claude -p "Como Laura (Tech Lead) do kairos-forge, diga apenas o id do agente qu
 
 ## Parte determinística
 
-`scripts/release.py check` (roda no CI) valida que todo id citado em
+`scripts/release.py check` (roda em todo PR) valida que todo id citado em
 `esperado` existe em `agents/` — gold set nunca aponta para agente morto.
-A acurácia em si depende de LLM e é responsabilidade da Alice na sessão.
+A acurácia depende de LLM: é o `rodar.py`, no job à parte, ou a Alice na sessão.
+
+## Ainda sem conjunto selado
+
+Os 68 casos estão todos no visível. O `/kairos-forge:avaliar` manda separar ~40% em
+`selado.jsonl` e aprovar só pelo selado (ADR-0030), e o `prova.py selado` — que já roda
+dentro do `release.py check` — passa a proteger esse arquivo assim que ele existir:
+caso selado copiado para uma `description` ou repetido no `gold.jsonl` reprova o CI
+(ADR-0043). Enquanto não houver divisão, o número deste eval mede o visível, onde os
+prompts já foram ajustados.

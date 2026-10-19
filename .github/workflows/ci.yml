@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # O job eval-roteamento já previa o disparo manual no `if`, mas sem este
+  # gatilho o ramo nunca acontecia.
+  workflow_dispatch:
 
 jobs:
   verificar:

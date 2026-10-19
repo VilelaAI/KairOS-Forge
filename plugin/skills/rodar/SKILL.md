@@ -100,7 +100,7 @@ O artefato sai em `docs/decisoes/DEBATE-<slug>.md` — ou direto na seção de a
 
 ## Modo guiado — trilhas por tema
 
-Usuário que não sabe por onde começar ("quero login no meu app", "preciso cobrar por assinatura") não precisa aprender o fluxo: Laura reconhece o tema numa trilha de `${CLAUDE_PLUGIN_ROOT}/templates/trilhas/` (auth, pagamentos, painel-admin, api, seed-dados) e conduz — apresenta o que a trilha entrega, faz as perguntas da trilha e encaminha pro `/kairos-forge:especificar` já com o rascunho. Modo guiado é a mesma fábrica com a porta de entrada mais baixa, não um produto separado.
+Usuário que não sabe por onde começar ("quero login no meu app", "preciso cobrar por assinatura") não precisa aprender o fluxo: Laura reconhece o tema numa trilha de `${CLAUDE_PLUGIN_ROOT}/templates/trilhas/` (auth, pagamentos, painel-admin, api, seed-dados, pipeline-dados) e conduz — apresenta o que a trilha entrega, faz as perguntas da trilha e encaminha pro `/kairos-forge:especificar` já com o rascunho. Modo guiado é a mesma fábrica com a porta de entrada mais baixa, não um produto separado.
 
 ## Contexto via grafo de conhecimento
 

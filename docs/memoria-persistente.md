@@ -7,10 +7,12 @@ A fábrica kairos-forge trabalha com **três camadas de memória** (ADR-0010). E
 | Camada | O que guarda | Onde vive | Quem mantém |
 |---|---|---|---|
 | **1. Episódica (sessão)** | O que aconteceu em cada sessão: prompts, ferramentas rodadas, tentativas que falharam, handoff "onde parei" | Servidor ai-memory do usuário (wiki markdown + SQLite, **fora do repo**) | Hooks automáticos — zero cerimônia. **Opcional** |
-| **2. Curada (arquivos)** | Decisões (`decisoes/log.md`), incidentes caros (`.agents/memory/`), convenções e restrições (`contextos/`), ADRs | No repo do projeto | Humano + agentes, deliberadamente |
-| **3. Estrutural (grafo)** | Entidades e relações com proveniência; responde pergunta multi-hop | `.agents/grafo/` no repo | Olívia, via `/kairos-forge:mapear-conhecimento` (ADR-0009) |
+| **2. Curada (arquivos)** | Decisões (`decisoes/log.md`), lições caras em `.agents/memory/` (de incidente, ou de mudança na fábrica com contraste observado — ADR-0043), convenções e restrições (`contextos/`), ADRs | No repo do projeto | Humano + agentes, deliberadamente |
+| **3. Estrutural (grafo)** | Entidades e relações com proveniência; responde pergunta multi-hop. Mais a camada de código (`codigo.jsonl`): arestas de import, herança e instanciação | `.agents/grafo/` no repo | Olívia, via `/kairos-forge:mapear-conhecimento` (ADR-0009). A camada de código não tem dono: `grafo.py codigo` a regenera por AST (ADR-0041) |
 
-**Regra de fluxo:** a camada 1 é matéria-prima. O que for durável **sobe de camada**: decisão técnica vira linha em `decisoes/log.md` (e ADR se arquitetural); lição cara de incidente vira memória em `.agents/memory/`; fato estrutural vira aresta no grafo. O **repo é a fonte da verdade do projeto** — a memória de sessão nunca substitui os arquivos curados.
+**Regra de fluxo:** a camada 1 é matéria-prima. O que for durável **sobe de camada**: decisão técnica vira linha em `decisoes/log.md` (e ADR se arquitetural); lição cara de incidente vira memória em `.agents/memory/`; fato estrutural vira aresta no grafo.
+
+**Lição de mudança só com contraste (ADR-0043).** Quando a lição nasce de uma mudança na própria fábrica — o veredicto do `/evoluir` sobre a evolução da semana anterior, ou uma rodada do `/otimizar` —, ela só sobe para `.agents/memory/` se houve contraste observado (`ajudou` ou `piorou`, com linha de base → agora). O arquivo troca o "Por que (o incidente)" por quatro campos: **quando reconhecer** (a forma da situação), **como aplicar** (a operação, nomeando o componente), **evidência** e **confiança**. Sem contraste, o registro diz `sem lição`: adoção não é evidência, e lição errada envenena todo ciclo seguinte. O **repo é a fonte da verdade do projeto** — a memória de sessão nunca substitui os arquivos curados.
 
 **Regra anti-duplicação:** as skills não fazem double-write. Captura de sessão é trabalho dos hooks do ai-memory (automática); escrita durável é nos arquivos do repo. A tool `memory_write_page` fica reservada para **preferências pessoais/globais do usuário** (`scope: global` — estilo de código, escolhas de stack pessoais), que não pertencem a nenhum repo.
 
@@ -26,7 +28,7 @@ do próprio plugin (ADR-0021).
 | **Serve a** | continuidade entre sessões e CLIs | corroboração de evidência e medição de autonomia |
 | **Conteúdo** | conversa, tentativas, handoff — semântico | eventos determinísticos: comandos, gates, escritas, contagem de prompts |
 | **Origem** | hooks do ai-memory, externo e opcional | hooks do próprio plugin, embarcados |
-| **Quem lê** | Laura na abertura de `/rodar` e `/mobilizar`; `/evoluir` | `/validar` (corroborar) e `/auditar` (dimensão Autonomia) |
+| **Quem lê** | Laura na abertura de `/rodar` e `/mobilizar`; `/evoluir` | `/validar` (corroborar), `/auditar` (dimensão Autonomia), `/evoluir` (evidência e linha de base), o gate de parada no `Stop` (ADR-0042), o alerta de patinação (ADR-0030) e o `painel.py` |
 | **Escrita pelo agente?** | sim, indiretamente | **nunca** — o caminho é bloqueado por guardrail (ADR-0022) |
 
 A última linha é a diferença que importa. Memória é o que o agente conta sobre o
@@ -34,8 +36,10 @@ passado; telemetria é o que aconteceu, gravado por código que o agente não
 controla. É por isso que a telemetria pode servir de prova e a memória não.
 
 As duas são episódicas e as duas seguem a mesma regra de fluxo: o durável sobe de
-camada. A conclusão da telemetria vira número em `decisoes/auditorias/`; o bruto é
-descartável e apagar `.agents/execucoes/` é seguro a qualquer momento.
+camada. A conclusão da telemetria vira número em `decisoes/auditorias/` e linha de base
+em `decisoes/evolucoes/`; o bruto é descartável, e o `/onboardar` põe
+`.agents/execucoes/` no `.gitignore`. Apagar é seguro entre ciclos — no meio de um, zera a
+corroboração do `/validar` e o gate de parada daquela sessão.
 
 ## Ativando a camada de sessão (opcional)
 
@@ -87,7 +91,9 @@ Frases que acionam naturalmente: "onde paramos?", "já discutimos X?", "o que de
 
 ## Continuidade entre CLIs
 
-O forge é multi-CLI por design (ADR-0004/ADR-0011) e o ai-memory fecha o ciclo: saia do Claude Code no meio de uma SPEC, abra o Codex ou o Cursor no mesmo diretório — o hook de SessionStart injeta o handoff ("onde você parou, perguntas abertas, próximos passos") antes do primeiro prompt. Para continuidade de maior fidelidade (retomada nativa de sessão por harness), existe o modo opcional `ai-memory run claude` / `ai-memory run codex` — decisão do usuário, fora do escopo do plugin.
+O estado do trabalho já sobrevive à troca de CLI sem ai-memory: o arco do `/entregar` vive em `.agents/ciclo/<spec>.json` e o quadro do `/mobilizar` em `.agents/quadro/<slug>.json`, arquivos do repo que qualquer CLI lê (ADR-0029/0035). O que eles não guardam é a conversa.
+
+O forge é multi-CLI por design (ADR-0004/ADR-0011) e o ai-memory fecha o resto: saia do Claude Code no meio de uma SPEC, abra o Codex ou o Cursor no mesmo diretório — o hook de SessionStart injeta o handoff ("onde você parou, perguntas abertas, próximos passos") antes do primeiro prompt. Para continuidade de maior fidelidade (retomada nativa de sessão por harness), existe o modo opcional `ai-memory run claude` / `ai-memory run codex` — decisão do usuário, fora do escopo do plugin.
 
 ## Segurança
 
@@ -100,6 +106,6 @@ O forge é multi-CLI por design (ADR-0004/ADR-0011) e o ai-memory fecha o ciclo:
 As camadas 1 e 3 são complementares, não concorrentes:
 
 - **ai-memory** responde "o que aconteceu / o que discutimos" (episódico, busca FTS5, volume alto, decaimento natural).
-- **Grafo** responde "o que depende de quê / o que é verdade sobre X" (estrutural, proveniência obrigatória, multi-hop, precisão > recall). A **camada de código** dele (`codigo.jsonl`, ADR-0041) responde "quem importa este arquivo" por AST, sem modelo — regenerável, nunca curada.
+- **Grafo** responde "o que depende de quê / o que é verdade sobre X" (estrutural, proveniência obrigatória, multi-hop, precisão > recall). A **camada de código** dele (`codigo.jsonl`, ADR-0041) responde "quem importa este arquivo" por AST, sem modelo — regenerável com `grafo.py codigo`, nunca curada, e consultada com `grafo.py contexto <arquivo>` pelo `/mobilizar`, `/validar`, `/revisar`, `/mapear-arquitetura`, `/diagnosticar` e `/migrar`.
 
 No `/mapear-conhecimento atualizar`, a Olívia pode usar a wiki do ai-memory como fonte adicional de extração — sessões antigas frequentemente contêm decisões que nunca chegaram aos arquivos curados. A extração aplica o filtro normal de precisão: só entra no grafo o que tiver fonte citável.

@@ -217,4 +217,4 @@ Próximos passos sugeridos:
 - **Não invente respostas.** Se o usuário não souber algo, deixe a seção do CLAUDE.md como `<a preencher>`.
 - **PT-BR em tudo gerado.** Verifique acentuação antes de salvar.
 - **Não rode `git init` sem perguntar.** Alguns projetos já estão em monorepo.
-- **Não modifique `.gitignore` existente.** Apenas anexe linhas necessárias se faltar `.env`.
+- **Não modifique `.gitignore` existente.** Apenas anexe as linhas que faltarem: `.env` e `.agents/execucoes/` (a trajetória bruta é local e descartável; o que sobe de camada são os números da auditoria — ADR-0021).

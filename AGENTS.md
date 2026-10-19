@@ -57,7 +57,7 @@ The two plugins are independent — one does not import from the other. The core
 |---|---|---|---|---|
 | Plugin manifest | `.claude-plugin/plugin.json` | `.codex-plugin/plugin.json` | n/a | n/a |
 | Marketplace catalog | `.claude-plugin/marketplace.json` | `.agents/plugins/marketplace.json` | n/a | n/a |
-| Install command | `/plugin marketplace add` (TUI) | `codex plugin marketplace add` + TUI selection, then `sync-multi-cli.py instalar --cli codex` | copy `skills/` + `sync-multi-cli.py instalar --cli opencode` | `cp -R plugin/.cursor <project>/.cursor` (or `~/.cursor/`) |
+| Install command | `/plugin marketplace add` (TUI) | `codex plugin marketplace add` + TUI selection, then `sync-multi-cli.py instalar --cli codex` | copy `skills/` + `sync-multi-cli.py instalar --cli opencode` | `cp -R plugin/.cursor/. <project>/.cursor/` (global: see below) |
 | Skills | `skills/<name>/SKILL.md` | same `skills/` folder (shared) | `.opencode/skills/` or `.claude/skills/` | `.cursor/skills/` (generated mirror, Agent Skills standard) |
 | Subagents | `agents/<id>.md` | `.agents/<id>/AGENT.md` + roles in `.codex/agents/<id>.toml` (generated, ADR-0035) | `.opencode/agent/<id>.md` (generated, `mode: subagent`, ADR-0035) | `.cursor/agents/<id>.md` (generated, adapted frontmatter) |
 | SessionStart hook | `hooks/hooks.json` | `.codex/hooks.json` | via `oh-my-opencode` | `.cursor/rules/kairos-forge.mdc` (`alwaysApply`) |
@@ -182,14 +182,14 @@ Cursor has no plugin marketplace — install is a single copy of the generated `
 ```bash
 git clone https://github.com/VilelaAI/kairos-forge.git
 
-# Per project:
-cp -R kairos-forge/plugin/.cursor /path/to/project/.cursor
+# Per project (the trailing /. copies the contents — no nested .cursor/.cursor when the folder exists):
+mkdir -p /path/to/project/.cursor && cp -R kairos-forge/plugin/.cursor/. /path/to/project/.cursor/
 
-# Or globally, for all projects:
-cp -R kairos-forge/plugin/.cursor/* ~/.cursor/
+# Or globally, for all projects — personas, skills, rule, scripts and templates:
+mkdir -p ~/.cursor && cp -R kairos-forge/plugin/.cursor/{agents,skills,rules,scripts,templates} ~/.cursor/
 ```
 
-This delivers the 71 subagents (`.cursor/agents/`), the 18 skills in the `/` menu (`.cursor/skills/`), an `alwaysApply` rule with the factory banner and `${CLAUDE_PLUGIN_ROOT}` path resolution, the support scripts and `templates/`, and `hooks.json`, which wires telemetry and guardrails to Cursor's lifecycle events (ADR-0042). To refresh only the personas later: `python3 kairos-forge/scripts/sync-multi-cli.py instalar --cli cursor [--escopo global]`. Project instructions: Cursor reads `AGENTS.md` — `/kairos-forge:onboardar` offers to generate it alongside `CLAUDE.md`. `mobilizar` runs on Cursor too: the main agent orchestrates the subagents in parallel while `quadro.py` holds the dependency graph, ownership and counts.
+This delivers the 71 subagents (`.cursor/agents/`), the 18 skills in the `/` menu (`.cursor/skills/`), an `alwaysApply` rule with the factory banner and `${CLAUDE_PLUGIN_ROOT}` path resolution, the support scripts and `templates/`, and `hooks.json`, which wires telemetry and guardrails to Cursor's lifecycle events (ADR-0042). The global copy leaves `hooks.json` out on purpose: it calls `.cursor/scripts/` relative to the project root, so telemetry and guardrails need the per-project install. To refresh only the personas later: `python3 kairos-forge/scripts/sync-multi-cli.py instalar --cli cursor [--escopo global]`. Project instructions: Cursor reads `AGENTS.md` — `/kairos-forge:onboardar` offers to generate it alongside `CLAUDE.md`. `mobilizar` runs on Cursor too: the main agent orchestrates the subagents in parallel while `quadro.py` holds the dependency graph, ownership and counts.
 
 ### OpenCode
 

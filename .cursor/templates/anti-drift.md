@@ -1,14 +1,14 @@
-# Anti-drift — guardrails básicos para teammates em Agent Team
+# Anti-drift — guardrails básicos para teammates do `/mobilizar`
 
-> Este conteúdo é injetado no prompt de cada teammate quando `/kairos-forge:mobilizar` cria o time.
+> Este conteúdo é injetado no prompt de cada teammate quando `/kairos-forge:mobilizar` lança uma onda, em qualquer CLI (ADR-0035).
 
 ## Regras invioláveis
 
 ### 1. Sua spec é fonte da verdade
 
-Sua tarefa tem uma `description` no `TaskCreate`. Esse texto é o contrato. Se ele está ambíguo, **não invente** — `SendMessage` para a Laura pedindo esclarecimento.
+Sua tarefa chega no seu prompt com o título e o "Pronto quando" que estão no quadro (`quadro.py`). Esse texto é o contrato. Se ele está ambíguo, **não invente** — peça esclarecimento à Laura (ver "Como bloquear").
 
-Se durante a implementação você descobrir que a spec está errada (ex: requisito impossível, conflito com outra parte do sistema), **pare** e use `SendMessage`. Não corrija a spec sozinho.
+Se durante a implementação você descobrir que a spec está errada (ex: requisito impossível, conflito com outra parte do sistema), **pare** e reporte o bloqueio. Não corrija a spec sozinho.
 
 ### 2. File ownership é absoluto
 
@@ -16,14 +16,14 @@ Você só pode modificar os arquivos listados no seu prompt (seção "File owner
 
 Se uma tarefa parece exigir mudança fora do seu escopo:
 
-- Pode ser que a Laura tenha errado o file ownership → `SendMessage` pedindo ampliação.
-- Pode ser que outra task (de outro teammate) deveria fazer essa mudança → `SendMessage` pra Laura coordenar.
+- Pode ser que a Laura tenha errado o file ownership → peça a ampliação.
+- Pode ser que outra task (de outro teammate) deveria fazer essa mudança → peça à Laura para coordenar.
 
 **Nunca** edite fora do seu escopo "só dessa vez".
 
 ### 3. Você não toma decisões fora da sua tarefa
 
-Se ao implementar a Task A você precisa de uma escolha que afeta a Task B (de outro agente), **não decida**. `SendMessage` para a Laura.
+Se ao implementar a Task A você precisa de uma escolha que afeta a Task B (de outro agente), **não decida**. Pergunte à Laura.
 
 Exemplos:
 
@@ -47,30 +47,30 @@ Por que: drift acumula silenciosamente e o checkpoint entre ondas pega cedo. A o
 
 ### 6. Definition of Done
 
-Você só marca uma task como `completed` se:
+Você só reporta a tarefa como pronta se:
 
-1. ✅ Implementação corresponde ao description da task
+1. ✅ Implementação corresponde ao título e ao "Pronto quando" da tarefa
 2. ✅ **Autocrítica estruturada feita** (ver abaixo)
 3. ✅ Teste mínimo escrito (caminho feliz + 1 erro) — se for código de produção; o teste novo **falha sem a mudança**, e teste existente não se afrouxa para a suite ficar verde (ADR-0039)
 4. ✅ Commit feito com mensagem PT-BR padronizada
 5. ✅ Não introduziu erro em CI (lint passa, type check passa, testes passam localmente)
 
-Se algum item não foi cumprido, **não marque completed**. Use `SendMessage` explicando o que falta.
+Se algum item não foi cumprido, **não reporte como pronta**: diga o que falta. Quem fecha a tarefa no quadro é a Laura, com o seu relatório — você nunca fecha a própria tarefa (`.agents/quadro/` é protegido pelo guardrail).
 
-### 6.1. Autocrítica estruturada (reflexão antes do completed)
+### 6.1. Autocrítica estruturada (reflexão antes de reportar)
 
-Crítica é separada de reescrita. Antes de marcar `completed`:
+Crítica é separada de reescrita. Antes de reportar como pronta:
 
-1. **Critique** o artefato contra o "Done when" da task, critério a critério, produzindo uma **lista de defeitos com evidência** (arquivo:linha, teste que falharia, caso não coberto). "Olhei e parece bom" não é crítica — se não achou nenhum defeito, diga qual critério verificou e como.
+1. **Critique** o artefato contra o "Pronto quando" da tarefa, critério a critério, produzindo uma **lista de defeitos com evidência** (arquivo:linha, teste que falharia, caso não coberto). "Olhei e parece bom" não é crítica — se não achou nenhum defeito, diga qual critério verificou e como.
 2. **Corrija** os defeitos encontrados (rodada de revisão separada).
-3. Repita no máximo 2 vezes; se ainda houver defeito que você não consegue resolver, `SendMessage` pra Laura em vez de marcar completed.
+3. Repita no máximo 2 vezes; se ainda houver defeito que você não consegue resolver, reporte o bloqueio à Laura em vez de declarar a tarefa pronta.
 
 Por que: a primeira passada quase sempre tem defeito que a releitura contra critérios explícitos captura — e é muito mais barato capturar aqui do que na validação ou revisão.
 
 **Por que "contra critérios explícitos" e não "revise seu trabalho":** autocorreção
 intrínseca — pedir ao modelo que revise o próprio trabalho **sem fundamentação externa** —
 não ajuda de forma confiável e frequentemente piora o resultado (Huang et al., ICLR 2024).
-O que faz esta etapa funcionar é a âncora fora do modelo: o "Done when" da task, o gate que
+O que faz esta etapa funcionar é a âncora fora do modelo: o "Pronto quando" da tarefa, o gate que
 roda, o `arquivo:linha` que você cita. Tire a âncora e sobra ruído com aparência de rigor —
 por isso "olhei e parece bom" é explicitamente recusado acima.
 
@@ -84,10 +84,15 @@ caminho de volta:
   Se a ação é mesmo necessária, é irreversível, e irreversível passa pelo usuário.
 - **Escrita bloqueada em caminho protegido** → não copie o arquivo para outro lugar
   nem gere um script que o edite. Explique o que precisa mudar e peça.
-- **`.agents/execucoes/` e `.agents/guardrails.json`** → você **nunca** escreve nesses
-  dois. O primeiro é a trajetória que prova o seu trabalho; o segundo é a regra que
-  te limita. Agente que edita o próprio medidor não tem medidor — é o mesmo Goodhart
-  que a catraca do `/otimizar` evita protegendo o comando da métrica.
+- **`.agents/execucoes/`, `.agents/guardrails.json`, `.agents/ciclo/` e
+  `.agents/quadro/`** → você **nunca** escreve nesses quatro. O primeiro é a trajetória
+  que prova o seu trabalho; o segundo é a regra que te limita; os dois últimos são o
+  estado do arco e o quadro que decide o que o time lança. Agente que edita o próprio
+  medidor não tem medidor — é o mesmo Goodhart que a catraca do `/otimizar` evita
+  protegendo o comando da métrica.
+- **Leitura de segredo bloqueada** (`cat .env`, chave, credencial — ADR-0042) → não
+  leia por outro caminho. Se precisa saber se uma variável existe, `grep` pelo nome
+  dela passa; o valor não é seu para ver.
 - **SPEC com "Concluído" sem `verificado:`** → o bloqueio está certo e você está
   errado. Rode o gate e escreva a evidência, ou volte o status para "Em progresso"
   com o que falta.
@@ -113,19 +118,19 @@ Estes são os únicos casos em que você **DEVE** parar e pedir ajuda em vez de 
 ## Como bloquear
 
 ```
-SendMessage({
-  to: "team_lead",
-  type: "blocker",
-  body: "[Sua persona] aqui — preciso de input.
+[Sua persona] aqui — preciso de input.
 
-  Tarefa: <título da task>
-  Bloqueio: <descrição clara e curta do problema>
-  Tentei: <o que você já tentou>
-  Decisão necessária: <pergunta específica pra Laura>"
-})
+Tarefa: <ID e título no quadro>
+Bloqueio: <descrição clara e curta do problema>
+Tentei: <o que você já tentou>
+Decisão necessária: <pergunta específica pra Laura>
 ```
 
-A Laura vai responder. Espere a resposta antes de continuar.
+O canal depende do CLI. No Claude Code, mande esse bloco por `SendMessage` para a Laura
+e espere a resposta. Nos outros, encerre com ele como relatório: a Laura responde
+retomando a sua sessão (`send_message` no Codex, o `task_id` no OpenCode) ou relançando
+com o contexto completo (Cursor). Em nenhum caso siga adiante na parte bloqueada sem
+resposta.
 
 ## O que NÃO é drift
 

@@ -388,6 +388,20 @@ def checar():
         if (RAIZ / rel).read_bytes() != (plugin / rel).read_bytes():
             problemas.append(f"paridade: {rel} difere entre raiz e plugin/")
 
+    # Script citado por skill via ${CLAUDE_PLUGIN_ROOT}/scripts/ chega ao Cursor, que
+    # resolve esse caminho para `.cursor/` (rule alwaysApply). O `prova.py` ficou de
+    # fora da lista do sync do ADR-0039 ao ADR-0043 e nada acusou. O sync-multi-cli.py
+    # é a exceção: só é citado para `instalar` no Codex e no OpenCode.
+    citados = set()
+    for p in sorted((RAIZ / "skills").rglob("*.md")):
+        citados |= set(re.findall(r"\$\{CLAUDE_PLUGIN_ROOT\}/scripts/([\w.-]+\.py)",
+                                  p.read_text(encoding="utf-8")))
+    for nome in sorted(citados - {"sync-multi-cli.py"}):
+        if not (RAIZ / ".cursor/scripts" / nome).is_file():
+            problemas.append(f".cursor/scripts/{nome} ausente — skill cita "
+                             f"${{CLAUDE_PLUGIN_ROOT}}/scripts/{nome}; inclua em "
+                             "SCRIPTS_DE_SUPORTE do sync-multi-cli.py")
+
     # Toda skill aparece nos banners e manifests que listam skills por nome
     for rel in ["hooks/hooks.json", ".codex/hooks.json",
                 ".claude-plugin/plugin.json", ".codex-plugin/plugin.json"]:
@@ -496,6 +510,24 @@ def checar():
                                  f"inválida — {', '.join(sorted(VERIFICACOES_EVAL))}")
         for cap in sorted(CAPACIDADES_FABRICA - set(capacidades)):
             problemas.append(f"comportamento-fabrica: capacidade '{cap}' sem nenhum caso")
+
+    # Conjunto selado fora do texto de instrução (ADR-0043). Só o selado aprova, e
+    # selado copiado para persona, skill ou doc aprova quem já leu a resposta.
+    try:
+        sys.dont_write_bytecode = True
+        sys.path.insert(0, str(RAIZ / "scripts"))
+        import prova
+        sel = prova.selado(RAIZ)
+        for v in sel["vazamentos"]:
+            problemas.append(f"{v['selado']} linha {v['linha']}: caso selado aparece em "
+                             f"{', '.join(v['onde'][:3])} — tire de lá e rotacione o caso")
+        for v in sel["no_visivel"]:
+            problemas.append(f"{v['selado']} linha {v['linha']}: caso selado repetido no "
+                             f"visível {v['visivel']}")
+        for v in sel["ilegiveis"]:
+            problemas.append(f"{v['selado']} linha {v['linha']}: JSON inválido — {v['erro']}")
+    except Exception as e:
+        problemas.append(f"conjunto selado: não foi possível verificar — {e}")
 
     # Contratos de integração assinados (ADR-0034). O digest existe para que mudança
     # de forma não passe em silêncio — quem consome do outro lado não descobre em

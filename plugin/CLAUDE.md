@@ -8,7 +8,7 @@ Plugin multi-CLI (não runtime, não SDK). 71 agentes (40 core + 31 apoio em 10 
 
 Ordem natural das skills no fluxo: `onboardar` → `mapear-arquitetura` (brownfield) → `diagnosticar` (sistema existente — ADR-0028) → `especificar` → `analisar-ameacas` (features sensíveis) → `desenhar` (features com UI — ADR-0020) → `mobilizar`/`rodar` → `validar` → `revisar` → `lancar` (deploy com gates — ADR-0020) → `mapear-conhecimento` (quando docs acumulam; alimenta mobilizar/validar seguintes) → `auditar` (semanal) → `evoluir`. A skill `entregar` (ADR-0023) **percorre esse trecho central sozinha** — especificar → construir → validar ⇄ corrigir → revisar ⇄ corrigir → PR, roteando cada falha de volta ao agente responsável dentro de um orçamento declarado, em vez de o usuário encadear os comandos à mão. Fora do fluxo, sob demanda: `otimizar` (ciclo de catraca contra métrica mensurável — ADR-0012) e `migrar` (modernização de legado por estrangulamento, dono Ivan — ADR-0018).
 
-A memória da fábrica tem **três camadas** (ADR-0009/ADR-0010): **episódica** — sessões capturadas pelo [ai-memory](https://github.com/akitaonrails/ai-memory), companion externo opcional detectado pelas tools MCP `memory_*` (handoff entre CLIs, briefing, busca); **curada** — `decisoes/`, `.agents/memory/`, `contextos/` no repo; **estrutural** — `.agents/grafo/` com entidades e relações com proveniência, dona Olívia (`olivia-grafos`). `/mobilizar` usa o grafo como memória compartilhada entre teammates e `/validar` como base de fatos. O durável sobe de camada (sessão → arquivo → grafo); o repo é a fonte da verdade. Guia: `docs/memoria-persistente.md`.
+A memória da fábrica tem **três camadas** (ADR-0009/ADR-0010): **episódica** — sessões capturadas pelo [ai-memory](https://github.com/akitaonrails/ai-memory), companion externo opcional detectado pelas tools MCP `memory_*` (handoff entre CLIs, briefing, busca); **curada** — `decisoes/`, `.agents/memory/`, `contextos/` no repo; **estrutural** — `.agents/grafo/` com entidades e relações com proveniência, dona Olívia (`olivia-grafos`), mais a camada de código (`codigo.jsonl`, arestas de import e herança extraídas por AST, regenerável — ADR-0041). `/mobilizar` usa o grafo como memória compartilhada entre teammates e `/validar` como base de fatos. O durável sobe de camada (sessão → arquivo → grafo); o repo é a fonte da verdade. Guia: `docs/memoria-persistente.md`.
 
 ## Posicionamento vs kairos-ai
 
@@ -27,13 +27,13 @@ Não duplique funcionalidade entre os dois. Se algo é **regulatório**, vai pro
 
 ## Workflow para mudanças (CRÍTICO)
 
-Os arquivos canônicos são **`agents/`** e **`skills/`** (formato Claude Code). Os diretórios **`.agents/`** (Codex) e **`.cursor/`** (Cursor) são GERADOS automaticamente.
+Os arquivos canônicos são **`agents/`** e **`skills/`** (formato Claude Code). Os diretórios **`.agents/`** e **`.codex/agents/`** (Codex), **`.opencode/agent/`** (OpenCode) e **`.cursor/`** (Cursor) são GERADOS automaticamente, assim como `.claude-plugin/ativos.manifest.json`. Editar um gerado à mão é bloqueado pelo `guardrail.py` (classe `gerado`, ADR-0037).
 
 **Sempre que alterar agents/ ou skills/, rode antes de commitar:**
 
 ```bash
 python3 scripts/sync-multi-cli.py
-git add agents/ skills/ .agents/ .cursor/ .claude-plugin/ativos.manifest.json
+git add agents/ skills/ .agents/ .codex/agents/ .opencode/ .cursor/ .claude-plugin/ativos.manifest.json
 ```
 
 Sem o sync, usuários de Codex CLI e Cursor pegam versão desatualizada.
@@ -78,19 +78,21 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `scripts/diagnostico.py` | Evidência determinística de nível 1 pro `/diagnosticar`: churn, autoria, teste, deps, dívida marcada, tamanho (ADR-0028) | manual |
 | `scripts/execucao.py` | Registro determinístico de execução, chamado pelos hooks — escreve `.agents/execucoes/*.jsonl` (ADR-0021) | manual |
 | `scripts/telemetria.py` | Agrega o registro: `resumo` (números do `/auditar`), `sessoes`, `corroborar` (usado pelo `/validar`), `ruido` (achados de revisão descartados por revisor — ADR-0039) | manual |
-| `scripts/prova.py` | Prova negativa dos testes de um diff (ADR-0039): `pre-patch` roda o teste novo contra a base num worktree descartável (tem de falhar), `testes-alterados` lista teste existente modificado ou removido com sinais de afrouxamento. Usado pelo `/validar` e pela Patrícia no `/revisar` | manual |
+| `scripts/prova.py` | Prova negativa dos testes de um diff (ADR-0039): `pre-patch` roda o teste novo contra a base num worktree descartável (tem de falhar), `testes-alterados` lista teste existente modificado ou removido com sinais de afrouxamento, `selado` acusa caso de `evals/*/selado.jsonl` copiado para texto de instrução ou repetido no visível (ADR-0043). Usado pelo `/validar`, pela Patrícia no `/revisar`, pelo `/avaliar` e pelo `release.py check` | manual |
 | `scripts/ciclo.py` | Máquina de estados determinística do arco `/entregar`: planejamento em fases, transição, orçamento dos três gates e escalação decididos por código (ADR-0029/0033); sela o digest do contrato da SPEC na aprovação e recusa resultado verde se ela mudar até `reaprovar` (contrato 1.1) | manual |
 | `scripts/guardrail.py` | Guardrails determinísticos: comando destrutivo, arquivo protegido, **artefato gerado** (ADR-0037), integridade da SPEC, PR fora de estado, contrato de relatório, **teste existente** (ADR-0039 — nasce em `aviso`), e o **piso** do ADR-0042: leitura de segredo (shell e `Read`), fiação dos hooks, destruição não provável ou fora do projeto, controle da máquina, mais o **gate de parada** no `Stop`. Modo hook (exit 2 bloqueia; no Cursor, JSON no dialeto dele) e modo CLI para os demais CLIs e o CI (ADR-0022/0032/0037/0039/0042) | manual |
 | `scripts/contrato.py` | Módulo puro dos contratos de fronteira dos relatórios: fences `kairos-critica`/`kairos-validacao`/`kairos-revisao`, coerência, prova de cobertura e independência dos críticos. Nunca lança, sem I/O (ADR-0032/0033) | manual |
 | `scripts/quadro.py` | Quadro de tarefas determinístico do `/mobilizar`: dependências, teto de onda, colisão de posse, tempo limite por tarefa, compensação em ordem inversa (Saga) e recusa de encerrar com lacuna escondida (ADR-0035/0036) | manual |
 | `scripts/painel.py` | Quadro vivo: renderiza SPEC + ciclo + relatórios + trajetória no terminal, em HTML autocontido ou JSON. Renderização, nunca estado — não escreve nada (ADR-0013/0032) | manual |
-| `scripts/release.py` | Bump de versão com contagens calculadas do filesystem, `check` de consistência (CI) e `assinar-contratos` (ADR-0034) | manual |
-| `scripts/tests/` | Testes stdlib (`unittest`): contratos do `ciclo.py` que um runner externo depende (idempotência do `registrar`, digest da SPEC, `reaprovar` só depois da aprovação) e o piso do `guardrail.py` (cada regra, o que nega e o que libera; gate de parada; adaptador Cursor). O CI roda `python3 -m unittest discover -s scripts/tests -t scripts` | manual |
+| `scripts/release.py` | Bump de versão com contagens calculadas do filesystem, `check` de consistência (CI: versão, contagens, paridade com `plugin/`, mirrors, orçamento de contexto estático, gold sets, alarme do selado, scripts citados pelas skills presentes no Cursor, contratos) e `assinar-contratos` (ADR-0034) | manual |
+| `scripts/check-agent-security.py` | Auditoria de segurança do próprio setup: allow-list explícita em todo agente, padrões perigosos em comandos de hook e segredo versionado. Roda no CI na raiz e em `plugin/`; o `/auditar` aponta para a config do projeto | manual |
+| `scripts/tests/` | Testes stdlib (`unittest`): contratos do `ciclo.py` que um runner externo depende (idempotência do `registrar`, digest da SPEC, `reaprovar` só depois da aprovação), o piso do `guardrail.py` (cada regra, o que nega e o que libera; gate de parada; adaptador Cursor) e o alarme do selado do `prova.py` (ADR-0043). O CI roda `python3 -m unittest discover -s scripts/tests -t scripts` | manual |
 | `contratos/ASSINATURA.json` | Versão + sha256 dos contratos de integração; o `check` recusa mudança de forma sem reassinar (ADR-0034) | manual |
 | `evals/roteamento-laura/` | Gold set + `rodar.py` headless do eval de roteamento da Laura (dogfooding — só na raiz, não distribui) | manual |
-| `evals/comportamento-fabrica/` | Gold set dos cinco comportamentos que separam harness de pasta de prompts; 8 dos 13 casos verificados sem modelo no caminho (ADR-0031) | manual |
+| `evals/comportamento-fabrica/` | Gold set dos cinco comportamentos que separam harness de pasta de prompts; 9 dos 14 casos decididos sem modelo no caminho (ADR-0031) | manual |
 | `hermes/` | Ponte Hermes Agent: skills de roteamento/ciclo + workflow + install.sh — a fábrica como motor de engenharia de um agente 24/7 (ADR-0019) | manual |
-| `.github/workflows/ci.yml` | CI: sync sem diff pendente, `release.py check`, segurança dos agentes (só na raiz) | manual |
+| `plugin/` | Cópia distribuída — é para cá que o marketplace do Codex aponta: canônicos espelhados mais os mirrors gerados de cada CLI. `evals/` não vai; `plugin/README.md` é um README próprio, mantido à mão (o `release.py` só reescreve as contagens) | **gerado** por `scripts/release.py bump`, menos o `README.md` |
+| `.github/workflows/ci.yml` | CI em todo PR: sync sem diff pendente (raiz e `plugin/`), `release.py check`, `check-agent-security.py`, grafo válido (se existir), `guardrail.py verificar` e os testes de `scripts/tests/`. O eval de roteamento da Laura roda à parte, manual ou no merge para `main`, porque custa tokens | manual |
 
 > **Importante: skills/ é compartilhada.** Tanto Claude Code quanto Codex CLI descobrem skills em `skills/<nome>/SKILL.md` quando empacotados como plugin. Não há duplicação. Apenas os subagents (`agents/<id>.md` no Claude Code, `.agents/<id>/AGENT.md` no Codex) é que precisam de mirror.
 
@@ -143,6 +145,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 - **ADR-0040**: porta de entrada da fábrica — o que a aula do TLC mostra sobre por onde o trabalho entra. `templates/ci/kairos-forge-triar.yml`: issue triada por Laura e Joana em `forge:pronto` / `forge:precisa-spec` / `forge:falta-informacao` / `forge:aguardar`, rótulo como fila, lock e pausa (`forge:construir` é do humano, nunca da fábrica); `rodar explorar <missão>` — POC descartável em worktree com tempo-box, saída em `docs/pocs/`, `gh pr create` bloqueado em branch `poc/*`; `DESIGN.md` na raiz é o sistema de design (formato getdesign.md, dono Pablo) e `desenhar verificar` confere contra ele; teto de apetite (ciclo → SPECs encadeadas); campo Origem na SPEC, entrada por issue e consulta a MCPs de dados antes de perguntar ao humano; seção Porta de entrada no `CLAUDE.md.template` (v0.33.0)
 - **ADR-0041**: grafo de código por AST, escada de prontidão do legado e corte em sombra — os dois quadros de estrutura do TLC. `grafo.py codigo` grava a camada de código do grafo (Python por `ast`, JS/TS por regex com `tsconfig`, Go pelo `go.mod`; regenerável, única escrita do script) e `contexto <arquivo>` é o `get_architectural_context` do *Navigation Paradox* (+23 pontos onde busca textual é cega), usado por mobilizar, validar (chamadores fora do diff), revisar (5+ importadores = faixa 2), mapear-arquitetura, diagnosticar e migrar; escada de cinco degraus (build reprodutível → padronização → contexto → caracterização → harness) como pré-condição do `/migrar` e seção do `/diagnosticar`; corte em sombra com comparador e divergência zero por tempo declarado antes do percentual (v0.34.0)
 - **ADR-0042**: piso de execução, gate de parada e hooks no Cursor — auditoria do `guardrail.py` contra o harness-toolkit do TLC (Felipe Rodrigues, set/2026; Elastic 2.0, então ideias, não código). Cinco regras novas no piso, sem `modos` nem `liberados`: leitura de segredo pelo shell e pela tool `Read` (com `grep` liberado), fiação dos hooks (`.cursor/hooks.json` e `.codex/hooks.json` inteiros; em `.claude/settings*.json` só o bloco `hooks`), `rm -rf` com alvo em variável, destruição fora do projeto, controle da máquina. Gate de parada no `Stop`: produção escrita sem gate verde depois não encerra em silêncio (nasce em `aviso`, nunca dispara duas vezes). `sync-multi-cli.py` gera `.cursor/hooks.json`; o payload do Cursor é reconhecido pela forma e a resposta sai no dialeto dele — telemetria e guardrail passam a existir no Cursor. Suíte `test_guardrail.py` no CI (v0.35.0)
+- **ADR-0043**: juiz cego, selado que não vaza e veredicto com contraste — auditoria contra o *Harness²* (Google Research, out/2026; Apache 2.0, mas ideias, não código). O laço deles (o agente reescrevendo o próprio harness pela própria trajetória) não entra — é o auto-graft recusado no ADR-0037 —, os mecanismos que o tornam confiável sem gabarito, sim. Sexta regra de higiene do juiz no `/avaliar`: comparando versões, o juiz vê `A`/`B` em ordem embaralhada com semente `sha1(caso|digest)`, baseline sempre no pool, mapa aberto só depois do veredicto. `prova.py selado`: caso selado copiado para persona, skill, `contextos/`, teste ou doc, ou repetido no visível, sai 1 — no `release.py check` e no CI do projeto (82 casos reais testados, zero falso positivo). `/evoluir` dá veredicto à evolução anterior antes de escolher a próxima (`ajudou`/`piorou`/`sem efeito observado`/`confundido`, este o default; adoção não é evidência), o EVOL grava linha de base, e lição em `.agents/memory/` só com contraste. Laboratório Harness² sobre o próprio forge adiado até haver benchmark selado de 30+ tarefas (v0.36.0)
 
 ## Limitações conhecidas por CLI
 
@@ -153,7 +156,7 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | Allow-list de ferramentas do agente | ✅ enforced | ⚠️ instrução (`apply_patch` sobrevive) | ✅ enforced (`permission`) | ⚠️ degrada pra `readonly` |
 | Lembrete de DoD (PostToolUse, uma vez por sessão — ADR-0038) | ✅ | ❌ | ❌ (sem `oh-my-opencode`) | ❌ |
 | SessionStart banner | ✅ | ✅ | ❌ (sem `oh-my-opencode`) | ✅ via rule `alwaysApply` |
-| Subagents com persona | ✅ nativo | ✅ mirror `.agents/` | ⚠️ via cópia de `agents/` | ✅ `.cursor/agents/` (allow-list degrada pra `readonly`) |
+| Subagents com persona | ✅ nativo | ✅ `.agents/` + roles `.codex/agents/*.toml` (ADR-0035) | ✅ `.opencode/agent/` gerado, `mode: subagent` (ADR-0035) | ✅ `.cursor/agents/` (allow-list degrada pra `readonly`) |
 | Telemetria de execução (ADR-0021) | ✅ completa (4 pontos do ciclo) | ⚠️ só SessionStart — sem trajetória útil | ❌ | ✅ via `.cursor/hooks.json` gerado (ADR-0042) |
 | Guardrail em hook (ADR-0022/0042) | ✅ todas as classes | ❌ só modo CLI | ❌ só modo CLI | ✅ comando, leitura, spec, contrato e parada; classes de escrita só no modo CLI (sem hook antes da edição) |
 
@@ -176,6 +179,6 @@ Estes itens existem no kairos-ai e **não devem** vir pro forge:
 - Guardrails com referência legal
 - Ralph Loop (auto-correção de assertions)
 - Advisor (Opus para decisões regulatórias)
-- Modo `--workflow debate` (planejado pra v0.7 do forge, em formato simplificado)
+- Modo `--workflow debate` do kairos-ai — o forge tem a versão simplificada própria, `rodar debate` (ADR-0018)
 - Subagents nativos especializados em domínio (assertion-validator, compliance-auditor, etc.)
 - Worker headless 24/7 e dashboard Next.js

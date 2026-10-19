@@ -9,7 +9,7 @@ Você está sendo invocado para conduzir um **ratchet loop**: melhorar uma métr
 
 ## Regra de ouro
 
-**Uma mudança por rodada.** É o que dá atribuição causal: se a métrica mudou, você sabe por quê. Duas mudanças na mesma rodada = rodada inválida. E **falha parcial nunca se esconde**: rodada revertida é evidência registrada, não vergonha apagada.
+**Uma mudança por rodada.** É o que dá atribuição causal: se a métrica mudou, você sabe por quê. Duas mudanças na mesma rodada = rodada inválida — o resultado dela é `confundido` (ADR-0043): ninguém sabe qual das duas mexeu na métrica. E **falha parcial nunca se esconde**: rodada revertida é evidência registrada, não vergonha apagada.
 
 ## Pré-condições (sem elas, pare)
 
@@ -108,7 +108,7 @@ Se a métrica final for igual ao baseline, diga isso — "rodamos N rodadas e na
 
 ### 5. Subir o durável de camada
 
-A linhagem é o **grafo de trabalho** (o que foi tentado, de onde descende — o git guarda). Ela não substitui o grafo de conhecimento: se uma otimização mantida revela fato estrutural ("o gargalo do relatório era o índice X, não a serialização"), recomende `/kairos-forge:mapear-conhecimento atualizar` para o fato virar aresta com proveniência — e, se a lição foi cara, `.agents/memory/`.
+A linhagem é o **grafo de trabalho** (o que foi tentado, de onde descende — o git guarda). Ela não substitui o grafo de conhecimento: se uma otimização mantida revela fato estrutural ("o gargalo do relatório era o índice X, não a serialização"), recomende `/kairos-forge:mapear-conhecimento atualizar` para o fato virar aresta com proveniência — e, se a lição foi cara, `.agents/memory/` no formato de lição com contraste do `/kairos-forge:evoluir` (quando reconhecer, como aplicar, evidência, confiança). A evidência são as rodadas da linhagem que a sustentam, mantidas e revertidas; uma medição só, sem repetição, é confiança baixa.
 
 ## Quando NÃO usar
 

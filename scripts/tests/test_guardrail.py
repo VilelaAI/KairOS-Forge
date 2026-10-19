@@ -94,6 +94,17 @@ class DestruicaoNoPiso(Sandbox):
         self.assertEqual(self.cmd("shutdown -h now")[0], 2)
         self.assertEqual(self.cmd("echo reboot-log.txt")[0], 0)
 
+    def test_piso_nao_obedece_a_modos(self) -> None:
+        # Com a classe `comando` rebaixada para aviso, o resto das regras de comando avisa
+        # e deixa passar — o piso continua bloqueando (ADR-0042: sem `modos`).
+        (self.raiz / ".agents").mkdir(exist_ok=True)
+        (self.raiz / ".agents" / "guardrails.json").write_text(
+            '{"modos": {"comando": "aviso"}}', encoding="utf-8")
+        self.assertEqual(self.cmd("chmod 777 build")[0], 1)
+        self.assertEqual(self.cmd("sudo reboot")[0], 2)
+        self.assertEqual(self.cmd('rm -rf "$DIR"')[0], 2)
+        self.assertEqual(self.cmd("rm -rf /opt/outro-projeto")[0], 2)
+
 
 class FiacaoDosHooks(Sandbox):
     def escrita(self, rel: str, entrada: dict) -> int:
@@ -184,6 +195,26 @@ class AdaptadorCursor(Sandbox):
                                          "workspace_roots": [str(self.raiz)], "status": "completed", "loop_count": 0})
         self.assertEqual(codigo, 0)
         self.assertIn("src/a.py", json.loads(out)["followup_message"])
+
+
+class VerificarNoCI(Sandbox):
+    def rodar(self) -> tuple[int, str]:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            codigo = guardrail.verificar(self.raiz)
+        return codigo, out.getvalue()
+
+    def test_env_example_passa_e_env_reprova(self) -> None:
+        # As mesmas exceções do hook de escrita: `.env.example` existe para ser versionado.
+        (self.raiz / ".env.example").write_text("API_KEY=\n", encoding="utf-8")
+        (self.raiz / "certs").mkdir()
+        (self.raiz / "certs" / "README.md").write_text("onde ficam as chaves\n", encoding="utf-8")
+        self.assertEqual(self.rodar()[0], 0)
+        (self.raiz / ".env").write_text("API_KEY=x\n", encoding="utf-8")
+        codigo, saida = self.rodar()
+        self.assertEqual(codigo, 1)
+        self.assertIn(".env:", saida)
+        self.assertNotIn(".env.example", saida)
 
 
 if __name__ == "__main__":

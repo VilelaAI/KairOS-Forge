@@ -49,27 +49,34 @@
 | `contextos/` | Contexto de longo prazo: stack, convenções, restrições | Você + skill `/onboardar` |
 | `decisoes/log.md` | Append-only de decisões técnicas | Você + agentes |
 | `decisoes/auditorias/` | Histórico de auditorias semanais | Skill `/auditar` |
-| `decisoes/evolucoes/` | Plano de evolução semanal da fábrica | Skill `/evoluir` |
+| `decisoes/evolucoes/` | Evolução semanal: linha de base e veredicto da anterior | Skill `/evoluir` |
 | `decisoes/otimizacoes/` | Programas e linhagem dos ciclos de catraca | Skill `/otimizar` |
 | `docs/specs/` | SPECs de features | Diego, Fernanda, Thiago, Rafael |
 | `docs/specs/validacoes/` | Relatórios de aceite contra SPEC | Skill `/validar` |
 | `docs/pocs/` | Notas de POC descartável (`/rodar explorar`) — o código não vira PR | Laura + devs |
 | `DESIGN.md` | Sistema de design (formato getdesign.md) | Pablo |
 | `docs/adr/` | Decisões arquiteturais irreversíveis | Rafael principalmente |
-| `.agents/memory/` | Memórias de incidente (lições caras, uma por arquivo) | Você + agentes |
-| `.agents/grafo/` | Grafo de conhecimento: entidades e relações com proveniência | Olívia + skill `/mapear-conhecimento` |
+| `.agents/memory/` | Lições caras, uma por arquivo (incidente, ou mudança com contraste) | Você + agentes |
+| `.agents/grafo/` | Grafo de conhecimento com proveniência + camada de código (`codigo.jsonl`) | Olívia + skill `/mapear-conhecimento` |
+| `evals/` | Gold sets (visível e selado) e relatórios de eval | Alice + skill `/avaliar` |
 
 ## Comandos da fábrica
 
 - `/kairos-forge:especificar <feature>` — começar uma feature pelo design (Laura aciona arquitetos)
+- `/kairos-forge:entregar <feature>` — o arco inteiro até o PR, com orçamento e aprovação humana
 - `/kairos-forge:mapear-arquitetura` — inventário estrutural brownfield (Diego coordena)
+- `/kairos-forge:diagnosticar` — diagnóstico de sistema existente com evidência medida (Rafael)
 - `/kairos-forge:analisar-ameacas <spec|feature>` — threat model antes de feature sensível (Helena)
+- `/kairos-forge:desenhar <spec>` — handoff de design e verificação visual (Isabela)
 - `/kairos-forge:rodar [agente|time]` — modo conversacional, agentes em primeira pessoa
-- `/kairos-forge:mobilizar <spec>` — modo paralelo via Agent Teams (requer `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`)
+- `/kairos-forge:mobilizar <spec>` — time em paralelo (no Claude Code, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`)
 - `/kairos-forge:validar <spec>` — aceite contra requisitos, critérios e gates da SPEC
 - `/kairos-forge:revisar` — revisar diff antes de PR (Helena + Patrícia + outros conforme escopo)
+- `/kairos-forge:lancar` — deploy com gates e health check (Marcos)
+- `/kairos-forge:avaliar <comportamento>` — eval de LLM/agente com gold set selado (Alice)
 - `/kairos-forge:mapear-conhecimento` — construir/atualizar/consultar o grafo de conhecimento (Olívia)
 - `/kairos-forge:otimizar <métrica>` — ciclo de catraca guiado por métrica (especialista conforme a métrica)
+- `/kairos-forge:migrar <legado>` — modernização por estrangulamento (Ivan)
 - `/kairos-forge:auditar` — auditoria semanal (sextas)
 - `/kairos-forge:evoluir` — escolher 1 melhoria pra próxima semana
 

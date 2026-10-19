@@ -41,7 +41,7 @@ Se for trivial, pare e diga por que a SPEC não compensa. Se for pequeno ou maio
 
 ### 1.2. Trilhas por tema (modo guiado — ADR-0013)
 
-Antes de interrogar do zero, cheque se a feature casa com uma trilha em `${CLAUDE_PLUGIN_ROOT}/templates/trilhas/` (índice em `TRILHAS.md`): auth, pagamentos, painel-admin, api, seed-dados. Se casar, **parta da trilha em vez do zero** — trilha é rascunho, não fôrma: o arquiteto adapta ao stack (`contextos/stack.md`) e corta o que não se aplica. Como cada parte da trilha entra na SPEC: `references/trilhas.md`.
+Antes de interrogar do zero, cheque se a feature casa com uma trilha em `${CLAUDE_PLUGIN_ROOT}/templates/trilhas/` (índice em `TRILHAS.md`): auth, pagamentos, painel-admin, api, seed-dados, pipeline-dados. Se casar, **parta da trilha em vez do zero** — trilha é rascunho, não fôrma: o arquiteto adapta ao stack (`contextos/stack.md`) e corta o que não se aplica. Como cada parte da trilha entra na SPEC: `references/trilhas.md`.
 
 ### 2. Laura aciona o(s) arquiteto(s)
 
@@ -186,7 +186,7 @@ Leia sob demanda, na etapa correspondente — caminho completo `${CLAUDE_PLUGIN_
 
 | Arquivo | Quando ler |
 |---|---|
-| `references/trilhas.md` | Passo 1.2 — a feature casa com auth, pagamentos, painel-admin, api ou seed-dados |
+| `references/trilhas.md` | Passo 1.2 — a feature casa com auth, pagamentos, painel-admin, api, seed-dados ou pipeline-dados |
 | `references/perguntas-arquitetos.md` | Passo 3 — repertório de perguntas de Diego, Fernanda, Thiago, Rafael e Camila |
 | `references/pare-e-pergunte.md` | Passo 4.1 — tabela completa de situação × pergunta obrigatória, antes do primeiro requisito |
 | `references/modo-rfc.md` | Passo 5.1 — template do RFC e regras (Rafael, debate, RFC aceito/recusado) |

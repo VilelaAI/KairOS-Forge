@@ -46,3 +46,6 @@ dos prompts e por isso que a Alice existe.
 - **ADR-0031** — higiene do juiz: família diferente da que gerou, painel quando errar é
   caro, versão pinada, nunca recompensar forma; tamanho do gold set reconciliado a teto
   de tempo.
+- **ADR-0043** — auditoria contra o Harness²: juiz cego à versão (letras embaralhadas
+  com semente, baseline no pool, mapa aberto só depois do veredicto) e o
+  `prova.py selado`, que acusa caso selado copiado para instrução ou repetido no visível.

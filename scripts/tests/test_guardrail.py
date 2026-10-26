@@ -197,6 +197,55 @@ class AdaptadorCursor(Sandbox):
         self.assertIn("src/a.py", json.loads(out)["followup_message"])
 
 
+class PrDuranteCiclo(Sandbox):
+    """Com dois ciclos abertos, o `gh pr create` é julgado pelo ciclo da branch atual —
+    não pelo primeiro em ordem de nome."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q",
+                        "--allow-empty", "-m", "base"], check=True)
+        (self.raiz / ".agents" / "ciclo").mkdir(parents=True)
+
+    def ciclo(self, spec: str, estado: str, branch: str | None) -> None:
+        d = {"spec": spec, "estado": estado, "rodadas": {"validar": 0, "revisar": 0},
+             "orcamento": {"validar": 2, "revisar": 2}}
+        if branch:
+            d["branch"] = branch
+        (self.raiz / ".agents" / "ciclo" / f"{spec}.json").write_text(json.dumps(d), encoding="utf-8")
+
+    def na_branch(self, nome: str) -> None:
+        subprocess.run(["git", "checkout", "-q", "-B", nome], check=True)
+
+    def test_pr_do_ciclo_pronto_passa_com_outro_ciclo_parado(self) -> None:
+        self.ciclo("SPEC-001", "aguardando_aprovacao", "feat/spec-001")
+        self.ciclo("SPEC-002", "pronto_para_pr", "feat/spec-002")
+        self.na_branch("feat/spec-002")
+        self.assertEqual(self.cmd("gh pr create --fill")[0], 0)
+
+    def test_pr_do_ciclo_fora_de_estado_bloqueia(self) -> None:
+        self.ciclo("SPEC-001", "aguardando_aprovacao", "feat/spec-001")
+        self.ciclo("SPEC-002", "pronto_para_pr", "feat/spec-002")
+        self.na_branch("feat/spec-001")
+        codigo, _, err = self.cmd("gh pr create --fill")
+        self.assertEqual(codigo, 2)
+        self.assertIn("SPEC-001", err)
+
+    def test_branch_sem_ciclo_nao_escapa(self) -> None:
+        # Trocar de branch para abrir o PR não contorna o estado de um ciclo aberto.
+        self.ciclo("SPEC-001", "validando", "feat/spec-001")
+        self.ciclo("SPEC-002", "pronto_para_pr", "feat/spec-002")
+        self.na_branch("atalho")
+        self.assertEqual(self.cmd("gh pr create --fill")[0], 2)
+
+    def test_ciclo_antigo_sem_branch(self) -> None:
+        self.na_branch("feat/x")
+        self.ciclo("SPEC-001", "validando", None)
+        self.assertEqual(self.cmd("gh pr create --fill")[0], 2)
+        self.ciclo("SPEC-001", "pronto_para_pr", None)
+        self.assertEqual(self.cmd("gh pr create --fill")[0], 0)
+
+
 class VerificarNoCI(Sandbox):
     def rodar(self) -> tuple[int, str]:
         out = io.StringIO()

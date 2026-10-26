@@ -80,9 +80,9 @@ jobs:
         run: |
           npm install -g @anthropic-ai/claude-code
           git clone --depth 1 https://github.com/VilelaAI/kairos-forge /tmp/forge
-          mkdir -p .claude
-          cp -R /tmp/forge/plugin/skills .claude/skills
-          cp -R /tmp/forge/plugin/agents .claude/agents
+          mkdir -p .claude/skills .claude/agents   # o /. copia o conteúdo: não aninha se a pasta já existe
+          cp -R /tmp/forge/plugin/skills/. .claude/skills/
+          cp -R /tmp/forge/plugin/agents/. .claude/agents/
 
       - name: Baixar o log da execução que falhou
         if: steps.dedup.outputs.seguir == 'true'
@@ -118,12 +118,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          rm -f falha.log
-          if git diff --quiet && git diff --cached --quiet; then
+          # Só o que a correção mudou entra no commit. A fábrica copiada para .claude/, o
+          # log e o diagnóstico são insumo desta execução, não mudança do projeto — com
+          # `git add -A` eles iam para o PR. E a checagem vem DEPOIS do add: `git diff`
+          # não enxerga arquivo novo, e uma correção que só cria um teste sumia.
+          git add -A -- . \
+            ':(exclude).claude/skills' ':(exclude).claude/agents' \
+            ':(exclude)falha.log' ':(exclude)diagnostico.md'
+          if git diff --cached --quiet; then
             echo "Nenhuma mudança produzida — nada a propor."
             exit 0
           fi
-          git add -A
           git commit -m "fix(ci): corrige falha da execução ${{ github.event.workflow_run.id }}
 
           Correção automática da fábrica kairos-forge, uma rodada.

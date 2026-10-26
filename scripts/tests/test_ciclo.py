@@ -11,6 +11,7 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -154,6 +155,68 @@ class DigestDaSpec(Sandbox):
     def test_sem_spec_no_disco_digest_e_null(self) -> None:
         rodar("abrir", "SPEC-999", "--spec-aprovada")
         self.assertIsNone(estado("SPEC-999")["spec_alterada"])
+
+
+class RelatorioComBlocoInvalido(Sandbox):
+    """A prosa é o formato antigo, sem bloco — não a saída de emergência de um bloco que
+    o parser recusou. Senão o "limpo sem lista do que foi olhado" (ADR-0032) passa pela
+    linha `**Veredicto:**`."""
+
+    def validando_com(self, relatorio: str) -> None:
+        rodar("abrir", "SPEC-001", "--spec-aprovada")
+        rodar("registrar", "pronto", "SPEC-001")
+        Path("docs/specs/validacoes/VALIDACAO-SPEC-001-2026-01-01.md").write_text(
+            relatorio, encoding="utf-8")
+
+    def test_sem_cobertura_nao_aprova(self) -> None:
+        self.validando_com(
+            "# Validação\n\n**Veredicto:** aprovado\n\n```kairos-validacao\n"
+            '{"spec": "SPEC-001", "veredicto": "aprovado", "bloqueios": 0, "verificado": []}\n```\n')
+        codigo, _, err = rodar("registrar", "aprovado", "SPEC-001")
+        self.assertEqual(codigo, 1)
+        self.assertIn("sem_cobertura", err)
+        self.assertEqual(estado()["estado"], "validando")
+
+    def test_bloco_malformado_nao_aprova(self) -> None:
+        self.validando_com(
+            "# Validação\n\n**Veredicto:** aprovado\n\n```kairos-validacao\n{veredicto: aprovado\n```\n")
+        codigo, _, err = rodar("registrar", "aprovado", "SPEC-001")
+        self.assertEqual(codigo, 1)
+        self.assertIn("json_invalido", err)
+        self.assertEqual(estado()["estado"], "validando")
+
+    def test_prosa_sem_bloco_continua_aceita(self) -> None:
+        self.validando_com("# Validação\n\n**Veredicto:** aprovado\n")
+        self.assertEqual(rodar("registrar", "aprovado", "SPEC-001")[0], 0)
+        self.assertEqual(estado()["estado"], "revisando")
+        self.assertEqual(estado()["historico"][-1]["fonte"], "prosa")
+
+    def test_resultado_negativo_com_bloco_invalido_e_aceito(self) -> None:
+        # Registrar o negativo é o lado conservador: a rodada só queima ficha.
+        self.validando_com(
+            "# Validação\n\n**Veredicto:** bloqueado\n\n```kairos-validacao\n{quebrado\n```\n")
+        codigo, _, err = rodar("registrar", "bloqueado", "SPEC-001")
+        self.assertEqual(codigo, 0)
+        self.assertEqual(estado()["estado"], "corrigindo_validacao")
+        self.assertEqual(estado()["historico"][-1]["fonte"], "invalido")
+        self.assertIn("json_invalido", err)
+
+
+class BranchDoCiclo(Sandbox):
+    """O guardrail julga o `gh pr create` pela branch do ciclo — o `abrir` grava qual é."""
+
+    def test_abrir_grava_a_branch(self) -> None:
+        for args in (["init", "-q", "."],
+                     ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q",
+                      "--allow-empty", "-m", "base"],
+                     ["checkout", "-q", "-b", "feat/spec-001"]):
+            subprocess.run(["git", *args], check=True, capture_output=True)
+        rodar("abrir", "SPEC-001", "--spec-aprovada")
+        self.assertEqual(estado()["branch"], "feat/spec-001")
+
+    def test_fora_de_um_repositorio_git_a_branch_e_nula(self) -> None:
+        rodar("abrir", "SPEC-001", "--spec-aprovada")
+        self.assertIsNone(estado()["branch"])
 
 
 if __name__ == "__main__":

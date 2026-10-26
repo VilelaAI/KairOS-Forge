@@ -91,12 +91,12 @@ ao fundador pelo chat e devolva a resposta ao ciclo. Nunca aprove em nome dele.
 - Sempre passe a SPEC ao `ciclo.py` (`estado SPEC-NNN --json`, `registrar
   <resultado> SPEC-NNN`): sem ela o script procura "o único ciclo aberto" e
   recusa quando há mais de um.
-- Um ciclo aberto por cópia do repositório. O `ciclo.py` guarda vários, mas o
-  guardrail de PR do plugin olha o primeiro ciclo aberto que encontra: com outro
-  ciclo aberto no mesmo diretório — mesmo parado num gate —, o `gh pr create` de
-  um pode ser recusado pelo estado do outro. Os dois também dividiriam working
-  tree e branch. Trabalho paralelo vai em outra cópia: o estado do ciclo é
-  relativo ao diretório.
+- Um ciclo por branch, e uma branch por cópia do repositório. O `ciclo.py abrir`
+  grava a branch do ciclo, e o guardrail julga o `gh pr create` pelos ciclos da
+  branch atual: o PR de um ciclo pronto não espera outro, de outra branch, sair do
+  gate. Branch sem ciclo não é atalho — ali valem todos os ciclos abertos. Dois arcos
+  na mesma cópia ainda dividiriam a working tree: trabalho paralelo vai em outra
+  cópia ou worktree (o estado do ciclo é relativo ao diretório).
 
 ## Verificação
 

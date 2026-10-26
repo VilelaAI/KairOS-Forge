@@ -156,8 +156,9 @@ Code; os eventos equivalentes no Cursor) e **bloqueia** por código. Oito classe
 Mais três regras de comando no **piso** (ADR-0042): `rm -rf` com alvo em variável (não
 dá para provar o que apaga antes de rodar), destruição fora do projeto e controle da
 máquina (`shutdown`, `reboot`). E `gh pr create` é bloqueado em dois casos — ciclo do
-`/entregar` aberto fora de `pronto_para_pr`, e branch `poc/*` —, assim como
-`gh pr merge` durante qualquer ciclo aberto.
+`/entregar` fora de `pronto_para_pr` (o da branch atual; se a branch não tem ciclo,
+qualquer ciclo aberto), e branch `poc/*` —, assim como `gh pr merge` durante qualquer
+ciclo aberto.
 
 Quatro caminhos são **sagrados** — o agente nunca os escreve: `.agents/execucoes/**`,
 `.agents/guardrails.json`, `.agents/ciclo/**` e `.agents/quadro/**`. O agente não

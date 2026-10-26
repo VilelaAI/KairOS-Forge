@@ -38,8 +38,8 @@ Uma entrega custa ao menos quatro invocações — até o gate 1/3, até o 2/3, 
   rodapé.
 - Projeto com git limpo e numa branch própria (não `main`/`master`) — senão o
   `entregar` para no Passo 0 e diz o que falta
-- Nenhum outro ciclo aberto nesta cópia do repositório, nem parado em gate (o
-  porquê está nas armadilhas da `kairos-forge-fabrica`)
+- Um ciclo por branch, e uma branch por cópia do repositório (o porquê está nas
+  armadilhas da `kairos-forge-fabrica`)
 - Card no kanban do Hermes representando a tarefa
 
 `<plugin>` é o diretório do plugin kairos-forge que o Claude Code carrega. Rode o

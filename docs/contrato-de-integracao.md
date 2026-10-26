@@ -122,14 +122,16 @@ um crash não avança dois estados — o resultado deixa de ser válido no estad
 recusado com exit 1.
 
 Mas exit 1 não quer dizer só "já registrei". O `registrar` sai com 1, stdout vazio e o
-motivo no **stderr** em seis casos:
+motivo no **stderr** em sete casos:
 
 - resultado fora de `resultados_validos` — a repetição, ou o agente registrou errado;
 - ciclo em estado terminal — inclusive quando a repetição cai num terminal
   (`pr_aberto` → `encerrado`);
 - resultado verde de gate com `spec_alterada: true`;
 - resultado verde com o relatório mais recente do gate dizendo `bloqueado`;
-- resultado verde sem relatório do gate, ou com relatório sem bloco válido e sem linha
+- resultado verde com o bloco de contrato do relatório recusado pelo parser
+  (`json_invalido`, `estrutural`, `sem_cobertura` — o código vai entre colchetes);
+- resultado verde sem relatório do gate, ou com relatório legado (sem bloco) e sem linha
   `**Veredicto:**` reconhecível;
 - SPEC sem ciclo (`abrir` nunca rodou para ela).
 
@@ -189,11 +191,13 @@ Códigos de erro, e o que fazer com cada um:
 | `estrutural` | Campo/tipo/coerência/faixa/independência/teto | Cabe **1 retry** |
 | `sem_cobertura` | Limpo sem lista | **Achado**, não retry — o relatório está errado |
 
-Atenção: o `ciclo.py` aplica essa tabela só em parte. **Qualquer** falha do bloco, não só
-`ausente`, o faz cair para a linha `**Veredicto:**` da prosa, sem contagem — um relatório
-`sem_cobertura` com `**Veredicto:** aprovado` passa no `registrar aprovado`. Quem quer a
-regra cobrada roda `contrato.py <gate> <arquivo>` antes de registrar e não registra
-resultado verde quando ele sai 1 (o código de erro sai no stderr, entre colchetes).
+O `registrar` aplica esta tabela. Só `ausente` cai para a linha `**Veredicto:**` da prosa,
+sem contagem — é o relatório legado. Qualquer outro código recusa resultado verde, com o
+código no stderr: a linha `**Veredicto:**` não substitui um bloco que o parser recusou, senão
+o "limpo sem lista do que foi examinado" passaria por ela. Resultado negativo com bloco
+recusado é aceito com aviso: é o lado conservador, e a rodada queima ficha porque sem bloco
+válido não há contagem para medir progresso. No `historico`, a transição sai com
+`fonte: "invalido"`.
 
 ## Contrato 3 — o quadro do `/mobilizar`
 
@@ -268,6 +272,10 @@ python3 scripts/release.py assinar-contratos   # depois de ajustar CONTRATO_VERS
   leia via `estado --json` de cada um.
 - A forma de cada item de `historico` (ciclo) e de `tasks` (quadro): o contrato declara o
   tipo (`object[]`, `object`), não os campos de dentro.
+- Campos que aparecem no `estado --json` sem estar em `campos` — `aberto_em`, `branch`,
+  `spec_digest` e afins. Saem porque a vista espalha o arquivo do ciclo, não porque são
+  promessa; o guardrail usa `branch` para julgar o `gh pr create` pelos ciclos da branch
+  atual.
 - Saída de terminal de qualquer script — é para humano. Inclui o texto das recusas no
   stderr.
 - Nomes de estado como string comparável — use os derivados. A única exceção é separar

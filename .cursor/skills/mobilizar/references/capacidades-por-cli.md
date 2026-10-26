@@ -63,6 +63,10 @@ em paralelo.
   relatório final, mesma recusa de encerrar com lacuna escondida.
 ```
 
+Chamado pelo `/entregar`, a oferta não se aplica: o modo já foi declarado no contrato
+da autonomia e o quadro vale mais que o `rodar` dentro do arco. Em headless, não há a
+quem perguntar. Nos dois casos, siga direto com o quadro em série.
+
 O quadro funciona em qualquer CLI porque é só Python e um arquivo. **O que varia entre
 CLIs é como se lança e como se espera — não o que é uma tarefa, nem quando ela pode
 entrar, nem quando dá para dizer que acabou.**

@@ -71,7 +71,7 @@ Checkpoint com você:           entendimento · abordagem · SPEC · antes do PR
 Escalação:                     orçamento sem progresso esgotado, teto atingido,
                                ou 2 falhas materialmente iguais
 Evidência mínima pra encerrar: P1 sem bloqueio no /validar + zero 🔴 no /revisar
-Modo de construção:            mobilizar (paralelo) | rodar (sequencial)
+Modo de construção:            mobilizar (quadro) | rodar (sequencial)
 ```
 
 **Avisa-e-pausa (ADR-0013):** ao cruzar ~80% de qualquer limite, avise no
@@ -84,6 +84,16 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/painel.py SPEC-NNN
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/painel.py SPEC-NNN --html quadro.html  # para mandar pra alguém
 ```
 
-Escolha do modo de construção: `mobilizar` se as tarefas forem independentes e
-as ferramentas de Agent Teams existirem; `rodar` no resto (e sempre em Codex,
-OpenCode, Cursor ou execução headless).
+Escolha do modo de construção — pela forma do plano, não pelo CLI (ADR-0035):
+
+- **`mobilizar`** quando o plano tem duas ou mais tarefas que podem rodar na mesma
+  onda, com posse de arquivo que não se sobrepõe. Roda nos quatro CLIs: como lançar
+  é o Passo 0 do `/mobilizar` que decide, e num CLI sem lançador o mesmo quadro roda
+  em série. Mesmo em série, dentro do arco o quadro vale mais que o `rodar`: mantém
+  as dependências, a contagem final e a recusa de encerrar com lacuna escondida.
+- **`rodar`** quando o plano é uma cadeia em que cada tarefa depende da anterior, ou
+  uma feature de uma ou duas tarefas — ali o quadro só acrescenta cerimônia.
+- **Em execução headless**, ninguém olha em voo: o `mobilizar` isola cada teammate em
+  worktree (Passo 6.1, ADR-0024), e a falha em voo fica com o quadro — `varrer`
+  devolve a vaga do worker que sumiu, `compensar` desfaz a tarefa que se revelou
+  inválida (ADR-0036).

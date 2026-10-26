@@ -157,13 +157,13 @@ chat.
 
 ## Limitações
 
-- Em execução headless o `entregar` constrói por `rodar` (sequencial) — é o que a
-  skill declara para headless e para fora do Claude Code com Agent Teams. Não é
-  limite do `mobilizar`, que roda nos quatro CLIs desde o ADR-0035. Para construir
-  em paralelo, retome o mesmo ciclo numa sessão `claude` no projeto com Agent
-  Teams ligado (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`): ali o `entregar` usa o
-  `mobilizar` quando as tarefas são independentes, e o estado do ciclo atravessa
-  sessões.
+- Em headless o `entregar` escolhe o modo pela forma do plano, como em sessão:
+  `mobilizar` quando há tarefas independentes, `rodar` no resto. O `mobilizar`
+  isola cada teammate em worktree, porque ninguém olha em voo (ADR-0024). Para o
+  paralelo de verdade no Claude Code, exporte `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`
+  no ambiente do Hermes; sem ela, o Passo 0 do `mobilizar` roda o mesmo quadro em
+  série, com as mesmas dependências e a mesma contagem final. Agent Teams sob
+  `claude -p` não foi testado; se não lançar, o resultado é o quadro em série.
 - A ponte requer o plugin **v0.34.1+**: arco no `ciclo.py` (v0.21), planejamento
   em fases com crítica (v0.26), `estado --json` como contrato (v0.27) e
   `reaprovar` com `spec_alterada` (contrato 1.1). Confira com

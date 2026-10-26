@@ -66,8 +66,9 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ciclo.py abrir SPEC-NNN \
 Anuncie o contrato da autonomia (modelo em `references/maquina-de-estados.md`): 2 rodadas sem progresso por
 gate (`criticar` · `validar` · `revisar`), teto 6 cada; checkpoints em entendimento · abordagem · SPEC · antes
 do PR; escalação por orçamento esgotado, teto atingido ou 2 falhas materialmente iguais; evidência mínima: P1 sem
-bloqueio no `/validar` + zero 🔴 no `/revisar`; modo `mobilizar` (tarefas independentes e Agent Teams
-disponível) ou `rodar` (o resto — e sempre em Codex, OpenCode, Cursor ou headless).
+bloqueio no `/validar` + zero 🔴 no `/revisar`; modo `mobilizar` (duas ou mais tarefas na mesma onda, com posse que
+não se sobrepõe — em qualquer CLI) ou `rodar` (cadeia sequencial, ou feature de uma ou duas tarefas).
+Critério e isolamento em headless: `references/maquina-de-estados.md`.
 
 **Avisa-e-pausa (ADR-0013):** ao cruzar ~80% de qualquer limite, avise no checkpoint seguinte.
 `ciclo.py estado` mostra as rodadas consumidas; `painel.py` mostra o arco inteiro:

@@ -29,6 +29,7 @@ Veja quais ferramentas você tem — não pergunte ao usuário. Pare no primeiro
    `.cursor/agents/`, sem canal para worker em voo. Ambos: `references/opencode-cursor.md`.
 4. **Nenhum deles?** → sem paralelismo. Diga isso e ofereça `/kairos-forge:rodar` ou o
    mesmo quadro em série (mensagem pronta em `references/capacidades-por-cli.md`).
+   Chamado pelo `/entregar` ou em headless, não pergunte: siga com o quadro em série.
 
 ## Modos de invocação
 
@@ -127,7 +128,8 @@ serializa. Tabela default por agente e regras em
 ### Passo 6.1 — Isolamento: prompt ou worktree? (ADR-0024)
 
 Posse por prompt é disciplina, não fronteira: basta com humano revisando o PR (L3). Sem
-revisão (L4), ou 3+ teammates em áreas adjacentes → **worktree** (`references/coordenacao.md`).
+revisão (L4), execução headless, ou 3+ teammates em áreas adjacentes → **worktree**
+(`references/coordenacao.md`).
 
 ### Passo 6.2 — Reversibilidade declarada por tarefa
 

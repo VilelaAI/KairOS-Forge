@@ -17,6 +17,7 @@ ninguém lê.
 |---|---|
 | Humano vai revisar o PR antes do merge (L3) | **Prompt** — posse declarada no template |
 | Execução autônoma sem revisão humana (L4), ou 3+ teammates em áreas adjacentes | **Worktree** — fronteira física |
+| Execução headless (o `/entregar` pelo `claude -p`, pela ponte Hermes ou por um runner), mesmo com o PR revisado depois | **Worktree** — ninguém olha em voo; escrita fora da posse só apareceria no PR, já misturada ao resto |
 
 ```bash
 git worktree add .worktrees/<teammate> -b forge/<slug>-<teammate>

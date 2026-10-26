@@ -145,7 +145,8 @@ claude -p "/kairos-forge:entregar SPEC-NNN — retome do estado atual do ciclo.p
 
 Card → Running. Enquanto roda, a fábrica:
 
-- constrói pela SPEC por `rodar` — em headless o `entregar` não usa `mobilizar`;
+- constrói pela SPEC: `mobilizar` quando o plano tem tarefas independentes (worktree
+  por teammate; em série se o CLI não lançar em paralelo), `rodar` no resto;
 - valida e, se bloquear em P1, corrige e revalida;
 - revisa e, se houver achado 🔴, corrige — e a correção **reabre a validação**
   antes de nova revisão;

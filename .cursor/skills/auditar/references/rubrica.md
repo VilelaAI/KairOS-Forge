@@ -86,6 +86,21 @@ python3 <plugin>/scripts/painel.py --dias 30      # o mesmo estado com as SPECs 
 
 **Ruído da revisão (ADR-0039).** Rode `telemetria.py ruido --dias 90`. Não pontua — reporta: revisor com ≥ 30% de achados marcados `descartado:` (mínimo 3 achados) entra no relatório como lacuna, dona Patrícia (recalibrar a persona ou a segunda passada). `não medido` — nenhum achado marcado — também é achado: significa que ninguém marca, e revisão que ninguém mede não calibra.
 
+**Autonomia de PR (ADR-0044).** Rode `telemetria.py prs --dias 30`. Não pontua — reporta: dos
+PRs mesclados com ao menos um commit da fábrica, quantos chegaram ao merge sem nenhum commit
+humano. Commit da fábrica é o que traz o trailer `Fabrica: kairos-forge` (teammates e templates de
+CI), o `Co-Authored-By: Claude` que o Claude Code põe por padrão, ou autor `kairos-forge`; o
+projeto acrescenta marcas com `--marca`. Três leituras:
+
+- **Onde não há hook** (Codex, OpenCode), a dimensão continua 0 por falta de trajetória, mas este é
+  o número de autonomia que existe — vai para o relatório no lugar de "não medido".
+- **Onde os dois números existem, a divergência é o achado.** 90% de ciclos sem intervenção com
+  20% de PRs sem commit humano quer dizer que a pessoa intervém depois do arco, no PR: o arco
+  entrega o que alguém ainda conserta à mão. A lacuna é do `/validar` ou do `/revisar`, não da
+  autonomia.
+- **Leia a fonte.** `git` só vê merge com commit de merge; com squash ou rebase, rode com o `gh`
+  autenticado. Nenhum PR com commit da fábrica é "não medido", nunca 0%.
+
 Penalidade dura: **sessões com escrita em código de produção e nenhum gate rodado** (campo `sessoes_com_producao_sem_gate`) — subtraia 2 pontos por ocorrência, até zerar a dimensão. Código de produção escrito sem nenhuma verificação é o oposto exato de autonomia confiável; é vibe coding com mais etapas.
 
 **Sem telemetria no projeto:** pontue 0 na dimensão inteira e registre no relatório *"telemetria não instalada — autonomia não medida"*. Não estime. A regra da casa vale aqui com força total: autonomia sem instrumento é chute, e chute otimista sobre autonomia é exatamente como se produz um pipeline sem supervisão.

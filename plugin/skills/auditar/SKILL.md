@@ -77,11 +77,13 @@ Acoplamento e duplicação: amostragem manual. Marque como hipótese se não hou
 ```bash
 python3 <plugin>/scripts/telemetria.py resumo --dias 30
 python3 <plugin>/scripts/telemetria.py ruido --dias 90    # achados de revisão descartados, por revisor (ADR-0039)
+python3 <plugin>/scripts/telemetria.py prs --dias 30      # PRs da fábrica mesclados sem commit humano (ADR-0044)
 python3 <plugin>/scripts/painel.py --dias 30      # o mesmo estado com as SPECs ao lado
 ```
 
 Sem telemetria no projeto: pontue 0 na dimensão inteira e registre *"telemetria não instalada —
-autonomia não medida"*. Não estime.
+autonomia não medida"*. Não estime. A autonomia de PR sai do histórico, não da trajetória, então
+existe mesmo sem hook: ela não pontua, mas entra no relatório (`references/rubrica.md`).
 
 ### Como pontuar
 
@@ -111,7 +113,8 @@ Template completo em `references/relatorio.md`. Seções, nesta ordem:
 3. **Autonomia medida (últimos 30 dias)**: ciclos registrados, ciclos sem intervenção, intervenções
    por ciclo (mediana), gates verdes de primeira, rodadas de correção, produção escrita sem gate; e
    **Nível estimado: L<N>** com justificativa ancorada nos números. Sem telemetria: "não medida" em
-   todas as linhas — nunca preencher por estimativa.
+   todas as linhas — nunca preencher por estimativa. Mais a **autonomia de PR** (taxa, N e fonte
+   `gh`/`git`), ou "não medida" se nenhum PR mesclado tem commit da fábrica.
 4. **Top 3 lacunas**: para cada uma, dimensão, esforço (pequeno/médio/grande), por que esta
    primeiro e como fechar em 1-3 bullets.
 5. **Histórico** com as auditorias anteriores de `decisoes/auditorias/` (anteriores à v0.17 têm

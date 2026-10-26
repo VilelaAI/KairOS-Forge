@@ -32,6 +32,31 @@ Regras de composição:
   Se estourar, simule o que custa dinheiro ou escreve em produção em vez de chamar de
   verdade.
 
+### Colher do histórico — o caso real mais barato (ADR-0044)
+
+Quando o comportamento avaliado é **a fábrica entregando código**, o gold set não precisa ser
+inventado: cada entrega já mesclada, com teste no diff, é um caso pronto. O pedido é a issue
+que o PR fechou, o ponto de partida é o commit de antes da entrega, e o gabarito são os testes
+que a entrega trouxe — o caso passa quando o agente, partindo da base com o pedido, faz esses
+testes passarem.
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prova.py colher --dias 90 --validar
+```
+
+- **Só entra a entrega da fábrica** (commit com o trailer `Fabrica: kairos-forge`, o
+  `Co-Authored-By: Claude` ou autor `kairos-forge`) e só com teste criado ou alterado — sem
+  teste não há gabarito, e o caso fica de fora com o motivo.
+- **`--validar` roda o gabarito nos dois lados**: o teste tem de falhar na base e passar na
+  entrega. Teste que passa na base é a prova negativa do ADR-0039 olhando para trás — não
+  separa quem resolveu de quem não resolveu, e o caso é descartado.
+- **O pedido é a issue, nunca o corpo do PR.** O corpo descreve a solução; caso que traz a
+  solução no enunciado mede leitura. Sem `gh` (ou sem issue ligada), o pedido é o título do
+  merge e o caso sai com `revisar_pedido: true` — reescreva antes de usar.
+- **Candidato não é caso selado.** A saída é `evals/entregas/candidatos.jsonl`, colhida de novo
+  sem duplicar. A divisão visível × selado continua sua: rotacione, e o `prova.py selado` passa a
+  proteger o que você selar.
+
 ### Conjunto selado — a metade que o construtor não vê
 
 Divida o gold set em **visível** e **selado** (regra prática: ~60/40), e guarde o selado

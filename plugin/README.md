@@ -127,6 +127,21 @@ o nível de autonomia da fábrica. Sem instrumento, qualquer afirmação sobre o
 nível é opinião — inclusive a otimista, que é como se produz um pipeline sem
 supervisão achando que se produziu autonomia.
 
+**Autonomia de PR, pelo git (ADR-0044).** A trajetória só existe onde há hook. O
+histórico do git existe em todo CLI:
+
+```bash
+python3 scripts/telemetria.py prs --dias 30
+#  Mesclados: 12 · com código da fábrica: 9 · sem nenhum commit humano: 6
+#  Autonomia de PR: 66.7%  (6/9)
+```
+
+Commit de agente é o que traz o trailer `Fabrica: kairos-forge` (que o teammate, o
+anti-drift, o `/otimizar` e o `corrigir.yml` escrevem), o `Co-Authored-By: Claude` ou o autor
+`kairos-forge`; o projeto acrescenta as suas com `--marca`. Usa o `gh` quando está
+autenticado e, sem ele, os merges do git. O `/auditar` reporta ao lado da dimensão
+Autonomia, sem pontuar: quando os dois números divergem, a divergência é o achado.
+
 O `/validar` usa a mesma trajetória para **corroborar**: a célula `verificado:` da
 SPEC é escrita pelo agente que fez o trabalho, então passa a ser alegação a
 conferir, não fato a aceitar. Alegação sem lastro bloqueia P1 igual a "sem
@@ -252,11 +267,13 @@ transforma as formas silenciosas de gate verde sem prova em achado com nome:
 python3 scripts/prova.py pre-patch          # teste novo rodado contra a base, sem o patch
 python3 scripts/prova.py testes-alterados   # teste existente modificado ou removido no diff
 python3 scripts/prova.py selado             # caso selado de eval vazado para o que o sistema lê
+python3 scripts/prova.py colher --validar   # entrega mesclada com teste vira caso de benchmark
 ```
 
 - `pre-patch` roda o teste escrito junto com o patch num worktree descartável da base: `passou_na_base` = o teste passa sem a mudança, então não a prova.
 - `testes-alterados` lista asserção removida, caso pulado ou apagado — suíte que o agente afrouxou não é evidência.
 - `selado` (ADR-0043): caso de `evals/*/selado.jsonl` copiado para persona, skill, `contextos/`, teste ou doc, ou repetido no conjunto visível, sai 1 — eval que já viu o gabarito aprova quem leu a resposta.
+- `colher` (ADR-0044): cada PR mesclado da fábrica com teste no diff vira caso candidato em `evals/entregas/candidatos.jsonl` — pedido é a issue que o PR fechou, base é o commit de antes, gabarito são os testes. Com `--validar`, só fica o caso cujo teste falha na base e passa na entrega.
 
 Nenhum é veredicto sozinho: o `/validar` cobra a justificativa, a Patrícia lê no
 `/revisar`, e o `selado` roda no CI do projeto.
@@ -271,11 +288,15 @@ python3 scripts/painel.py                      # tudo
 python3 scripts/painel.py SPEC-001             # uma SPEC
 python3 scripts/painel.py --html quadro.html   # página autocontida, abre sem rede
 python3 scripts/painel.py --json               # pra outra ferramenta consumir
+python3 scripts/painel.py --caixa [--github]   # caixa de entrada: o que espera por uma pessoa
 ```
 
 Requisitos por coluna, progresso da SPEC, estado do arco com as fichas de
 orçamento, veredicto dos três gates (crítica, validação, revisão) com a cobertura
-declarada, as mobilizações do quadro de tarefas e a trajetória.
+declarada, as mobilizações do quadro de tarefas e a trajetória. A `--caixa` (ADR-0044)
+mostra só o que espera por uma pessoa: gate do planejamento, SPEC alterada depois de
+aprovada, ciclo escalado, tarefa bloqueada ou vencida e, com `--github`, issue
+`forge:falta-informacao` e PR aberto pela fábrica.
 
 Duas regras que definem o script. **É renderização, nunca estado** — não escreve
 nada além do arquivo que você pediu, porque quadro persistido vira a planilha
@@ -573,7 +594,8 @@ Mudou o prompt da Laura, a `description` de um agente ou o roteamento → rode o
 - **v0.33** — porta de entrada: triagem por issue (`kairos-forge-triar.yml`), `rodar explorar` (POC descartável), `DESIGN.md` como sistema de design e teto de apetite (ADR-0040)
 - **v0.34** — camada de código do grafo por AST (`grafo.py codigo`/`contexto`), escada de prontidão do legado e corte em sombra no `/migrar` (ADR-0041)
 - **v0.35** — piso de execução no guardrail (leitura de segredo, fiação dos hooks, destruição não provável ou fora do projeto, controle da máquina), gate de parada no `Stop` e hooks no Cursor (ADR-0042)
-- **v0.36** (atual) — juiz cego à versão no `/avaliar`, `prova.py selado` contra vazamento do conjunto selado e veredicto com contraste no `/evoluir` (ADR-0043)
+- **v0.36** — juiz cego à versão no `/avaliar`, `prova.py selado` contra vazamento do conjunto selado e veredicto com contraste no `/evoluir` (ADR-0043)
+- **v0.37** (atual) — autonomia de PR medida pelo git em qualquer CLI (`telemetria.py prs`), benchmark colhido das entregas mescladas (`prova.py colher`) e caixa de entrada (`painel.py --caixa`) (ADR-0044)
 - **Candidato, sem versão** — perfis Tier 3 sob demanda via `/evoluir` (SEO técnico, UX research, desktop, base de suporte), registrados no ADR-0017; mais trilhas por tema
 
 ## Documentação
@@ -622,6 +644,7 @@ Mudou o prompt da Laura, a `description` de um agente ou o roteamento → rode o
 - [ADR-0041](docs/adr/0041-grafo-de-codigo-e-legado-em-sombra.md) — grafo de código por AST, escada de prontidão do legado e corte em sombra
 - [ADR-0042](docs/adr/0042-piso-e-gate-de-parada.md) — piso de execução, gate de parada e hooks no Cursor
 - [ADR-0043](docs/adr/0043-juiz-cego-selado-e-veredicto.md) — juiz cego, selado que não vaza e veredicto com contraste
+- [ADR-0044](docs/adr/0044-autonomia-medida-benchmark-e-caixa.md) — autonomia medida pelo git, benchmark colhido do histórico e caixa de entrada
 - [Contrato de integração](docs/contrato-de-integracao.md) — o que é estável para quem dirige a fábrica de fora: `ciclo.py estado --json` e as três fences
 - [Memória persistente](docs/memoria-persistente.md) — guia das 3 camadas e instalação opcional do ai-memory
 - [Análise: o novo SDLC e o caminho até L4](docs/revisoes/2026-08-01-analise-whitepaper-novo-sdlc-e-caminho-l4.md) — o harness da fábrica medido contra o whitepaper Day-1 do Google, com as lacunas e o que cada uma virou

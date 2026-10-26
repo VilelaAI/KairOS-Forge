@@ -24,11 +24,19 @@ que foi copiado para o texto que o sistema avaliado lê aprova quem já leu a re
      da letra, em prompt, skill, persona, `contextos/`, teste ou doc do repositório, ou
      repetido no `gold.jsonl` visível do mesmo eval.
 
+E o histórico vira prova (ADR-0044): cada entrega da fábrica já mesclada, com teste no
+diff, é um caso pronto — o pedido, o commit de antes e os testes como gabarito. O
+`colher` junta esses casos em `evals/entregas/candidatos.jsonl`; com `--validar`, só
+entra o caso cujo teste falha na base e passa na entrega, porque teste que passa na
+base não separa quem resolveu de quem não resolveu.
+
 ## Uso
 
     prova.py pre-patch        [--base REF] [--comando "TEMPLATE"] [--tempo-limite S] [--json]
     prova.py testes-alterados [--base REF] [--json]
     prova.py selado           [--raiz DIR] [--json]
+    prova.py colher           [--dias N] [--saida ARQ] [--validar] [--comando "TEMPLATE"]
+                              [--fonte gh|git] [--json]
 
 `--base` é a ref contra a qual o diff é medido (default: `origin/HEAD`, depois
 `origin/main`, `origin/master`, `main`, `master` — o primeiro que existir). O diff
@@ -83,6 +91,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from datetime import date
 from pathlib import Path
 
 sys.dont_write_bytecode = True
@@ -479,6 +488,176 @@ def selado(raiz: Path) -> dict:
     return r
 
 
+# --- 4. colher casos do histórico (ADR-0044) --------------------------------------
+
+SAIDA_COLHER = Path("evals/entregas/candidatos.jsonl")
+
+
+def base_da_entrega(raiz: Path, pr: dict) -> tuple[str | None, str]:
+    """(commit de antes da entrega, estratégia do merge). None se a entrega não está aqui.
+
+    Merge com dois pais: a base é o primeiro. Um pai só é squash ou rebase — o rebase
+    se reconhece pelo título da entrega igual ao do último commit do PR, e aí a base
+    fica N commits atrás; no squash, um atrás.
+    """
+    m = pr.get("entrega")
+    if not m or git(raiz, "cat-file", "-e", f"{m}^{{commit}}").returncode != 0:
+        return None, "ausente"
+    pais = git(raiz, "rev-list", "--parents", "-n", "1", m).stdout.split()[1:]
+    if not pais:
+        return None, "raiz"
+    if len(pais) >= 2:
+        return pais[0], "merge"
+    n = len(pr.get("commits") or [])
+    if n > 1:
+        titulo = git(raiz, "log", "-1", "--format=%s", m).stdout.strip()
+        ultimo = (pr["commits"][-1].get("mensagem") or "").splitlines()
+        if ultimo and ultimo[0].strip() == titulo:
+            r = git(raiz, "rev-parse", f"{m}~{n}")
+            if r.returncode == 0:
+                return r.stdout.strip(), "rebase"
+    return pais[0], "squash"
+
+
+def testes_da_entrega(raiz: Path, base: str, entrega: str) -> list[str]:
+    """Teste criado ou alterado entre a base e a entrega — o gabarito do caso."""
+    saida = []
+    for linha in git(raiz, "diff", "--name-status", "--no-renames", base, entrega).stdout.splitlines():
+        partes = linha.split("\t")
+        if len(partes) == 2 and partes[0] in ("A", "M") and eh_teste(partes[1]):
+            saida.append(partes[1])
+    return saida
+
+
+def pedido_de(raiz: Path, pr: dict, usar_gh: bool) -> tuple[str, str]:
+    """(pedido, de onde veio). A issue que o PR fecha é o pedido; o corpo do PR, não —
+    ele descreve a solução, e caso que já traz a solução no enunciado não mede nada."""
+    if usar_gh and pr.get("issues") and shutil.which("gh"):
+        partes = []
+        for numero in pr["issues"][:3]:
+            try:
+                r = subprocess.run(["gh", "issue", "view", str(numero), "--json", "title,body"],
+                                   cwd=raiz, capture_output=True, text=True, timeout=60)
+                d = json.loads(r.stdout) if r.returncode == 0 else {}
+            except (OSError, subprocess.SubprocessError, ValueError):
+                d = {}
+            if d.get("title"):
+                partes.append(f"{d['title']}\n\n{(d.get('body') or '').strip()}".strip())
+        if partes:
+            return "\n\n---\n\n".join(partes), "issue"
+    return (pr.get("titulo") or "").strip(), "titulo"
+
+
+def _rodar_teste(cmd: str, cwd: Path, tempo_limite: int) -> str:
+    try:
+        p = subprocess.run(cmd, shell=True, cwd=str(cwd), capture_output=True, text=True,
+                           timeout=tempo_limite)
+    except subprocess.TimeoutExpired:
+        return "nao_executado"
+    saida = (p.stdout or "") + (p.stderr or "")
+    if SEM_COLETA.search(saida) or p.returncode == 5:
+        return "nao_executado"
+    return "passou" if p.returncode == 0 else "falhou"
+
+
+def validar_caso(raiz: Path, caso: dict, template: str | None, tempo_limite: int) -> str:
+    """`valido` se cada teste falha na base (com o teste da entrega) e passa na entrega.
+
+    É a prova negativa do `pre-patch` aplicada ao passado: o teste que passa na base
+    não separa quem resolveu o pedido de quem não resolveu.
+    """
+    tmp = Path(tempfile.mkdtemp(prefix="kairos-forge-colher-"))
+    vistos: dict[str, set] = {"base": set(), "entrega": set()}
+    try:
+        for lado in ("base", "entrega"):
+            arvore = tmp / lado
+            if git(raiz, "worktree", "add", "--detach", str(arvore), caso[lado],
+                   timeout=120).returncode != 0:
+                return "nao_executado"
+            ligar_dependencias(raiz, arvore)
+            for rel in caso["testes"]:
+                if lado == "base":
+                    conteudo = git(raiz, "show", f"{caso['entrega']}:{rel}").stdout
+                    (arvore / rel).parent.mkdir(parents=True, exist_ok=True)
+                    (arvore / rel).write_text(conteudo, encoding="utf-8")
+                par = comando_para(raiz, rel, template)
+                if par is None:
+                    return "nao_executado"
+                cmd, cwd = par
+                vistos[lado].add(_rodar_teste(cmd, arvore / cwd, tempo_limite))
+    finally:
+        for lado in ("base", "entrega"):
+            git(raiz, "worktree", "remove", "--force", str(tmp / lado), timeout=60)
+        git(raiz, "worktree", "prune")
+        shutil.rmtree(tmp, ignore_errors=True)
+    if "nao_executado" in vistos["base"] | vistos["entrega"]:
+        return "nao_executado"
+    if "passou" in vistos["base"]:
+        return "passa_na_base"
+    if "falhou" in vistos["entrega"]:
+        return "falha_na_entrega"
+    return "valido"
+
+
+def ids_conhecidos(pasta: Path) -> set[str]:
+    """Ids já colhidos, no visível ou no selado — colher de novo não duplica."""
+    vistos: set[str] = set()
+    for nome in ("candidatos.jsonl", "gold.jsonl", "selado.jsonl"):
+        arq = pasta / nome
+        if arq.is_file():
+            vistos |= {str(c.get("id")) for _, c in ler_casos(arq)[0] if isinstance(c, dict)}
+    return vistos
+
+
+def colher(raiz: Path, dias: int | None, saida: str | None, validar: bool,
+           template: str | None, tempo_limite: int, fonte: str | None) -> dict:
+    from telemetria import commit_de_agente, prs_mesclados
+
+    origem, prs = prs_mesclados(raiz, dias, fonte)
+    destino = raiz / (saida or SAIDA_COLHER)
+    conhecidos = ids_conhecidos(destino.parent)
+    novos, pulados = [], []
+    for pr in prs:
+        agentes = [commit_de_agente(c) for c in pr["commits"]]
+        if not any(agentes):
+            continue  # só o que a fábrica entregou é caso da fábrica
+        cid = f"pr-{pr['numero']}" if pr.get("numero") else f"merge-{(pr.get('entrega') or '')[:10]}"
+        if cid in conhecidos:
+            pulados.append({"id": cid, "motivo": "já colhido"})
+            continue
+        base, estrategia = base_da_entrega(raiz, pr)
+        if not base:
+            pulados.append({"id": cid, "motivo": "entrega fora deste clone — rode `git fetch`"})
+            continue
+        testes = testes_da_entrega(raiz, base, pr["entrega"])
+        if not testes:
+            pulados.append({"id": cid, "motivo": "entrega sem teste criado ou alterado — sem gabarito"})
+            continue
+        pedido, fonte_pedido = pedido_de(raiz, pr, origem == "gh")
+        caso = {"id": cid, "estado": "candidato", "pedido": pedido,
+                "fonte_pedido": fonte_pedido, "revisar_pedido": fonte_pedido != "issue",
+                "base": base, "entrega": pr["entrega"], "estrategia": estrategia,
+                "testes": testes, "autonomo": all(agentes),
+                "mesclado_em": pr.get("mesclado_em"), "colhido_em": date.today().isoformat(),
+                "oraculo": "nao_validado"}
+        if validar:
+            caso["oraculo"] = validar_caso(raiz, caso, template, tempo_limite)
+            if caso["oraculo"] != "valido":
+                pulados.append({"id": cid, "motivo": f"oráculo {caso['oraculo']}"})
+                continue
+        novos.append(caso)
+    if novos:
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        with destino.open("a", encoding="utf-8") as f:
+            for caso in novos:
+                f.write(json.dumps(caso, ensure_ascii=False) + "\n")
+    try:
+        rel = destino.relative_to(raiz).as_posix()
+    except ValueError:
+        rel = str(destino)
+    return {"fonte": origem, "saida": rel, "novos": novos, "pulados": pulados}
+
+
 # --- apresentação ------------------------------------------------------------------
 
 ROTULO = {
@@ -573,9 +752,26 @@ def imprimir_selado(r: dict) -> None:
         print("\n   Nenhum caso selado copiado para instrução nem repetido no visível.")
 
 
+def imprimir_colher(r: dict) -> None:
+    print(f"🌾 Casos colhidos do histórico — fonte {r['fonte']}, saída {r['saida']}")
+    if r["fonte"] == "git":
+        print("   Fonte git: só merges com commit de merge, e o pedido é o título do merge.\n"
+              "   Com o `gh` autenticado, o pedido vem da issue que o PR fecha.")
+    for c in r["novos"]:
+        marca = "  (reescreva o pedido)" if c["revisar_pedido"] else ""
+        print(f"   + {c['id']:<14} {len(c['testes'])} teste(s) · oráculo {c['oraculo']}{marca}")
+    for c in r["pulados"]:
+        print(f"   · {c['id']:<14} {c['motivo']}")
+    if not r["novos"]:
+        print("   Nenhum caso novo.")
+        return
+    print(f"\n   {len(r['novos'])} candidato(s). Antes de selar: o pedido não pode trazer a solução,\n"
+          "   e a divisão visível × selado é da Alice (`/kairos-forge:avaliar`).")
+
+
 def main() -> int:
     args = sys.argv[1:]
-    if not args or args[0] not in ("pre-patch", "testes-alterados", "selado"):
+    if not args or args[0] not in ("pre-patch", "testes-alterados", "selado", "colher"):
         print(__doc__.strip())
         return 1
     comando = args[0]
@@ -596,6 +792,28 @@ def main() -> int:
     except ValueError:
         print("erro: --tempo-limite precisa de um número de segundos", file=sys.stderr)
         return 1
+
+    if comando == "colher":
+        raiz = raiz_git()
+        if raiz is None:
+            print("🚫 fora de um repositório git — sem histórico não há o que colher",
+                  file=sys.stderr)
+            return 1
+        try:
+            dias = int(opcao("--dias")) if opcao("--dias") else None
+        except ValueError:
+            print("erro: --dias precisa de um número", file=sys.stderr)
+            return 1
+        fonte = opcao("--fonte")
+        if fonte not in (None, "gh", "git"):
+            print("erro: --fonte é gh ou git", file=sys.stderr)
+            return 1
+        r = colher(raiz, dias, opcao("--saida"), "--validar" in args, template, tempo, fonte)
+        if como_json:
+            print(json.dumps(r, ensure_ascii=False, indent=2))
+        else:
+            imprimir_colher(r)
+        return 0
 
     if comando == "selado":
         alvo = opcao("--raiz")

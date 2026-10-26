@@ -33,7 +33,8 @@ camada de código): chamador fora da sua posse é pedido à Laura, não edição
    sua mudança**. Teste existente você não afrouxa: se ele está certo e o código errado,
    conserte o código (ADR-0039)
 4. Gate rodado, ou justificativa registrada se não for possível
-5. Commit em Conventional Commits PT-BR
+5. Commit em Conventional Commits PT-BR, terminando com o trailer `Fabrica: kairos-forge`
+   (é por ele que a autonomia de PR separa commit da fábrica de commit humano — ADR-0044)
 
 # Ao concluir, reporte (a Laura registra no quadro)
 - Arquivos alterados

@@ -44,6 +44,10 @@ Por que: drift acumula silenciosamente e o checkpoint entre ondas pega cedo. A o
   - `feat(modulo): adiciona endpoint de exportação`
   - `fix(auth): corrige expiração de token em fuso horário não-UTC`
   - `test(relatorios): cobre cenário de lista vazia`
+- Todo commit seu termina com o trailer `Fabrica: kairos-forge`, numa linha própria depois de
+  uma linha em branco. É como o histórico separa o que a fábrica escreveu do que uma pessoa
+  escreveu, e a autonomia de PR é medida por ele (ADR-0044) — nunca o ponha em commit que
+  não foi seu.
 
 ### 6. Definition of Done
 

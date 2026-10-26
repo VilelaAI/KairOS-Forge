@@ -52,9 +52,9 @@ jobs:
         run: |
           npm install -g @anthropic-ai/claude-code
           git clone --depth 1 https://github.com/VilelaAI/kairos-forge /tmp/forge
-          mkdir -p .claude
-          cp -R /tmp/forge/plugin/skills .claude/skills
-          cp -R /tmp/forge/plugin/agents .claude/agents
+          mkdir -p .claude/skills .claude/agents   # o /. copia o conteúdo: não aninha se a pasta já existe
+          cp -R /tmp/forge/plugin/skills/. .claude/skills/
+          cp -R /tmp/forge/plugin/agents/. .claude/agents/
 
       - name: Guardrail (o CI não tem PreToolUse — o contrato roda depois)
         if: steps.cred.outputs.ativo == 'true'

@@ -83,6 +83,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -90,9 +91,10 @@ from pathlib import Path
 sys.dont_write_bytecode = True   # não escrever __pycache__ no diretório do plugin
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
-    from contrato import ler_critica, ler_revisao, ler_validacao
+    from contrato import AUSENTE, ler_critica, ler_revisao, ler_validacao
 except Exception:  # contrato ausente/quebrado nunca derruba a máquina de estados
     ler_critica = ler_revisao = ler_validacao = None  # type: ignore[assignment]
+    AUSENTE = "ausente"
 
 PASTA = Path(".agents/ciclo")
 
@@ -116,6 +118,8 @@ FONTE_DO_GATE = {
     "validar": ("docs/specs/validacoes", "VALIDACAO", "bloqueios"),
     "revisar": ("docs/specs/revisoes", "REVISAO", "criticos"),
 }
+FENCE_DO_GATE = {"criticar": "kairos-critica", "validar": "kairos-validacao",
+                 "revisar": "kairos-revisao"}
 
 # Teto absoluto de rodadas por gate quando não declarado: 3× o orçamento. Progresso
 # devolve ficha, mas não dá rodadas infinitas — convergir devagar demais também é
@@ -324,28 +328,33 @@ def _veredicto_da_prosa(texto: str) -> str | None:
     return None
 
 
-def ler_relatorio(spec: str, gate: str) -> tuple[str | None, int | None, str]:
-    """(veredicto, contagem de bloqueios, fonte) do relatório mais recente do gate.
+def ler_relatorio(spec: str, gate: str) -> tuple[str | None, int | None, str, str | None]:
+    """(veredicto, contagem de bloqueios, fonte, erro) do relatório mais recente do gate.
 
     Existe para que `registrar aprovado` não seja aceito na palavra do agente: a
     transição é alimentada por artefato. Mesmo princípio da corroboração de
     trajetória do ADR-0021.
 
     `fonte` é `contrato` (bloco cercado — tem contagem), `prosa` (formato antigo,
-    veredicto sem contagem) ou `ausente`. Só `contrato` permite afirmar progresso:
-    sem número não há comparação, e inventar uma seria pior que não ter.
+    sem bloco: veredicto sem contagem), `invalido` (há bloco e o parser o recusou —
+    `erro` diz por quê) ou `ausente`. Só `contrato` permite afirmar progresso: sem
+    número não há comparação, e inventar uma seria pior que não ter. E bloco recusado
+    não cai para a prosa: senão o "limpo sem lista do que foi olhado" que o parser
+    barra (ADR-0032) passava pela linha `**Veredicto:**` do mesmo arquivo.
     """
     pasta, prefixo, campo = FONTE_DO_GATE[gate]
     leitor = {"criticar": ler_critica, "validar": ler_validacao,
               "revisar": ler_revisao}[gate]
     texto = _mais_recente(pasta, prefixo, spec)
     if texto is None:
-        return None, None, "ausente"
+        return None, None, "ausente", None
     if leitor is not None:
         r = leitor(texto)
         if r.ok:
-            return r.dados["veredicto"], r.dados[campo], "contrato"
-    return _veredicto_da_prosa(texto), None, "prosa"
+            return r.dados["veredicto"], r.dados[campo], "contrato", None
+        if r.codigo != AUSENTE:
+            return None, None, "invalido", f"[{r.codigo}] {r.erro}"
+    return _veredicto_da_prosa(texto), None, "prosa", None
 
 
 # --- comandos ----------------------------------------------------------------------
@@ -420,6 +429,19 @@ def spec_alterada(d: dict) -> bool | None:
     return atual != selo
 
 
+def branch_atual() -> str | None:
+    """A branch em que o ciclo nasce. O guardrail julga o `gh pr create` pelos ciclos da
+    branch atual; sem ela, com dois ciclos abertos, o PR do que está pronto esperava o
+    outro sair do gate."""
+    try:
+        r = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                           capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    nome = r.stdout.strip()
+    return nome if r.returncode == 0 and nome and nome != "HEAD" else None
+
+
 def abrir(spec: str, orcamento: dict, teto: dict, spec_aprovada: bool) -> int:
     p = caminho(spec)
     if p.is_file():
@@ -432,6 +454,7 @@ def abrir(spec: str, orcamento: dict, teto: dict, spec_aprovada: bool) -> int:
         "spec": spec,
         "estado": estado,
         "aberto_em": agora(),
+        "branch": branch_atual(),
         "orcamento": dict(orcamento),
         "teto": dict(teto),
         # `rodadas` são as fichas consumidas SEM progresso — progresso zera.
@@ -518,10 +541,10 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
     # Veredicto vem do artefato, não da palavra do agente.
     gate_do_estado = {"criticando": "criticar", "validando": "validar",
                       "revisando": "revisar"}.get(estado)
-    veredicto = contagem = None
+    veredicto = contagem = erro_bloco = None
     fonte = "ausente"
     if gate_do_estado:
-        veredicto, contagem, fonte = ler_relatorio(d["spec"], gate_do_estado)
+        veredicto, contagem, fonte, erro_bloco = ler_relatorio(d["spec"], gate_do_estado)
 
     if resultado in LIMPO_DO_GATE.get(estado, ()):
         pasta, _, _ = FONTE_DO_GATE[gate_do_estado]
@@ -532,6 +555,14 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
                   f"`verificado:` pelo avesso. Mostre o diff da SPEC ao usuário e, se ele "
                   f"aceitar a versão nova, rode `ciclo.py reaprovar {d['spec']}`; senão, "
                   f"volte a SPEC.", file=sys.stderr)
+            return 1
+        if fonte == "invalido":
+            print(f"🛑 recusado: o relatório mais recente de {d['spec']} em {pasta}/ tem um "
+                  f"bloco ```{FENCE_DO_GATE[gate_do_estado]} que o parser recusa "
+                  f"{erro_bloco}.\n   A linha `**Veredicto:**` não substitui bloco "
+                  "inválido (ADR-0032). Corrija o bloco — ou o relatório, se ele diz "
+                  "limpo sem a lista do que foi examinado — e registre de novo.",
+                  file=sys.stderr)
             return 1
         if veredicto == "bloqueado":
             print(f"🛑 recusado: o relatório mais recente de {d['spec']} em {pasta}/ diz "
@@ -567,9 +598,12 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
     imprimir(d)
     if gate_do_estado and fonte == "prosa" and destino not in TERMINAIS:
         print("\n   ⚠️  Relatório sem bloco de contrato — sem contagem de achados, toda "
-              "rodada queima ficha.\n       Adicione o bloco ```kairos-"
-              f"{'validacao' if gate_do_estado == 'validar' else 'revisao'}"
+              f"rodada queima ficha.\n       Adicione o bloco ```{FENCE_DO_GATE[gate_do_estado]}"
               " para que progresso conte (ADR-0032).", file=sys.stderr)
+    if gate_do_estado and fonte == "invalido" and destino not in TERMINAIS:
+        print(f"\n   ⚠️  O bloco ```{FENCE_DO_GATE[gate_do_estado]} do relatório foi recusado "
+              f"{erro_bloco} — sem contagem, esta rodada queima ficha.\n       Corrija o "
+              "bloco antes da próxima rodada (ADR-0032).", file=sys.stderr)
     return 0
 
 

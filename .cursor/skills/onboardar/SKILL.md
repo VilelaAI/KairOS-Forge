@@ -140,6 +140,10 @@ pra entender, causa-raiz não-óbvia, solução contraintuitiva, anti-padrão vo
 fácil em outro lugar). Cada arquivo tem frontmatter (name, description) + corpo
 em formato "Por que (o incidente)" + "Como aplicar".
 
+Lição que nasce de uma mudança na própria fábrica (`/evoluir`, `/otimizar`), e não
+de um incidente, troca o "Por que" por "Quando reconhecer", "Evidência" (o contraste
+antes × depois) e "Confiança". Sem contraste, não vira memória (ADR-0043).
+
 ## Memórias deste projeto
 
 (Vazio inicialmente — adicione uma linha por memória conforme criar:)
@@ -213,4 +217,4 @@ Próximos passos sugeridos:
 - **Não invente respostas.** Se o usuário não souber algo, deixe a seção do CLAUDE.md como `<a preencher>`.
 - **PT-BR em tudo gerado.** Verifique acentuação antes de salvar.
 - **Não rode `git init` sem perguntar.** Alguns projetos já estão em monorepo.
-- **Não modifique `.gitignore` existente.** Apenas anexe linhas necessárias se faltar `.env`.
+- **Não modifique `.gitignore` existente.** Apenas anexe as linhas que faltarem: `.env` e `.agents/execucoes/` (a trajetória bruta é local e descartável; o que sobe de camada são os números da auditoria — ADR-0021).

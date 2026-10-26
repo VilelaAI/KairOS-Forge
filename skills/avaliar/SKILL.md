@@ -62,7 +62,7 @@ Composição (regras completas e modelo em `references/gold-set.md`):
 `evals/<slug>/selado.jsonl`. O visível é onde se ajusta; o selado roda por último
 e **só o resultado dele vale como aprovação**. Rotacione casos a cada ciclo.
 Divergência entre os dois (visível 95%, selado 70%) não é ruído — é ajuste ao
-teste, medido.
+teste, medido. Ajuste que deixa rastro literal o `prova.py selado` pega (passo 7).
 
 ### 3. Escrever a rubrica — os cinco eixos
 
@@ -74,7 +74,7 @@ fluente que pulou a verificação parece certa), **alucinação/fundamentação*
 Tabela com pergunta e forma de pontuar de cada eixo: `references/rubrica.md`.
 
 Juiz-LLM entra só onde a verificação programática não alcança, **sempre com
-critério escrito** e amostra conferida à mão. Higiene do juiz — as cinco regras,
+critério escrito** e amostra conferida à mão. Higiene do juiz — as seis regras,
 detalhadas em `references/higiene-do-juiz.md`:
 
 1. **Família diferente da que gerou.** Dentro do Claude Code o default preguiçoso é
@@ -86,6 +86,10 @@ detalhadas em `references/higiene-do-juiz.md`:
    incomparável todo score anterior.
 5. **Nunca recompense a forma** — comprimento, palavra-chave, citação, fraseado,
    número de chamadas, similaridade com referência.
+6. **Juiz cego à versão.** Comparando baseline e candidata (ou variantes), o juiz vê
+   A, B, C em ordem embaralhada com semente reprodutível, a baseline sempre entre
+   elas, e sabe que preferir a baseline é resultado válido. O mapa letra → versão
+   fica fora do contexto dele e só abre depois do veredicto gravado.
 
 ### 3.5. Registrar o digest do que foi avaliado
 
@@ -132,13 +136,18 @@ O eval só vale se rodar sozinho quando alguém mexer no que ele protege:
   mesmo pipeline — verificam coisas diferentes).
 - **Regra de regressão declarada**: "mudou o prompt X, o gold set Y ou a
   ferramenta Z → este eval roda antes do merge".
+- **Selado fora da instrução**, no mesmo pipeline:
+  `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prova.py selado`. Caso selado copiado para
+  prompt, skill, persona, `contextos/`, teste ou doc, ou repetido no visível, sai 1.
+  Achou? Tire de lá e rotacione o caso: o resultado selado anterior não aprova mais.
 - **Abaixo do limiar → a mudança volta.** Sem exceção por pressa.
 
 ### 8. Registrar
 
 `evals/<slug>/RELATORIO-YYYY-MM-DD.md`, com veredicto, limiar, baseline → atual,
 visível/selado/divergência, N do gold set e versão, digest do artefato, juiz (versão
-pinada), família do gerador, painel sim/não, eixos avaliados e descartados. Modelo
+pinada), família do gerador, painel sim/não, juiz cego sim/não, resultado do
+`prova.py selado`, eixos avaliados e descartados. Modelo
 completo e o volante de qualidade em `references/diagnostico-e-relatorio.md`.
 Falha nova em produção **vira caso no gold set** antes de ser corrigida.
 
@@ -148,12 +157,15 @@ Falha nova em produção **vira caso no gold set** antes de ser corrigida.
 - **Sem rubrica escrita, o número não significa nada.**
 - **Reporte os eixos separados** e diga o N. Métrica única mente; amostra pequena mente mais.
 - **Juiz de família diferente da que gerou** — ou a limitação declarada no relatório.
+- **Juiz cego à versão** — letras embaralhadas com semente, baseline no pool, mapa
+  aberto só depois do veredicto.
 - **Versão do juiz pinada e registrada** junto do score.
 - **Nada de recompensar forma** — comprimento, palavra-chave, citação, similaridade.
 - **Só o conjunto selado aprova.** O visível serve para ajustar; o selado, para decidir.
 - **Digest registrado no relatório.** Artefato mudou, eval venceu.
 - **Nunca ajuste o gold set para o número passar**, e o gold set fica **fora do contexto**
-  do sistema avaliado. Sistema com ferramenta de escrita roda em modo seco.
+  do sistema avaliado — o `prova.py selado` confere a cópia literal. Sistema com
+  ferramenta de escrita roda em modo seco.
 - **Nunca avalie o que você construiu.**
 - **Falha de produção vira caso no gold set** antes da correção.
 - **PT-BR em tudo** — rubrica, relatório, causas, conversa.
@@ -164,6 +176,6 @@ Em `${CLAUDE_PLUGIN_ROOT}/skills/avaliar/references/`:
 
 - `gold-set.md` — leia ao montar ou revisar o gold set: regras de composição, tamanho, teto de tempo e a disciplina do conjunto selado.
 - `rubrica.md` — leia ao escrever a rubrica: tabela dos cinco eixos com o que cada um pergunta e como se pontua.
-- `higiene-do-juiz.md` — leia antes de usar juiz-LLM: as cinco regras completas e por que autocrítica não substitui juiz externo.
+- `higiene-do-juiz.md` — leia antes de usar juiz-LLM: as seis regras completas, a receita do embaralhamento com semente e por que autocrítica não substitui juiz externo.
 - `diagnostico-e-relatorio.md` — leia ao fechar a rodada: tabela de agrupamento por causa raiz, modelo do relatório e o volante de qualidade.
 - `fundamentos.md` — leia em dúvida de escopo: Anti-Goodhart completo, fronteiras com cada persona e origem nos ADRs.

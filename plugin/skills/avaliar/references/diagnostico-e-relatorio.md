@@ -31,6 +31,8 @@ Sete casos com a mesma causa são **um** problema, não sete. Corrigir caso a ca
 **Visível:** <n>% (<N> casos) · **Selado:** <n>% (<N> casos) · **Divergência:** <n> pts
 **Gold set:** <N> casos (versão/commit) · **Digest do artefato:** `<sha256 curto>`
 **Juiz:** <modelo e versão pinada> · **Família do gerador:** <modelo> · **Painel:** sim/não
+**Juiz cego:** sim (mapa em `mapa-YYYY-MM-DD.tsv`) / não (por quê)
+**Selado fora da instrução:** `prova.py selado` limpo / <N> achados · <N> casos curtos não comparados
 **Eixos avaliados:** <quais> · **descartados:** <quais e por quê>
 
 ## Resultado por eixo

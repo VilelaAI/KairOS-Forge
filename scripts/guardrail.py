@@ -143,7 +143,11 @@ COMANDOS = [
     (r"(?i)\b(cat|dotenv|source)\b[^;|]*\.env\b[^;]*\|\s*(curl|nc|wget)",
      "exfiltração de .env por rede"),
     (r"\bgit\s+checkout\s+(.*\s)?--\s+\.(\s|$)", "descartar TODAS as mudanças não commitadas"),
-    # --- piso do ADR-0042 ---
+]
+
+# Piso do ADR-0042: regras de comando que NÃO obedecem a `modos` — ficavam na lista de
+# cima e um `{"modos": {"comando": "aviso"}}` as rebaixava junto com o resto.
+PISO_COMANDOS = [
     (r"(^|[;&|]\s*)(sudo\s+)?(shutdown|reboot|halt|poweroff)\b|\bsystemctl\s+(poweroff|reboot|halt)\b",
      "controle da máquina (desligar/reiniciar)"),
     (r"\brm\s+(-\w+\s+)*-\w*[rf]\w*\s+[^;&|]*(\$\{?\w|\$\(|`)",
@@ -384,19 +388,33 @@ def casa(rel: str, padrao: str) -> bool:
 
 # --- modo hook: comando -------------------------------------------------------------
 
-def ciclo_aberto(raiz: Path) -> dict | None:
-    """O ciclo do /entregar em andamento, se houver. None quando não há máquina rodando."""
+def ciclos_abertos(raiz: Path) -> list[dict]:
+    """Os ciclos do /entregar em andamento, em ordem de nome. Vazio sem máquina rodando."""
     pasta = raiz / ".agents" / "ciclo"
     if not pasta.is_dir():
-        return None
+        return []
+    abertos = []
     for p in sorted(pasta.glob("*.json")):
         try:
             d = json.loads(p.read_text(encoding="utf-8"))
         except Exception:
             continue
         if d.get("estado") not in ("encerrado", "escalado"):
-            return d
-    return None
+            abertos.append(d)
+    return abertos
+
+
+def ciclos_do_pr(raiz: Path, abertos: list[dict]) -> list[dict]:
+    """Os ciclos que um `gh pr create` daqui pode estar fechando.
+
+    O `ciclo.py abrir` grava a branch do ciclo. Os desta branch são os do PR — com dois
+    ciclos abertos, o PR do que está pronto não espera o outro sair do gate. Se nenhum é
+    desta branch (ciclo antigo sem `branch`, ou branch criada para o PR), valem todos:
+    trocar de branch não pode ser o jeito de contornar o estado de um ciclo aberto.
+    """
+    branch = branch_atual(raiz)
+    daqui = [c for c in abertos if branch and c.get("branch") == branch]
+    return daqui or abertos
 
 
 def branch_atual(raiz: Path) -> str:
@@ -416,17 +434,22 @@ def checar_comando(payload: dict) -> int:
     cfg = carregar_config(raiz)
 
     # Abertura/merge de PR obedecem à máquina de estados, quando ela está rodando.
-    ciclo = ciclo_aberto(raiz)
-    if ciclo:
+    abertos = ciclos_abertos(raiz)
+    if abertos:
         if FECHA_PR.search(cmd):
             registrar_recusa(raiz, "ciclo", "merge durante ciclo aberto", cmd[:200], "bloqueio")
             return bloquear(
                 "merge de PR bloqueado durante um ciclo do /kairos-forge:entregar",
-                f"Ciclo {ciclo['spec']} em '{ciclo['estado']}'.",
+                "Ciclo(s) aberto(s): " + ", ".join(
+                    f"{c.get('spec')} em '{c.get('estado')}'" for c in abertos) + ".",
                 "O arco termina no PR — a decisão de integrar é do dono do repositório "
                 "(ADR-0023). Peça o merge ao usuário.",
             )
-        if ABRE_PR.search(cmd) and ciclo.get("estado") != "pronto_para_pr":
+        fora = []
+        if ABRE_PR.search(cmd):
+            fora = [c for c in ciclos_do_pr(raiz, abertos) if c.get("estado") != "pronto_para_pr"]
+        if fora:
+            ciclo = fora[0]
             registrar_recusa(raiz, "ciclo", "PR fora de estado", cmd[:200], "bloqueio")
             return bloquear(
                 f"abertura de PR fora de estado — o ciclo {ciclo['spec']} está em "
@@ -468,6 +491,15 @@ def checar_comando(payload: dict) -> int:
             "Este guardrail só deixa apagar dentro do repositório ou em temp. Fora disso, "
             "quem apaga é o humano.",
         )
+    for padrao, motivo in PISO_COMANDOS:
+        if re.search(padrao, cmd):
+            registrar_recusa(raiz, "comando", motivo, cmd[:200], "bloqueio")
+            return bloquear(
+                f"comando bloqueado — {motivo}",
+                f"Comando: {cmd[:300]}",
+                "Se for realmente necessário, peça ao usuário para executar. "
+                "Ação irreversível não roda em fluxo autônomo (ADR-0024).",
+            )
 
     regras = list(COMANDOS) + [(r, "regra do projeto") for r in cfg.get("comandos_extra", [])]
     modo = modo_de(cfg, "comando")
@@ -1002,8 +1034,12 @@ def verificar(alvo: Path) -> int:
 
     for padrao, motivo in PROTEGIDOS_PADRAO[:5]:  # só os de segredo, não o de CI
         for achado in raiz.rglob(padrao.replace("**/", "")):
-            if achado.is_file() and ".git/" not in str(achado):
-                problemas.append(f"{achado}: {motivo} versionado no projeto?")
+            if not achado.is_file() or ".git/" in str(achado):
+                continue
+            # As mesmas exceções do hook de escrita: `.env.example` existe para ser versionado.
+            if any(casa(achado.name, exc) for exc in EXCECOES):
+                continue
+            problemas.append(f"{achado}: {motivo} versionado no projeto?")
 
     if problemas:
         print(f"🛑 guardrail: {len(problemas)} achado(s)")

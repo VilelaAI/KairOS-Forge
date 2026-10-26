@@ -1,6 +1,6 @@
 # kairos-forge — auditoria semanal da fábrica
 #
-# O ritual de sexta-feira sem depender de alguém lembrar. Roda o
+# O ritual de segunda-feira sem depender de alguém lembrar. Roda o
 # /kairos-forge:auditar (read-only, 6 dimensões incluindo Autonomia) e abre uma
 # issue com as 3 lacunas de maior alavancagem.
 #
@@ -53,9 +53,9 @@ jobs:
         run: |
           npm install -g @anthropic-ai/claude-code
           git clone --depth 1 https://github.com/VilelaAI/kairos-forge /tmp/forge
-          mkdir -p .claude
-          cp -R /tmp/forge/plugin/skills .claude/skills
-          cp -R /tmp/forge/plugin/agents .claude/agents
+          mkdir -p .claude/skills .claude/agents   # o /. copia o conteúdo: não aninha se a pasta já existe
+          cp -R /tmp/forge/plugin/skills/. .claude/skills/
+          cp -R /tmp/forge/plugin/agents/. .claude/agents/
 
       - name: Telemetria da semana (dimensão Autonomia)
         if: steps.cred.outputs.ativo == 'true'

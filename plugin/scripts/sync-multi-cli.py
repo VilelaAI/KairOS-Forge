@@ -93,7 +93,7 @@ MARCA_GERADO = "GERADO por scripts/sync-multi-cli.py (kairos-forge)"
 # para que o sync funcione em qualquer ponto do histórico).
 SCRIPTS_DE_SUPORTE = ["grafo.py", "telemetria.py", "execucao.py", "guardrail.py",
                       "diagnostico.py", "ciclo.py", "contrato.py", "painel.py",
-                      "quadro.py"]
+                      "quadro.py", "prova.py"]
 
 
 def montar_rule(skills: list[str]) -> str:
@@ -109,7 +109,7 @@ description: "Fábrica de software kairos-forge — 71 agentes e 18 skills em PT
 alwaysApply: true
 ---
 
-🔥 kairos-forge v0.35 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
+🔥 kairos-forge v0.36 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
 
 - As skills da fábrica estão no menu `/` (Agent Skills): {lista}. A skill
   `mobilizar` roda aqui: o agente principal orquestra os subagents em paralelo

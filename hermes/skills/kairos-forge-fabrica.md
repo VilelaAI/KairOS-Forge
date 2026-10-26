@@ -1,7 +1,7 @@
 ---
 name: kairos-forge-fabrica
-description: Use quando a tarefa é engenharia estruturada — feature multi-arquivo, SPEC rastreável, migração de legado, eval de IA ou revisão pré-PR — e deve ser roteada para o Claude Code com o plugin kairos-forge como motor de engenharia
-version: 1.0.0
+description: Use quando a tarefa é engenharia estruturada — feature multi-arquivo, SPEC rastreável, diagnóstico ou migração de legado, design de UI, eval de IA, revisão pré-PR ou deploy com gates — e deve ser roteada para o Claude Code com o plugin kairos-forge como motor de engenharia
+version: 1.1.0
 tags: [roteamento, engenharia, kairos-forge, claude-code]
 ---
 
@@ -14,8 +14,9 @@ handoff — o Claude Code **não enxerga a memória do Hermes**, então todo
 contexto relevante vai no prompt.
 
 Divisão de papéis: **o Hermes opera** (kanban, cron, aprovações, canal com o
-fundador); **a fábrica projeta e constrói** (SPEC, implementação por
-especialistas, validação contra contrato, revisão multi-agente).
+fundador, monitoramento contínuo); **a fábrica projeta e constrói** (SPEC,
+implementação por especialistas, validação contra contrato, revisão
+multi-agente, deploy com gates).
 
 ## Quando usar
 
@@ -23,16 +24,20 @@ Roteie para a fábrica quando a tarefa casar com qualquer linha:
 
 | Sinal | O que a fábrica faz |
 |---|---|
-| Feature que toca 3+ arquivos, schema ou API | `/kairos-forge:especificar` → SPEC rastreável → implementação com gates |
-| "Antes de codar, o que exatamente vamos construir?" | SPEC com requisitos, critérios de aceite e matriz de testes |
-| Migração/modernização de legado | `/kairos-forge:migrar` — estrangulamento com testes de caracterização e rollback |
-| Feature com LLM que precisa de avaliação | Alice (Evals de IA) — gold set, regressão de prompt como gate |
-| Revisão de segurança/qualidade antes de PR | `/kairos-forge:revisar` — Helena (segurança), Patrícia (QA), Vinícius (performance) |
-| Feature sensível (auth, PII, pagamento) | `/kairos-forge:analisar-ameacas` antes de implementar |
+| Feature que toca 3+ arquivos, schema ou API | `/kairos-forge:entregar` — o arco inteiro: SPEC com três gates do fundador, construção, validação e revisão com correção dentro do orçamento, PR. Headless: siga a skill `kairos-forge-ciclo` |
+| "Antes de codar, o que exatamente vamos construir?" | `/kairos-forge:especificar` — SPEC com requisitos, critérios de aceite e matriz de testes, sem construir |
+| Feature sensível (auth, PII, pagamento) | `/kairos-forge:analisar-ameacas` antes de implementar — no fluxo headless, antes do `entregar` |
+| Feature com UI | `/kairos-forge:desenhar SPEC-NNN` — fluxos e cinco estados por view (Isabela); `desenhar verificar` confere a implementação |
+| Sistema existente: "o que dói e por onde começo?" | `/kairos-forge:diagnosticar` — seis dimensões medidas e roadmap por impacto × esforço (Rafael) |
+| Migração/modernização de legado | `/kairos-forge:migrar` — estrangulamento com testes de caracterização e rollback (Ivan) |
+| Feature com LLM que precisa de avaliação | `/kairos-forge:avaliar` — gold set versionado, rubrica em cinco eixos, gate no CI (Alice) |
+| Revisão de segurança/qualidade antes de PR | `/kairos-forge:revisar` — Helena, Patrícia, Vinícius e Marcos, conforme o escopo |
+| Deploy de produção | `/kairos-forge:lancar` — checklist, SIM explícito do fundador, health check em três camadas, rollback anotado (Marcos) |
 
 **Não** roteie para a fábrica: correção de 1 arquivo (< 20 linhas — Codex ou
-Hermes resolvem), tarefa de ops/deploy/monitoramento (fica no Hermes), decisão
-de produto (fica com o profile de produto do Hermes).
+Hermes resolvem), monitoramento contínuo e ops do dia a dia (ficam no Hermes;
+deploy de produção, não — é o `lancar`), decisão de produto (fica com o profile
+de produto do Hermes).
 
 ## Pré-requisitos
 
@@ -52,7 +57,7 @@ de produto (fica com o profile de produto do Hermes).
    [colar entradas relevantes]
 
    Tarefa:
-   /kairos-forge:especificar [descrição específica do que construir]
+   /kairos-forge:<skill da linha da tabela> [descrição específica do que construir]
 
    Restrições:
    - Escopo cirúrgico: mudar só o que a tarefa exige, sem refatorar código vizinho
@@ -62,16 +67,19 @@ de produto (fica com o profile de produto do Hermes).
 
 3. Execute no diretório do projeto: sessão interativa (`claude`) quando o
    fundador quiser acompanhar, ou headless (`claude -p "<prompt>"`) no fluxo
-   autônomo — nesse caso siga a skill `kairos-forge-ciclo`.
+   autônomo — com o `entregar`, siga a skill `kairos-forge-ciclo`, que conduz os
+   gates do fundador.
 4. Ao final, salve na memória do Hermes o resultado (SPEC criada, PR aberto,
    gates rodados) e atualize o card no kanban com a evidência.
 
 ## Fronteira de aprovação
 
-A fábrica pede aprovação nos pontos irreversíveis — e o Hermes é o canal:
-SPEC aprovada antes de implementar, migração com janela de corte, release de
-produção, rollback, mudança destrutiva de dados. Repasse essas perguntas ao
-fundador pelo chat e devolva a resposta ao ciclo. Nunca aprove em nome dele.
+A fábrica para no que só gente decide — e o Hermes é o canal: os três gates do
+planejamento (entendimento, abordagem, aprovação da SPEC), perguntas do Pare e
+Pergunte, SPEC alterada depois da aprovação (`reaprovar`), faixa 3 do raio de
+explosão, escalação, release de produção (SIM explícito no `lancar`), janela de
+corte de migração, mudança destrutiva de dados e merge. Repasse essas perguntas
+ao fundador pelo chat e devolva a resposta ao ciclo. Nunca aprove em nome dele.
 
 ## Armadilhas
 
@@ -80,8 +88,15 @@ fundador pelo chat e devolva a resposta ao ciclo. Nunca aprove em nome dele.
 - A fábrica trabalha em PT-BR e pergunta quando falta informação essencial
   (Pare e Pergunte) — repasse as perguntas ao fundador em vez de inventar
   respostas.
-- Um ciclo por vez por projeto: não dispare duas SPECs simultâneas no mesmo
-  repositório.
+- Sempre passe a SPEC ao `ciclo.py` (`estado SPEC-NNN --json`, `registrar
+  <resultado> SPEC-NNN`): sem ela o script procura "o único ciclo aberto" e
+  recusa quando há mais de um.
+- Um ciclo por branch, e uma branch por cópia do repositório. O `ciclo.py abrir`
+  grava a branch do ciclo, e o guardrail julga o `gh pr create` pelos ciclos da
+  branch atual: o PR de um ciclo pronto não espera outro, de outra branch, sair do
+  gate. Branch sem ciclo não é atalho — ali valem todos os ciclos abertos. Dois arcos
+  na mesma cópia ainda dividiriam a working tree: trabalho paralelo vai em outra
+  cópia ou worktree (o estado do ciclo é relativo ao diretório).
 
 ## Verificação
 

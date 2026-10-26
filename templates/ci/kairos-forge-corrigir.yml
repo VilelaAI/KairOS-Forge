@@ -132,7 +132,9 @@ jobs:
           git commit -m "fix(ci): corrige falha da execução ${{ github.event.workflow_run.id }}
 
           Correção automática da fábrica kairos-forge, uma rodada.
-          Diagnóstico no corpo do PR. Revisão e merge são humanos."
+          Diagnóstico no corpo do PR. Revisão e merge são humanos.
+
+          Fabrica: kairos-forge"
           git push -u origin HEAD
           {
             echo "## 🔧 Correção automática de CI"

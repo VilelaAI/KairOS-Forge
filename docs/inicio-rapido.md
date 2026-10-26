@@ -34,7 +34,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver (lista de skills abreviada aqui):
 
 ```
-🔥 kairos-forge v0.36 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+🔥 kairos-forge v0.37 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -221,9 +221,12 @@ A qualquer momento, do diretório do projeto:
 python3 <plugin>/scripts/painel.py              # tudo
 python3 <plugin>/scripts/painel.py SPEC-001     # uma SPEC
 python3 <plugin>/scripts/painel.py --html quadro.html   # página pra mandar pra alguém
+python3 <plugin>/scripts/painel.py --caixa              # só o que espera por você
 ```
 
 Sai o quadro vivo: requisitos por coluna (A fazer / Em progresso / Pronto), progresso da SPEC, estado do arco com as fichas de orçamento, veredicto dos três gates (crítica, validação, revisão) com a cobertura declarada, as mobilizações do quadro (onda, em voo, o que pode lançar, o que venceu o prazo) e a trajetória dos últimos 14 dias. O HTML é autocontido — abre sem rede.
+
+A `--caixa` é a caixa de entrada (ADR-0044): o gate do planejamento que espera sua resposta, a SPEC que mudou depois de aprovada, o ciclo escalado com o motivo, a tarefa bloqueada ou vencida no quadro — cada item com o comando que resolve. Com `--caixa --github` entram também as issues `forge:falta-informacao` da triagem e os PRs abertos pela fábrica; sem o `--github`, nada sai da máquina.
 
 Duas coisas que ele **não** faz, de propósito: não escreve nada (é renderização do estado canônico, nunca planilha paralela — ADR-0013), e não conta como "Pronto" requisito marcado `Concluído` sem `verificado:` — esse cai para "Em progresso" e aparece no aviso. Um quadro que somasse a palavra mostraria progresso que a própria `/validar` recusaria.
 
@@ -296,7 +299,12 @@ Para ver onde você está:
 
 ```bash
 python3 <plugin>/scripts/telemetria.py resumo --dias 30
+python3 <plugin>/scripts/telemetria.py prs --dias 30     # autonomia de PR, pelo git
 ```
+
+O `resumo` lê a trajetória dos hooks; o `prs` lê o histórico do git e existe em qualquer
+CLI: dos PRs mesclados com commit da fábrica (trailer `Fabrica: kairos-forge` ou
+`Co-Authored-By: Claude`), quantos chegaram ao merge sem nenhum commit humano (ADR-0044).
 
 **Os guardrails podem bloquear.** Se um agente tentar `rm -rf /`, force-push em
 `main`, escrever em `.env` ou marcar um requisito como "Concluído" sem a célula
@@ -409,6 +417,7 @@ Não tem problema técnico, mas pense bem. Os dois sobrepõem o squad técnico. 
 - Leia [ADR-0035](adr/0035-mobilizar-multi-cli.md) para o `/mobilizar` nos quatro CLIs e o quadro de tarefas em arquivo
 - Leia [ADR-0039](adr/0039-verificacao-e-o-gargalo.md) para por que a verificação do agente sobre o próprio trabalho não vale como prova
 - Leia [ADR-0043](adr/0043-juiz-cego-selado-e-veredicto.md) para o juiz cego do `/avaliar`, o conjunto selado que não vaza e o veredicto da evolução anterior
+- Leia [ADR-0044](adr/0044-autonomia-medida-benchmark-e-caixa.md) para a autonomia medida pelo git, o benchmark colhido do histórico e a caixa de entrada — e por que o merge continua humano
 - Leia a [análise do whitepaper](revisoes/2026-08-01-analise-whitepaper-novo-sdlc-e-caminho-l4.md) se quiser o raciocínio completo por trás do caminho até L4
 - Veja `templates/ci/` quando já tiver telemetria e guardrails rodando
 - Quando tiver dor recorrente, rode `/kairos-forge:evoluir` pra virar capacidade nova

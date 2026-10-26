@@ -26,6 +26,8 @@ Uso:
     painel.py --html painel.html       # página autocontida (sem rede, sem CDN)
     painel.py --json                   # para outra ferramenta consumir
     painel.py --dias 7                 # janela da trajetória (default 14)
+    painel.py --caixa [--github]       # caixa de entrada: o que espera por uma pessoa
+                                       # (ADR-0044); --github junta issues e PRs via `gh`
 
 Só stdlib.
 """
@@ -34,6 +36,8 @@ from __future__ import annotations
 import html as _html
 import json
 import re
+import shutil
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,6 +56,14 @@ try:
     from quadro import vista_publica
 except Exception:  # quadro ausente nunca derruba o painel
     vista_publica = None  # type: ignore[assignment]
+try:
+    from ciclo import spec_alterada
+except Exception:
+    spec_alterada = None  # type: ignore[assignment]
+try:
+    from telemetria import commit_de_agente
+except Exception:
+    commit_de_agente = None  # type: ignore[assignment]
 
 DIAS_PADRAO = 14
 LINHA_TABELA = re.compile(r"^\s*\|(?!\s*-)(.+)\|\s*$")
@@ -224,6 +236,107 @@ def coletar(raiz: Path, alvo: str | None, dias: int) -> dict:
         "quadros": quadros,
         "telemetria": tele,
     }
+
+
+# --- caixa de entrada (ADR-0044) --------------------------------------------------------
+# O que espera por uma pessoa, num lugar só: o gate humano de cada ciclo, a SPEC que mudou
+# depois de aprovada, o ciclo escalado, a tarefa bloqueada ou vencida no quadro — e, com
+# `--github`, a issue que pede informação e o PR da fábrica esperando revisão. Continua
+# renderização: lê e mostra, não escreve. O GitHub só entra quando pedido, porque é a
+# única fonte que sai da máquina.
+
+GATES_HUMANOS = {
+    "aguardando_entendimento": "gate 1/3 — confirmar o entendimento",
+    "aguardando_abordagem": "gate 2/3 — escolher a abordagem",
+    "aguardando_aprovacao": "gate 3/3 — aprovar a SPEC",
+}
+ICONE_CAIXA = {"gate": "🚦", "escalado": "🧯", "spec_alterada": "✍️ ", "bloqueada": "⛔",
+               "vencida": "⏰", "falta_informacao": "❓", "pr_da_fabrica": "🔀"}
+
+
+def _gh_json(raiz: Path, *args: str) -> list | None:
+    try:
+        r = subprocess.run(["gh", *args], cwd=raiz, capture_output=True, text=True, timeout=60)
+        dados = json.loads(r.stdout or "[]") if r.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    return dados if isinstance(dados, list) else None
+
+
+def caixa_github(raiz: Path) -> tuple[dict, list[dict]]:
+    if not shutil.which("gh"):
+        return {"estado": "sem_gh"}, []
+    issues = _gh_json(raiz, "issue", "list", "--state", "open", "--label",
+                      "forge:falta-informacao", "--json", "number,title,url")
+    prs = _gh_json(raiz, "pr", "list", "--state", "open", "--json",
+                   "number,title,url,isDraft,commits")
+    if issues is None or prs is None:
+        return {"estado": "falhou"}, []
+    itens = [{"tipo": "falta_informacao", "onde": f"issue #{i.get('number')}",
+              "o_que": i.get("title") or "", "como": "responda as perguntas da triagem",
+              "url": i.get("url")} for i in issues]
+    for pr in prs:
+        commits = [{"autor": ((c.get("authors") or [{}])[0].get("name") or ""),
+                    "mensagem": "\n\n".join(x for x in (c.get("messageHeadline"),
+                                                           c.get("messageBody")) if x)}
+                   for c in pr.get("commits") or []]
+        if pr.get("isDraft") or commit_de_agente is None or not any(map(commit_de_agente, commits)):
+            continue
+        itens.append({"tipo": "pr_da_fabrica", "onde": f"PR #{pr.get('number')}",
+                      "o_que": pr.get("title") or "", "como": "revise e decida o merge",
+                      "url": pr.get("url")})
+    return {"estado": "consultado"}, itens
+
+
+def caixa(raiz: Path, github: bool = False) -> dict:
+    itens = []
+    for c in ler_ciclos(raiz):
+        e, spec = c.get("estado", ""), c.get("spec")
+        if e in GATES_HUMANOS:
+            itens.append({"tipo": "gate", "onde": spec, "o_que": GATES_HUMANOS[e],
+                          "como": f"responda e registre: ciclo.py registrar <resultado> {spec}"})
+        elif e == "escalado":
+            itens.append({"tipo": "escalado", "onde": spec,
+                          "o_que": c.get("motivo_escalacao") or "ciclo escalado",
+                          "como": "decida: ampliar o orçamento, mudar a SPEC ou encerrar"})
+        if e not in ("encerrado", "escalado") and spec_alterada is not None and spec_alterada(c):
+            itens.append({"tipo": "spec_alterada", "onde": spec,
+                          "o_que": "a SPEC mudou depois da aprovação",
+                          "como": f"aceite com ciclo.py reaprovar {spec}, ou desfaça a mudança"})
+    for q in ler_quadros(raiz):
+        if q.get("encerrado"):
+            continue
+        for tid in q.get("bloqueadas") or []:
+            itens.append({"tipo": "bloqueada", "onde": q["slug"], "o_que": f"tarefa {tid} bloqueada",
+                          "como": "resolva o bloqueio com a Laura; ela reabre com quadro.py reabrir"})
+        for tid in q.get("vencidas") or []:
+            itens.append({"tipo": "vencida", "onde": q["slug"],
+                          "o_que": f"tarefa {tid} passou do tempo limite",
+                          "como": f"quadro.py varrer {q['slug']} — o worker pode ter morrido"})
+    gh = {"estado": "nao_consultado"}
+    if github:
+        gh, extras = caixa_github(raiz)
+        itens += extras
+    return {"gerado_em": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "itens": itens, "github": gh}
+
+
+def render_caixa(d: dict) -> str:
+    n = len(d["itens"])
+    L = [f"📥 Caixa de entrada — {n} item(ns) esperando uma pessoa", ""]
+    if not n:
+        L.append("   Nada esperando por você.")
+    for i in d["itens"]:
+        L.append(f"   {ICONE_CAIXA.get(i['tipo'], '·')} {str(i['onde']):<14} {i['o_que']}")
+        L.append(f"   {'':<17}→ {i['como']}" + (f"  {i['url']}" if i.get("url") else ""))
+    estado = d["github"]["estado"]
+    nota = {"nao_consultado": "não consultado — rode com --github para issues "
+                              "`forge:falta-informacao` e PRs da fábrica",
+            "sem_gh": "não consultado — o CLI `gh` não está instalado",
+            "falhou": "a consulta falhou (o `gh` está autenticado neste repositório?)",
+            "consultado": "consultado"}[estado]
+    L += ["", f"   GitHub: {nota}"]
+    return "\n".join(L)
 
 
 # --- render: terminal -----------------------------------------------------------------
@@ -522,6 +635,11 @@ def main() -> int:
                 saida_html = v
             else:
                 dias = v
+
+    if "--caixa" in args:
+        d = caixa(Path.cwd(), github="--github" in args)
+        print(json.dumps(d, ensure_ascii=False, indent=2) if como_json else render_caixa(d))
+        return 0
 
     alvo = args[0] if args else None
     d = coletar(Path.cwd(), alvo, dias)

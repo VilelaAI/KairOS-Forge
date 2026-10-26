@@ -78,7 +78,8 @@ Para cada rodada, exatamente isto:
 
 1. **Inspecionar** o estado atual e a linhagem (o que já foi tentado? o que descartamos e por quê?).
 2. **Propor UMA mudança** com hipótese explícita: "reduzir N+1 na listagem deve cortar ~30% da latência".
-3. **Commitar a candidata**: `exp(<slug>): <hipótese em uma linha>`.
+3. **Commitar a candidata**: `exp(<slug>): <hipótese em uma linha>`, com o trailer
+   `Fabrica: kairos-forge` (ADR-0044).
 4. **Medir**: comando da métrica + sentinelas.
 5. **Crash?** Erro mecânico (import, typo) → conserte e meça de novo. Erro não-óbvio → reverta e registre como `crash`.
 6. **Decidir**: melhorou a métrica **e** sentinelas intactas → mantém. Senão → `git reset --hard` para o último estado retido, registre como `revertida`.

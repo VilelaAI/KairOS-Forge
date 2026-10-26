@@ -53,6 +53,10 @@ Composição (regras completas e modelo em `references/gold-set.md`):
 
 - Casos reais valem mais que sintéticos; inclua fronteiras (lista de esperados,
   marcada como fronteira), adversarial e **"deve recusar"**.
+- **Comportamento de agente que entrega código:** o histórico já tem os casos —
+  `prova.py colher --validar` transforma cada entrega da fábrica mesclada, com teste,
+  num candidato (pedido, commit de base, testes como gabarito). Detalhe em
+  `references/gold-set.md` (ADR-0044).
 - **~30 casos** é o mínimo para ter sinal; **~500** para confiar no agregado. Diga qual
   dos dois você tem.
 - **Teto de tempo: menos de ~5 minutos.** Se estourar, simule o que custa dinheiro

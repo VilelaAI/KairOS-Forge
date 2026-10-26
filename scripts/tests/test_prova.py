@@ -113,5 +113,89 @@ class Selado(Repo):
         self.assertEqual(rodar(), 1)
 
 
+def git(raiz: Path, *args: str, autor: str = "Pessoa") -> str:
+    r = subprocess.run(["git", "-C", str(raiz), "-c", f"user.name={autor}", "-c",
+                        "user.email=a@b", *args], check=True, capture_output=True, text=True)
+    return r.stdout.strip()
+
+
+TESTE_QUE_PROVA = ('import pathlib, sys\n'
+                   'sys.exit(0 if pathlib.Path("src/valor.txt").read_text().strip() == "2" else 1)\n')
+TESTE_QUE_SEMPRE_PASSA = "import sys\nsys.exit(0)\n"
+FABRICA = "\n\nFabrica: kairos-forge"
+
+
+class ColherDoHistorico(Repo):
+    """Entrega da fábrica mesclada com teste no diff vira caso candidato (ADR-0044)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        git(self.raiz, "init", "-q", "-b", "main", ".")
+        self.escrever("src/valor.txt", "1\n")
+        git(self.raiz, "add", ".")
+        git(self.raiz, "commit", "-q", "-m", "base")
+
+    def entrega(self, numero: int, branch: str, arquivos: dict, mensagem: str) -> None:
+        git(self.raiz, "checkout", "-q", "-b", branch)
+        for rel, texto in arquivos.items():
+            self.escrever(rel, texto)
+        git(self.raiz, "add", ".")
+        git(self.raiz, "commit", "-q", "-m", mensagem)
+        git(self.raiz, "checkout", "-q", "main")
+        git(self.raiz, "merge", "-q", "--no-ff", branch, "-m",
+            f"Merge pull request #{numero} from org/{branch}")
+        git(self.raiz, "reset", "-q", "--hard")
+
+    def historico(self) -> None:
+        self.entrega(1, "forge/a", {"src/valor.txt": "2\n", "tests/test_valor.py": TESTE_QUE_PROVA},
+                     "feat: valor 2" + FABRICA)
+        self.entrega(2, "forge/b", {"docs/x.md": "doc\n"}, "docs: só texto" + FABRICA)
+        self.entrega(3, "feat/c", {"tests/test_c.py": TESTE_QUE_SEMPRE_PASSA}, "test: à mão")
+        self.entrega(4, "forge/d", {"tests/test_d.py": TESTE_QUE_SEMPRE_PASSA}, "test: d" + FABRICA)
+
+    def test_colhe_so_entrega_da_fabrica_com_teste(self) -> None:
+        self.historico()
+        r = prova.colher(self.raiz, None, None, False, None, 60, "git")
+        self.assertEqual({c["id"] for c in r["novos"]}, {"pr-1", "pr-4"})
+        self.assertIn({"id": "pr-2", "motivo": "entrega sem teste criado ou alterado — sem gabarito"},
+                      r["pulados"])
+        caso = next(c for c in r["novos"] if c["id"] == "pr-1")
+        self.assertEqual(caso["testes"], ["tests/test_valor.py"])
+        self.assertEqual(caso["estrategia"], "merge")
+        self.assertTrue(caso["revisar_pedido"])  # sem gh, o pedido é o título do merge
+        linhas = (self.raiz / "evals/entregas/candidatos.jsonl").read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(linhas), 2)
+        de_novo = prova.colher(self.raiz, None, None, False, None, 60, "git")
+        self.assertEqual(de_novo["novos"], [])
+        self.assertEqual({c["motivo"] for c in de_novo["pulados"]} - {"entrega sem teste criado ou alterado — sem gabarito"},
+                         {"já colhido"})
+
+    def test_validar_so_deixa_o_oraculo_que_separa(self) -> None:
+        self.historico()
+        r = prova.colher(self.raiz, None, "evals/entregas/validados.jsonl", True,
+                         f"{sys.executable} {{arquivo}}", 60, "git")
+        self.assertEqual([c["id"] for c in r["novos"]], ["pr-1"])
+        self.assertEqual(r["novos"][0]["oraculo"], "valido")
+        self.assertIn({"id": "pr-4", "motivo": "oráculo passa_na_base"}, r["pulados"])
+        self.assertEqual(git(self.raiz, "worktree", "list").count("\n"), 0)  # worktrees removidos
+
+    def test_base_do_squash_e_do_rebase(self) -> None:
+        inicio = git(self.raiz, "rev-parse", "HEAD")
+        self.escrever("a.txt", "a\n")
+        git(self.raiz, "add", ".")
+        git(self.raiz, "commit", "-q", "-m", "feat: primeiro")
+        self.escrever("b.txt", "b\n")
+        git(self.raiz, "add", ".")
+        git(self.raiz, "commit", "-q", "-m", "feat: segundo")
+        topo = git(self.raiz, "rev-parse", "HEAD")
+        commits = [{"mensagem": "feat: primeiro"}, {"mensagem": "feat: segundo"}]
+        base, estrategia = prova.base_da_entrega(self.raiz, {"entrega": topo, "commits": commits})
+        self.assertEqual((base, estrategia), (inicio, "rebase"))
+        squash = [{"mensagem": "wip"}, {"mensagem": "ajuste"}]
+        base, estrategia = prova.base_da_entrega(self.raiz, {"entrega": topo, "commits": squash})
+        self.assertEqual(estrategia, "squash")
+        self.assertEqual(base, git(self.raiz, "rev-parse", "HEAD~1"))
+
+
 if __name__ == "__main__":
     unittest.main()

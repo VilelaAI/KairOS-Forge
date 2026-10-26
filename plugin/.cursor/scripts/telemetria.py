@@ -16,6 +16,9 @@ Uso:
                                                   # realmente rodou? com que resultado?
     telemetria.py ruido [--dias 90] [--json]      # achados de revisão descartados por
                                                   # revisor — calibra quem grita à toa
+    telemetria.py prs [--dias 30] [--fonte gh|git] [--marca REGEX]... [--json]
+                                                  # autonomia de PR, medida pelo git
+                                                  # (ADR-0044) — funciona sem hook
 
 Definições (explícitas de propósito — métrica sem definição é chute com casa decimal):
 
@@ -34,6 +37,15 @@ Definições (explícitas de propósito — métrica sem definição é chute co
                 ruído é revisor que o time aprende a ignorar (ADR-0039) — e
                 aí o 🔴 verdadeiro passa junto. Sem marcação, ruído é 0 e o
                 número é declarado "não medido", não "bom".
+  commit de    commit com o trailer `Fabrica: kairos-forge`, o trailer
+  agente        `Co-Authored-By: Claude` que o Claude Code põe por padrão, ou
+                autor `kairos-forge` (os templates de CI). Mais as `--marca`
+                que o projeto declarar. Todo o resto é commit humano.
+  autonomia    PRs mesclados com ao menos um commit de agente e NENHUM commit
+  de PR         humano ÷ PRs mesclados com ao menos um commit de agente
+                (ADR-0044). Sai do histórico, não da trajetória: o modelo não
+                escreve o merge, e o número existe onde não há hook. Sem PR da
+                fábrica, é "não medido", nunca 0%.
 
 Só stdlib.
 """
@@ -41,6 +53,8 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
+import subprocess
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -302,6 +316,162 @@ def imprimir_ruido(r: dict, dias: int | None) -> None:
         print(f"  {nome:<14} {v['achados']:>8} {v['descartados']:>9} {pct:>7}{alerta}")
 
 
+# --- autonomia de PR, medida pelo git (ADR-0044) -----------------------------------
+# A taxa de ciclos sem intervenção sai da trajetória, que só existe onde há hook. Esta
+# sai do histórico: dos PRs mesclados em que a fábrica escreveu código, quantos chegaram
+# ao merge sem nenhum commit humano. O modelo não escreve o histórico do merge, e o
+# número existe no Codex, no OpenCode e no CI, onde a trajetória não existe.
+
+MARCAS_AGENTE = (
+    re.compile(r"(?im)^f[aá]brica:\s*kairos-forge\s*$"), # trailer da fábrica
+    re.compile(r"(?im)^co-authored-by:\s*claude\b"),     # trailer padrão do Claude Code
+)
+AUTORES_AGENTE = {"kairos-forge"}                          # commits dos templates de CI
+CAMPOS_GH = "number,title,headRefName,mergedAt,mergeCommit,commits,closingIssuesReferences"
+
+
+def commit_de_agente(commit: dict, extras: tuple = ()) -> bool:
+    msg = commit.get("mensagem") or ""
+    if any(m.search(msg) for m in (*MARCAS_AGENTE, *extras)):
+        return True
+    return str(commit.get("autor") or "").strip().lower() in AUTORES_AGENTE
+
+
+def _data(iso: str | None) -> datetime | None:
+    if not iso:
+        return None
+    try:
+        return datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _prs_do_gh(raiz: Path, corte: datetime | None) -> list[dict] | None:
+    """PRs mesclados pelo `gh`, cobrindo merge, squash e rebase. None se não der."""
+    if not shutil.which("gh"):
+        return None
+    try:
+        r = subprocess.run(["gh", "pr", "list", "--state", "merged", "--limit", "200",
+                            "--json", CAMPOS_GH], cwd=raiz, capture_output=True,
+                           text=True, timeout=90)
+        dados = json.loads(r.stdout or "[]") if r.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    if not isinstance(dados, list):
+        return None
+    prs = []
+    for p in dados:
+        quando = _data(p.get("mergedAt"))
+        if corte and quando and quando < corte:
+            continue
+        commits = []
+        for c in p.get("commits") or []:   # do mais antigo para o mais novo
+            autores = c.get("authors") or [{}]
+            commits.append({"oid": c.get("oid"),
+                            "autor": autores[0].get("name") or autores[0].get("login") or "",
+                            "mensagem": "\n\n".join(x for x in (c.get("messageHeadline"),
+                                                                 c.get("messageBody")) if x)})
+        prs.append({"numero": p.get("number"), "titulo": p.get("title") or "",
+                    "branch": p.get("headRefName") or "", "mesclado_em": p.get("mergedAt"),
+                    "entrega": (p.get("mergeCommit") or {}).get("oid"),
+                    "issues": [i["number"] for i in p.get("closingIssuesReferences") or []
+                               if i.get("number")],
+                    "commits": commits})
+    return prs
+
+
+MERGE_DE_PR = re.compile(r"^Merge pull request #(\d+) from [^/\s]+/(\S+)")
+MERGE_DE_BRANCH = re.compile(r"^Merge (?:remote-tracking )?branch '([^']+)'")
+NUMERO_NO_TITULO = re.compile(r"\(#(\d+)\)\s*$")   # o "título (#14)" do merge do GitHub
+
+
+def _prs_do_git(raiz: Path, dias: int | None) -> list[dict]:
+    """Merges com commit de merge na primeira linha de HEAD. Squash e rebase não aparecem."""
+    def git(*args: str) -> str:
+        try:
+            r = subprocess.run(["git", "-C", str(raiz), *args], capture_output=True,
+                               text=True, timeout=60)
+        except (OSError, subprocess.SubprocessError):
+            return ""
+        return r.stdout if r.returncode == 0 else ""
+
+    args = ["log", "--merges", "--first-parent", "--format=%H%x1f%P%x1f%cI%x1f%s"]
+    if dias:
+        args.append(f"--since={dias}.days")
+    prs = []
+    for linha in git(*args).splitlines():
+        partes = linha.split("\x1f")
+        if len(partes) != 4 or len(partes[1].split()) < 2:
+            continue
+        oid, pais, quando, assunto = partes
+        p1, p2 = pais.split()[:2]
+        commits = []
+        for bloco in git("log", "--no-merges", "--reverse", "--format=%H%x1f%an%x1f%B%x1e",
+                         f"{p1}..{p2}").split("\x1e"):
+            campos = bloco.strip("\n").split("\x1f")
+            if len(campos) == 3:
+                commits.append({"oid": campos[0], "autor": campos[1], "mensagem": campos[2]})
+        m = MERGE_DE_PR.match(assunto)
+        b = MERGE_DE_BRANCH.match(assunto)
+        n = m or NUMERO_NO_TITULO.search(assunto)
+        prs.append({"numero": int(n.group(1)) if n else None, "titulo": assunto,
+                    "branch": m.group(2) if m else (b.group(1) if b else ""),
+                    "mesclado_em": quando, "entrega": oid, "issues": [], "commits": commits})
+    return prs
+
+
+def prs_mesclados(raiz: Path, dias: int | None, fonte: str | None = None) -> tuple[str, list[dict]]:
+    """(fonte, PRs mesclados na janela). `gh` quando dá; senão os merges do git."""
+    if fonte != "git":
+        corte = datetime.now(timezone.utc) - timedelta(days=dias) if dias else None
+        prs = _prs_do_gh(raiz, corte)
+        if prs is not None:
+            return "gh", prs
+        if fonte == "gh":
+            return "gh", []
+    return "git", _prs_do_git(raiz, dias)
+
+
+def autonomia_de_prs(prs: list[dict], extras: tuple = ()) -> dict:
+    linhas = []
+    for p in prs:
+        agente = sum(1 for c in p["commits"] if commit_de_agente(c, extras))
+        humano = len(p["commits"]) - agente
+        linhas.append({"numero": p.get("numero"), "titulo": (p.get("titulo") or "")[:80],
+                       "branch": p.get("branch"), "agente": agente, "humano": humano,
+                       "da_fabrica": agente > 0, "autonomo": agente > 0 and humano == 0})
+    da_fabrica = [l for l in linhas if l["da_fabrica"]]
+    autonomos = [l for l in da_fabrica if l["autonomo"]]
+    return {
+        "mesclados": len(linhas),
+        "da_fabrica": len(da_fabrica),
+        "autonomos": len(autonomos),
+        "taxa": round(100 * len(autonomos) / len(da_fabrica), 1) if da_fabrica else None,
+        "prs": linhas,
+    }
+
+
+def imprimir_prs(r: dict, dias: int | None) -> None:
+    janela = f"últimos {dias} dias" if dias else "todo o histórico"
+    print(f"🔀 Autonomia de PR — {janela} (fonte: {r['fonte']})\n")
+    if r["fonte"] == "git":
+        print("   Fonte git: só merges com commit de merge; squash e rebase não aparecem.\n"
+              "   Com o `gh` autenticado, a contagem cobre os três.\n")
+    if not r["da_fabrica"]:
+        print(f"   {r['mesclados']} PR(s) mesclado(s), nenhum com commit da fábrica — "
+              "autonomia de PR não medida.")
+        return
+    print(f"   Mesclados: {r['mesclados']} · com código da fábrica: {r['da_fabrica']} · "
+          f"sem nenhum commit humano: {r['autonomos']}")
+    print(f"   Autonomia de PR: {r['taxa']}%  ({r['autonomos']}/{r['da_fabrica']})\n")
+    for l in r["prs"]:
+        if not l["da_fabrica"]:
+            continue
+        rotulo = f"#{l['numero']}" if l["numero"] else (l["branch"] or "merge")
+        print(f"   {'✅' if l['autonomo'] else '· '} {rotulo:<10} agente {l['agente']} · "
+              f"humano {l['humano']}  {l['titulo'][:60]}")
+
+
 # --- apresentação ------------------------------------------------------------------
 
 def imprimir_resumo(m: dict, dias: int | None) -> None:
@@ -370,6 +540,36 @@ def main() -> int:
 
     raiz = Path.cwd()
     comando = args[0]
+
+    if comando == "prs":
+        fonte, extras = None, []
+        while "--fonte" in args or "--marca" in args:
+            flag = "--fonte" if "--fonte" in args else "--marca"
+            i = args.index(flag)
+            if i + 1 >= len(args):
+                print(f"erro: {flag} precisa de um valor", file=sys.stderr)
+                return 1
+            valor = args[i + 1]
+            args = args[:i] + args[i + 2:]
+            if flag == "--fonte":
+                fonte = valor
+            else:
+                try:
+                    extras.append(re.compile(valor, re.I | re.M))
+                except re.error as e:
+                    print(f"erro: --marca inválida — {e}", file=sys.stderr)
+                    return 1
+        if fonte not in (None, "gh", "git"):
+            print("erro: --fonte é gh ou git", file=sys.stderr)
+            return 1
+        origem, prs = prs_mesclados(raiz, dias, fonte)
+        r = {"fonte": origem, **autonomia_de_prs(prs, tuple(extras))}
+        if como_json:
+            print(json.dumps(r, ensure_ascii=False, indent=2))
+        else:
+            imprimir_prs(r, dias)
+        return 0
+
     eventos = carregar(raiz, dias)
 
     if comando == "resumo":

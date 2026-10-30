@@ -93,6 +93,9 @@ python3 scripts/release.py check         # o que o CI roda em todo PR
 | `hermes/` | Ponte Hermes Agent: skills de roteamento/ciclo + workflow + install.sh — a fábrica como motor de engenharia de um agente 24/7 (ADR-0019) | manual |
 | `plugin/` | Cópia distribuída — é para cá que o marketplace do Codex aponta: canônicos espelhados mais os mirrors gerados de cada CLI. `evals/` não vai; `plugin/README.md` é um README próprio, mantido à mão (o `release.py` só reescreve as contagens) | **gerado** por `scripts/release.py bump`, menos o `README.md` |
 | `.github/workflows/ci.yml` | CI em todo PR: sync sem diff pendente (raiz e `plugin/`), `release.py check`, `check-agent-security.py`, grafo válido (se existir), `guardrail.py verificar` e os testes de `scripts/tests/`. O eval de roteamento da Laura roda à parte, manual ou no merge para `main`, porque custa tokens | manual |
+| `.github/workflows/pages.yml` | Publica a landing page no GitHub Pages a cada push para `main` que toque `site/` ou `marca/`: monta `site/` com os SVGs de `marca/` e faz o deploy. Só deploy, nenhum gate | manual |
+| `site/` | Landing page do projeto: `index.html` autocontido nos tokens do design system, mais `og.png` para a prévia de link. Cada número citado leva um `data-n`, que o `release.py` reescreve no `bump` e confere no `check` | manual |
+| `marca/` | Logo em SVG (horizontal, assinatura, símbolo, ícone de app e versões em uma cor), com o texto em contorno. Fica fora de `docs/` para não ser espelhada em `plugin/` | manual |
 
 > **Importante: skills/ é compartilhada.** Tanto Claude Code quanto Codex CLI descobrem skills em `skills/<nome>/SKILL.md` quando empacotados como plugin. Não há duplicação. Apenas os subagents (`agents/<id>.md` no Claude Code, `.agents/<id>/AGENT.md` no Codex) é que precisam de mirror.
 

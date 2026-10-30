@@ -218,6 +218,16 @@ def padroes(n, versao):
             (r"\d+ agentes \(\d+ core \+ \d+ apoio em \d+ squads\)", contagem_parens),
             (r"As \d+ skills do ciclo", f"As {sk} skills do ciclo"),
         ]),
+        # Landing page do GitHub Pages: cada número citado leva um data-n.
+        ("site/index.html", [
+            (r'data-n="agentes">\d+<', f'data-n="agentes">{t}<'),
+            (r'data-n="core">\d+<', f'data-n="core">{c}<'),
+            (r'data-n="apoio">\d+<', f'data-n="apoio">{a}<'),
+            (r'data-n="times_core">\d+<', f'data-n="times_core">{tc}<'),
+            (r'data-n="squads">\d+<', f'data-n="squads">{sq}<'),
+            (r'data-n="skills">\d+<', f'data-n="skills">{sk}<'),
+            (r'data-n="versao">\d+\.\d+\.\d+<', f'data-n="versao">{versao}<'),
+        ]),
     ]
 
 

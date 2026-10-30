@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KairOS-Forge · A fábrica de software agêntica</title>
+<meta name="description" content="Um time de agentes que trabalha como um squad, do pedido ao PR, no Claude Code, Codex, OpenCode e Cursor. Plugin MIT em PT-BR.">
+<meta name="theme-color" content="#0b1026">
+<meta property="og:type" content="website">
+<meta property="og:title" content="KairOS-Forge · A fábrica de software agêntica">
+<meta property="og:description" content="Um time de agentes que trabalha como um squad, do pedido ao PR, no Claude Code, Codex, OpenCode e Cursor.">
+<meta property="og:url" content="https://vilelaai.github.io/KairOS-Forge/">
+<meta property="og:image" content="https://vilelaai.github.io/KairOS-Forge/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="pt_BR">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="marca/kairos-forge-icone.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Tokens do design system KairOS-Forge. A marca vive no escuro: a página é só do tema escuro, de propósito. */
+:root {
+  --fundo: #0b1026; --superficie: #121a3a; --superficie-alt: #1a2350; --borda: #252e5e; --borda-forte: #6370aa;
+  --tinta: #f8fafc; --tinta-suave: #a3adcf; --roxo-texto: #a78bfa; --ciano: #06b6d4;
+  --roxo: #8b5cf6; --anil: #3f5cf9; --acao: #6d4aff; --acao-realce: #5b3ff5; --foco: #06b6d4;
+  --humano: #f472b6; --humano-suave: #3a1235; --falha: #f87171; --concluido: #2dd4bf;
+  --terminal: #060914; --terminal-suave: #8e98bd;
+  --grad-marca: linear-gradient(135deg, #8b5cf6 0%, #3f5cf9 55%, #06b6d4 100%);
+  --grad-palavra: linear-gradient(90deg, #3f5cf9 0%, #8b5cf6 100%);
+  --grad-hero: linear-gradient(160deg, #0b1026 0%, #121a3a 55%, #24185e 100%);
+  --brilho-marca: 0 0 32px rgba(139, 92, 246, 0.45);
+  --sans: Inter, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 88px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--fundo); color: var(--tinta); font-family: var(--sans); font-size: 17px; line-height: 28px; -webkit-font-smoothing: antialiased; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+a { color: var(--roxo-texto); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; border-radius: 6px; }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--superficie-alt); padding: 1px 6px; border-radius: 6px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.moldura { max-width: 1200px; margin: 0 auto; padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
+.icone { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.pular { position: absolute; left: 16px; top: -48px; padding: 8px 16px; background: var(--acao); color: #fff; border-radius: 10px; z-index: 20; }
+.pular:focus { top: 16px; }
+
+/* topo */
+.topo { position: sticky; top: 0; z-index: 10; background: rgba(11, 16, 38, 0.86); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--borda); }
+.topo .moldura { display: flex; align-items: center; justify-content: space-between; gap: 24px; height: 68px; }
+.topo img { height: 30px; width: auto; display: block; }
+.topo nav { display: flex; align-items: center; gap: 28px; }
+.topo nav a { color: var(--tinta-suave); text-decoration: none; font-size: 15px; font-weight: 500; }
+.topo nav a:hover { color: var(--tinta); }
+
+/* botões */
+.botao { display: inline-flex; align-items: center; gap: 8px; height: 48px; padding: 0 22px; border-radius: 10px; font-size: 16px; font-weight: 600; text-decoration: none; border: 1px solid transparent; transition: background-color 150ms ease-out; }
+.botao.primario { background: var(--acao); color: #fff; box-shadow: var(--brilho-marca); }
+.botao.primario:hover { background: var(--acao-realce); }
+.botao.secundario { background: var(--superficie); color: var(--tinta); border-color: var(--borda-forte); }
+.botao.secundario:hover { background: var(--superficie-alt); }
+.topo .botao { height: 38px; padding: 0 16px; font-size: 14px; }
+
+/* abertura */
+.hero { background: var(--grad-hero); border-bottom: 1px solid var(--borda); position: relative; overflow: hidden; }
+.hero::after { content: ""; position: absolute; right: -24px; top: 32px; width: 360px; height: 360px; background-image: radial-gradient(circle, rgba(6, 182, 212, 0.55) 3px, transparent 3.5px); background-size: 32px 32px; mask-image: linear-gradient(225deg, #000 0%, transparent 70%); -webkit-mask-image: linear-gradient(225deg, #000 0%, transparent 70%); pointer-events: none; }
+.hero .moldura { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 56px; align-items: center; padding-block: 96px 104px; }
+.lema { font-size: 15px; line-height: 20px; font-weight: 300; letter-spacing: 0.2em; text-transform: uppercase; color: var(--roxo-texto); margin-bottom: 20px; }
+h1 { font-size: clamp(42px, 6.4vw, 72px); line-height: 1.04; font-weight: 700; letter-spacing: -0.03em; }
+.grad { background: var(--grad-palavra); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero .lead { margin-top: 24px; font-size: 19px; line-height: 30px; color: var(--tinta-suave); max-width: 34em; }
+.ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
+.hero .meta { margin-top: 20px; font-size: 14px; line-height: 20px; color: var(--tinta-suave); }
+.terminal { margin: 0; background: var(--terminal); border: 1px solid var(--borda); border-radius: 16px; overflow: hidden; min-width: 0; }
+.terminal figcaption { padding: 12px 20px; font-family: var(--mono); font-size: 13px; line-height: 16px; color: var(--terminal-suave); border-bottom: 1px solid rgba(142, 152, 189, 0.2); }
+.terminal pre { margin: 0; padding: 24px 20px; font-family: var(--mono); font-size: 14px; line-height: 26px; color: var(--tinta); white-space: pre-wrap; word-break: break-word; }
+.prompt { color: var(--ciano); font-weight: 700; }
+.com { color: var(--terminal-suave); }
+
+/* seções */
+.secao { padding-block: 104px; border-bottom: 1px solid var(--borda); }
+.secao-cab { max-width: 760px; margin-bottom: 48px; }
+.rotulo { font-size: 13px; line-height: 16px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--roxo-texto); margin-bottom: 14px; }
+.rotulo.rosa { color: var(--humano); }
+h2 { font-size: clamp(30px, 4vw, 44px); line-height: 1.12; font-weight: 700; letter-spacing: -0.02em; }
+.filete { width: 48px; height: 3px; border-radius: 3px; background: var(--grad-marca); margin-top: 20px; }
+.secao-cab .lead { margin-top: 18px; font-size: 18px; line-height: 29px; color: var(--tinta-suave); }
+
+/* fábrica */
+.fabrica { display: flex; flex-direction: column; gap: 32px; }
+.faixa { padding: 20px 28px; border-radius: 16px; text-align: center; font-size: 17px; line-height: 26px; }
+.faixa.orq { background: var(--superficie-alt); border: 1px solid var(--borda-forte); }
+.faixa.orq b { color: var(--roxo-texto); }
+.faixa.humano { background: var(--humano-suave); border: 1px solid var(--humano); }
+.faixa.humano b { color: var(--humano); }
+.squads { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 40px; }
+.squad { position: relative; display: flex; flex-direction: column; gap: 14px; padding: 28px; background: var(--superficie); border: 1px solid var(--borda); border-radius: 16px; min-width: 0; }
+.squad::before, .squad::after { content: ""; position: absolute; left: 50%; width: 0; height: 32px; border-left: 2px dashed var(--borda-forte); }
+.squad::before { top: -33px; }
+.squad::after { bottom: -33px; border-left-color: var(--humano); }
+.seta { position: absolute; right: -36px; top: 50%; width: 32px; height: 32px; margin-top: -16px; color: var(--roxo); }
+.squad:last-child .seta { display: none; }
+.ladrilho { display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 12px; background: var(--grad-marca); color: #fff; }
+.ladrilho .icone { width: 26px; height: 26px; }
+.squad h3 { font-size: 20px; line-height: 26px; font-weight: 600; }
+.squad > p { font-size: 15px; line-height: 24px; color: var(--tinta-suave); }
+.squad dl { margin: 6px 0 0; display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid var(--borda); }
+.squad dt { font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--tinta-suave); }
+.squad dd { margin: 2px 0 0; font-size: 14px; line-height: 22px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.chips li { font-family: var(--mono); font-size: 12.5px; line-height: 22px; padding: 0 8px; border-radius: 6px; background: var(--superficie-alt); color: var(--ciano); }
+
+/* humano */
+.decisoes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; counter-reset: decisao; }
+.decisoes li { counter-increment: decisao; padding: 28px; background: var(--superficie); border: 1px solid var(--borda); border-radius: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.decisoes li::before { content: counter(decisao); font-size: 32px; line-height: 36px; font-weight: 700; color: var(--humano); }
+.decisoes h3 { font-size: 19px; line-height: 26px; font-weight: 600; }
+.decisoes p { font-size: 15px; line-height: 24px; color: var(--tinta-suave); }
+.nota { margin-top: 28px; font-size: 15px; line-height: 24px; color: var(--tinta-suave); max-width: 70ch; }
+
+/* arco */
+.arco { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 24px; }
+.etapa { position: relative; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.etapa-caixa { padding: 22px 20px; background: var(--superficie); border: 1px solid var(--borda-forte); border-radius: 16px; }
+.etapa h3 { font-size: 19px; line-height: 26px; font-weight: 600; }
+.etapa-caixa p { margin-top: 4px; font-size: 14px; line-height: 22px; color: var(--tinta-suave); }
+.etapa .seta { right: -23px; top: 38px; margin-top: 0; width: 22px; height: 22px; }
+.etapa:last-child .seta { display: none; }
+.selo { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 4px 10px; border-radius: 6px; font-size: 13px; line-height: 18px; font-weight: 600; }
+.selo .icone { width: 14px; height: 14px; stroke-width: 2.5; }
+.selo.humano { background: var(--humano-suave); color: var(--humano); }
+.selo.volta { background: #3a1422; color: var(--falha); }
+
+/* confiança */
+.grade-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.cartao { display: flex; gap: 20px; padding: 28px; background: var(--superficie); border: 1px solid var(--borda); border-radius: 16px; min-width: 0; }
+.cartao h3 { font-size: 19px; line-height: 26px; font-weight: 600; margin-bottom: 6px; }
+.cartao p { font-size: 15px; line-height: 24px; color: var(--tinta-suave); }
+
+/* agentes */
+.numeros { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 24px; margin-bottom: 56px; }
+.numero { padding-top: 20px; border-top: 1px solid var(--borda); }
+.numero b { display: block; font-size: 52px; line-height: 56px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.numero > span { display: block; margin-top: 6px; font-size: 15px; line-height: 22px; color: var(--tinta-suave); }
+.times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.times > div { padding: 28px; background: var(--superficie); border: 1px solid var(--borda); border-radius: 16px; min-width: 0; }
+.times h3 { font-size: 17px; line-height: 24px; font-weight: 600; margin-bottom: 16px; }
+.times h3 span { font-weight: 400; color: var(--tinta-suave); }
+.etiquetas { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.etiquetas li { font-size: 14px; line-height: 22px; padding: 5px 14px; border-radius: 9999px; border: 1px solid var(--borda-forte); color: var(--tinta); }
+.mais { display: inline-flex; align-items: center; gap: 8px; margin-top: 28px; font-weight: 600; text-decoration: none; }
+.mais .icone { width: 18px; height: 18px; }
+
+/* skills */
+.skills { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 32px; }
+.skills li { padding: 16px 0; border-top: 1px solid var(--borda); min-width: 0; }
+.skills code { background: none; padding: 0; color: var(--ciano); font-size: 14px; }
+.skills p { margin-top: 4px; font-size: 14.5px; line-height: 22px; color: var(--tinta-suave); }
+.skills.quatro { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.sub { margin: 40px 0 8px; font-size: 13px; line-height: 16px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--tinta-suave); }
+
+/* instalar */
+.abas { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: var(--superficie); border: 1px solid var(--borda); border-radius: 12px; width: fit-content; max-width: 100%; }
+.abas button { font: inherit; font-size: 15px; font-weight: 600; height: 40px; padding: 0 18px; border: 0; border-radius: 8px; background: transparent; color: var(--tinta-suave); cursor: pointer; }
+.abas button[aria-selected="true"] { background: var(--superficie-alt); color: var(--tinta); }
+.painel { margin-top: 20px; display: flex; flex-direction: column; gap: 14px; }
+.codigo { position: relative; background: var(--terminal); border: 1px solid var(--borda); border-radius: 12px; }
+.codigo pre { margin: 0; padding: 20px 112px 20px 20px; font-family: var(--mono); font-size: 14px; line-height: 24px; overflow-x: auto; color: var(--tinta); }
+.copiar { position: absolute; top: 12px; right: 12px; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 600; color: var(--tinta); background: var(--superficie-alt); border: 1px solid var(--borda-forte); border-radius: 8px; cursor: pointer; }
+.copiar .icone { width: 14px; height: 14px; }
+.painel > p { font-size: 15px; line-height: 24px; color: var(--tinta-suave); }
+.depois { margin-top: 40px; padding: 24px 28px; border-radius: 16px; background: var(--superficie); border: 1px solid var(--borda); }
+
+/* rodapé */
+.rodape { padding-block: 48px 64px; }
+.rodape .moldura { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; }
+.rodape img { height: 28px; width: auto; display: block; }
+.rodape p { font-size: 14px; line-height: 22px; color: var(--tinta-suave); }
+.rodape nav { display: flex; flex-wrap: wrap; gap: 20px; font-size: 14px; }
+
+@media (max-width: 1040px) {
+  .hero .moldura { grid-template-columns: minmax(0, 1fr); padding-block: 72px 80px; }
+  .squads, .decisoes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .squad .seta { display: none; }
+  .squad::before, .squad::after { display: none; }
+  .arco { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .etapa .seta { display: none; }
+  .numeros { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .skills, .skills.quatro { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .topo nav a:not(.botao) { display: none; }
+}
+@media (max-width: 680px) {
+  body { font-size: 16px; line-height: 26px; }
+  .secao { padding-block: 72px; }
+  .squads, .decisoes, .grade-2, .times, .skills, .skills.quatro { grid-template-columns: minmax(0, 1fr); }
+  .numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hero::after { width: 200px; height: 200px; }
+  .cartao { flex-direction: column; }
+  .codigo pre { padding: 56px 16px 16px; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-lampada" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></symbol>
+  <symbol id="i-codigo" viewBox="0 0 24 24"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></symbol>
+  <symbol id="i-escudo-ok" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-atividade" viewBox="0 0 24 24"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></symbol>
+  <symbol id="i-escudo" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="i-frasco" viewBox="0 0 24 24"><path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></symbol>
+  <symbol id="i-fluxo" viewBox="0 0 24 24"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></symbol>
+  <symbol id="i-merge" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></symbol>
+  <symbol id="i-volta" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-copiar" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-pessoa" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></symbol>
+  <symbol id="i-seta" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+</svg>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+
+<header class="topo">
+  <div class="moldura">
+    <a href="#" aria-label="KairOS-Forge, início"><img src="marca/kairos-forge-horizontal.svg" alt="KairOS-Forge" width="143" height="30"></a>
+    <nav aria-label="Seções">
+      <a href="#fabrica">A fábrica</a>
+      <a href="#arco">O arco</a>
+      <a href="#agentes">Agentes</a>
+      <a href="#skills">Skills</a>
+      <a class="botao secundario" href="https://github.com/VilelaAI/KairOS-Forge">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="conteudo">
+  <section class="hero">
+    <div class="moldura">
+      <div>
+        <p class="lema">Planeja. Executa. Entrega.</p>
+        <h1>A fábrica de software <span class="grad">agêntica</span></h1>
+        <p class="lead">Um time de <b data-n="agentes">71</b> agentes que trabalha como um squad real, do pedido ao PR, no Claude Code, Codex, OpenCode e Cursor. As decisões que importam continuam com o seu time.</p>
+        <div class="ctas">
+          <a class="botao primario" href="#instalar">Instalar</a>
+          <a class="botao secundario" href="https://github.com/VilelaAI/KairOS-Forge">Ver no GitHub</a>
+        </div>
+        <p class="meta">Plugin MIT em PT-BR · versão <span data-n="versao">0.37.1</span></p>
+      </div>
+      <figure class="terminal">
+        <figcaption>~/projeto — claude</figcaption>
+<pre><span class="prompt">$</span> /kairos-forge:entregar "exportar relatório de vendas em CSV por período"
+<span class="com"># a Laura classifica o pedido e o planejamento escreve a SPEC</span>
+<span class="com"># você aprova; o time constrói em paralelo</span>
+<span class="com"># validar e revisar, com a falha voltando ao agente certo</span>
+<span class="com"># o PR aberto, esperando o seu merge</span></pre>
+      </figure>
+    </div>
+  </section>
+
+  <section class="secao" id="fabrica" aria-labelledby="t-fabrica">
+    <div class="moldura">
+      <div class="secao-cab">
+        <p class="rotulo">A fábrica</p>
+        <h2 id="t-fabrica">Fábrica de software executada por IA</h2>
+        <div class="filete"></div>
+        <p class="lead">Um orquestrador coordena quatro squads em sequência, e uma pessoa do seu time revisa, aprova e orienta cada entrega.</p>
+      </div>
+      <div class="fabrica">
+        <p class="faixa orq"><b>Orquestrador</b> · a Laura, Tech Lead, decide quem entra e acompanha saúde, progresso e consumo de cada entrega</p>
+        <ol class="squads">
+          <li class="squad">
+            <span class="ladrilho"><svg class="icone" aria-hidden="true"><use href="#i-lampada"/></svg></span>
+            <h3>Squad de Planejamento</h3>
+            <p>Transforma a necessidade da área em requisitos rastreáveis e plano de entrega.</p>
+            <dl>
+              <div><dt>Quem</dt><dd>Camila, Isabela, Diego, Fernanda, Thiago, Joana, Caio e Norma</dd></div>
+              <div><dt>Skills</dt><dd><ul class="chips"><li>/especificar</li><li>/diagnosticar</li><li>/analisar-ameacas</li><li>/desenhar</li></ul></dd></div>
+            </dl>
+            <svg class="icone seta" aria-hidden="true"><use href="#i-seta"/></svg>
+          </li>
+          <li class="squad">
+            <span class="ladrilho"><svg class="icone" aria-hidden="true"><use href="#i-codigo"/></svg></span>
+            <h3>Squad de Construção</h3>
+            <p>Escreve o código e monta as telas, em paralelo, com um dono para cada arquivo.</p>
+            <dl>
+              <div><dt>Quem</dt><dd>Lucas, Marina, Pablo, Gabriel, Juliana, Carlos, Yasmin e Ada</dd></div>
+              <div><dt>Skills</dt><dd><ul class="chips"><li>/mobilizar</li><li>/rodar</li><li>/migrar</li></ul></dd></div>
+            </dl>
+            <svg class="icone seta" aria-hidden="true"><use href="#i-seta"/></svg>
+          </li>
+          <li class="squad">
+            <span class="ladrilho"><svg class="icone" aria-hidden="true"><use href="#i-escudo-ok"/></svg></span>
+            <h3>Squad de Qualidade</h3>
+            <p>Testa e confere a segurança antes de publicar, contra a SPEC e com evidência.</p>
+            <dl>
+              <div><dt>Quem</dt><dd>Patrícia, Ricardo, Vinícius, Helena e Alice</dd></div>
+              <div><dt>Skills</dt><dd><ul class="chips"><li>/validar</li><li>/revisar</li><li>/avaliar</li></ul></dd></div>
+            </dl>
+            <svg class="icone seta" aria-hidden="true"><use href="#i-seta"/></svg>
+          </li>
+          <li class="squad">
+            <span class="ladrilho"><svg class="icone" aria-hidden="true"><use href="#i-atividade"/></svg></span>
+            <h3>Squad de Operação</h3>
+            <p>Lança com gates, monitora os sistemas e prepara as correções.</p>
+            <dl>
+              <div><dt>Quem</dt><dd>Marcos, Sérgio, Renata, Aline, Kaique, Igor, Gael e Nina</dd></div>
+              <div><dt>Skills</dt><dd><ul class="chips"><li>/lancar</li><li>/auditar</li><li>/otimizar</li><li>/evoluir</li></ul></dd></div>
+            </dl>
+            <svg class="icone seta" aria-hidden="true"><use href="#i-seta"/></svg>
+          </li>
+        </ol>
+        <p class="faixa humano"><b>Humano no circuito</b> · o seu time revisa, aprova e orienta cada entrega</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="secao" id="humano" aria-labelledby="t-humano">
+    <div class="moldura">
+      <div class="secao-cab">
+        <p class="rotulo rosa">Humano no circuito</p>
+        <h2 id="t-humano">Quatro decisões ficam com o seu time</h2>
+        <div class="filete"></div>
+        <p class="lead">Os agentes executam. Estas decisões são sempre de uma pessoa, na ordem em que aparecem no fluxo.</p>
+      </div>
+      <ol class="decisoes">
+        <li><h3>Aprovar a SPEC</h3><p>Nada é construído sem a especificação aprovada.</p></li>
+        <li><h3>Decidir o irreversível</h3><p>Mudança difícil de desfazer sai da faixa automática e vai para você.</p></li>
+        <li><h3>Fazer o merge</h3><p>A fábrica abre o PR; quem mescla é uma pessoa.</p></li>
+        <li><h3>Liberar o deploy</h3><p>O <code>/lancar</code> pede aprovação explícita antes de publicar.</p></li>
+      </ol>
+      <p class="nota">O painel junta numa caixa de entrada tudo o que espera por alguém: gate humano, SPEC alterada, ciclo escalado e tarefa bloqueada.</p>
+    </div>
+  </section>
+
+  <section class="secao" id="arco" aria-labelledby="t-arco">
+    <div class="moldura">
+      <div class="secao-cab">
+        <p class="rotulo">O arco</p>
+        <h2 id="t-arco">Do pedido ao PR com um comando</h2>
+        <div class="filete"></div>
+        <p class="lead">Com <code>/kairos-forge:entregar</code> o arco roda sozinho. A falha volta ao agente responsável, dentro de um orçamento declarado; se ele estoura, o ciclo escala para uma pessoa.</p>
+      </div>
+      <ol class="arco">
+        <li class="etapa">
+          <div class="etapa-caixa"><h3>Especificar</h3><p>SPEC com critérios de aceite, criticada por dois revisores independentes.</p></div>
+          <span class="selo humano"><svg class="icone" aria-hidden="true"><use href="#i-pessoa"/></svg>Você aprova a SPEC</span>
+          <svg class="icone seta" aria-hidden="true"><use href="#i-seta"/></svg>
+        </li>
+        <li class="etapa">
+          <div class="etapa-caixa"><h3>Construir</h3><p>Time em paralelo, em ondas de até seis agentes.</p></div>
+          <svg class="icone seta" aria-hidden="true"><use href="#i-seta"/></svg>
+        </li>
+        <li class="etapa">
+          <div class="etapa-caixa"><h3>Validar</h3><p>Aceite contra a SPEC, critério por critério, com evidência.</p></div>
+          <span class="selo volta"><svg class="icone" aria-hidden="true"><use href="#i-volta"/></svg>Falhou: volta para quem construiu</span>
+          <svg class="icone seta" aria-hidden="true"><use href="#i-seta"/></svg>
+        </li>
+        <li class="etapa">
+          <div class="etapa-caixa"><h3>Revisar</h3><p>Segurança, QA, performance e DevOps, conforme o escopo.</p></div>
+          <span class="selo volta"><svg class="icone" aria-hidden="true"><use href="#i-volta"/></svg>Reprovou: corrige e valida de novo</span>
+          <svg class="icone seta" aria-hidden="true"><use href="#i-seta"/></svg>
+        </li>
+        <li class="etapa">
+          <div class="etapa-caixa"><h3>PR</h3><p>Aberto com o relatório de cada gate, esperando revisão humana.</p></div>
+          <span class="selo humano"><svg class="icone" aria-hidden="true"><use href="#i-pessoa"/></svg>Você faz o merge</span>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="secao" id="confianca" aria-labelledby="t-confianca">
+    <div class="moldura">
+      <div class="secao-cab">
+        <p class="rotulo">Por que confiar</p>
+        <h2 id="t-confianca">Regras em código, não em prompt</h2>
+        <div class="filete"></div>
+        <p class="lead">O processo não depende de o modelo lembrar das regras. O que importa é verificado por scripts determinísticos.</p>
+      </div>
+      <div class="grade-2">
+        <div class="cartao"><span class="ladrilho"><svg class="icone" aria-hidden="true"><use href="#i-escudo"/></svg></span><div><h3>Guardrails determinísticos</h3><p>Hooks bloqueiam comando destrutivo e leitura de segredo antes de acontecer, sem pedir licença ao modelo.</p></div></div>
+        <div class="cartao"><span class="ladrilho"><svg class="icone" aria-hidden="true"><use href="#i-frasco"/></svg></span><div><h3>Prova negativa de testes</h3><p>Todo teste novo roda contra a base sem o patch. Se passa mesmo assim, não prova nada, e o relatório acusa.</p></div></div>
+        <div class="cartao"><span class="ladrilho"><svg class="icone" aria-hidden="true"><use href="#i-fluxo"/></svg></span><div><h3>Máquina de estados do arco</h3><p>Transição, orçamento e escalação são decididos por código. O agente não aprova o próprio gate.</p></div></div>
+        <div class="cartao"><span class="ladrilho"><svg class="icone" aria-hidden="true"><use href="#i-merge"/></svg></span><div><h3>Autonomia medida pelo git</h3><p>A fração de PRs mesclados sem nenhum commit humano sai do histórico, em qualquer CLI. Autonomia é medida antes de ser concedida.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="secao" id="agentes" aria-labelledby="t-agentes">
+    <div class="moldura">
+      <div class="secao-cab">
+        <p class="rotulo">O time</p>
+        <h2 id="t-agentes">Cada agente com nome, papel e ferramentas</h2>
+        <div class="filete"></div>
+        <p class="lead">Personas fixas, cada uma com uma lista explícita do que pode usar. A Laura decide quem entra em cada pedido.</p>
+      </div>
+      <div class="numeros">
+        <div class="numero"><b class="grad" data-n="agentes">71</b><span>agentes</span></div>
+        <div class="numero"><b data-n="core">40</b><span>no núcleo, em <span data-n="times_core">11</span> times</span></div>
+        <div class="numero"><b data-n="apoio">31</b><span>de apoio, em <span data-n="squads">10</span> squads</span></div>
+        <div class="numero"><b data-n="skills">18</b><span>skills</span></div>
+        <div class="numero"><b>4</b><span>CLIs suportados</span></div>
+      </div>
+      <div class="times">
+        <div>
+          <h3>Núcleo <span>· times técnicos</span></h3>
+          <ul class="etiquetas"><li>Plataforma</li><li>Arquitetura</li><li>Qualidade</li><li>Dados</li><li>Frontend</li><li>Backend</li><li>Ciência de Dados</li><li>Mobile</li><li>Documentação</li><li>Produto</li><li>Liderança</li></ul>
+        </div>
+        <div>
+          <h3>Apoio <span>· squads especializados</span></h3>
+          <ul class="etiquetas"><li>Requisitos</li><li>Gestão</li><li>Governança</li><li>Valor</li><li>Observabilidade</li><li>DX</li><li>Naming</li><li>Microcopy</li><li>Narrativa</li><li>Revisão Arquitetural</li></ul>
+        </div>
+      </div>
+      <a class="mais" href="https://github.com/VilelaAI/KairOS-Forge/tree/main/agents">Conhecer cada agente <svg class="icone" aria-hidden="true"><use href="#i-seta"/></svg></a>
+    </div>
+  </section>
+
+  <section class="secao" id="skills" aria-labelledby="t-skills">
+    <div class="moldura">
+      <div class="secao-cab">
+        <p class="rotulo">Skills</p>
+        <h2 id="t-skills">Um comando para cada etapa</h2>
+        <div class="filete"></div>
+        <p class="lead">Na ordem natural do fluxo, do primeiro dia num projeto à melhoria semanal. Todas com o prefixo <code>/kairos-forge:</code>.</p>
+      </div>
+      <ul class="skills">
+        <li><code>onboardar</code><p>Primeira vez num projeto: gera o CLAUDE.md, as pastas e o contexto de testes.</p></li>
+        <li><code>mapear-arquitetura</code><p>Inventário de código legado: componentes, acoplamento e plano de decomposição.</p></li>
+        <li><code>diagnosticar</code><p>Mede um sistema existente em seis dimensões e entrega um roadmap priorizado.</p></li>
+        <li><code>especificar</code><p>SPEC rastreável antes de qualquer mudança não trivial.</p></li>
+        <li><code>analisar-ameacas</code><p>Modelo de ameaças para features sensíveis: autenticação, dados pessoais, billing, IA.</p></li>
+        <li><code>desenhar</code><p>Handoff de design para features com interface, com verificação visual.</p></li>
+        <li><code>mobilizar</code><p>Time em paralelo executando a SPEC, com posse de arquivo e quadro de tarefas.</p></li>
+        <li><code>rodar</code><p>Chama agentes da fábrica em modo conversacional.</p></li>
+        <li><code>validar</code><p>Aceite da implementação contra a SPEC, com evidência.</p></li>
+        <li><code>revisar</code><p>Revisão do diff antes do PR, com severidade e raio de explosão.</p></li>
+        <li><code>lancar</code><p>Deploy com gates, health check em três camadas e rollback com gatilho.</p></li>
+        <li><code>mapear-conhecimento</code><p>Grafo de conhecimento do projeto, com proveniência.</p></li>
+        <li><code>auditar</code><p>Pontua a fábrica no projeto toda semana e aponta as três maiores lacunas.</p></li>
+        <li><code>evoluir</code><p>Escolhe uma capacidade nova da fábrica por semana.</p></li>
+      </ul>
+      <p class="sub">Sob demanda</p>
+      <ul class="skills quatro">
+        <li><code>entregar</code><p>O arco inteiro, do pedido ao PR, com correção roteada ao agente responsável.</p></li>
+        <li><code>otimizar</code><p>Ciclo de catraca contra uma métrica: muda, mede, mantém ou reverte.</p></li>
+        <li><code>migrar</code><p>Modernização de legado por estrangulamento, fatia por fatia.</p></li>
+        <li><code>avaliar</code><p>Evals de comportamento não determinístico, com gold set e rubrica.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="secao" id="instalar" aria-labelledby="t-instalar">
+    <div class="moldura">
+      <div class="secao-cab">
+        <p class="rotulo">Instalar</p>
+        <h2 id="t-instalar">Instale no seu CLI</h2>
+        <div class="filete"></div>
+        <p class="lead">O mesmo plugin nos quatro CLIs. Os detalhes de cada um estão no <a href="https://github.com/VilelaAI/KairOS-Forge#instalação">README</a>.</p>
+      </div>
+      <div class="abas" role="tablist" aria-label="CLI">
+        <button role="tab" id="aba-claude" aria-controls="painel-claude" aria-selected="true">Claude Code</button>
+        <button role="tab" id="aba-codex" aria-controls="painel-codex" aria-selected="false" tabindex="-1">Codex</button>
+        <button role="tab" id="aba-cursor" aria-controls="painel-cursor" aria-selected="false" tabindex="-1">Cursor</button>
+        <button role="tab" id="aba-opencode" aria-controls="painel-opencode" aria-selected="false" tabindex="-1">OpenCode</button>
+      </div>
+      <div class="painel" role="tabpanel" id="painel-claude" aria-labelledby="aba-claude">
+        <div class="codigo"><pre>/plugin marketplace add VilelaAI/kairos-forge
+/plugin install kairos-forge@kairos-forge
+/reload-plugins</pre></div>
+        <p>Para o time em paralelo do <code>/kairos-forge:mobilizar</code>, ative os Agent Teams: <code>export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code></p>
+      </div>
+      <div class="painel" role="tabpanel" id="painel-codex" aria-labelledby="aba-codex" hidden>
+        <div class="codigo"><pre>codex plugin marketplace add VilelaAI/kairos-forge
+codex   # na TUI: /plugin, escolha kairos-forge e instale</pre></div>
+        <p>Para o <code>/kairos-forge:mobilizar</code>, instale as personas como roles de subagent:</p>
+        <div class="codigo"><pre>python3 &lt;plugin&gt;/scripts/sync-multi-cli.py instalar --cli codex --escopo global</pre></div>
+      </div>
+      <div class="painel" role="tabpanel" id="painel-cursor" aria-labelledby="aba-cursor" hidden>
+        <div class="codigo"><pre>git clone https://github.com/VilelaAI/kairos-forge.git
+mkdir -p /caminho/do/projeto/.cursor
+cp -R kairos-forge/plugin/.cursor/. /caminho/do/projeto/.cursor/</pre></div>
+        <p>Requer Cursor 2.4 ou mais novo. A instalação por projeto leva também o <code>hooks.json</code> que liga telemetria e guardrails.</p>
+      </div>
+      <div class="painel" role="tabpanel" id="painel-opencode" aria-labelledby="aba-opencode" hidden>
+        <div class="codigo"><pre>git clone https://github.com/VilelaAI/kairos-forge.git
+cp -R kairos-forge/plugin/skills/* .opencode/skills/
+python3 kairos-forge/scripts/sync-multi-cli.py instalar --cli opencode</pre></div>
+        <p>A última linha instala as personas como subagents, com a lista de ferramentas de cada uma aplicada como permissão.</p>
+      </div>
+      <div class="depois">
+        <p>Depois de instalar, rode <code>/kairos-forge:onboardar</code> no seu projeto. O <a href="https://github.com/VilelaAI/KairOS-Forge/blob/main/docs/inicio-rapido.md">início rápido</a> mostra o primeiro pedido do começo ao fim.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="rodape">
+  <div class="moldura">
+    <img src="marca/kairos-forge-horizontal.svg" alt="KairOS-Forge" width="134" height="28">
+    <p>Um projeto VilelaAI · Licença MIT · versão <span data-n="versao">0.37.1</span></p>
+    <nav aria-label="Links">
+      <a href="https://github.com/VilelaAI/KairOS-Forge">GitHub</a>
+      <a href="https://github.com/VilelaAI/KairOS-Forge/blob/main/docs/inicio-rapido.md">Início rápido</a>
+      <a href="https://github.com/VilelaAI/KairOS-Forge/tree/main/docs/adr">Decisões (ADRs)</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // Abas de instalação: setas esquerda/direita trocam de CLI.
+  var abas = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+  function ativar(aba, focar) {
+    abas.forEach(function (a) {
+      var sel = a === aba;
+      a.setAttribute('aria-selected', sel ? 'true' : 'false');
+      a.tabIndex = sel ? 0 : -1;
+      document.getElementById(a.getAttribute('aria-controls')).hidden = !sel;
+    });
+    if (focar) aba.focus();
+  }
+  abas.forEach(function (aba, i) {
+    aba.addEventListener('click', function () { ativar(aba, false); });
+    aba.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight') ativar(abas[(i + 1) % abas.length], true);
+      if (e.key === 'ArrowLeft') ativar(abas[(i - 1 + abas.length) % abas.length], true);
+    });
+  });
+
+  // Botão de copiar em cada bloco de comando.
+  document.querySelectorAll('.codigo').forEach(function (bloco) {
+    var pre = bloco.querySelector('pre');
+    var botao = document.createElement('button');
+    botao.type = 'button';
+    botao.className = 'copiar';
+    botao.innerHTML = '<svg class="icone" aria-hidden="true"><use href="#i-copiar"/></svg><span>Copiar</span>';
+    botao.addEventListener('click', function () {
+      var texto = pre.innerText.replace(/\s+#.*$/gm, '');
+      var rotulo = botao.querySelector('span');
+      function feito() { rotulo.textContent = 'Copiado'; setTimeout(function () { rotulo.textContent = 'Copiar'; }, 1600); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(texto).then(feito, function () { selecionar(pre); });
+      } else {
+        selecionar(pre);
+      }
+    });
+    bloco.appendChild(botao);
+  });
+  function selecionar(el) {
+    var r = document.createRange(); r.selectNodeContents(el);
+    var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+})();
+</script>
+</body>
+</html>

@@ -57,6 +57,9 @@ class TimeGerado(unittest.TestCase):
         self.assertEqual(self.time["channels"][0]["name"], "loja")
         self.assertEqual(self.time["routines"][0]["where"], "#loja")
 
+    def test_arquivo_sem_frontmatter_e_so_corpo(self) -> None:
+        self.assertEqual(tucano.separar("# só corpo\n"), ({}, "# só corpo\n"))
+
     def test_opencode_so_com_modelo(self) -> None:
         sem = {a["handle"]: a["model"] for a in tucano.montar_time()["agents"]}
         com = {a["handle"]: a["model"] for a in
@@ -101,6 +104,8 @@ class Validar(unittest.TestCase):
         k["agents"] = ["vinicius"]
         self.assertIn("agente que não está no time", self.problemas())
         k["agents"] = ["laura"]
+        k["body"] = "x" * tucano.TETO_RESULTADO                 # no teto, ainda cabe
+        self.assertEqual(self.problemas(), "")
         k["body"] = "x" * (tucano.TETO_RESULTADO + 1)
         self.assertIn("o ler_skill corta", self.problemas())
         k["body"] = "rode ${CLAUDE_PLUGIN_ROOT}/scripts/ciclo.py"
@@ -114,6 +119,8 @@ class Validar(unittest.TestCase):
         r["where"] = "#outro"
         self.assertIn("agente ou canal inexistente", self.problemas())
         r["where"] = "dm"
+        self.assertEqual(self.problemas(), "")
+        r["schedule"] = {"days": list(range(7)), "time": "00:00"}   # todo dia vale
         self.assertEqual(self.problemas(), "")
         r["schedule"] = {"days": [7], "time": "08:37"}
         self.assertIn("agenda inválida", self.problemas())
@@ -152,6 +159,8 @@ class Instalar(unittest.TestCase):
         time = tucano.ler_bloco((pasta / "time-tucano.md").read_text(encoding="utf-8"))
         self.assertEqual(time["channels"][0]["name"], "meu-projeto")
         self.assertIn("claude, codex, opencode", saida)
+        n = len(list((pasta / "scripts").glob("*.py")))
+        self.assertIn(f"✓ {n} scripts e os templates", saida)
         self.assertEqual(self.instalar()[0], 0)                  # de novo, sem erro
 
     def test_dry_run_nao_escreve(self) -> None:
@@ -192,6 +201,10 @@ class Gerar(unittest.TestCase):
         # O sync regenera; se alguém mudar uma persona sem rodar o sync, este teste acusa.
         versionado = (RAIZ.parent / tucano.ARQUIVO_GERADO).read_text(encoding="utf-8")
         self.assertEqual(versionado, tucano.markdown(tucano.montar_time()))
+
+    def test_cli_sem_subcomando_mostra_o_uso(self) -> None:
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            tucano.main([])
 
     def test_cli_gerar(self) -> None:
         with contextlib.redirect_stdout(io.StringIO()) as out:

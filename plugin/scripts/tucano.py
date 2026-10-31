@@ -40,8 +40,6 @@ import shutil
 import sys
 from pathlib import Path
 
-sys.dont_write_bytecode = True
-
 ROOT = Path(__file__).resolve().parent.parent
 MARCA_GERADO = "GERADO por scripts/sync-multi-cli.py (kairos-forge)"
 PASTA = ".kairos-forge"           # dentro do projeto do usuário
@@ -274,7 +272,7 @@ def gerar(raiz: Path = ROOT) -> Path:
     if problemas:
         raise ValueError("time do Tucano inválido: " + "; ".join(problemas))
     destino = raiz / ARQUIVO_GERADO
-    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.parent.mkdir(exist_ok=True)
     destino.write_text(texto, encoding="utf-8")
     return destino
 

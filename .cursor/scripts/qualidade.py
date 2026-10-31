@@ -123,9 +123,8 @@ def linguagem_de(rel: str) -> str | None:
 
 def eh_producao(rel: str) -> bool:
     partes = Path(rel.replace("\\", "/")).parts
-    if any(p in PASTAS_IGNORADAS for p in partes[:-1]):
-        return False
-    return linguagem_de(rel) is not None and not prova.eh_teste(rel)
+    return (not any(p in PASTAS_IGNORADAS for p in partes[:-1])
+            and linguagem_de(rel) is not None and not prova.eh_teste(rel))
 
 
 def gerados(raiz: Path, rels: list[str]) -> set[str]:
@@ -210,11 +209,11 @@ def _fim_do_comentario(texto: str, i: int, linguagem: str) -> int | None:
         inicio_de_linha = texto.startswith("//", i)
         if texto.startswith("/*", i):
             fim = texto.find("*/", i + 2)
-            return len(texto) if fim < 0 else fim + 2
+            return len(texto) if fim == -1 else fim + 2
     if not inicio_de_linha:
         return None
     fim = texto.find("\n", i)
-    return len(texto) if fim < 0 else fim
+    return len(texto) if fim == -1 else fim
 
 
 def _regras_da_string(texto: str, i: int, linguagem: str) -> tuple[str, bool, bool]:
@@ -839,8 +838,8 @@ def retornos_js(rel: str, texto: str, limpo: list[str], linhas: set[int]) -> lis
     """O mesmo para JS/TS com `return undefined`. Go fica de fora: o tipo não deixa."""
     originais = texto.split("\n")
     saida = []
-    for n in sorted(l for l in linhas if l <= len(limpo)):
-        m = RETORNO_JS.match(limpo[n - 1])
+    for n, linha in enumerate(limpo, 1):
+        m = RETORNO_JS.match(linha) if n in linhas else None
         if not m or m.group(2).strip() in ("undefined", "null") or \
                 not _expressao_fechada(m.group(2)):
             continue

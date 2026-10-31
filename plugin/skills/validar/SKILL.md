@@ -156,7 +156,7 @@ O `crap` lê o relatório de cobertura que a suíte gerou **nesta rodada** (cove
 | `mutacao` sobrevivente em linha de requisito P1 | **Bloqueia**: a suíte não percebe a linha mudar. Exceção aceita por escrito: mutante equivalente (não muda comportamento observável), com o porquê |
 | `mutacao` base vermelha, sem comando ou teto atingido | Gate não executado; registre o motivo |
 
-Mutação custa uma rodada da suíte por mutante: `--max` (padrão 25) e `--teto` (padrão 900 s) limitam o custo. Registre o placar no `verificado` (ex.: `"qualidade.py mutacao (25 mortos de 25)"`).
+Mutação custa uma rodada da suíte por mutante: `--max` (padrão 25) e `--teto` (padrão 900 s) limitam o custo. O placar é de uma amostra, não do diff: registre os sítios junto (ex.: `"qualidade.py mutacao (25 mortos de 25, 25 de 332 sítios)"`) e, com suíte rápida e diff grande, suba o `--max`. Mutante equivalente costuma apontar código redundante: apagar o redundante vale mais que escrever a exceção.
 
 ### 5. Acionar especialistas conceitualmente
 

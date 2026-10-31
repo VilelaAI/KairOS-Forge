@@ -16,8 +16,10 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
@@ -120,6 +122,11 @@ class Limpar(unittest.TestCase):
             limpo = qualidade.limpar(texto, linguagem)
             self.assertNotIn("==", limpo, linguagem)
             self.assertIn("!=", limpo, linguagem)
+
+    def test_codigo_depois_do_comentario_continua_codigo(self) -> None:
+        self.assertIn("==", qualidade.limpar("a = 1  # x < y\nb == c", "python"))
+        self.assertIn("==", qualidade.limpar("a // x < y\nb == c", "js"))
+        self.assertIn("==", qualidade.limpar("a /* x < y */ == b", "js"))
 
     def test_string_sem_fechar_termina_na_quebra(self) -> None:
         limpo = qualidade.limpar("a = 'sem fim\nb == c", "python")
@@ -295,6 +302,12 @@ class SitiosDeMutacao(unittest.TestCase):
         mutado = qualidade.aplicar_mutacao(texto, s[0])
         self.assertIn("    return None  # fim", mutado)
 
+    def test_retorno_js_so_nas_linhas_tocadas(self) -> None:
+        texto = "  return a + 1;\n  return b + 2;\n"
+        limpo = qualidade.limpar(texto, "js").split("\n")
+        s = qualidade.retornos_js("m.js", texto, limpo, {2})
+        self.assertEqual([(x["linha"], x["original"]) for x in s], [(2, "return b + 2")])
+
     def test_retorno_js_ignora_ponto_e_virgula_do_comentario(self) -> None:
         texto = "  return total + 1; // a; b\n"
         limpo = qualidade.limpar(texto, "js").split("\n")
@@ -319,6 +332,44 @@ class Producao(unittest.TestCase):
         self.assertFalse(qualidade.eh_producao("src/vendor/x.go"))
         self.assertFalse(qualidade.eh_producao("tests/test_app.py"))
         self.assertFalse(qualidade.eh_producao("README.md"))
+
+    def test_arquivo_no_teto_de_tamanho_ainda_e_medido(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "a.py"
+            p.write_bytes(b"x" * qualidade.TETO_BYTES)
+            self.assertTrue(qualidade._cabe(p))
+            p.write_bytes(b"x" * (qualidade.TETO_BYTES + 1))
+            self.assertFalse(qualidade._cabe(p))
+
+
+def morreu(pid: int) -> bool:
+    """Processo que não existe mais ou virou zumbi (morto, esperando quem o colha)."""
+    for _ in range(40):
+        try:
+            estado = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+        except OSError:
+            return True
+        if estado == "Z":
+            return True
+        time.sleep(0.05)
+    return False
+
+
+class Rodar(unittest.TestCase):
+    @unittest.skipUnless(Path("/proc/self/stat").exists(), "precisa de /proc")
+    def test_tempo_esgotado_mata_o_grupo_inteiro(self) -> None:
+        # Com `shell=True`, matar só o shell deixa a suíte órfã rodando por trás.
+        with tempfile.TemporaryDirectory() as d:
+            neto = (f"{sys.executable} -c \"import os, time; open('pid', 'w')"
+                    ".write(str(os.getpid())); time.sleep(30)\"; true")
+            estado, segundos, _ = qualidade.rodar(neto, Path(d), 3)
+            self.assertEqual(estado, "tempo")
+            self.assertLess(segundos, 15)
+            pid = int((Path(d) / "pid").read_text())
+            vivo = not morreu(pid)
+            if vivo:
+                os.kill(pid, 9)
+            self.assertFalse(vivo, "o neto sobreviveu ao tempo esgotado")
 
 
 class Repo(unittest.TestCase):
@@ -427,6 +478,14 @@ class DuplicacaoNoDiff(Repo):
         self.assertEqual(r["pares"][0]["outra"]["funcao"], "alfa")
         self.assertEqual(r["nao_analisados"], [])
 
+    def test_funcao_curta_fica_fora_mesmo_longe_do_topo(self) -> None:
+        curta = "def {}(xs):\n    ys = filtrar(xs, par)\n    return mapear(ys, dobro)\n"
+        self.escrever("a.py", "X = 1\n\n\n" + curta.format("alfa"))
+        self.commitar()
+        self.escrever("b.py", "Y = 2\n\n\n" + curta.format("beta"))
+        self.assertEqual(len(qualidade.analisar_duplicacao(self.raiz, "main", 0.8, 3)["pares"]), 1)
+        self.assertEqual(qualidade.analisar_duplicacao(self.raiz, "main", 0.8, 4)["pares"], [])
+
     def test_so_o_arquivo_tocado_que_nao_compila_e_declarado(self) -> None:
         self.escrever("velho.py", "def (:\n")
         self.commitar()
@@ -485,6 +544,25 @@ class MutacaoNoDiff(Repo):
             ''')
         self.assertIn("base vermelha", r["erro"])
         self.assertEqual(r["mutantes"], [])
+
+
+class MontarWorktree(Repo):
+    def test_diff_que_nao_aplica_para_antes_de_mutar(self) -> None:
+        # Senão a mutação rodaria, calada, sobre o código do último commit.
+        self.escrever("app.py", "X = 1\n")
+        self.commitar()
+        self.escrever("app.py", "X = 2\n")
+        real = subprocess.run
+
+        def apply_falha(cmd, *args, **kwargs):
+            if isinstance(cmd, list) and "apply" in cmd:
+                return subprocess.CompletedProcess(cmd, 1, "", "patch corrompido")
+            return real(cmd, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(qualidade.subprocess, "run", apply_falha):
+            erro = qualidade.montar_worktree(self.raiz, Path(d) / "arvore")
+        self.assertIn("não consegui aplicar o diff não-commitado: patch corrompido", erro)
 
 
 class SuiteDeduzida(Repo):
@@ -572,6 +650,22 @@ class Cli(Repo):
         codigo, saida = self.rodar("duplicacao", "--base", "main")
         self.assertEqual(codigo, 0)
         self.assertIn("nenhum par", saida)
+
+    def test_opcao_sem_valor_no_fim_usa_o_padrao(self) -> None:
+        self.escrever("app.py", "x = 1\n")
+        self.commitar()
+        self.escrever("app.py", PYTHON_COMPLEXO)
+        codigo, saida = self.rodar("crap", "--base", "main", "--limite")
+        self.assertEqual(codigo, 0)
+        self.assertIn("limite 10", saida)
+
+    def test_mutacao_sem_sitio_avisa_e_sai_0(self) -> None:
+        self.escrever("app.py", "X = 1\n")
+        self.commitar()
+        self.escrever("app.py", "X = 2\n")
+        codigo, saida = self.rodar("mutacao", "--base", "main", "--comando", "true")
+        self.assertEqual(codigo, 0)
+        self.assertIn("nada a mutar", saida)
 
     def test_subcomando_desconhecido_mostra_o_uso(self) -> None:
         codigo, saida = self.rodar("medir")

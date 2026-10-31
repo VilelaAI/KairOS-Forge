@@ -143,6 +143,22 @@ class DigestDaSpec(Sandbox):
         self.assertEqual(rodar("registrar", "aprovado", "SPEC-001")[0], 0)
         self.assertEqual(estado()["estado"], "revisando")
 
+    def test_rodada_que_falha_nao_lava_a_spec_alterada(self) -> None:
+        # Só a aprovação sela: um `bloqueado` no meio não pode virar o novo contrato.
+        rodar("abrir", "SPEC-001", "--spec-aprovada")
+        rodar("registrar", "pronto", "SPEC-001")
+        p = Path("docs/specs/SPEC-001-exemplo.md")
+        p.write_text(p.read_text(encoding="utf-8").replace("≤ 2 s", "≤ 10 s"), encoding="utf-8")
+        relatorio = Path("docs/specs/validacoes/VALIDACAO-SPEC-001-2026-01-01.md")
+        relatorio.write_text("# Validação\n\n**Veredicto:** bloqueado\n", encoding="utf-8")
+        self.assertEqual(rodar("registrar", "bloqueado", "SPEC-001")[0], 0)
+        self.assertEqual(rodar("registrar", "pronto", "SPEC-001")[0], 0)
+        self.assertIs(estado()["spec_alterada"], True)
+        relatorio.write_text(VALIDACAO_OK, encoding="utf-8")
+        codigo, _, err = rodar("registrar", "aprovado", "SPEC-001")
+        self.assertEqual(codigo, 1)
+        self.assertIn("mudou depois da aprovação", err)
+
     def test_reaprovar_antes_da_aprovacao_e_recusado(self) -> None:
         """Achado da POC: selar em `enquadrando`/`desenhando` sela um digest que não é contrato."""
         rodar("abrir", "SPEC-001")  # sem --spec-aprovada → enquadrando, sem selo

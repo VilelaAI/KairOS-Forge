@@ -216,6 +216,13 @@ class Cobertura(unittest.TestCase):
         self.assertEqual(formato, "go coverprofile")
         self.assertEqual(cob.do_arquivo("conta/c.go"), ({4, 5, 6}, {4, 5, 6, 8}))
 
+    def test_go_coverprofile_so_tira_o_prefixo_do_proprio_modulo(self) -> None:
+        cob, _ = self.ler("coverage.out", "mode: set\nconta/c.go:4.10,5.2 1 1\n")
+        self.assertEqual(cob.do_arquivo("conta/c.go"), ({4, 5}, {4, 5}))  # sem go.mod
+        (self.raiz / "go.mod").write_text("module exemplo.com/app\n", encoding="utf-8")
+        cob, _ = self.ler("coverage.out", "mode: set\noutro.com/lib/c.go:4.10,5.2 1 1\n")
+        self.assertEqual(cob.do_arquivo("outro.com/lib/c.go"), ({4, 5}, {4, 5}))
+
     def test_arquivo_que_o_relatorio_nao_menciona_e_zero(self) -> None:
         cob, _ = self.ler("coverage.json", json.dumps({"files": {}}))
         self.assertEqual(cob.do_arquivo("x.py"), (set(), set()))
@@ -271,6 +278,10 @@ class Duplicacao(unittest.TestCase):
     def test_conjunto_vazio_nao_e_duplicado(self) -> None:
         self.assertEqual(qualidade.jaccard(set(), {"a"}), 0.0)
 
+    def test_nome_no_fim_do_texto_tambem_normaliza(self) -> None:
+        self.assertEqual(qualidade.impressoes_tokens("return a + b"),
+                         qualidade.impressoes_tokens("return x + y"))
+
     def test_uma_impressao_por_janela_completa(self) -> None:
         # 5 tokens distintos, janelas de 4: exatamente 2 — janela cortada no fim não conta
         self.assertEqual(len(qualidade.impressoes_tokens("( ) ; , .")), 2)
@@ -301,6 +312,12 @@ class SitiosDeMutacao(unittest.TestCase):
         self.assertEqual(s[0]["original"], 'return "não" + x')
         mutado = qualidade.aplicar_mutacao(texto, s[0])
         self.assertIn("    return None  # fim", mutado)
+
+    def test_python_que_nao_compila_ainda_tem_operador_e_nenhum_retorno(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "m.py").write_text("x = a + b\ndef (:\n    return x\n", encoding="utf-8")
+            s = qualidade.sitios_de_mutacao(Path(d), "m.py", {1, 3})
+        self.assertEqual([(x["linha"], x["tipo"]) for x in s], [(1, "operador")])
 
     def test_retorno_js_so_nas_linhas_tocadas(self) -> None:
         texto = "  return a + 1;\n  return b + 2;\n"
@@ -453,6 +470,16 @@ class CrapNoDiff(Repo):
 
     def test_sem_base_e_erro(self) -> None:
         self.assertIn("erro", qualidade.analisar_crap(self.raiz, "nao-existe", None, 10))
+        self.assertIn("erro", qualidade.analisar_duplicacao(self.raiz, "nao-existe", 0.8, 4))
+
+    def test_js_tocado_e_medido_pelo_diff(self) -> None:
+        velha = "function velha(x) {\n  return x;\n}\n"
+        self.escrever("app.js", velha)
+        self.commitar()
+        self.escrever("app.js", velha + "\nfunction nova(x) {\n  return x ? 1 : 2;\n}\n")
+        r = qualidade.analisar_crap(self.raiz, "main", None, 10)
+        self.assertEqual([(f["funcao"], f["complexidade"]) for f in r["funcoes"]], [("nova", 2)])
+        self.assertEqual(r["nao_analisados"], [])
 
 
 class ArquivosDeProducao(Repo):

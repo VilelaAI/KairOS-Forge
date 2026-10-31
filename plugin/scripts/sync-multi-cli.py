@@ -14,6 +14,8 @@ não tem conceito de plugin — recebe um diretório `.cursor/` completo:
                   .cursor/skills/…             (gerado, mirror — Agent Skills padrão)
                   .cursor/rules/kairos-forge.mdc  (gerado — banner alwaysApply)
                   .cursor/scripts/, .cursor/templates/  (gerados — suporte às skills)
+    Tucano:       .tucano/kairos-forge-entrega.md  (gerado — o pacote de entrega como
+                  time que o Tucano importa; `scripts/tucano.py`, ADR-0047)
     Catálogo:     .claude-plugin/ativos.manifest.json  (gerado — manifesto de
                   ativos de IA por agente/skill, direção do ADR-0032)
 
@@ -109,7 +111,7 @@ description: "Fábrica de software kairos-forge — 71 agentes e 18 skills em PT
 alwaysApply: true
 ---
 
-🔥 kairos-forge v0.39 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
+🔥 kairos-forge v0.40 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
 
 - As skills da fábrica estão no menu `/` (Agent Skills): {lista}. A skill
   `mobilizar` roda aqui: o agente principal orquestra os subagents em paralelo
@@ -619,6 +621,11 @@ def sincronizar_tudo() -> int:
     n_agents, n_skills = sincronizar_cursor()
     print(f"  ✓ {n_agents} subagents adaptados em .cursor/agents/")
     print(f"  ✓ {n_skills} skills espelhadas em .cursor/skills/ + rule, scripts e templates")
+
+    print("🦜 gerando o time do Tucano (.tucano/, ADR-0047)...")
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import tucano
+    print(f"  ✓ {tucano.gerar(ROOT).relative_to(ROOT)} — importe no Tucano em Configurações → Time")
 
     print("🗂️ gerando manifesto de ativos de IA (ADR-0032)...")
     n_ativos_ag, n_ativos_sk = gerar_manifesto_ativos()

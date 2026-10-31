@@ -497,6 +497,32 @@ As personas vão para `.opencode/agent/` do diretório atual (rode da raiz do pr
 
 OpenCode lê `CLAUDE.md` ou `AGENTS.md` automaticamente. Para o banner e o lembrete de DoD, instale [oh-my-opencode](https://github.com/fractalmind-ai/oh-my-opencode). Telemetria e guardrail não têm hook no OpenCode: rode `guardrail.py verificar` e os workflows de `templates/ci/` no CI do projeto.
 
+### Tucano (experimental — ADR-0047)
+
+O [Tucano](https://github.com/eduwxyz/tucano) é um app local em que agentes trabalham em canais,
+cada um com o seu harness, e toda ação com efeito fora espera a sua aprovação. Ele roda a CLI sem
+plugin nem hook, então a fábrica entra como **time importado**:
+
+```bash
+# na raiz do projeto
+python3 kairos-forge/scripts/tucano.py instalar --opencode-modelo anthropic/claude-sonnet-4-5
+```
+
+Isso copia os scripts e os templates para `.kairos-forge/` e grava `.kairos-forge/time-tucano.md`.
+Depois:
+1. No Tucano, em Configurações → Time → **Importar time…**, escolha esse arquivo.
+2. Empreste a pasta do projeto aos agentes e ligue o computador de cada um.
+3. Chame `@laura` no canal com o nome da pasta.
+
+O pacote de entrega traz sete agentes:
+- **constroem, no Claude Code:** Laura, Joana, Lucas e Marina;
+- **revisam, no Codex:** Helena e Patrícia;
+- **no OpenCode:** Ricardo, com o modelo que você passar. Sem `--opencode-modelo`, ele fica no
+  Claude Code. `opencode models` lista os modelos disponíveis.
+
+Os guardrails em hook não rodam no Tucano: rode `guardrail.py verificar` antes do PR e no CI,
+como no Codex e no OpenCode.
+
 ## Primeiros passos
 
 ```

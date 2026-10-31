@@ -7,3 +7,4 @@ plugin/README.md -linguist-generated
 .opencode/agent/** linguist-generated=true
 .agents/*/AGENT.md linguist-generated=true
 .claude-plugin/ativos.manifest.json linguist-generated=true
+.tucano/** linguist-generated=true

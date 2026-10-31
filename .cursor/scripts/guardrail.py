@@ -330,6 +330,9 @@ GERADOS_PADRAO = [
     ".cursor/rules/kairos-forge.mdc",
     ".cursor/hooks.json",
     ".claude-plugin/ativos.manifest.json",
+    ".tucano/**",                    # o time do Tucano (ADR-0047)
+    ".kairos-forge/scripts/**",      # os scripts que `tucano.py instalar` copia ao projeto
+    ".kairos-forge/templates/**",
 ]
 
 # --- 4. abertura de PR fora de estado (ADR-0029) -------------------------------------

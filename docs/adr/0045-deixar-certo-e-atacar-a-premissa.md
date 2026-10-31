@@ -119,13 +119,19 @@ muda, então o roteamento da Laura também não.
   decisão morando em dois lugares e teste que não percebe a linha mudar deixam de depender do
   olho de quem revisa no fim do dia.
 - **O próprio script passa nos gates que impõe.** As 93 funções do `qualidade.py` ficam abaixo
-  de CRAP 10 (a maior, 8,4) com a cobertura da própria suíte (93%); das 105 funções que o diff
-  deste ADR toca, nenhuma forma par duplicado e só `registrar` sai `legado_acima`. A mutação
-  sobre o diff, `ciclo.py` incluído, matou 25 de 25 mutantes — depois de os sobreviventes das
-  rodadas anteriores apontarem buracos reais nos testes, todos fechados. O mais caro estava no
-  `ciclo.py`: mutada para guardar a última contagem de achados em vez da melhor, a marca de
-  progresso deixava 2 → 4 → 3 passar por convergência, e nenhum teste percebia. É o tipo de
-  achado que justifica o gate.
+  de CRAP 10 (a maior, 8,4) com a cobertura da própria suíte (95%); das 105 funções que o diff
+  deste ADR toca, nenhuma forma par duplicado e só `registrar` sai `legado_acima`. Na mutação
+  sobre o diff, `ciclo.py` incluído, a amostra final de 60 sítios matou 59; o vivo é a limpeza
+  do diretório temporário (`ignore_errors=True`), equivalente declarado. Chegar lá custou três
+  rodadas: os sobreviventes apontaram buracos reais nos testes, todos fechados, e três mutantes
+  equivalentes que eram código redundante, apagado. Os dois mais caros estavam no `ciclo.py`:
+  mutado para refazer o selo em toda transição, um `bloqueado` lavava a SPEC alterada e o verde
+  seguinte passava; mutada para guardar a última contagem de achados em vez da melhor, a marca
+  de progresso deixava 2 → 4 → 3 passar por convergência. Nenhum teste percebia nenhum dos dois.
+  É o tipo de achado que justifica o gate.
+- **Amostra limpa não é diff limpo.** Com a amostra padrão de 25, o mesmo diff marcou 25 de 25
+  enquanto uma de 60 ainda deixava 12 vivos. Por isso o `/validar` registra os sítios junto do
+  placar e sobe o `--max` quando a suíte é rápida.
 - **Custo.** Mutação roda a suíte uma vez por mutante. O teto padrão (25 mutantes, 900 s) cabe
   numa rodada do `/entregar` em projeto com suíte de segundos; em suíte lenta, o `/validar`
   reduz o `--max` ou passa um `--comando` focado.

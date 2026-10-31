@@ -54,12 +54,23 @@ Por que só agora: em sessão, uma premissa errada é pega porque alguém lê an
 aprovar. Sem ninguém lendo, o orçamento inteiro queima construindo a coisa errada com
 disciplina impecável.
 
+E uma sexta, desde a v0.38 (ADR-0045, do ub-mode): **atacar a premissa.**
+
+Duas correções seguidas que falham no mesmo gate, sem baixar a contagem de achados,
+quase sempre partem da mesma premissa errada — e a terceira, escrita no mesmo embalo,
+também. Na terceira falha seguida o ciclo não volta para a correção: vai para
+`atacando_premissa_*`, e só sai com a premissa escrita em uma frase (`--nota`),
+diferente das que já foram atacadas na mesma sequência. Progresso real ou gate verde
+zeram a sequência. Com o orçamento padrão (2) a escalada chega antes, e a instrução
+de `escalado` pede a mesma frase para levar ao humano.
+
 Uso:
     ciclo.py abrir SPEC-001 [--orcamento-criticar 2] [--orcamento-validar 2]
                             [--orcamento-revisar 2] [--teto-criticar 6]
                             [--teto-validar 6] [--teto-revisar 6] [--spec-aprovada]
     ciclo.py estado [SPEC-001] [--json]
     ciclo.py registrar <resultado> [SPEC-001] [--nota "..."]
+                         # premissa_escrita exige --nota com a premissa atacada
     ciclo.py reaprovar [SPEC-001]   # aceita a SPEC alterada depois da aprovação (humano);
                                     # recusado antes de a SPEC ter sido selada
     ciclo.py encerrar [SPEC-001] --motivo "..."
@@ -106,7 +117,8 @@ PASTA = Path(".agents/ciclo")
 #
 # MENOR (1.x): campo novo, estado novo, aresta nova. Consumidor antigo continua válido.
 # MAIOR (x.0): campo removido/renomeado, semântica alterada, aresta removida.
-CONTRATO_VERSAO = "1.1"   # 1.1: campo `spec_alterada` (digest do contrato da SPEC)
+CONTRATO_VERSAO = "1.2"   # 1.1: campo `spec_alterada` (digest do contrato da SPEC)
+                          # 1.2: estados `atacando_premissa_*` (ADR-0045)
 
 # Gates com orçamento próprio. Cada um conta rodadas SEM progresso, tem teto absoluto
 # e guarda a melhor marca já atingida (ADR-0032).
@@ -125,6 +137,17 @@ FENCE_DO_GATE = {"criticar": "kairos-critica", "validar": "kairos-validacao",
 # devolve ficha, mas não dá rodadas infinitas — convergir devagar demais também é
 # motivo para chamar alguém.
 FATOR_TETO = 3
+
+# Atacar a premissa (ADR-0045): na terceira falha seguida do mesmo gate sem progresso
+# — duas correções frustradas — a próxima correção só começa com a premissa escrita.
+LIMIAR_PREMISSA = 3
+TAMANHO_MINIMO_PREMISSA = 20  # uma frase, não uma palavra
+CORRIGIR = {"criticar": "corrigindo_spec", "validar": "corrigindo_validacao",
+            "revisar": "corrigindo_revisao"}
+ATACAR_PREMISSA = {"criticar": "atacando_premissa_spec",
+                   "validar": "atacando_premissa_validacao",
+                   "revisar": "atacando_premissa_revisao"}
+GATE_DA_PREMISSA = {estado: gate for gate, estado in ATACAR_PREMISSA.items()}
 
 # --- a máquina ---------------------------------------------------------------------
 # estado → {resultado aceito: destino}. `None` marca destino calculado (orçamento).
@@ -152,6 +175,8 @@ TRANSICOES: dict[str, dict[str, str | None]] = {
     "revisando":           {"limpo": "pronto_para_pr", "critico": None},
     "corrigindo_revisao":  {"pronto": "validando"},
     "pronto_para_pr":      {"pr_aberto": "encerrado"},
+    # ADR-0045: a premissa escrita reabre a correção do mesmo gate.
+    **{estado: {"premissa_escrita": CORRIGIR[gate]} for gate, estado in ATACAR_PREMISSA.items()},
 }
 TERMINAIS = {"encerrado", "escalado"}
 
@@ -200,8 +225,15 @@ INSTRUCAO = {
                           "`registrar pronto` (o ciclo REABRE a validação, não a revisão).",
     "pronto_para_pr": "Abra o PR com a evidência no corpo. NUNCA faça merge. Depois: "
                       "`registrar pr_aberto`.",
-    "escalado": "PARADO. Leve ao usuário o achado exato, o que já foi tentado e a decisão "
-                "necessária. Só o usuário destrava (novo `abrir` com orçamento ampliado).",
+    "escalado": "PARADO. Leve ao usuário o achado exato, o que já foi tentado, a premissa "
+                "que as tentativas compartilharam (em uma frase) e a decisão necessária. Só "
+                "o usuário destrava (novo `abrir` com orçamento ampliado).",
+    **{estado: (f"ATAQUE A PREMISSA — duas correções seguidas falharam no gate de {gate} sem "
+                "baixar os achados; a terceira não começa sem isto. Escreva em UMA frase a "
+                "premissa que as duas compartilharam, diga quais agentes ou componentes "
+                "sustentam o desequilíbrio e o que sai da atribuição. A próxima correção parte "
+                "de outra premissa. Depois: `registrar premissa_escrita --nota \"<a premissa>\"`.")
+       for gate, estado in ATACAR_PREMISSA.items()},
     "encerrado": "Ciclo encerrado. Salve o relatório em docs/specs/entregas/.",
 }
 
@@ -463,6 +495,9 @@ def abrir(spec: str, orcamento: dict, teto: dict, spec_aprovada: bool) -> int:
         "rodadas_totais": {g: 0 for g in GATES},
         # melhor (menor) contagem de achados já atingida no gate; None = sem marca.
         "marca": {g: None for g in GATES},
+        # falhas seguidas do gate sem progresso e premissas já atacadas nessa sequência.
+        "seguidas": {g: 0 for g in GATES},
+        "premissas": {g: [] for g in GATES},
         "historico": [{"t": agora(), "de": None, "para": estado, "resultado": "abrir"}],
     }
     if spec_aprovada:
@@ -479,13 +514,30 @@ def compatibilizar(d: dict) -> dict:
     d.setdefault("teto", {})
     d.setdefault("rodadas_totais", {})
     d.setdefault("marca", {})
+    d.setdefault("seguidas", {})
+    d.setdefault("premissas", {})
     for g in GATES:
         orc.setdefault(g, 2)
         d["rodadas"].setdefault(g, 0)
         d["teto"].setdefault(g, max(1, orc[g]) * FATOR_TETO)
         d["rodadas_totais"].setdefault(g, d["rodadas"][g])
         d["marca"].setdefault(g, None)
+        d["seguidas"].setdefault(g, 0)
+        d["premissas"].setdefault(g, [])
     return d
+
+
+def _progrediu(d: dict, gate: str, bloqueios: int | None) -> bool:
+    """Atualiza a melhor marca do gate e diz se a contagem caiu abaixo da anterior."""
+    marca = d["marca"].get(gate)
+    if bloqueios is not None and (marca is None or bloqueios < marca):
+        d["marca"][gate] = bloqueios
+    return bloqueios is not None and marca is not None and bloqueios < marca
+
+
+def zerar_sequencia(d: dict, gate: str) -> None:
+    d["seguidas"][gate] = 0
+    d["premissas"][gate] = []
 
 
 def decidir_orcamento(d: dict, gate: str, bloqueios: int | None) -> tuple[str, str | None]:
@@ -496,21 +548,14 @@ def decidir_orcamento(d: dict, gate: str, bloqueios: int | None) -> tuple[str, s
     está "progredindo" e mesmo assim precisa de gente.
     """
     d["rodadas_totais"][gate] += 1
-    destino = {"criticar": "corrigindo_spec", "validar": "corrigindo_validacao",
-               "revisar": "corrigindo_revisao"}[gate]
-
     if d["rodadas_totais"][gate] >= d["teto"][gate]:
         return "escalado", (f"teto absoluto de {gate} atingido "
                             f"({d['rodadas_totais'][gate]}/{d['teto'][gate]} rodadas)")
 
-    marca = d["marca"].get(gate)
-    progrediu = bloqueios is not None and marca is not None and bloqueios < marca
-    if bloqueios is not None and (marca is None or bloqueios < marca):
-        d["marca"][gate] = bloqueios
-
-    if progrediu:
+    if _progrediu(d, gate, bloqueios):
         d["rodadas"][gate] = 0  # ficha devolvida
-        return destino, None
+        zerar_sequencia(d, gate)  # convergindo: não é a mesma premissa falhando
+        return CORRIGIR[gate], None
 
     if d["rodadas"][gate] >= d["orcamento"][gate]:
         estagnado = "" if bloqueios is None else f", parado em {bloqueios} bloqueio(s)"
@@ -518,7 +563,85 @@ def decidir_orcamento(d: dict, gate: str, bloqueios: int | None) -> tuple[str, s
                             f"({d['rodadas'][gate]}/{d['orcamento'][gate]} rodadas{estagnado})")
 
     d["rodadas"][gate] += 1
-    return destino, None
+    d["seguidas"][gate] += 1
+    atacar = d["seguidas"][gate] >= LIMIAR_PREMISSA
+    return (ATACAR_PREMISSA[gate] if atacar else CORRIGIR[gate]), None
+
+
+def _recusa_do_verde(d: dict, estado: str, gate: str, leitura: tuple) -> str | None:
+    """Por que um resultado verde não pode ser registrado agora — ou None se pode.
+
+    Veredicto vem do artefato, não da palavra do agente.
+    """
+    veredicto, _, fonte, erro_bloco = leitura
+    pasta = FONTE_DO_GATE[gate][0]
+    if estado != "criticando" and spec_alterada(d):
+        return (f"🛑 recusado: o contrato da SPEC {d['spec']} mudou depois da aprovação "
+                f"(requisito, critério, prioridade ou plano — Status e Verificação não "
+                f"contam).\n   Resultado verde contra contrato que se moveu é o "
+                f"`verificado:` pelo avesso. Mostre o diff da SPEC ao usuário e, se ele "
+                f"aceitar a versão nova, rode `ciclo.py reaprovar {d['spec']}`; senão, "
+                f"volte a SPEC.")
+    if fonte == "invalido":
+        return (f"🛑 recusado: o relatório mais recente de {d['spec']} em {pasta}/ tem um "
+                f"bloco ```{FENCE_DO_GATE[gate]} que o parser recusa "
+                f"{erro_bloco}.\n   A linha `**Veredicto:**` não substitui bloco "
+                "inválido (ADR-0032). Corrija o bloco — ou o relatório, se ele diz "
+                "limpo sem a lista do que foi examinado — e registre de novo.")
+    if veredicto == "bloqueado":
+        return (f"🛑 recusado: o relatório mais recente de {d['spec']} em {pasta}/ diz "
+                f"BLOQUEADO.\n   Registre o resultado negativo e corrija, ou rode o gate "
+                "de novo.")
+    if veredicto is None:
+        return (f"🛑 recusado: não encontrei relatório em {pasta}/ para {d['spec']}.\n"
+                f"   Rode o gate e salve o relatório antes de registrar o resultado.")
+    return None
+
+
+def _recusa_da_premissa(d: dict, estado: str, nota: str | None) -> str | None:
+    """A premissa é uma frase de verdade e não é a mesma já atacada nesta sequência."""
+    gate = GATE_DA_PREMISSA[estado]
+    premissa = " ".join((nota or "").split())
+    if len(premissa) < TAMANHO_MINIMO_PREMISSA:
+        return ("🛑 recusado: escreva a premissa em uma frase com `--nota \"...\"` — a "
+                "suposição que as correções que falharam compartilharam. Sem ela, a "
+                "próxima correção repete as anteriores.")
+    if premissa.casefold() in (p.casefold() for p in d["premissas"][gate]):
+        return ("🛑 recusado: essa premissa já foi atacada nesta sequência e a correção "
+                "falhou de novo. Mesma premissa, mesma correção: procure a suposição que "
+                "ainda não foi questionada.")
+    d["premissas"][gate].append(premissa)
+    return None
+
+
+def _recusa(d: dict, estado: str, resultado: str, gate: str | None, leitura: tuple,
+            nota: str | None) -> str | None:
+    if resultado in LIMPO_DO_GATE.get(estado, ()):
+        return _recusa_do_verde(d, estado, gate, leitura)
+    if estado in GATE_DA_PREMISSA:
+        return _recusa_da_premissa(d, estado, nota)
+    return None
+
+
+def _depois_de_registrar(d: dict, estado: str, resultado: str, gate: str | None) -> None:
+    """Efeitos que dependem do que acabou de acontecer, fora da transição em si."""
+    if d["estado"] == "construindo" and estado != "construindo":
+        selar_spec(d, f"registrar {resultado}")
+    if resultado in LIMPO_DO_GATE.get(estado, ()):
+        zerar_sequencia(d, gate)  # gate verde encerra a sequência de falhas
+
+
+def _avisar_fonte(gate: str | None, fonte: str, erro_bloco: str | None, destino: str) -> None:
+    if not gate or destino in TERMINAIS:
+        return
+    if fonte == "prosa":
+        print("\n   ⚠️  Relatório sem bloco de contrato — sem contagem de achados, toda "
+              f"rodada queima ficha.\n       Adicione o bloco ```{FENCE_DO_GATE[gate]}"
+              " para que progresso conte (ADR-0032).", file=sys.stderr)
+    if fonte == "invalido":
+        print(f"\n   ⚠️  O bloco ```{FENCE_DO_GATE[gate]} do relatório foi recusado "
+              f"{erro_bloco} — sem contagem, esta rodada queima ficha.\n       Corrija o "
+              "bloco antes da próxima rodada (ADR-0032).", file=sys.stderr)
 
 
 def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
@@ -538,46 +661,18 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
               f"   Válidos aqui: {validos}\n   {INSTRUCAO[estado]}", file=sys.stderr)
         return 1
 
-    # Veredicto vem do artefato, não da palavra do agente.
     gate_do_estado = {"criticando": "criticar", "validando": "validar",
                       "revisando": "revisar"}.get(estado)
-    veredicto = contagem = erro_bloco = None
-    fonte = "ausente"
-    if gate_do_estado:
-        veredicto, contagem, fonte, erro_bloco = ler_relatorio(d["spec"], gate_do_estado)
-
-    if resultado in LIMPO_DO_GATE.get(estado, ()):
-        pasta, _, _ = FONTE_DO_GATE[gate_do_estado]
-        if estado != "criticando" and spec_alterada(d):
-            print(f"🛑 recusado: o contrato da SPEC {d['spec']} mudou depois da aprovação "
-                  f"(requisito, critério, prioridade ou plano — Status e Verificação não "
-                  f"contam).\n   Resultado verde contra contrato que se moveu é o "
-                  f"`verificado:` pelo avesso. Mostre o diff da SPEC ao usuário e, se ele "
-                  f"aceitar a versão nova, rode `ciclo.py reaprovar {d['spec']}`; senão, "
-                  f"volte a SPEC.", file=sys.stderr)
-            return 1
-        if fonte == "invalido":
-            print(f"🛑 recusado: o relatório mais recente de {d['spec']} em {pasta}/ tem um "
-                  f"bloco ```{FENCE_DO_GATE[gate_do_estado]} que o parser recusa "
-                  f"{erro_bloco}.\n   A linha `**Veredicto:**` não substitui bloco "
-                  "inválido (ADR-0032). Corrija o bloco — ou o relatório, se ele diz "
-                  "limpo sem a lista do que foi examinado — e registre de novo.",
-                  file=sys.stderr)
-            return 1
-        if veredicto == "bloqueado":
-            print(f"🛑 recusado: o relatório mais recente de {d['spec']} em {pasta}/ diz "
-                  f"BLOQUEADO.\n   Registre o resultado negativo e corrija, ou rode o gate "
-                  "de novo.", file=sys.stderr)
-            return 1
-        if veredicto is None:
-            print(f"🛑 recusado: não encontrei relatório em {pasta}/ para {d['spec']}.\n"
-                  f"   Rode o gate e salve o relatório antes de registrar o resultado.",
-                  file=sys.stderr)
-            return 1
+    leitura = (ler_relatorio(d["spec"], gate_do_estado) if gate_do_estado
+               else (None, None, "ausente", None))
+    _, contagem, fonte, erro_bloco = leitura
+    recusa = _recusa(d, estado, resultado, gate_do_estado, leitura, nota)
+    if recusa:
+        print(recusa, file=sys.stderr)
+        return 1
 
     destino = aceitos[resultado]
     motivo = None
-
     if destino is None:  # bloqueio/crítico — o orçamento decide
         destino, motivo = decidir_orcamento(d, gate_do_estado or "validar", contagem)
 
@@ -592,18 +687,10 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
     d["estado"] = destino
     if motivo:
         d["motivo_escalacao"] = motivo
-    if destino == "construindo" and estado != "construindo":
-        selar_spec(d, f"registrar {resultado}")
+    _depois_de_registrar(d, estado, resultado, gate_do_estado)
     gravar(p, d)
     imprimir(d)
-    if gate_do_estado and fonte == "prosa" and destino not in TERMINAIS:
-        print("\n   ⚠️  Relatório sem bloco de contrato — sem contagem de achados, toda "
-              f"rodada queima ficha.\n       Adicione o bloco ```{FENCE_DO_GATE[gate_do_estado]}"
-              " para que progresso conte (ADR-0032).", file=sys.stderr)
-    if gate_do_estado and fonte == "invalido" and destino not in TERMINAIS:
-        print(f"\n   ⚠️  O bloco ```{FENCE_DO_GATE[gate_do_estado]} do relatório foi recusado "
-              f"{erro_bloco} — sem contagem, esta rodada queima ficha.\n       Corrija o "
-              "bloco antes da próxima rodada (ADR-0032).", file=sys.stderr)
+    _avisar_fonte(gate_do_estado, fonte, erro_bloco, destino)
     return 0
 
 

@@ -92,6 +92,8 @@ existe mesmo sem hook: ela não pontua, mas entra no relatório (`references/rub
   dimensão; recusa **crescente** (`recusas_total`) não pontua; regra em modo aviso é regra em
   observação, não cumprida. O nível é o **menor** que ainda descreve a evidência — L4 exige
   **todos** os critérios da linha, não a média.
+- `falhas_do_guardrail` acima de zero não pontua, mas entra no relatório e é candidata ao top 3:
+  naquelas chamadas o guardrail falhou aberto e não guardou nada (ADR-0046).
 - Critério não verificável = 0 e "não foi possível verificar" no relatório.
 
 ### Como devolver as 3 lacunas
@@ -111,7 +113,8 @@ Template completo em `references/relatorio.md`. Seções, nesta ordem:
 1. `# Auditoria — <projeto> — YYYY-MM-DD` e **Pontuação total: NN/120 (NN%)**.
 2. Tabela por dimensão (`NN/20` e `%`).
 3. **Autonomia medida (últimos 30 dias)**: ciclos registrados, ciclos sem intervenção, intervenções
-   por ciclo (mediana), gates verdes de primeira, rodadas de correção, produção escrita sem gate; e
+   por ciclo (mediana), gates verdes de primeira, rodadas de correção, produção escrita sem gate,
+   falhas do guardrail; e
    **Nível estimado: L<N>** com justificativa ancorada nos números. Sem telemetria: "não medida" em
    todas as linhas — nunca preencher por estimativa. Mais a **autonomia de PR** (taxa, N e fonte
    `gh`/`git`), ou "não medida" se nenhum PR mesclado tem commit da fábrica.

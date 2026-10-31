@@ -16,8 +16,8 @@ A regra que organiza tudo:
 
 | Contrato | Comando | Versão | Para quê |
 |---|---|---|---|
-| `kairos-forge/ciclo` | `ciclo.py estado <SPEC> --json` | 1.1 | Qual o próximo passo, precisa de humano, o que registrar, se a SPEC mudou |
-| `kairos-forge/contrato` | `contrato.py <gate> <arquivo>` | 1.0 | Ler o veredicto dos relatórios sem parsear prosa |
+| `kairos-forge/ciclo` | `ciclo.py estado <SPEC> --json` | 1.2 | Qual o próximo passo, precisa de humano, o que registrar, se a SPEC mudou |
+| `kairos-forge/contrato` | `contrato.py <gate> <arquivo>` | 1.1 | Ler o veredicto dos relatórios sem parsear prosa |
 | `kairos-forge/quadro` | `quadro.py estado <slug> --json` | 1.1 | O que o `/mobilizar` pode lançar agora, o que venceu o prazo, se o quadro pode encerrar (ADR-0035/0036) |
 
 A versão vigente de cada um é a de `contratos/ASSINATURA.json`. Os três se publicam
@@ -94,6 +94,16 @@ Os passos 2 e 4 são os que um laço ingênuo erra:
   `aprovado_com_ressalvas` e `limpo` até o `reaprovar`. Um laço que só invoca o agente
   roda o gate, registra `aprovado`, é recusado e roda o gate de novo.
 
+Desde a 1.2 (ADR-0045) há três estados a mais: `atacando_premissa_spec`,
+`atacando_premissa_validacao` e `atacando_premissa_revisao`. O ciclo entra num deles na
+terceira falha seguida do mesmo gate sem baixar a contagem de achados (duas correções
+frustradas) e só sai com `registrar premissa_escrita <SPEC> --nota "<a premissa>"`: a
+suposição que as correções compartilharam, em uma frase, diferente das já atacadas na
+mesma sequência. Sem `--nota`, ou com uma premissa repetida, o `registrar` sai 1. Um laço
+que segue `resultados_validos` e `proximo_passo` não muda nada: o agente lê a instrução
+e escreve a premissa. Com o orçamento padrão (2) a escalada chega antes desses estados;
+eles aparecem com `--orcamento-<gate>` de 3 ou mais.
+
 E em `revisando`, antes de `registrar limpo`, leia a `faixa` do relatório: com `3`, o
 `/entregar` não registra `limpo`, escala (ver as regras do Contrato 2).
 
@@ -164,6 +174,10 @@ As regras que o parser cobra, e que o seu lado deve cobrar igual se reimplementa
    sem diferenciar maiúscula.
 4. **Faixa** (só na revisão) — `faixa` obrigatória: 1 (contida), 2 (ampla) ou 3 (difícil
    de reverter).
+4a. **Completude** (só na revisão, desde 1.1 — ADR-0046) — o campo opcional `incompletos`
+   lista o revisor da faixa que não entregou parecer (erro, tempo, contexto estourado).
+   Não-vazio exige `bloqueado`: revisor que não rodou não aprovou, e o código é
+   `sem_cobertura`. Relatório sem o campo continua valendo como antes.
 5. **Último bloco fechado vence** — rascunho anterior é ignorado; bloco sem fence de
    fechamento não conta e vira `ausente` (tolera CRLF, fence colada no texto anterior e
    indentação até 3 espaços).

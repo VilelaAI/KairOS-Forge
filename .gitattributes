@@ -1,0 +1,10 @@
+# Arquivos gerados: não se editam à mão (ADR-0037) e ficam fora das medidas do
+# qualidade.py (ADR-0045). O GitHub também os recolhe no diff dos PRs.
+plugin/** linguist-generated=true
+plugin/README.md -linguist-generated
+.cursor/** linguist-generated=true
+.codex/agents/** linguist-generated=true
+.opencode/agent/** linguist-generated=true
+.agents/*/AGENT.md linguist-generated=true
+.claude-plugin/ativos.manifest.json linguist-generated=true
+.tucano/** linguist-generated=true

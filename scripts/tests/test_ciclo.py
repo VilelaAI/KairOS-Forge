@@ -110,6 +110,21 @@ class RegistrarIdempotente(Sandbox):
         self.assertIn("terminal", err)
         self.assertEqual(estado()["estado"], "encerrado")
 
+    def test_revisao_incompleta_nao_registra_limpo(self) -> None:
+        # ADR-0046: revisor que não rodou não aprovou — o contrato recusa, o ciclo não fecha.
+        rodar("abrir", "SPEC-001", "--spec-aprovada")
+        rodar("registrar", "pronto", "SPEC-001")
+        Path("docs/specs/validacoes/VALIDACAO-SPEC-001-2026-01-01.md").write_text(VALIDACAO_OK, encoding="utf-8")
+        rodar("registrar", "aprovado", "SPEC-001")
+        Path("docs/specs/revisoes").mkdir()
+        Path("docs/specs/revisoes/REVISAO-SPEC-001-2026-01-01.md").write_text(
+            '# Revisão\n\n```kairos-revisao\n{"veredicto": "aprovado", "faixa": 1, "criticos": 0, '
+            '"examinado": ["x.py (Helena)"], "incompletos": ["Patrícia"]}\n```\n', encoding="utf-8")
+        codigo, _, err = rodar("registrar", "limpo", "SPEC-001")
+        self.assertEqual(codigo, 1)
+        self.assertIn("incompleta", err)
+        self.assertEqual(estado()["estado"], "revisando")
+
     def test_estado_com_spec_explicita_funciona_em_ciclo_encerrado(self) -> None:
         """Achado da POC: sem a SPEC, `estado` falha em ciclo fechado; com ela, responde."""
         rodar("abrir", "SPEC-001", "--spec-aprovada")
@@ -142,6 +157,22 @@ class DigestDaSpec(Sandbox):
         self.assertIs(estado()["spec_alterada"], False)
         self.assertEqual(rodar("registrar", "aprovado", "SPEC-001")[0], 0)
         self.assertEqual(estado()["estado"], "revisando")
+
+    def test_rodada_que_falha_nao_lava_a_spec_alterada(self) -> None:
+        # Só a aprovação sela: um `bloqueado` no meio não pode virar o novo contrato.
+        rodar("abrir", "SPEC-001", "--spec-aprovada")
+        rodar("registrar", "pronto", "SPEC-001")
+        p = Path("docs/specs/SPEC-001-exemplo.md")
+        p.write_text(p.read_text(encoding="utf-8").replace("≤ 2 s", "≤ 10 s"), encoding="utf-8")
+        relatorio = Path("docs/specs/validacoes/VALIDACAO-SPEC-001-2026-01-01.md")
+        relatorio.write_text("# Validação\n\n**Veredicto:** bloqueado\n", encoding="utf-8")
+        self.assertEqual(rodar("registrar", "bloqueado", "SPEC-001")[0], 0)
+        self.assertEqual(rodar("registrar", "pronto", "SPEC-001")[0], 0)
+        self.assertIs(estado()["spec_alterada"], True)
+        relatorio.write_text(VALIDACAO_OK, encoding="utf-8")
+        codigo, _, err = rodar("registrar", "aprovado", "SPEC-001")
+        self.assertEqual(codigo, 1)
+        self.assertIn("mudou depois da aprovação", err)
 
     def test_reaprovar_antes_da_aprovacao_e_recusado(self) -> None:
         """Achado da POC: selar em `enquadrando`/`desenhando` sela um digest que não é contrato."""
@@ -191,6 +222,23 @@ class RelatorioComBlocoInvalido(Sandbox):
         self.assertEqual(estado()["estado"], "revisando")
         self.assertEqual(estado()["historico"][-1]["fonte"], "prosa")
 
+    def test_prosa_avisa_que_a_rodada_queima_ficha(self) -> None:
+        self.validando_com("# Validação\n\n**Veredicto:** bloqueado\n")
+        _, _, err = rodar("registrar", "bloqueado", "SPEC-001")
+        self.assertEqual(estado()["estado"], "corrigindo_validacao")
+        self.assertIn("queima ficha", err)
+
+    def test_ciclo_escalado_nao_fala_mais_em_ficha(self) -> None:
+        rodar("abrir", "SPEC-001", "--spec-aprovada", "--orcamento-validar", "1")
+        rodar("registrar", "pronto", "SPEC-001")
+        Path("docs/specs/validacoes/VALIDACAO-SPEC-001-2026-01-01.md").write_text(
+            "# Validação\n\n**Veredicto:** bloqueado\n", encoding="utf-8")
+        rodar("registrar", "bloqueado", "SPEC-001")
+        rodar("registrar", "pronto", "SPEC-001")
+        _, _, err = rodar("registrar", "bloqueado", "SPEC-001")
+        self.assertEqual(estado()["estado"], "escalado")
+        self.assertNotIn("queima ficha", err)
+
     def test_resultado_negativo_com_bloco_invalido_e_aceito(self) -> None:
         # Registrar o negativo é o lado conservador: a rodada só queima ficha.
         self.validando_com(
@@ -200,6 +248,97 @@ class RelatorioComBlocoInvalido(Sandbox):
         self.assertEqual(estado()["estado"], "corrigindo_validacao")
         self.assertEqual(estado()["historico"][-1]["fonte"], "invalido")
         self.assertIn("json_invalido", err)
+
+
+class AtacarPremissa(Sandbox):
+    """ADR-0045, do ub-mode: duas correções que falham no mesmo gate sem progresso
+    partem da mesma premissa — a terceira só começa com ela escrita."""
+
+    PREMISSA = "o cache é a fonte da verdade do saldo"
+
+    def relatorio(self, bloqueios: int) -> None:
+        Path("docs/specs/validacoes/VALIDACAO-SPEC-001-2026-01-01.md").write_text(
+            "# Validação\n\n**Veredicto:** bloqueado\n\n```kairos-validacao\n"
+            f'{{"spec": "SPEC-001", "veredicto": "bloqueado", "bloqueios": {bloqueios}, '
+            '"verificado": ["EX-01 (npm test)"]}\n```\n', encoding="utf-8")
+
+    def validando(self, orcamento: str = "5") -> None:
+        rodar("abrir", "SPEC-001", "--spec-aprovada", "--orcamento-validar", orcamento)
+        rodar("registrar", "pronto", "SPEC-001")
+        self.relatorio(2)
+
+    def falhar_e_corrigir(self, vezes: int) -> None:
+        for _ in range(vezes):
+            self.assertEqual(rodar("registrar", "bloqueado", "SPEC-001")[0], 0)
+            self.assertEqual(rodar("registrar", "pronto", "SPEC-001")[0], 0)
+
+    def test_terceira_falha_seguida_exige_a_premissa(self) -> None:
+        self.validando()
+        self.falhar_e_corrigir(2)
+        rodar("registrar", "bloqueado", "SPEC-001")
+        e = estado()
+        self.assertEqual(e["estado"], "atacando_premissa_validacao")
+        self.assertEqual(e["resultados_validos"], ["premissa_escrita"])
+        self.assertFalse(e["aguardando_humano"])
+        self.assertEqual(e["contrato"], "1.2")
+
+    def test_premissa_precisa_ser_uma_frase(self) -> None:
+        self.validando()
+        self.falhar_e_corrigir(2)
+        rodar("registrar", "bloqueado", "SPEC-001")
+        codigo, _, err = rodar("registrar", "premissa_escrita", "SPEC-001", "--nota", "cache")
+        self.assertEqual(codigo, 1)
+        self.assertIn("uma frase", err)
+        self.assertEqual(estado()["estado"], "atacando_premissa_validacao")
+        self.assertEqual(rodar("registrar", "premissa_escrita", "SPEC-001",
+                               "--nota", self.PREMISSA)[0], 0)
+        self.assertEqual(estado()["estado"], "corrigindo_validacao")
+        self.assertEqual(estado()["historico"][-1]["nota"], self.PREMISSA)
+
+    def test_mesma_premissa_na_mesma_sequencia_e_recusada(self) -> None:
+        self.validando()
+        self.falhar_e_corrigir(2)
+        rodar("registrar", "bloqueado", "SPEC-001")
+        rodar("registrar", "premissa_escrita", "SPEC-001", "--nota", self.PREMISSA)
+        rodar("registrar", "pronto", "SPEC-001")
+        rodar("registrar", "bloqueado", "SPEC-001")  # a correção nova também falhou
+        self.assertEqual(estado()["estado"], "atacando_premissa_validacao")
+        codigo, _, err = rodar("registrar", "premissa_escrita", "SPEC-001",
+                               "--nota", "  O CACHE é a fonte da verdade   do saldo ")
+        self.assertEqual(codigo, 1)
+        self.assertIn("já foi atacada", err)
+
+    def test_progresso_zera_a_sequencia(self) -> None:
+        self.validando()
+        self.falhar_e_corrigir(2)
+        self.relatorio(1)  # baixou de 2 para 1: está convergindo
+        rodar("registrar", "bloqueado", "SPEC-001")
+        self.assertEqual(estado()["estado"], "corrigindo_validacao")
+
+    def test_piorar_e_voltar_um_pouco_nao_e_progresso(self) -> None:
+        # A marca é a melhor contagem da sequência, não a última: 2 → 4 → 3 não convergiu.
+        self.validando()
+        self.falhar_e_corrigir(1)
+        self.relatorio(4)
+        self.falhar_e_corrigir(1)
+        self.relatorio(3)
+        rodar("registrar", "bloqueado", "SPEC-001")
+        self.assertEqual(estado()["estado"], "atacando_premissa_validacao")
+
+    def test_orcamento_padrao_escala_antes_e_pede_a_premissa(self) -> None:
+        self.validando("2")
+        self.falhar_e_corrigir(2)
+        rodar("registrar", "bloqueado", "SPEC-001")
+        e = estado()
+        self.assertEqual(e["estado"], "escalado")
+        self.assertIn("premissa", e["proximo_passo"])
+
+    def test_contrato_publica_os_estados_novos(self) -> None:
+        codigo, out, _ = rodar("contrato")
+        c = json.loads(out)
+        self.assertEqual(c["versao"], "1.2")
+        self.assertEqual(c["transicoes"]["atacando_premissa_revisao"],
+                         {"premissa_escrita": "corrigindo_revisao"})
 
 
 class BranchDoCiclo(Sandbox):

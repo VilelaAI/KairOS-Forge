@@ -63,7 +63,7 @@ Acionar:
 | `/kairos-forge:especificar <ideia>` | Antes de codar não-trivial; gera SPEC rastreável | Todos os CLIs |
 | `/kairos-forge:analisar-ameacas <feature>` | Threat model antes de implementar feature sensível (auth, PII, billing, IA) | Todos os CLIs |
 | `/kairos-forge:desenhar <spec>` | Handoff de design: fluxos, cinco estados por view, acessibilidade; modo `verificar` inspeciona o implementado e confere contra o `DESIGN.md` da raiz (ADR-0040) | Todos os CLIs |
-| `/kairos-forge:validar <spec>` | Depois de implementar; valida aceite contra SPEC com gates do barato ao caro (para no primeiro vermelho), prova negativa dos testes (`prova.py`), chamadores fora do diff (`grafo.py contexto`) e evidência corroborada pela trajetória | Todos os CLIs |
+| `/kairos-forge:validar <spec>` | Depois de implementar; valida aceite contra SPEC com gates do barato ao caro (para no primeiro vermelho), prova negativa dos testes (`prova.py`), CRAP, duplicação e mutação no diff (`qualidade.py`), chamadores fora do diff (`grafo.py contexto`) e evidência corroborada pela trajetória | Todos os CLIs |
 | `/kairos-forge:rodar [agente\|time\|apoio-X]` | Conversacional/sequencial — modo padrão; modos `debate <decisão>` (ADR-0018) e `explorar <missão>` (POC descartável em worktree, nunca PR — ADR-0040) | Todos os CLIs |
 | `/kairos-forge:mobilizar <spec>` | Time paralelo sobre o quadro `quadro.py`: dependências, teto de 6 por onda, `varrer` (tempo limite) e `compensar` (desfaz em ordem inversa) | Todos os CLIs (adaptador por CLI) |
 | `/kairos-forge:entregar <feature>` | **O ciclo inteiro sozinho**: especificar → criticar → aprovar → construir → validar ⇄ corrigir → revisar ⇄ corrigir → PR, com orçamento de rodadas declarado | Todos os CLIs |
@@ -154,10 +154,10 @@ nenhum passar, 8 escritas de produção sem nenhum gate no meio. Avisa, nunca bl
 e só no turno em que o padrão fecha; repetição sem falha não conta — rodar o mesmo
 teste três vezes enquanto conserta é trabalho normal.
 
-### 2. Guardrails determinísticos — o que não pode falhar sai da prosa (ADR-0022/0042)
+### 2. Guardrails determinísticos — o que não pode falhar sai da prosa (ADR-0022/0042/0046)
 
 `scripts/guardrail.py` roda nos hooks (`PreToolUse`, `PostToolUse` e `Stop` no Claude
-Code; os eventos equivalentes no Cursor) e **bloqueia** por código. Oito classes:
+Code; os eventos equivalentes no Cursor) e **bloqueia** por código. Nove classes:
 
 - **comando destrutivo** — apagar a raiz ou o home, force-push em branch protegida, `DROP`/`TRUNCATE`, `DELETE` sem `WHERE`, `curl | sh`, `chmod 777`;
 - **arquivo protegido** — segredos, chaves, configuração de CI;
@@ -166,11 +166,13 @@ Code; os eventos equivalentes no Cursor) e **bloqueia** por código. Oito classe
 - **contrato de relatório** — bloco `kairos-critica`/`kairos-validacao`/`kairos-revisao` malformado, incoerente ou "limpo" sem prova de cobertura (ADR-0032);
 - **teste existente** (ADR-0039) — edição em teste que já existia no `HEAD`; nasce em `aviso`, porque refactor legítimo também mexe em teste, e o rastro é o que o `/validar` cobra;
 - **leitura de segredo** (ADR-0042) — `cat .env`, `~/.ssh`, `*.pem`, credencial AWS e o serviço de metadados, pelo shell ou pela tool `Read` (`grep`, `ls` e `stat` passam);
-- **fiação dos hooks** (ADR-0042) — `.cursor/hooks.json` e `.codex/hooks.json` inteiros, e o bloco `hooks` de `.claude/settings*.json`: mexer ali silenciaria o guardrail de uma vez.
+- **fiação dos hooks** (ADR-0042) — `.cursor/hooks.json` e `.codex/hooks.json` inteiros, e o bloco `hooks` de `.claude/settings*.json`: mexer ali silenciaria o guardrail de uma vez;
+- **régua** (ADR-0046) — edição em config que já existia de lint, formatter, typecheck, cobertura ou hooks do git (`.eslintrc`, `ruff.toml`, `tsconfig.json`, `.coveragerc`, `.pre-commit-config.yaml`, `.husky/`, os arquivos de *ignore*), e supressão inline nova em produção (`# noqa`, `@ts-ignore`, `# pragma: no cover`): baixar a régua em vez de consertar o código. Nasce em `aviso`, como `teste`.
 
-Mais três regras de comando no **piso** (ADR-0042): `rm -rf` com alvo em variável (não
-dá para provar o que apaga antes de rodar), destruição fora do projeto e controle da
-máquina (`shutdown`, `reboot`). E `gh pr create` é bloqueado em dois casos — ciclo do
+Mais quatro regras de comando no **piso** (ADR-0042/0046): `rm -rf` com alvo em variável
+(não dá para provar o que apaga antes de rodar), destruição fora do projeto, controle da
+máquina (`shutdown`, `reboot`) e pular os hooks do git (`--no-verify`, `git commit -n`,
+`core.hooksPath` trocado, `HUSKY=0`). E `gh pr create` é bloqueado em dois casos — ciclo do
 `/entregar` fora de `pronto_para_pr` (o da branch atual; se a branch não tem ciclo,
 qualquer ciclo aberto), e branch `poc/*` —, assim como `gh pr merge` durante qualquer
 ciclo aberto.
@@ -184,8 +186,9 @@ harness.
 
 A configuração mora em `.agents/guardrails.json`: `liberados` libera um caminho de
 escrita, `modos` escolhe `bloqueio` ou `aviso` por classe. O piso — sagrados, leitura
-de segredo, fiação dos hooks e as três regras de comando — não se configura: roda
-antes de a configuração importar.
+de segredo, fiação dos hooks e as quatro regras de comando — não se configura: roda
+antes de a configuração importar. E quando o próprio guardrail quebra, ele deixa passar
+mas não em silêncio: o erro vai para a trajetória e o `/auditar` o conta (ADR-0046).
 
 **Gate de parada (ADR-0042).** No `Stop`, sessão que escreveu código de produção e não
 rodou nenhum gate verde depois da última escrita não encerra em silêncio. Nasce em
@@ -258,7 +261,7 @@ passam de prosa a código:
 Quem escreve no quadro é a Laura, não o teammate. O quadro é o mesmo nos quatro CLIs;
 só o adaptador de lançamento muda (veja [Compatibilidade](#compatibilidade-entre-plataformas)).
 
-### 6. Verificação — gate verde não é prova (ADR-0039/0043)
+### 6. Verificação — gate verde não é prova (ADR-0039/0043/0045)
 
 A verificação do agente sobre o próprio trabalho não vale como prova. `scripts/prova.py`
 transforma as formas silenciosas de gate verde sem prova em achado com nome:
@@ -277,6 +280,22 @@ python3 scripts/prova.py colher --validar   # entrega mesclada com teste vira ca
 
 Nenhum é veredicto sozinho: o `/validar` cobra a justificativa, a Patrícia lê no
 `/revisar`, e o `selado` roda no CI do projeto.
+
+Depois de funcionar, deixar certo (ADR-0045). `scripts/qualidade.py` mede as funções que o
+diff tocou, só com stdlib (Python pela `ast`, JS/TS e Go por varredura):
+
+```bash
+python3 scripts/qualidade.py duplicacao                  # par com Jaccard estrutural ≥ 0,8
+python3 scripts/qualidade.py crap --cobertura coverage.json   # CC² × (1 − cobertura)³ + CC < 10
+python3 scripts/qualidade.py mutacao --comando "pytest -q"    # mutante sobrevivente = teste fraco
+```
+
+- `crap` lê a cobertura do relatório que a suíte já gera (coverage.py, LCOV, Cobertura, `go test -coverprofile`). Função antiga que já estava acima do limite e não piorou sai `legado_acima`: listada, não reprova. Piorou, reprova.
+- `mutacao` troca operadores e `return x` → `return None` nas linhas tocadas, um por vez, num worktree descartável. A suíte tem de passar antes; cada mutante tem tempo limite.
+- Arquivo `linguist-generated` no `.gitattributes` fica de fora das três medidas.
+
+E quando o mesmo gate falha pela terceira vez seguida sem progresso, o `ciclo.py` passa por
+`atacando_premissa_*`: a correção só recomeça com a premissa escrita, e premissa repetida é recusada.
 
 ### 7. Quadro vivo — onde tudo está, numa tela (ADR-0013/0032)
 
@@ -477,6 +496,32 @@ python3 kairos-forge/scripts/sync-multi-cli.py instalar --cli opencode
 As personas vão para `.opencode/agent/` do diretório atual (rode da raiz do projeto); `--escopo global` usa `$XDG_CONFIG_HOME/opencode/agent` (por padrão `~/.config/opencode/agent`). São subagents com `mode: subagent` e a allow-list traduzida para `permission`, que no OpenCode é enforced. O `/mobilizar` roda por `task`: uma onda é uma mensagem com várias chamadas.
 
 OpenCode lê `CLAUDE.md` ou `AGENTS.md` automaticamente. Para o banner e o lembrete de DoD, instale [oh-my-opencode](https://github.com/fractalmind-ai/oh-my-opencode). Telemetria e guardrail não têm hook no OpenCode: rode `guardrail.py verificar` e os workflows de `templates/ci/` no CI do projeto.
+
+### Tucano (experimental — ADR-0047)
+
+O [Tucano](https://github.com/eduwxyz/tucano) é um app local em que agentes trabalham em canais,
+cada um com o seu harness, e toda ação com efeito fora espera a sua aprovação. Ele roda a CLI sem
+plugin nem hook, então a fábrica entra como **time importado**:
+
+```bash
+# na raiz do projeto
+python3 kairos-forge/scripts/tucano.py instalar --opencode-modelo anthropic/claude-sonnet-4-5
+```
+
+Isso copia os scripts e os templates para `.kairos-forge/` e grava `.kairos-forge/time-tucano.md`.
+Depois:
+1. No Tucano, em Configurações → Time → **Importar time…**, escolha esse arquivo.
+2. Empreste a pasta do projeto aos agentes e ligue o computador de cada um.
+3. Chame `@laura` no canal com o nome da pasta.
+
+O pacote de entrega traz sete agentes:
+- **constroem, no Claude Code:** Laura, Joana, Lucas e Marina;
+- **revisam, no Codex:** Helena e Patrícia;
+- **no OpenCode:** Ricardo, com o modelo que você passar. Sem `--opencode-modelo`, ele fica no
+  Claude Code. `opencode models` lista os modelos disponíveis.
+
+Os guardrails em hook não rodam no Tucano: rode `guardrail.py verificar` antes do PR e no CI,
+como no Codex e no OpenCode.
 
 ## Primeiros passos
 

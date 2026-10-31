@@ -388,6 +388,14 @@ class TesteExistente(ComCommit):
         self.assertEqual(self.escrita("tests/test_novo.py", {"content": "x = 1\n"})[0], 0)
         self.assertEqual([e["classe"] for e in self.rastro()], ["teste", "teste"])
 
+    def test_teste_em_caminho_protegido_e_bloqueado_nao_so_avisado(self) -> None:
+        # O que bloqueia vem antes do que avisa (ADR-0046).
+        self.commitar({"tests/test_app.py": "x = 1\n"})
+        self.config('{"protegidos": ["tests/**"]}')
+        codigo, err = self.escrita("tests/test_app.py", {"content": "x = 2\n"})
+        self.assertEqual(codigo, 2)
+        self.assertIn("protegido pelo projeto", err)
+
     def test_bloqueio_e_liberados(self) -> None:
         self.commitar({"tests/test_app.py": "x = 1\n"})
         self.config('{"modos": {"teste": "bloqueio"}}')
@@ -483,7 +491,9 @@ class Regua(ComCommit):
         self.assertEqual((d["n.py"]["novo"], d["n.py"]["mais"]), (True, ["x = 1"]))
 
     def test_verificar_avisa_e_endurece_por_modo(self) -> None:
-        self.commitar({".prettierrc": "{}\n", "app.js": "f();\n", "ruff.toml": "\n"})
+        self.commitar({".prettierrc": "{}\n", "app.js": "f();\n", "ruff.toml": "\n",
+                       "outro.py": "x = 1\n"})
+        (self.raiz / "outro.py").write_text("x = 2\n", encoding="utf-8")
         (self.raiz / ".prettierrc").unlink()
         (self.raiz / "app.js").write_text("// eslint-disable-next-line\nf();\n", encoding="utf-8")
         out = io.StringIO()
@@ -492,6 +502,7 @@ class Regua(ComCommit):
         self.assertIn(".prettierrc — config da régua alterada ou removida", out.getvalue())
         self.assertIn("app.js — 1 supressão(ões) inline nova(s)", out.getvalue())
         self.assertNotIn("ruff.toml", out.getvalue())
+        self.assertNotIn("outro.py", out.getvalue())  # mudou, mas sem supressão nova
         self.config('{"modos": {"regua": "bloqueio"}}')
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(guardrail.verificar(self.raiz), 1)
@@ -503,6 +514,12 @@ class Regua(ComCommit):
             (self.raiz / rel).write_text("x = 1  # noqa\n", encoding="utf-8")
         self.assertEqual(guardrail.regua_no_diff(self.raiz),
                          ["app.py — 1 supressão(ões) inline nova(s)"])
+        with mock.patch.dict(sys.modules, {"qualidade": None}):  # sem o qualidade.py ao lado
+            self.assertEqual(len(guardrail.regua_no_diff(self.raiz)), 2)
+
+    def test_sem_prova_ao_lado_o_ponto_e_o_head(self) -> None:
+        with mock.patch.dict(sys.modules, {"prova": None}):
+            self.assertEqual(guardrail.ponto_da_base(self.raiz), "HEAD")
 
 
 if __name__ == "__main__":

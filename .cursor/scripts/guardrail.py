@@ -196,9 +196,9 @@ def le_segredo(cmd: str) -> str | None:
 HEREDOC = re.compile(r"(<<-?\s*(['\"]?)(\w+)\2[^\n]*)\n.*?\n[ \t]*\3[ \t]*(?=\n|$)", re.S)
 MENSAGEM = re.compile(r"(\s-[a-zA-Z]*m|\s--message)(=|\s*)('[^']*'|\"(?:\\.|[^\"\\])*\")")
 COMMIT = re.compile(r"\bgit\s+(?:-\S+\s+)*commit\b([^;&|\n]*)")
-# Opções curtas do `git commit` que levam valor colado (`-uno`, `-cmain`, `-Fnotas.txt`):
-# dali em diante o agrupamento é valor, e um `n` ali não é `--no-verify`.
-COM_VALOR = set("mFCctSu")
+# Agrupamento de opções curtas até a primeira que leva valor colado (`-uno`, `-cmain`,
+# `-Fnotas.txt`): dali em diante é valor, e um `n` ali não é `--no-verify`.
+AGRUPAMENTO = re.compile(r"-(?!-)([^mFCctSu]*)")
 PULA_HOOKS = [
     (re.compile(r"\bgit\b[^;&|\n]*\s--no-verify\b"), "--no-verify"),
     (re.compile(r"(?i)\bgit\b[^;&|\n]*\s(-c\s*|--config-env=)core\.hookspath\s*="),
@@ -213,16 +213,9 @@ PULA_HOOKS = [
 
 def _commit_com_n(limpo: str) -> bool:
     """`git commit -n` é `--no-verify` — também dentro de um agrupamento como `-an`."""
-    for m in COMMIT.finditer(limpo):
-        for tok in m.group(1).split():
-            if not tok.startswith("-") or tok.startswith("--"):
-                continue
-            for letra in tok[1:]:
-                if letra == "n":
-                    return True
-                if letra in COM_VALOR:
-                    break
-    return False
+    agrupamentos = (AGRUPAMENTO.match(tok) for m in COMMIT.finditer(limpo)
+                    for tok in m.group(1).split())
+    return any(a is not None and "n" in a.group(1) for a in agrupamentos)
 
 
 def pula_hooks_do_git(cmd: str) -> str | None:
@@ -628,20 +621,25 @@ def checar_escrita(payload: dict) -> int:
                 modo_g,
             )
 
-    for checagem in (checar_teste, checar_regua):
+    # O que bloqueia vem antes do que só avisa: teste existente num caminho protegido
+    # pelo projeto é protegido, não "edição em teste" (ADR-0046).
+    for checagem in (checar_protegido, checar_teste, checar_regua):
         r = checagem(payload, raiz, rel, entrada, cfg)
         if r is not None:
             return r
+    return 0
 
+
+def checar_protegido(payload: dict, raiz: Path, rel: str, entrada: dict,
+                     cfg: dict) -> int | None:
     if any(casa(rel, exc) or casa(Path(rel).name, exc) for exc in EXCECOES):
-        return 0
-
+        return None
     protegidos = list(PROTEGIDOS_PADRAO) + [
         (p, "protegido pelo projeto") for p in cfg.get("protegidos", [])
     ]
     modo = modo_de(cfg, "protegido")
     for padrao, motivo in protegidos:
-        if casa(rel, padrao) and not any(casa(rel, lib) for lib in liberados):
+        if casa(rel, padrao) and not liberado(cfg, rel):
             registrar_recusa(raiz, "protegido", motivo, rel, modo)
             return bloquear(
                 f"escrita bloqueada em `{rel}` — {motivo}",
@@ -651,7 +649,7 @@ def checar_escrita(payload: dict) -> int:
                 "não você.",
                 modo,
             )
-    return 0
+    return None
 
 
 def checar_teste(payload: dict, raiz: Path, rel: str, entrada: dict, cfg: dict) -> int | None:
@@ -664,7 +662,7 @@ def checar_teste(payload: dict, raiz: Path, rel: str, entrada: dict, cfg: dict) 
     modo_t = modo_de(cfg, "teste")
     registrar_recusa(raiz, "teste", "edição em teste existente", rel, modo_t)
     if modo_t != "bloqueio" and not primeira_vez_na_sessao(payload, rel):
-        return 0
+        return None  # já avisou nesta sessão: o rastro ficou, o aviso não se repete
     return bloquear(
         f"edição em teste existente `{rel}`",
         "Teste que já existia é a prova do comportamento anterior. Afrouxar "
@@ -686,7 +684,7 @@ def checar_regua(payload: dict, raiz: Path, rel: str, entrada: dict, cfg: dict) 
     modo_r = modo_de(cfg, "regua")
     registrar_recusa(raiz, "regua", motivo, rel, modo_r)
     if modo_r != "bloqueio" and not primeira_vez_na_sessao(payload, rel):
-        return 0
+        return None  # já avisou nesta sessão: o rastro ficou, o aviso não se repete
     return bloquear(
         f"{motivo} em `{rel}`",
         "Com um check vermelho há dois caminhos: consertar o código ou baixar a "
@@ -707,24 +705,21 @@ def ponto_da_base(raiz: Path) -> str:
     """O merge-base com a branch base; sem base conhecida, o HEAD."""
     try:
         from prova import base_padrao, ponto_de_partida
-        base = base_padrao(raiz)
-        return (ponto_de_partida(raiz, base) if base else None) or "HEAD"
-    except Exception:
-        return "HEAD"
+    except ImportError:
+        return "HEAD"  # sem o prova.py ao lado (cópia avulsa do script)
+    base = base_padrao(raiz)
+    return (ponto_de_partida(raiz, base) if base else None) or "HEAD"
 
 
 def existia_na_base(raiz: Path, rel: str) -> bool:
     """Arquivo que existia ANTES do diff atual — não o que o diff está criando.
 
     "Antes" é o merge-base com a branch base (o teste novo da feature, já commitado,
-    continua sendo novo); sem base conhecida, cai para o HEAD.
+    continua sendo novo); sem base conhecida, cai para o HEAD. Erro do git sobe: no hook,
+    vira `guardrail_erro` na trajetória em vez de um "não existia" calado (ADR-0046).
     """
-    try:
-        r = subprocess.run(["git", "-C", str(raiz), "cat-file", "-e",
-                            f"{ponto_da_base(raiz)}:{rel}"], capture_output=True, timeout=10)
-        return r.returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        return False
+    from prova import git
+    return git(raiz, "cat-file", "-e", f"{ponto_da_base(raiz)}:{rel}", timeout=10).returncode == 0
 
 
 def teste_existente(raiz: Path, rel: str) -> bool:
@@ -841,19 +836,15 @@ def achados_da_regua(arquivos: dict[str, dict]) -> list[str]:
 
 def regua_no_diff(raiz: Path) -> list[str]:
     """A régua no diff contra a base, para o modo CLI: o mesmo critério do hook."""
-    try:
-        r = subprocess.run(["git", "-C", str(raiz), "diff", "-U0", "--no-color",
-                            ponto_da_base(raiz), "--"], capture_output=True, text=True,
-                           timeout=60)
-    except (OSError, subprocess.SubprocessError):
-        return []
+    from prova import git
+    r = git(raiz, "diff", "-U0", "--no-color", ponto_da_base(raiz), "--", timeout=60)
     arquivos = ler_diff(r.stdout) if r.returncode == 0 else {}
     try:  # espelho `linguist-generated` repete o canônico: contaria a mesma régua duas vezes
         from qualidade import gerados
-        for rel in gerados(raiz, sorted(arquivos)):
-            arquivos.pop(rel, None)
-    except Exception:
-        pass
+    except ImportError:
+        return achados_da_regua(arquivos)
+    for rel in gerados(raiz, sorted(arquivos)):
+        arquivos.pop(rel, None)
     return achados_da_regua(arquivos)
 
 

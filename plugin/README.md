@@ -154,10 +154,10 @@ nenhum passar, 8 escritas de produção sem nenhum gate no meio. Avisa, nunca bl
 e só no turno em que o padrão fecha; repetição sem falha não conta — rodar o mesmo
 teste três vezes enquanto conserta é trabalho normal.
 
-### 2. Guardrails determinísticos — o que não pode falhar sai da prosa (ADR-0022/0042)
+### 2. Guardrails determinísticos — o que não pode falhar sai da prosa (ADR-0022/0042/0046)
 
 `scripts/guardrail.py` roda nos hooks (`PreToolUse`, `PostToolUse` e `Stop` no Claude
-Code; os eventos equivalentes no Cursor) e **bloqueia** por código. Oito classes:
+Code; os eventos equivalentes no Cursor) e **bloqueia** por código. Nove classes:
 
 - **comando destrutivo** — apagar a raiz ou o home, force-push em branch protegida, `DROP`/`TRUNCATE`, `DELETE` sem `WHERE`, `curl | sh`, `chmod 777`;
 - **arquivo protegido** — segredos, chaves, configuração de CI;
@@ -166,11 +166,13 @@ Code; os eventos equivalentes no Cursor) e **bloqueia** por código. Oito classe
 - **contrato de relatório** — bloco `kairos-critica`/`kairos-validacao`/`kairos-revisao` malformado, incoerente ou "limpo" sem prova de cobertura (ADR-0032);
 - **teste existente** (ADR-0039) — edição em teste que já existia no `HEAD`; nasce em `aviso`, porque refactor legítimo também mexe em teste, e o rastro é o que o `/validar` cobra;
 - **leitura de segredo** (ADR-0042) — `cat .env`, `~/.ssh`, `*.pem`, credencial AWS e o serviço de metadados, pelo shell ou pela tool `Read` (`grep`, `ls` e `stat` passam);
-- **fiação dos hooks** (ADR-0042) — `.cursor/hooks.json` e `.codex/hooks.json` inteiros, e o bloco `hooks` de `.claude/settings*.json`: mexer ali silenciaria o guardrail de uma vez.
+- **fiação dos hooks** (ADR-0042) — `.cursor/hooks.json` e `.codex/hooks.json` inteiros, e o bloco `hooks` de `.claude/settings*.json`: mexer ali silenciaria o guardrail de uma vez;
+- **régua** (ADR-0046) — edição em config que já existia de lint, formatter, typecheck, cobertura ou hooks do git (`.eslintrc`, `ruff.toml`, `tsconfig.json`, `.coveragerc`, `.pre-commit-config.yaml`, `.husky/`, os arquivos de *ignore*), e supressão inline nova em produção (`# noqa`, `@ts-ignore`, `# pragma: no cover`): baixar a régua em vez de consertar o código. Nasce em `aviso`, como `teste`.
 
-Mais três regras de comando no **piso** (ADR-0042): `rm -rf` com alvo em variável (não
-dá para provar o que apaga antes de rodar), destruição fora do projeto e controle da
-máquina (`shutdown`, `reboot`). E `gh pr create` é bloqueado em dois casos — ciclo do
+Mais quatro regras de comando no **piso** (ADR-0042/0046): `rm -rf` com alvo em variável
+(não dá para provar o que apaga antes de rodar), destruição fora do projeto, controle da
+máquina (`shutdown`, `reboot`) e pular os hooks do git (`--no-verify`, `git commit -n`,
+`core.hooksPath` trocado, `HUSKY=0`). E `gh pr create` é bloqueado em dois casos — ciclo do
 `/entregar` fora de `pronto_para_pr` (o da branch atual; se a branch não tem ciclo,
 qualquer ciclo aberto), e branch `poc/*` —, assim como `gh pr merge` durante qualquer
 ciclo aberto.
@@ -184,8 +186,9 @@ harness.
 
 A configuração mora em `.agents/guardrails.json`: `liberados` libera um caminho de
 escrita, `modos` escolhe `bloqueio` ou `aviso` por classe. O piso — sagrados, leitura
-de segredo, fiação dos hooks e as três regras de comando — não se configura: roda
-antes de a configuração importar.
+de segredo, fiação dos hooks e as quatro regras de comando — não se configura: roda
+antes de a configuração importar. E quando o próprio guardrail quebra, ele deixa passar
+mas não em silêncio: o erro vai para a trajetória e o `/auditar` o conta (ADR-0046).
 
 **Gate de parada (ADR-0042).** No `Stop`, sessão que escreveu código de produção e não
 rodou nenhum gate verde depois da última escrita não encerra em silêncio. Nasce em

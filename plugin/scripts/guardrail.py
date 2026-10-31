@@ -35,12 +35,18 @@ Este script é a parte que **bloqueia**. Oito classes de risco:
                                `.claude/settings*.json`, ou em `.cursor/hooks.json`
                                e `.codex/hooks.json`: silenciaria o guardrail inteiro
                                de uma vez (ADR-0042). Piso, como os sagrados
+  9. Régua                   — edição em config existente de lint, formatter,
+                               typecheck, cobertura ou hooks do git, e supressão
+                               inline nova em produção (`# noqa`, `@ts-ignore`,
+                               `# pragma: no cover`): baixar a régua em vez de
+                               consertar o código (ADR-0046). Default `aviso`
 
 Mais três regras de comando no piso (ADR-0042), inspiradas no harness-toolkit do
 Tech Leads Club: destruição fora do projeto (`rm -rf` em caminho absoluto que não é
 o repositório nem temp), destruição não provável (`rm -rf` cujo alvo vem de variável
 ou substituição — não dá para provar o que apaga antes de rodar) e controle da
-máquina (`shutdown`, `reboot`, `poweroff`).
+máquina (`shutdown`, `reboot`, `poweroff`). E uma quarta (ADR-0046, do ECC): pular os
+hooks do git — `--no-verify`, `git commit -n`, `core.hooksPath` trocado, `HUSKY=0`.
 
 E um gate de PARADA (ADR-0042, hook `Stop`): sessão que escreveu código de produção
 e não rodou nenhum gate verde depois da última escrita não encerra em silêncio.
@@ -100,10 +106,11 @@ que o arquivo mudou — o que um sync legítimo também faz. Por isso ali o defa
     }                                              // bloqueio (default) | aviso
 
 Classes de regra, para o campo `modos`: `comando`, `protegido`, `gerado`, `spec`,
-`contrato`, `teste`, `parada`. Todas nascem em `bloqueio`, menos `teste` e `parada`,
-que nascem em `aviso` (refactor legítimo também edita teste, e sessão de leitura
-também termina sem gate — a regra existe para deixar rastro; promova a `bloqueio`
-quando a taxa de aviso cair).
+`contrato`, `teste`, `parada`, `regua`. Todas nascem em `bloqueio`, menos `teste`,
+`parada` e `regua`, que nascem em `aviso` (refactor legítimo também edita teste,
+sessão de leitura também termina sem gate, e migração de versão também mexe na config
+do linter — a regra existe para deixar rastro; promova a `bloqueio` quando a taxa de
+aviso cair).
 Os caminhos sagrados, a leitura de segredo e a fiação dos hooks nunca degradam — não
 há `modos` nem `liberados` que os afrouxem. É o piso: roda antes de a configuração
 importar, e a configuração é um dos arquivos que o agente não alcança.
@@ -177,6 +184,55 @@ def le_segredo(cmd: str) -> str | None:
     for seg in re.split(r"\|\||&&|;|\|", cmd):
         if LEITORES.match(seg) and ALVOS_SEGREDO.search(seg):
             return "leitura de segredo pelo shell (o valor entraria no transcript)"
+    return None
+
+
+# Pular os hooks do git (ADR-0046, do block-no-verify do ECC). O pre-commit e o pre-push
+# do projeto são gates; o agente que os desliga para o commit passar está escrevendo o
+# próprio medidor, como quem edita `.agents/execucoes/`. Antes de procurar, sai o texto
+# livre que pode *mencionar* a flag sem usá-la: o corpo dos heredocs e o valor de
+# `-m`/`--message`. Aspas em geral ficam — `bash -c "git commit --no-verify"` continua
+# sendo o comando.
+HEREDOC = re.compile(r"(<<-?\s*(['\"]?)(\w+)\2[^\n]*)\n.*?\n[ \t]*\3[ \t]*(?=\n|$)", re.S)
+MENSAGEM = re.compile(r"(\s-[a-zA-Z]*m|\s--message)(=|\s*)('[^']*'|\"(?:\\.|[^\"\\])*\")")
+COMMIT = re.compile(r"\bgit\s+(?:-\S+\s+)*commit\b([^;&|\n]*)")
+# Opções curtas do `git commit` que levam valor colado (`-uno`, `-cmain`, `-Fnotas.txt`):
+# dali em diante o agrupamento é valor, e um `n` ali não é `--no-verify`.
+COM_VALOR = set("mFCctSu")
+PULA_HOOKS = [
+    (re.compile(r"\bgit\b[^;&|\n]*\s--no-verify\b"), "--no-verify"),
+    (re.compile(r"(?i)\bgit\b[^;&|\n]*\s(-c\s*|--config-env=)core\.hookspath\s*="),
+     "`core.hooksPath` trocado na linha de comando"),
+    (re.compile(r"(?i)\bgit\s+config\b[^;&|\n]*\score\.hookspath\s+[^\s-]"),
+     "`git config core.hooksPath` apontando os hooks para outro lugar"),
+    (re.compile(r"(^|[;&|\n]\s*|\s)(HUSKY=0|HUSKY_SKIP_HOOKS=1|LEFTHOOK=0|SKIP=\S+)\s+"
+                r"(\w+=\S*\s+)*git\b"),
+     "variável que desliga o gerenciador de hooks (husky, lefthook, pre-commit)"),
+]
+
+
+def _commit_com_n(limpo: str) -> bool:
+    """`git commit -n` é `--no-verify` — também dentro de um agrupamento como `-an`."""
+    for m in COMMIT.finditer(limpo):
+        for tok in m.group(1).split():
+            if not tok.startswith("-") or tok.startswith("--"):
+                continue
+            for letra in tok[1:]:
+                if letra == "n":
+                    return True
+                if letra in COM_VALOR:
+                    break
+    return False
+
+
+def pula_hooks_do_git(cmd: str) -> str | None:
+    """Motivo, se o comando desliga os hooks do git; None se passa."""
+    limpo = MENSAGEM.sub(r"\1\2''", HEREDOC.sub(r"\1", cmd))
+    if _commit_com_n(limpo):
+        return "pula os hooks do git (`git commit -n`)"
+    for padrao, forma in PULA_HOOKS:
+        if padrao.search(limpo):
+            return f"pula os hooks do git ({forma})"
     return None
 
 
@@ -323,13 +379,25 @@ def carregar_config(raiz: Path) -> dict:
 MODO_PADRAO = "bloqueio"
 # Classe que nasce em observação (ADR-0039): editar teste existente é legítimo com
 # frequência demais para bloquear por default — o valor está no rastro.
-MODO_PADRAO_POR_CLASSE = {"teste": "aviso", "parada": "aviso"}
+MODO_PADRAO_POR_CLASSE = {"teste": "aviso", "parada": "aviso", "regua": "aviso"}
 
 
 def modo_de(cfg: dict, classe: str) -> str:
     padrao = MODO_PADRAO_POR_CLASSE.get(classe, MODO_PADRAO)
     modo = (cfg.get("modos", {}) or {}).get(classe) or cfg.get("modo") or padrao
     return modo if modo in ("bloqueio", "aviso") else padrao
+
+
+def registrar_evento(raiz: Path, evento: dict) -> None:
+    try:
+        pasta = raiz.resolve() / ".agents" / "execucoes"
+        pasta.mkdir(parents=True, exist_ok=True)
+        evento = {"t": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                  "sessao": (os.environ.get("CLAUDE_SESSION_ID") or "?")[:16], **evento}
+        with (pasta / f"{datetime.now(timezone.utc):%Y-%m}.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(evento, ensure_ascii=False) + "\n")
+    except Exception:
+        pass  # registro nunca derruba o guardrail
 
 
 def registrar_recusa(raiz: Path, classe: str, regra: str, alvo: str, modo: str) -> None:
@@ -339,22 +407,8 @@ def registrar_recusa(raiz: Path, classe: str, regra: str, alvo: str, modo: str) 
     que não é registrado não existe. Um agente que passa na validação alcançando ferramenta
     que não tem não está passando (ADR-0030).
     """
-    try:
-        pasta = raiz.resolve() / ".agents" / "execucoes"
-        pasta.mkdir(parents=True, exist_ok=True)
-        evento = {
-            "t": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "sessao": (os.environ.get("CLAUDE_SESSION_ID") or "?")[:16],
-            "tipo": "recusa",
-            "classe": classe,
-            "regra": regra[:120],
-            "alvo": alvo[:200],
-            "modo": modo,
-        }
-        with (pasta / f"{datetime.now(timezone.utc):%Y-%m}.jsonl").open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(evento, ensure_ascii=False) + "\n")
-    except Exception:
-        pass  # registro nunca derruba o guardrail
+    registrar_evento(raiz, {"tipo": "recusa", "classe": classe, "regra": regra[:120],
+                            "alvo": alvo[:200], "modo": modo})
 
 
 def bloquear(motivo: str, detalhe: str, saida: str, modo: str = "bloqueio") -> int:
@@ -471,35 +525,12 @@ def checar_comando(payload: dict) -> int:
             "reconstrua o que sobreviver com SPEC, teste e revisão numa branch normal.",
         )
 
-    # Piso (ADR-0042): sem `modos`, sem `comandos_extra` que afrouxe.
-    motivo = le_segredo(cmd)
-    if motivo:
-        registrar_recusa(raiz, "segredo", motivo, cmd[:200], "bloqueio")
-        return bloquear(
-            f"comando bloqueado — {motivo}",
-            f"Comando: {cmd[:300]}",
-            "Segredo lido pelo shell vai para o transcript e para a trajetória. Para saber "
-            "se uma variável existe, `grep -c NOME .env` responde sem mostrar o valor; para "
-            "usá-la, deixe o processo ler o arquivo (`source`, dotenv) sem imprimir.",
-        )
-    motivo = destroi_fora_do_projeto(cmd, str(raiz))
-    if motivo:
-        registrar_recusa(raiz, "comando", motivo, cmd[:200], "bloqueio")
-        return bloquear(
-            f"comando bloqueado — {motivo}",
-            f"Comando: {cmd[:300]}",
-            "Este guardrail só deixa apagar dentro do repositório ou em temp. Fora disso, "
-            "quem apaga é o humano.",
-        )
-    for padrao, motivo in PISO_COMANDOS:
-        if re.search(padrao, cmd):
-            registrar_recusa(raiz, "comando", motivo, cmd[:200], "bloqueio")
-            return bloquear(
-                f"comando bloqueado — {motivo}",
-                f"Comando: {cmd[:300]}",
-                "Se for realmente necessário, peça ao usuário para executar. "
-                "Ação irreversível não roda em fluxo autônomo (ADR-0024).",
-            )
+    # Piso (ADR-0042/0046): sem `modos`, sem `comandos_extra` que afrouxe.
+    for regra, classe, orientacao in PISO:
+        motivo = regra(cmd, str(raiz))
+        if motivo:
+            registrar_recusa(raiz, classe, motivo, cmd[:200], "bloqueio")
+            return bloquear(f"comando bloqueado — {motivo}", f"Comando: {cmd[:300]}", orientacao)
 
     regras = list(COMANDOS) + [(r, "regra do projeto") for r in cfg.get("comandos_extra", [])]
     modo = modo_de(cfg, "comando")
@@ -507,16 +538,35 @@ def checar_comando(payload: dict) -> int:
         try:
             if re.search(padrao, cmd):
                 registrar_recusa(raiz, "comando", motivo, cmd[:200], modo)
-                return bloquear(
-                    f"comando bloqueado — {motivo}",
-                    f"Comando: {cmd[:300]}",
-                    "Se for realmente necessário, peça ao usuário para executar. "
-                    "Ação irreversível não roda em fluxo autônomo (ADR-0024).",
-                    modo,
-                )
+                return bloquear(f"comando bloqueado — {motivo}", f"Comando: {cmd[:300]}",
+                                IRREVERSIVEL, modo)
         except re.error:
             continue
     return 0
+
+
+def piso_por_padrao(cmd: str) -> str | None:
+    return next((motivo for padrao, motivo in PISO_COMANDOS if re.search(padrao, cmd)), None)
+
+
+IRREVERSIVEL = ("Se for realmente necessário, peça ao usuário para executar. "
+                "Ação irreversível não roda em fluxo autônomo (ADR-0024).")
+
+# As regras de comando do piso, na ordem em que são checadas: (regra, classe, orientação).
+PISO = [
+    (lambda cmd, _cwd: le_segredo(cmd), "segredo",
+     "Segredo lido pelo shell vai para o transcript e para a trajetória. Para saber "
+     "se uma variável existe, `grep -c NOME .env` responde sem mostrar o valor; para "
+     "usá-la, deixe o processo ler o arquivo (`source`, dotenv) sem imprimir."),
+    (destroi_fora_do_projeto, "comando",
+     "Este guardrail só deixa apagar dentro do repositório ou em temp. Fora disso, "
+     "quem apaga é o humano."),
+    (lambda cmd, _cwd: pula_hooks_do_git(cmd), "comando",
+     "O hook do git é um gate do projeto: desligá-lo para o commit passar é escrever o "
+     "próprio medidor (ADR-0046). Conserte o que o hook acusa e rode de novo; se o hook "
+     "estiver quebrado, peça ao usuário."),
+    (lambda cmd, _cwd: piso_por_padrao(cmd), "comando", IRREVERSIVEL),
+]
 
 
 # --- modo hook: escrita -------------------------------------------------------------
@@ -578,26 +628,10 @@ def checar_escrita(payload: dict) -> int:
                 modo_g,
             )
 
-    # Teste existente (ADR-0039). Só o que JÁ ESTAVA no HEAD: teste novo é o trabalho
-    # esperado; teste antigo que muda no mesmo diff da feature é o medidor sendo
-    # tocado. O rastro fica na trajetória sempre; o aviso, uma vez por arquivo na
-    # sessão, para não virar ruído que o usuário aprende a ignorar.
-    if not any(casa(rel, lib) for lib in liberados) and teste_existente(raiz, rel):
-        modo_t = modo_de(cfg, "teste")
-        registrar_recusa(raiz, "teste", "edição em teste existente", rel, modo_t)
-        if modo_t == "bloqueio" or primeira_vez_na_sessao(payload, rel):
-            return bloquear(
-                f"edição em teste existente `{rel}`",
-                "Teste que já existia é a prova do comportamento anterior. Afrouxar "
-                "asserção, pular caso ou apagar teste deixa a suite verde sem provar "
-                "nada — e o `/kairos-forge:validar` lista todo teste existente alterado "
-                "no diff (`prova.py testes-alterados`) e cobra o porquê, arquivo a arquivo.",
-                "Se a mudança é legítima (refactor, contrato que mudou de propósito), "
-                "diga o motivo no commit e no relatório. Se o teste está certo e o "
-                "código errado, conserte o código.",
-                modo_t,
-            )
-        return 0
+    for checagem in (checar_teste, checar_regua):
+        r = checagem(payload, raiz, rel, entrada, cfg)
+        if r is not None:
+            return r
 
     if any(casa(rel, exc) or casa(Path(rel).name, exc) for exc in EXCECOES):
         return 0
@@ -620,26 +654,220 @@ def checar_escrita(payload: dict) -> int:
     return 0
 
 
-def teste_existente(raiz: Path, rel: str) -> bool:
-    """Arquivo de teste que existia ANTES do diff atual — não o que o diff está criando.
+def checar_teste(payload: dict, raiz: Path, rel: str, entrada: dict, cfg: dict) -> int | None:
+    """Teste existente (ADR-0039). Só o que JÁ ESTAVA na base: teste novo é o trabalho
+    esperado; teste antigo que muda no mesmo diff da feature é o medidor sendo tocado. O
+    rastro fica na trajetória sempre; o aviso, uma vez por arquivo na sessão, para não
+    virar ruído que o usuário aprende a ignorar."""
+    if liberado(cfg, rel) or not teste_existente(raiz, rel):
+        return None
+    modo_t = modo_de(cfg, "teste")
+    registrar_recusa(raiz, "teste", "edição em teste existente", rel, modo_t)
+    if modo_t != "bloqueio" and not primeira_vez_na_sessao(payload, rel):
+        return 0
+    return bloquear(
+        f"edição em teste existente `{rel}`",
+        "Teste que já existia é a prova do comportamento anterior. Afrouxar "
+        "asserção, pular caso ou apagar teste deixa a suite verde sem provar "
+        "nada — e o `/kairos-forge:validar` lista todo teste existente alterado "
+        "no diff (`prova.py testes-alterados`) e cobra o porquê, arquivo a arquivo.",
+        "Se a mudança é legítima (refactor, contrato que mudou de propósito), "
+        "diga o motivo no commit e no relatório. Se o teste está certo e o "
+        "código errado, conserte o código.",
+        modo_t,
+    )
+
+
+def checar_regua(payload: dict, raiz: Path, rel: str, entrada: dict, cfg: dict) -> int | None:
+    """Régua (ADR-0046): config de gate existente ou supressão inline nova."""
+    motivo = None if liberado(cfg, rel) else afrouxa_a_regua(raiz, rel, entrada)
+    if not motivo:
+        return None
+    modo_r = modo_de(cfg, "regua")
+    registrar_recusa(raiz, "regua", motivo, rel, modo_r)
+    if modo_r != "bloqueio" and not primeira_vez_na_sessao(payload, rel):
+        return 0
+    return bloquear(
+        f"{motivo} em `{rel}`",
+        "Com um check vermelho há dois caminhos: consertar o código ou baixar a "
+        "régua — e o segundo cabe numa linha. É o mesmo motivo de a config de CI "
+        "ser protegida: mexer no próprio gate é Goodhart.",
+        "Se a mudança é legítima (regra nova do time, migração de versão, falso "
+        "positivo do linter), diga o porquê no commit e, na supressão, no próprio "
+        "comentário. Se o código viola a regra, conserte o código.",
+        modo_r,
+    )
+
+
+def liberado(cfg: dict, rel: str) -> bool:
+    return any(casa(rel, lib) for lib in cfg.get("liberados", []))
+
+
+def ponto_da_base(raiz: Path) -> str:
+    """O merge-base com a branch base; sem base conhecida, o HEAD."""
+    try:
+        from prova import base_padrao, ponto_de_partida
+        base = base_padrao(raiz)
+        return (ponto_de_partida(raiz, base) if base else None) or "HEAD"
+    except Exception:
+        return "HEAD"
+
+
+def existia_na_base(raiz: Path, rel: str) -> bool:
+    """Arquivo que existia ANTES do diff atual — não o que o diff está criando.
 
     "Antes" é o merge-base com a branch base (o teste novo da feature, já commitado,
     continua sendo novo); sem base conhecida, cai para o HEAD.
     """
     try:
-        from prova import eh_teste, base_padrao, ponto_de_partida
-    except Exception:
-        return False
-    if not eh_teste(rel):
-        return False
-    try:
-        base = base_padrao(raiz)
-        ponto = (ponto_de_partida(raiz, base) if base else None) or "HEAD"
-        r = subprocess.run(["git", "-C", str(raiz), "cat-file", "-e", f"{ponto}:{rel}"],
-                           capture_output=True, timeout=10)
+        r = subprocess.run(["git", "-C", str(raiz), "cat-file", "-e",
+                            f"{ponto_da_base(raiz)}:{rel}"], capture_output=True, timeout=10)
         return r.returncode == 0
     except (OSError, subprocess.SubprocessError):
         return False
+
+
+def teste_existente(raiz: Path, rel: str) -> bool:
+    try:
+        from prova import eh_teste
+    except Exception:
+        return False
+    return eh_teste(rel) and existia_na_base(raiz, rel)
+
+
+# --- 2c. afrouxar a régua (ADR-0046) ------------------------------------------------
+# A config do linter, do formatter, do typecheck, da cobertura e dos hooks do git é a
+# régua que o gate usa. O agente com um check vermelho tem dois caminhos: consertar o
+# código ou baixar a régua — e o segundo é uma linha. É o mesmo motivo de
+# `.github/workflows/**` ser protegido, levado às réguas que moram fora do CI (a lista
+# vem do config-protection do ECC, MIT). Nasce em `aviso`, como `teste`: migração de
+# versão e regra nova do time também editam essas configs, e o valor está no rastro.
+# Criar a primeira config é setup, não afrouxamento: só conta o que já existia na base.
+REGUA = [
+    ".eslintrc", ".eslintrc.*", "eslint.config.*", ".eslintignore",
+    ".prettierrc", ".prettierrc.*", "prettier.config.*", ".prettierignore",
+    "biome.json", "biome.jsonc", ".biome.json", ".biome.jsonc",
+    ".stylelintrc", ".stylelintrc.*", "stylelint.config.*", ".stylelintignore",
+    ".markdownlint*", ".markdownlint-cli2.*",
+    "ruff.toml", ".ruff.toml", ".flake8", ".pylintrc", "pylintrc",
+    "mypy.ini", ".mypy.ini", "pyrightconfig.json", "tsconfig.json", "tsconfig.*.json",
+    ".golangci.yml", ".golangci.yaml", ".golangci.toml", ".golangci.json",
+    ".rubocop.yml", ".shellcheckrc", ".hadolint.yaml",
+    ".coveragerc", ".nycrc", ".nycrc.*", ".c8rc", ".c8rc.*", "codecov.yml", ".codecov.yml",
+    ".pre-commit-config.yaml", "lefthook.yml", ".lefthook.yml",
+    ".lintstagedrc", ".lintstagedrc.*", "lint-staged.config.*",
+]
+REGUA_CAMINHO = [".husky/**"]
+
+# A régua também se afrouxa no varejo: o comentário que cala o linter, o typecheck ou a
+# cobertura numa linha. `# pragma: no cover` tira a linha do relatório que o `crap` do
+# `qualidade.py` lê (ADR-0045). Só conta em código de produção, fora de literal de string.
+SUPRESSAO = re.compile(
+    r"eslint-disable|@ts-(ignore|nocheck|expect-error)|#\s*noqa\b|#\s*type:\s*ignore"
+    r"|pylint:\s*disable|//\s*nolint\b|#\s*nosec\b|pragma:\s*no\s*cover"
+    r"|\b(istanbul|c8|v8)\s+ignore\b|prettier-ignore|rubocop:disable|@SuppressWarnings"
+    r"|#!?\[allow\(")
+LITERAL = re.compile(r"'[^'\n]*'|\"(?:\\.|[^\"\\\n])*\"|`[^`\n]*`")
+CODIGO = {".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts", ".go",
+          ".rb", ".java", ".kt", ".rs", ".php", ".cs", ".swift", ".scala"}
+
+
+def eh_regua(rel: str) -> bool:
+    nome = Path(rel).name.lower()
+    return any(fnmatch.fnmatch(nome, p) for p in REGUA) or \
+        any(casa(rel, p) for p in REGUA_CAMINHO)
+
+
+def supressoes(texto: str) -> int:
+    return sum(len(SUPRESSAO.findall(LITERAL.sub("", linha))) for linha in texto.splitlines())
+
+
+def supressao_conta(rel: str) -> bool:
+    """Código de produção — teste usa `@ts-expect-error` de propósito."""
+    try:
+        from prova import eh_teste
+    except Exception:
+        return False
+    return Path(rel).suffix.lower() in CODIGO and not eh_teste(rel)
+
+
+def antes_e_depois(entrada: dict, alvo: Path) -> tuple[str, str]:
+    """O texto que a escrita tira e o que ela põe: Edit, MultiEdit ou Write."""
+    if "content" in entrada:
+        try:
+            atual = alvo.read_text(encoding="utf-8", errors="replace") if alvo.is_file() else ""
+        except OSError:
+            atual = ""
+        return atual, str(entrada.get("content") or "")
+    trocas = entrada.get("edits") or [entrada]
+    return ("\n".join(str(t.get("old_string") or "") for t in trocas),
+            "\n".join(str(t.get("new_string") or "") for t in trocas))
+
+
+def arquivo_do_cabecalho(origem: str, destino: str) -> str | None:
+    """O caminho do arquivo pelo par `---`/`+++`; removido (`+++ /dev/null`) vale a origem."""
+    alvo = origem if destino == "/dev/null" else destino
+    return alvo[2:] if alvo[:2] in ("a/", "b/") else None
+
+
+def ler_diff(texto: str) -> dict[str, dict]:
+    """Por arquivo do `git diff -U0`: se é novo, as linhas que saíram e as que entraram."""
+    arquivos: dict[str, dict] = {}
+    atual = None
+    origem = ""
+    for linha in texto.splitlines():
+        if linha.startswith("--- "):
+            origem = linha[4:]
+        elif linha.startswith("+++ "):
+            atual = arquivo_do_cabecalho(origem, linha[4:])
+            if atual:
+                arquivos[atual] = {"novo": origem == "/dev/null", "mais": [], "menos": []}
+        elif atual and linha[:1] in "+-":
+            arquivos[atual]["mais" if linha[0] == "+" else "menos"].append(linha[1:])
+    return arquivos
+
+
+def achados_da_regua(arquivos: dict[str, dict]) -> list[str]:
+    achados = []
+    for rel, d in sorted(arquivos.items()):
+        if eh_regua(rel) and not d["novo"]:
+            achados.append(f"{rel} — config da régua alterada ou removida")
+        elif supressao_conta(rel):
+            n = supressoes("\n".join(d["mais"])) - supressoes("\n".join(d["menos"]))
+            if n > 0:
+                achados.append(f"{rel} — {n} supressão(ões) inline nova(s)")
+    return achados
+
+
+def regua_no_diff(raiz: Path) -> list[str]:
+    """A régua no diff contra a base, para o modo CLI: o mesmo critério do hook."""
+    try:
+        r = subprocess.run(["git", "-C", str(raiz), "diff", "-U0", "--no-color",
+                            ponto_da_base(raiz), "--"], capture_output=True, text=True,
+                           timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    arquivos = ler_diff(r.stdout) if r.returncode == 0 else {}
+    try:  # espelho `linguist-generated` repete o canônico: contaria a mesma régua duas vezes
+        from qualidade import gerados
+        for rel in gerados(raiz, sorted(arquivos)):
+            arquivos.pop(rel, None)
+    except Exception:
+        pass
+    return achados_da_regua(arquivos)
+
+
+def afrouxa_a_regua(raiz: Path, rel: str, entrada: dict) -> str | None:
+    """Motivo, se a escrita mexe numa régua existente ou adiciona supressão inline."""
+    if eh_regua(rel) and existia_na_base(raiz, rel):
+        return "edição na régua do projeto (config de lint, formatter, typecheck, " \
+               "cobertura ou hooks do git)"
+    if supressao_conta(rel):
+        antes, depois = antes_e_depois(entrada, raiz / rel)
+        if supressoes(depois) > supressoes(antes):
+            return "supressão inline adicionada (comentário que cala linter, typecheck " \
+                   "ou cobertura)"
+    return None
 
 
 def primeira_vez_na_sessao(payload: dict, rel: str) -> bool:
@@ -955,6 +1183,23 @@ def gerados_modificados(raiz: Path) -> list[str]:
     return achados
 
 
+def avisar_regua(raiz: Path) -> list[str]:
+    """Régua (ADR-0046) no modo CLI: config de gate alterada ou supressão inline nova no
+    diff. Mesma assimetria do `teste`: avisa; endurece com `{"modos": {"regua": "bloqueio"}}`.
+    Devolve o problema que reprova, se houver."""
+    regua = regua_no_diff(raiz)
+    if not regua:
+        return []
+    duro = (carregar_config(raiz).get("modos", {}) or {}).get("regua") == "bloqueio"
+    print(f"{'🛑' if duro else '⚠️ '} {len(regua)} afrouxamento(s) da régua no diff:")
+    for achado in regua[:10]:
+        print(f"   {achado}")
+    print("   Migração de versão e regra nova também mexem aqui — a diferença é o porquê "
+          "escrito no commit.")
+    return [f"{len(regua)} afrouxamento(s) da régua — `modos.regua` está em bloqueio "
+            "neste projeto"] if duro else []
+
+
 def verificar(alvo: Path) -> int:
     """Sem PreToolUse não há bloqueio prévio — então o mesmo contrato roda depois."""
     problemas: list[str] = []
@@ -1031,6 +1276,7 @@ def verificar(alvo: Path) -> int:
             if duro:
                 problemas.append(f"{len(suspeitos)} teste(s) existente(s) com sinal de "
                                  "afrouxamento — `modos.teste` está em bloqueio neste projeto")
+        problemas += avisar_regua(raiz)  # a régua no diff (ADR-0046)
 
     for padrao, motivo in PROTEGIDOS_PADRAO[:5]:  # só os de segredo, não o de CI
         for achado in raiz.rglob(padrao.replace("**/", "")):
@@ -1068,14 +1314,26 @@ def main() -> int:
     if modo is None:
         print(__doc__.strip())
         return 1
+    payload: dict = {}
     try:
         bruto = sys.stdin.read()
         payload = normalizar_payload(json.loads(bruto) if bruto.strip() else {})
         return modo(payload)
-    except Exception:
-        # Guardrail quebrado nunca trava a sessão — falha aberta, mas silenciosa.
-        # (Bloquear por bug próprio seria pior que a ausência do check.)
-        return 0
+    except Exception as erro:
+        return falhar_aberto(args[0], payload, erro)
+
+
+def falhar_aberto(modo: str, payload: dict, erro: Exception) -> int:
+    """Guardrail quebrado nunca trava a sessão: bloquear por bug próprio seria pior que a
+    ausência do check. Mas falhar aberto em silêncio é o guardrail sumir sem ninguém ver
+    (ADR-0046, do ECC): o erro vai para a trajetória, que o `/auditar` lê, e para o stderr.
+    """
+    raiz = Path((payload or {}).get("cwd") or os.getcwd())
+    descricao = f"{type(erro).__name__}: {erro}"[:200]
+    registrar_evento(raiz, {"tipo": "guardrail_erro", "modo": modo, "erro": descricao})
+    print(f"⚠️  kairos-forge: o guardrail ({modo}) falhou e deixou passar — {descricao}. "
+          "Registrado em .agents/execucoes/.", file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":

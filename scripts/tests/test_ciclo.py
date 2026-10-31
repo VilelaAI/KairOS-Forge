@@ -110,6 +110,21 @@ class RegistrarIdempotente(Sandbox):
         self.assertIn("terminal", err)
         self.assertEqual(estado()["estado"], "encerrado")
 
+    def test_revisao_incompleta_nao_registra_limpo(self) -> None:
+        # ADR-0046: revisor que não rodou não aprovou — o contrato recusa, o ciclo não fecha.
+        rodar("abrir", "SPEC-001", "--spec-aprovada")
+        rodar("registrar", "pronto", "SPEC-001")
+        Path("docs/specs/validacoes/VALIDACAO-SPEC-001-2026-01-01.md").write_text(VALIDACAO_OK, encoding="utf-8")
+        rodar("registrar", "aprovado", "SPEC-001")
+        Path("docs/specs/revisoes").mkdir()
+        Path("docs/specs/revisoes/REVISAO-SPEC-001-2026-01-01.md").write_text(
+            '# Revisão\n\n```kairos-revisao\n{"veredicto": "aprovado", "faixa": 1, "criticos": 0, '
+            '"examinado": ["x.py (Helena)"], "incompletos": ["Patrícia"]}\n```\n', encoding="utf-8")
+        codigo, _, err = rodar("registrar", "limpo", "SPEC-001")
+        self.assertEqual(codigo, 1)
+        self.assertIn("incompleta", err)
+        self.assertEqual(estado()["estado"], "revisando")
+
     def test_estado_com_spec_explicita_funciona_em_ciclo_encerrado(self) -> None:
         """Achado da POC: sem a SPEC, `estado` falha em ciclo fechado; com ela, responde."""
         rodar("abrir", "SPEC-001", "--spec-aprovada")

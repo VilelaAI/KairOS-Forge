@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -104,6 +105,49 @@ class DestruicaoNoPiso(Sandbox):
         self.assertEqual(self.cmd("sudo reboot")[0], 2)
         self.assertEqual(self.cmd('rm -rf "$DIR"')[0], 2)
         self.assertEqual(self.cmd("rm -rf /opt/outro-projeto")[0], 2)
+
+
+class HooksDoGit(Sandbox):
+    """ADR-0046: o hook do git é gate do projeto — desligá-lo é escrever o próprio medidor."""
+
+    def test_formas_de_pular_os_hooks_bloqueiam(self) -> None:
+        for comando in ('git commit --no-verify -m "wip"',
+                        "git push --no-verify origin feat",
+                        'git commit -n -m "wip"',
+                        'git commit -anm "wip"',
+                        'git -c core.hooksPath=/dev/null commit -m "x"',
+                        'git -c CORE.HOOKSPATH=/dev/null commit -m "x"',
+                        "git config core.hooksPath /tmp/vazio",
+                        'HUSKY=0 git commit -m "x"',
+                        'SKIP=flake8 git commit -m "x"',
+                        'cd app && LEFTHOOK=0 git push',
+                        "bash -c 'git commit --no-verify -m x'"):
+            codigo, _, err = self.cmd(comando)
+            self.assertEqual(codigo, 2, comando)
+            self.assertIn("pula os hooks do git", err)
+
+    def test_mensagem_que_cita_a_flag_e_valor_colado_passam(self) -> None:
+        for comando in ('git commit -m "docs: explica por que --no-verify é bloqueado"',
+                        "git commit -m 'evite git commit -n'",
+                        "git commit -F - <<'EOF'\nfix: nada de --no-verify\n\nHUSKY=0 git x\nEOF",
+                        "git commit -uno -m x",
+                        "git commit -cmain",
+                        "git commit --amend --no-edit",
+                        "git push -n origin feat",          # em push, -n é --dry-run
+                        "git config --get core.hooksPath",
+                        'npx husky && git commit -m "x"',
+                        "SKIP=1 npm test"):
+            self.assertEqual(self.cmd(comando)[0], 0, comando)
+
+    def test_heredoc_nao_esconde_o_comando_seguinte(self) -> None:
+        comando = "cat > nota.txt <<'EOF'\ntexto\nEOF\ngit commit --no-verify -m x"
+        self.assertEqual(self.cmd(comando)[0], 2)
+
+    def test_e_piso_nao_obedece_a_modos(self) -> None:
+        (self.raiz / ".agents").mkdir(exist_ok=True)
+        (self.raiz / ".agents" / "guardrails.json").write_text(
+            '{"modos": {"comando": "aviso"}}', encoding="utf-8")
+        self.assertEqual(self.cmd("git commit --no-verify -m x")[0], 2)
 
 
 class FiacaoDosHooks(Sandbox):
@@ -264,6 +308,201 @@ class VerificarNoCI(Sandbox):
         self.assertEqual(codigo, 1)
         self.assertIn(".env:", saida)
         self.assertNotIn(".env.example", saida)
+
+
+class FalhaAberta(Sandbox):
+    """ADR-0046: guardrail quebrado deixa passar — mas não em silêncio."""
+
+    def rastro(self) -> list[dict]:
+        pasta = self.raiz / ".agents" / "execucoes"
+        return [json.loads(l) for p in pasta.glob("*.jsonl")
+                for l in p.read_text(encoding="utf-8").splitlines()]
+
+    def test_payload_quebrado_passa_mas_fica_na_trajetoria(self) -> None:
+        r = subprocess.run([sys.executable, str(RAIZ / "guardrail.py"), "comando"],
+                           input="{quebrado", capture_output=True, text=True, cwd=self.raiz)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("falhou e deixou passar", r.stderr)
+        evento, = self.rastro()
+        self.assertEqual((evento["tipo"], evento["modo"]), ("guardrail_erro", "comando"))
+        self.assertIn("JSONDecodeError", evento["erro"])
+
+    def test_bug_numa_regra_usa_o_cwd_do_payload(self) -> None:
+        with contextlib.redirect_stderr(io.StringIO()):
+            codigo = guardrail.falhar_aberto("escrita", {"cwd": str(self.raiz)},
+                                             KeyError("tool_input"))
+        self.assertEqual(codigo, 0)
+        self.assertEqual(self.rastro()[0]["erro"], "KeyError: 'tool_input'")
+
+
+class ComCommit(Sandbox):
+    """Sandbox com base commitada e `$TMPDIR` próprio para as marcas de "uma vez por sessão"."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        # O "avisa uma vez por sessão" marca em $TMPDIR; fora do sandbox, a marca da
+        # rodada anterior da suíte faria o primeiro aviso desta sair calado.
+        tmp = self.raiz / ".tmp"
+        tmp.mkdir()
+        self._env = mock.patch.dict(os.environ, {"TMPDIR": str(tmp)})
+        self._env.start()
+
+    def tearDown(self) -> None:
+        self._env.stop()
+        super().tearDown()
+
+    def commitar(self, arquivos: dict[str, str]) -> None:
+        for rel, texto in arquivos.items():
+            (self.raiz / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.raiz / rel).write_text(texto, encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], check=True)
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm",
+                        "base"], check=True)
+
+    def escrita(self, rel: str, entrada: dict, sessao: str = "") -> tuple[int, str]:
+        codigo, _, err = hook("escrita", {
+            "session_id": sessao or self.id(), "cwd": str(self.raiz),
+            "tool_input": {"file_path": str(self.raiz / rel), **entrada}})
+        return codigo, err
+
+    def config(self, texto: str) -> None:
+        (self.raiz / ".agents").mkdir(exist_ok=True)
+        (self.raiz / ".agents" / "guardrails.json").write_text(texto, encoding="utf-8")
+
+    def rastro(self) -> list[dict]:
+        return [json.loads(l) for p in (self.raiz / ".agents" / "execucoes").glob("*.jsonl")
+                for l in p.read_text(encoding="utf-8").splitlines()]
+
+
+
+class TesteExistente(ComCommit):
+    """ADR-0039: teste que já existia é a prova do comportamento anterior."""
+
+    def test_teste_existente_avisa_uma_vez_e_teste_novo_passa(self) -> None:
+        self.commitar({"tests/test_app.py": "def test_a():\n    assert f() == 1\n"})
+        troca = {"old_string": "== 1", "new_string": "== 2"}
+        codigo, err = self.escrita("tests/test_app.py", troca)
+        self.assertEqual(codigo, 1)
+        self.assertIn("teste existente", err)
+        self.assertEqual(self.escrita("tests/test_app.py", troca)[0], 0)
+        self.assertEqual(self.escrita("tests/test_novo.py", {"content": "x = 1\n"})[0], 0)
+        self.assertEqual([e["classe"] for e in self.rastro()], ["teste", "teste"])
+
+    def test_bloqueio_e_liberados(self) -> None:
+        self.commitar({"tests/test_app.py": "x = 1\n"})
+        self.config('{"modos": {"teste": "bloqueio"}}')
+        self.assertEqual(self.escrita("tests/test_app.py", {"content": "x = 2\n"})[0], 2)
+        self.config('{"modos": {"teste": "bloqueio"}, "liberados": ["tests/**"]}')
+        self.assertEqual(self.escrita("tests/test_app.py", {"content": "x = 2\n"})[0], 0)
+
+
+class Principal(Sandbox):
+    """O `main`: uso, `verificar`, modo hook e a falha aberta, no mesmo processo."""
+
+    def main(self, *args: str, entrada: str = "") -> tuple[int, str, str]:
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(sys, "argv", ["guardrail.py", *args]), \
+                mock.patch.object(sys, "stdin", io.StringIO(entrada)), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            codigo = guardrail.main()
+        return codigo, out.getvalue(), err.getvalue()
+
+    def test_sem_argumento_ou_modo_desconhecido_mostra_o_uso(self) -> None:
+        for args in ((), ("medir",)):
+            codigo, out, _ = self.main(*args)
+            self.assertEqual(codigo, 1)
+            self.assertIn("guardrail.py verificar", out)
+
+    def test_verificar_e_modo_hook(self) -> None:
+        self.assertEqual(self.main("verificar", str(self.raiz))[0], 0)
+        payload = {"cwd": str(self.raiz), "tool_input": {"command": "git commit --no-verify"}}
+        self.assertEqual(self.main("comando", entrada=json.dumps(payload))[0], 2)
+        self.assertEqual(self.main("comando", entrada="")[0], 0)
+
+    def test_payload_quebrado_passa_e_avisa(self) -> None:
+        codigo, _, err = self.main("comando", entrada="{x")
+        self.assertEqual(codigo, 0)
+        self.assertIn("falhou e deixou passar", err)
+
+
+class Regua(ComCommit):
+    """ADR-0046: config do gate e supressão inline — baixar a régua em vez de consertar."""
+
+    def test_config_existente_avisa_uma_vez_e_deixa_rastro_sempre(self) -> None:
+        self.commitar({".eslintrc.json": '{"rules": {"no-unused-vars": "error"}}\n'})
+        troca = {"old_string": '"error"', "new_string": '"off"'}
+        codigo, err = self.escrita(".eslintrc.json", troca)
+        self.assertEqual(codigo, 1)
+        self.assertIn("régua do projeto", err)
+        self.assertEqual(self.escrita(".eslintrc.json", troca)[0], 0)  # avisa uma vez
+        self.assertEqual([e["classe"] for e in self.rastro()], ["regua", "regua"])
+
+    def test_config_nova_e_setup_e_passa(self) -> None:
+        self.commitar({"app.py": "x = 1\n"})
+        self.assertEqual(self.escrita("ruff.toml", {"content": "line-length = 100\n"})[0], 0)
+        self.assertEqual(self.escrita(".husky/pre-commit", {"content": "npm test\n"})[0], 0)
+
+    def test_hook_do_git_e_ignore_tambem_sao_regua(self) -> None:
+        self.commitar({".husky/pre-commit": "npm test\n", ".eslintignore": "dist\n",
+                       "eslint.config.base.mjs": "export default []\n"})
+        for rel in (".husky/pre-commit", ".eslintignore", "eslint.config.base.mjs"):
+            self.assertEqual(self.escrita(rel, {"content": "\n"})[0], 1, rel)
+
+    def test_supressao_nova_em_producao_avisa(self) -> None:
+        self.commitar({"app.py": "x = f()\n", "web.ts": "const y = g();\n"})
+        self.assertEqual(self.escrita("app.py", {"old_string": "x = f()",
+                                                 "new_string": "x = f()  # type: ignore"})[0], 1)
+        self.assertEqual(self.escrita("web.ts", {"edits": [
+            {"old_string": "const y", "new_string": "// @ts-ignore\nconst y"}]})[0], 1)
+        self.assertEqual(self.escrita("novo.py", {"content": "y = 2  # pragma: no cover\n"})[0], 1)
+
+    def test_supressao_em_literal_em_teste_ou_so_movida_passa(self) -> None:
+        self.commitar({"app.py": "a()  # noqa\nb()\n"})
+        self.assertEqual(self.escrita("app.py", {"old_string": "b()",
+                                                 "new_string": 'b("# noqa")'})[0], 0)
+        self.assertEqual(self.escrita("app.py", {"old_string": "a()  # noqa\nb()",
+                                                 "new_string": "b()\na()  # noqa"})[0], 0)
+        self.assertEqual(self.escrita("tests/test_app.py",
+                                      {"content": "x = y  # type: ignore\n"})[0], 0)
+        self.assertEqual(self.escrita("README.md", {"content": "use `# noqa`\n"})[0], 0)
+
+    def test_modo_bloqueio_e_liberados(self) -> None:
+        self.commitar({"tsconfig.json": '{"strict": true}\n'})
+        troca = {"old_string": "true", "new_string": "false"}
+        self.config('{"modos": {"regua": "bloqueio"}}')
+        self.assertEqual(self.escrita("tsconfig.json", troca)[0], 2)
+        self.config('{"modos": {"regua": "bloqueio"}, "liberados": ["tsconfig.json"]}')
+        self.assertEqual(self.escrita("tsconfig.json", troca)[0], 0)
+
+    def test_ler_diff_marca_novo_e_removido(self) -> None:
+        diff = ("diff --git a/.prettierrc b/.prettierrc\n--- a/.prettierrc\n+++ /dev/null\n"
+                "@@ -1 +0,0 @@\n-{}\n"
+                "diff --git a/n.py b/n.py\n--- /dev/null\n+++ b/n.py\n@@ -0,0 +1 @@\n+x = 1\n")
+        d = guardrail.ler_diff(diff)
+        self.assertEqual((d[".prettierrc"]["novo"], d[".prettierrc"]["menos"]), (False, ["{}"]))
+        self.assertEqual((d["n.py"]["novo"], d["n.py"]["mais"]), (True, ["x = 1"]))
+
+    def test_verificar_avisa_e_endurece_por_modo(self) -> None:
+        self.commitar({".prettierrc": "{}\n", "app.js": "f();\n", "ruff.toml": "\n"})
+        (self.raiz / ".prettierrc").unlink()
+        (self.raiz / "app.js").write_text("// eslint-disable-next-line\nf();\n", encoding="utf-8")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(guardrail.verificar(self.raiz), 0)
+        self.assertIn(".prettierrc — config da régua alterada ou removida", out.getvalue())
+        self.assertIn("app.js — 1 supressão(ões) inline nova(s)", out.getvalue())
+        self.assertNotIn("ruff.toml", out.getvalue())
+        self.config('{"modos": {"regua": "bloqueio"}}')
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(guardrail.verificar(self.raiz), 1)
+
+    def test_espelho_gerado_nao_conta_duas_vezes(self) -> None:
+        self.commitar({".gitattributes": "espelho/** linguist-generated=true\n",
+                       "app.py": "x = 1\n", "espelho/app.py": "x = 1\n"})
+        for rel in ("app.py", "espelho/app.py"):
+            (self.raiz / rel).write_text("x = 1  # noqa\n", encoding="utf-8")
+        self.assertEqual(guardrail.regua_no_diff(self.raiz),
+                         ["app.py — 1 supressão(ões) inline nova(s)"])
 
 
 if __name__ == "__main__":

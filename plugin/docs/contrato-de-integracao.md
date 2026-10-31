@@ -17,7 +17,7 @@ A regra que organiza tudo:
 | Contrato | Comando | Versão | Para quê |
 |---|---|---|---|
 | `kairos-forge/ciclo` | `ciclo.py estado <SPEC> --json` | 1.2 | Qual o próximo passo, precisa de humano, o que registrar, se a SPEC mudou |
-| `kairos-forge/contrato` | `contrato.py <gate> <arquivo>` | 1.0 | Ler o veredicto dos relatórios sem parsear prosa |
+| `kairos-forge/contrato` | `contrato.py <gate> <arquivo>` | 1.1 | Ler o veredicto dos relatórios sem parsear prosa |
 | `kairos-forge/quadro` | `quadro.py estado <slug> --json` | 1.1 | O que o `/mobilizar` pode lançar agora, o que venceu o prazo, se o quadro pode encerrar (ADR-0035/0036) |
 
 A versão vigente de cada um é a de `contratos/ASSINATURA.json`. Os três se publicam
@@ -174,6 +174,10 @@ As regras que o parser cobra, e que o seu lado deve cobrar igual se reimplementa
    sem diferenciar maiúscula.
 4. **Faixa** (só na revisão) — `faixa` obrigatória: 1 (contida), 2 (ampla) ou 3 (difícil
    de reverter).
+4a. **Completude** (só na revisão, desde 1.1 — ADR-0046) — o campo opcional `incompletos`
+   lista o revisor da faixa que não entregou parecer (erro, tempo, contexto estourado).
+   Não-vazio exige `bloqueado`: revisor que não rodou não aprovou, e o código é
+   `sem_cobertura`. Relatório sem o campo continua valendo como antes.
 5. **Último bloco fechado vence** — rascunho anterior é ignorado; bloco sem fence de
    fechamento não conta e vira `ausente` (tolera CRLF, fence colada no texto anterior e
    indentação até 3 espaços).

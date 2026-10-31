@@ -134,5 +134,22 @@ class LeituraDoGh(unittest.TestCase):
         do_git.assert_called_once()
 
 
+class FalhasDoGuardrail(unittest.TestCase):
+    def test_resumo_conta_o_guardrail_que_falhou_aberto(self) -> None:
+        eventos = [{"sessao": "a", "tipo": "guardrail_erro", "modo": "comando"},
+                   {"sessao": "b", "tipo": "guardrail_erro", "modo": "escrita"},
+                   {"sessao": "b", "tipo": "recusa", "classe": "regua", "modo": "aviso"}]
+        m = telemetria.metricas(telemetria.por_sessao(eventos))
+        self.assertEqual((m["falhas_do_guardrail"], m["recusas_total"]), (2, 1))
+        self.assertIn("Guardrail falhou e deixou passar: 2 vez(es)", telemetria.alertas(m)[0])
+
+    def test_sem_falha_nem_producao_sem_gate_nao_ha_alerta(self) -> None:
+        m = {"falhas_do_guardrail": 0, "sessoes_com_producao_sem_gate": 2}
+        self.assertEqual(telemetria.alertas(m),
+                         ["Código de produção escrito sem nenhum gate: 2 sessão(ões)"])
+        self.assertEqual(telemetria.alertas({"falhas_do_guardrail": 0,
+                                             "sessoes_com_producao_sem_gate": 0}), [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -126,7 +126,7 @@ Refactor legítimo também muda teste. O que separa refactor de afrouxamento é 
 
 ### 4. Rodar gates — do barato ao caro
 
-Rode apenas comandos relevantes e seguros, **nesta ordem** (ADR-0039): lint e tipos → unitários → integração → navegador/e2e → segurança e mutação, quando o projeto tiver. Gate barato vermelho **encerra a rodada**: não gaste o gate caro para confirmar o que o lint já disse — a rodada volta ao agente responsável com o achado barato, e o orçamento do `/entregar` não paga o e2e à toa.
+Rode apenas comandos relevantes e seguros, **nesta ordem** (ADR-0039): lint e tipos → unitários → integração → navegador/e2e → segurança, quando o projeto tiver → qualidade estrutural e mutação (passo 4.1). Gate barato vermelho **encerra a rodada**: não gaste o gate caro para confirmar o que o lint já disse — a rodada volta ao agente responsável com o achado barato, e o orçamento do `/entregar` não paga o e2e à toa.
 
 Fontes dos comandos:
 
@@ -136,11 +136,33 @@ Fontes dos comandos:
 
 Se um comando for destrutivo, exigir segredo, depender de serviço externo ou tiver custo alto, não rode; registre como "não executado" e explique.
 
+### 4.1. Deixar certo — CRAP, duplicação e mutação (ADR-0045)
+
+Gate verde prova que funciona; não prova que ficou certo. Com os gates do projeto verdes, rode os três do `qualidade.py`, do barato ao caro — todos olham só as funções que o diff tocou:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/qualidade.py duplicacao                          # estático, segundos
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/qualidade.py crap                                # lê a cobertura da suíte
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/qualidade.py mutacao --comando "<suíte do projeto>"  # caro: por último
+```
+
+O `crap` lê o relatório de cobertura que a suíte gerou **nesta rodada** (coverage.py json/xml, LCOV, `go test -coverprofile`); relatório mais antigo que o código sai com aviso. Sem relatório, função com CC abaixo do limite sai `indeterminado` — registre, não estime.
+
+| Resultado | Efeito no veredicto |
+|---|---|
+| `crap` `acima_do_limite` (CRAP ≥ 10) em função nova ou que piorou | **Bloqueia.** Volta a quem construiu: quebrar a função, testar o que falta, ou as duas coisas |
+| `crap` `legado_acima` | Ressalva. Já estava acima na base e não piorou: a catraca proíbe piorar, não obriga a reescrever o que ninguém pediu |
+| `duplicacao` par ≥ 0,8 | Ressalva com o par nomeado. Bloqueia quando a função nova duplica uma existente que o plano mandava reutilizar |
+| `mutacao` sobrevivente em linha de requisito P1 | **Bloqueia**: a suíte não percebe a linha mudar. Exceção aceita por escrito: mutante equivalente (não muda comportamento observável), com o porquê |
+| `mutacao` base vermelha, sem comando ou teto atingido | Gate não executado; registre o motivo |
+
+Mutação custa uma rodada da suíte por mutante: `--max` (padrão 25) e `--teto` (padrão 900 s) limitam o custo. Registre o placar no `verificado` (ex.: `"qualidade.py mutacao (25 mortos de 25)"`).
+
 ### 5. Acionar especialistas conceitualmente
 
 Produza parecer em primeira pessoa, sem criar código:
 
-- **Ricardo** valida cobertura e gates.
+- **Ricardo** valida cobertura, gates e o placar do `qualidade.py` (CRAP, duplicação, mutantes).
 - **Patrícia** valida critérios de aceite e regressões.
 - **Helena** entra se a SPEC tocar auth, PII, autorização, input externo ou segurança.
 - **Carlos** entra se houver migration, SQL, índice, RLS ou dados persistentes.

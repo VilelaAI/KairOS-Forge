@@ -632,7 +632,7 @@ def checar_escrita(payload: dict) -> int:
 
 def checar_protegido(payload: dict, raiz: Path, rel: str, entrada: dict,
                      cfg: dict) -> int | None:
-    if any(casa(rel, exc) or casa(Path(rel).name, exc) for exc in EXCECOES):
+    if any(casa(rel, exc) for exc in EXCECOES):  # `*` do fnmatch também casa `/`
         return None
     protegidos = list(PROTEGIDOS_PADRAO) + [
         (p, "protegido pelo projeto") for p in cfg.get("protegidos", [])
@@ -1319,7 +1319,7 @@ def falhar_aberto(modo: str, payload: dict, erro: Exception) -> int:
     ausência do check. Mas falhar aberto em silêncio é o guardrail sumir sem ninguém ver
     (ADR-0046, do ECC): o erro vai para a trajetória, que o `/auditar` lê, e para o stderr.
     """
-    raiz = Path((payload or {}).get("cwd") or os.getcwd())
+    raiz = Path(payload.get("cwd") or os.getcwd())
     descricao = f"{type(erro).__name__}: {erro}"[:200]
     registrar_evento(raiz, {"tipo": "guardrail_erro", "modo": modo, "erro": descricao})
     print(f"⚠️  kairos-forge: o guardrail ({modo}) falhou e deixou passar — {descricao}. "

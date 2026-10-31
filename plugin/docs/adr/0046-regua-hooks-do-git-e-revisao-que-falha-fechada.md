@@ -88,6 +88,20 @@ número e o considera para o top 3 — naquelas chamadas, o guardrail não guard
 - **Primeiro achado no próprio repositório.** O `verificar` sobre o diff deste ADR acusou o
   `import prova  # noqa: E402` que o ADR-0045 adicionou ao `qualidade.py` — supressão
   legítima, com o motivo no próprio comentário. É o caso para o qual a classe nasce em aviso.
+- **Os gates do ADR-0045 sobre este diff acharam três bugs.**
+  - No CRAP, o diff começou com 8 funções reprovadas: 6 legadas que subiram de
+    complexidade e uma nova no limite. A solução foi extrair e testar, não pedir exceção.
+    Terminou com zero reprovadas, e `checar_escrita`, `checar_comando` e `ler_revisao` saíram
+    *abaixo* da complexidade da base.
+  - Na mutação, foram três rodadas de 60 sítios.
+    - A primeira não julgou nada, porque um commit no meio da rodada desencontrou o worktree do
+      diff. Era um bug do `qualidade.py`, corrigido fixando o HEAD num SHA.
+    - A segunda matou 51. Entre os vivos estava um bug de ordem: `teste` e `regua`, que só
+      avisam, rodavam antes de `protegido`, e um teste existente num caminho protegido recebia
+      só aviso. Estavam também dois `try/except` que engoliam erro do git em silêncio,
+      justamente o que este ADR proíbe.
+    - A terceira matou 58. Os dois vivos (uma condição redundante e um teste que não distinguia
+      o `cwd` do payload do processo) foram fechados e conferidos à mão.
 - **Mais uma superfície de piso.** Uma regra de piso com falso positivo não tem válvula de
   configuração. Os testes cobrem os casos que mais confundem (mensagem que cita a flag,
   heredoc, valor colado, `push -n`); um caso novo que bloqueie errado volta como bug.

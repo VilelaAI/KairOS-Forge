@@ -328,6 +328,8 @@ class FalhaAberta(Sandbox):
         self.assertIn("JSONDecodeError", evento["erro"])
 
     def test_bug_numa_regra_usa_o_cwd_do_payload(self) -> None:
+        # O hook pode rodar com o processo noutro diretório: vale o projeto do payload.
+        os.chdir(self._cwd)
         with contextlib.redirect_stderr(io.StringIO()):
             codigo = guardrail.falhar_aberto("escrita", {"cwd": str(self.raiz)},
                                              KeyError("tool_input"))
@@ -387,6 +389,11 @@ class TesteExistente(ComCommit):
         self.assertEqual(self.escrita("tests/test_app.py", troca)[0], 0)
         self.assertEqual(self.escrita("tests/test_novo.py", {"content": "x = 1\n"})[0], 0)
         self.assertEqual([e["classe"] for e in self.rastro()], ["teste", "teste"])
+
+    def test_excecao_casa_em_qualquer_pasta(self) -> None:
+        self.config('{"protegidos": ["config/**"]}')
+        self.assertEqual(self.escrita("config/.env.example", {"content": "A=\n"})[0], 0)
+        self.assertEqual(self.escrita("config/app.yml", {"content": "a: 1\n"})[0], 2)
 
     def test_teste_em_caminho_protegido_e_bloqueado_nao_so_avisado(self) -> None:
         # O que bloqueia vem antes do que avisa (ADR-0046).

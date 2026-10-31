@@ -591,6 +591,25 @@ class MontarWorktree(Repo):
             erro = qualidade.montar_worktree(self.raiz, Path(d) / "arvore")
         self.assertIn("não consegui aplicar o diff não-commitado: patch corrompido", erro)
 
+    def test_commit_no_meio_da_rodada_nao_perde_o_diff(self) -> None:
+        # O HEAD anda entre criar o worktree e calcular o diff: o worktree ainda tem de
+        # carregar o código de agora.
+        self.escrever("app.py", "X = 1\n")
+        self.commitar()
+        self.escrever("app.py", "X = 2\n")
+        real = qualidade.prova.git
+
+        def commita_depois_do_worktree(raiz, *args, **kwargs):
+            r = real(raiz, *args, **kwargs)
+            if args[:2] == ("worktree", "add"):
+                self.git("commit", "-qam", "no meio")
+            return r
+
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(qualidade.prova, "git", commita_depois_do_worktree):
+            self.assertIsNone(qualidade.montar_worktree(self.raiz, Path(d) / "arvore"))
+            self.assertEqual((Path(d) / "arvore" / "app.py").read_text(), "X = 2\n")
+
 
 class SuiteDeduzida(Repo):
     def pacote(self, dados) -> None:

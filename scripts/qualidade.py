@@ -936,11 +936,16 @@ def rodar(cmd: str, cwd: Path, tempo: float) -> tuple[str, float, list[str]]:
 
 
 def montar_worktree(raiz: Path, destino: Path) -> str | None:
-    """Worktree no HEAD com o não-commitado aplicado — o código de agora, não o de ontem."""
-    r = prova.git(raiz, "worktree", "add", "--detach", str(destino), "HEAD", timeout=120)
+    """Worktree no HEAD com o não-commitado aplicado — o código de agora, não o de ontem.
+
+    O HEAD vira um SHA uma vez só: um commit no meio da rodada deixaria o worktree no HEAD
+    velho e o diff contra o novo vazio, e todo sítio sairia "não confere".
+    """
+    sha = prova.git(raiz, "rev-parse", "HEAD").stdout.strip() or "HEAD"
+    r = prova.git(raiz, "worktree", "add", "--detach", str(destino), sha, timeout=120)
     if r.returncode != 0:
         return f"não consegui criar worktree: {r.stderr.strip()[:200]}"
-    remendo = prova.git(raiz, "diff", "HEAD", "--binary", timeout=60).stdout
+    remendo = prova.git(raiz, "diff", sha, "--binary", timeout=60).stdout
     p = subprocess.run(["git", "-C", str(destino), "apply", "--whitespace=nowarn", "-"],
                        input=remendo, capture_output=True, text=True, timeout=60) \
         if remendo.strip() else None

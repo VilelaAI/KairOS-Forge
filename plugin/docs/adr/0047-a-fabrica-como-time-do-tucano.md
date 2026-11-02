@@ -103,6 +103,23 @@ projeto". Sem o arquivo, o `ciclo.py` não tem o que ler. A regra passa a ser a 
 consultivo não edita **código nem teste**, mas escreve os artefatos que a skill pede (SPEC,
 crítica, relatório de validação ou de revisão em `docs/specs/`) e o `registrar` do ciclo.
 
+### 7. O arco em trechos de três (v0.40.1)
+
+O Tucano encadeia no máximo 3 respostas de agente por mensagem humana: é uma constante no
+código (`MAX_DEPTH` em `src/core/runs.ts`), não uma configuração. Quando corta, a passagem de
+vez pendente se perde, e a próxima mensagem sem @ vai para o roteador. Em vez de esperar o
+limite mudar, a fábrica se ajusta a ele. O preâmbulo passa a pedir quatro coisas:
+
+- **trechos que terminam num ponto de decisão humano:** planejar, construir e revisar, cada um
+  com até três respostas;
+- **passagem direta ao dono do próximo passo**, pelo estado do `ciclo.py`, com a Laura entrando
+  para decidir e não para repassar;
+- **críticos e revisores juntos na mesma menção**, que o Tucano roda em paralelo, o que também
+  deixa a crítica mais independente (ADR-0033);
+- **toda resposta terminando com o bastão escrito:** `Estado: … · Próximo: @fulano …`.
+
+Um limite do Tucano vira, assim, os três pontos em que uma pessoa olha o arco.
+
 ## Consequências
 
 - **O pedido funciona sem fork.** Você importa o time, empresta a pasta, liga o computador

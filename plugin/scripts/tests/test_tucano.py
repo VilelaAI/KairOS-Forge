@@ -50,6 +50,15 @@ class TimeGerado(unittest.TestCase):
         self.assertIn("relatório de validação ou de revisão em `docs/specs/`", por["patricia"])
         self.assertNotIn("consultivo", por["lucas"])
 
+    def test_preambulo_cabe_no_limite_de_3_respostas_do_tucano(self) -> None:
+        # O Tucano corta a cadeia na 3ª resposta de agente: o trecho termina num ponto de
+        # decisão, o bastão fica escrito e o humano retoma com @handle (sem @ decide o roteador).
+        laura = next(a["instructions"] for a in self.time["agents"] if a["handle"] == "laura")
+        self.assertIn("no máximo 3 respostas de agente", laura)
+        self.assertIn("juntos na mesma mensagem", laura)
+        self.assertIn("`Estado: <estado do ciclo> · Próximo: @<handle> <ação>`", laura)
+        self.assertIn("`@<handle> segue`", laura)
+
     def test_skill_traz_as_references_e_o_caminho_do_projeto(self) -> None:
         entregar = next(k for k in self.time["skills"] if k["name"] == "forge-entregar")
         self.assertIn("# Referência: references/escalacao.md", entregar["body"])

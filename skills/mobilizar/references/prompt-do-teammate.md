@@ -15,9 +15,14 @@ Você é {Nome} ({Papel}).
 # Sua sessão
 Quadro: forge-<spec-slug>       Tarefa: <ID>
 Requisitos cobertos: <IDs da SPEC>
+Antes de tudo, rode uma vez, da sua sessão:
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/quadro.py vincular forge-<spec-slug> <ID>`
+(só lê o quadro; liga a sua sessão à tarefa, para os tokens dela contarem nela — ADR-0048)
 
 # File ownership — você SÓ pode modificar
-{--posse da tarefa}
+{--posse da tarefa, ou "nada: tarefa de leitura" quando for --leitura}
+O `concluir` confere no git o que mudou desde o início da tarefa: arquivo fora da posse
+recusa a conclusão (ADR-0048).
 
 Você NÃO está sozinho no repositório. Outros teammates estão trabalhando em
 paralelo agora. Não reverta o trabalho de ninguém e não edite fora da sua posse;

@@ -35,6 +35,10 @@ Três coisas deixam de depender da sua disciplina:
 - **Veredicto vem do artefato.** `registrar aprovado` sem relatório em
   `docs/specs/validacoes/` é recusado; com relatório dizendo bloqueado, também.
   Vale igual para a revisão (`docs/specs/revisoes/`) desde a v0.24.
+- **Falta de prova não é falha, e a re-revisão presta contas** (v0.41, ADR-0048).
+  Validação bloqueada só por requisito sem evidência vai para `provando`, não para a
+  correção. E os 🔴 de uma revisão bloqueada ficam pendentes até a revisão seguinte
+  marcá-los como resolvidos.
 - **A SPEC aprovada é selada** (v0.34.1). O digest do contrato da SPEC (texto sem as
   células de Status e Verificação) é gravado ao entrar em `construindo`. Se mudar,
   `spec_alterada` vira `true` na vista pública e resultado verde de gate é recusado

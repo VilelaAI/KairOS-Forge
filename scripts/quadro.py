@@ -42,12 +42,15 @@ Uso:
     quadro.py abrir <slug> [--spec SPEC-001] [--teto-onda 6] [--max-tasks 20]
                            [--rodadas 2] [--cli claude-code|codex|cursor|opencode]
     quadro.py adicionar <slug> --id T1 --titulo "..." [--requisito EXP-01]
-                           --dono <agente> --posse "migrations/**,db/seed*"
+                           --dono <agente> (--posse "migrations/**,db/seed*" | --leitura)
                            --pronto-quando "..." [--gate "npm test"] [--depende T0,T2]
                            [--tier rapido|padrao|preciso] [--reverter "git revert <sha>"]
     quadro.py prontas <slug> [--json]          # a próxima onda, decidida por código
-    quadro.py iniciar <slug> T1 [--agente <id/task_name do worker>]
+    quadro.py iniciar <slug> T1 [--agente <id/task_name do worker>] [--checkout <worktree>]
+    quadro.py vincular <slug> T1               # o teammate roda, da própria sessão: liga a
+                                                # sessão à tarefa na trajetória (tokens)
     quadro.py concluir <slug> T1 --evidencia "..." [--gate-ok | --gate-pulado "motivo"]
+                           [--fora-da-posse "motivo"]   # confere no git o que a tarefa mudou
     quadro.py varrer <slug> [--dry-run]         # bloqueia quem venceu o tempo limite
     quadro.py compensar <slug> T1 --motivo "..." [--aplicar]   # Saga: desfaz T1 e o que
                                                 # foi construído sobre ela, ordem inversa
@@ -65,8 +68,10 @@ Só stdlib.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -74,6 +79,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True   # não escrever __pycache__ no diretório do plugin
 
 PASTA = Path(".agents/quadro")
+PASTA_FOTOS = PASTA / "fotos"
 
 # --- contrato de integração (ADR-0034/0035) -----------------------------------------
 # `estado --json` e `prontas --json` são CONTRATO PÚBLICO: o kairos-symphony, os
@@ -83,7 +89,7 @@ PASTA = Path(".agents/quadro")
 #
 # MENOR (1.x): campo novo, estado novo. Consumidor antigo continua válido.
 # MAIOR (x.0): campo removido/renomeado, semântica alterada.
-CONTRATO_VERSAO = "1.1"
+CONTRATO_VERSAO = "1.2"
 
 ESTADOS_TASK = ("planejada", "em_progresso", "concluida", "bloqueada")
 
@@ -194,6 +200,192 @@ def colidem(a: str, b: str) -> bool:
 
 def posses_colidem(a: list[str], b: list[str]) -> list[tuple[str, str]]:
     return [(x, y) for x in a for y in b if colidem(x, y)]
+
+
+# --- posse exercida (ADR-0048) -------------------------------------------------------
+# A posse declarada impede duas tarefas de SAÍREM juntas sobre o mesmo arquivo. Ela não
+# diz nada sobre o que a tarefa de fato mudou: o `concluir` exigia evidência e gate e
+# nunca olhava o checkout. Nos CLIs em que a allow-list do agente é só instrução — o
+# Codex (o `apply_patch` sobrevive, e o perfil de agente não aceita `sandbox_mode`,
+# ADR-0035), o Cursor (`readonly`) e o Tucano (preâmbulo, ADR-0047) —, "o consultivo
+# não edita código" era um pedido.
+#
+# A conferência vem da Alethe (github.com/Kc1t/alethe-orchestrate-skill, MIT), que pega
+# o worker só leitura que escreveu: uma foto do checkout no `iniciar` (o `git status`
+# com o sha256 de cada arquivo listado, mais o HEAD) e outra no `concluir`. O que mudou
+# entre as duas e não cabe na posse da tarefa recusa a conclusão.
+#
+# Num checkout compartilhado, outras tarefas escrevem ao mesmo tempo. A atribuição é
+# pela posse: o que cabe na posse de uma tarefa que esteve em voo junto com esta é dela,
+# não desta. Com worktree por teammate (ADR-0024), cada foto é do próprio worktree e a
+# atribuição é exata.
+LIMITE_FOTO = 5000                  # arquivos sujos acima disso: a foto não é tirada
+LIMITE_IMPRESSAO = 32 * 1024 * 1024 # acima disso, tamanho e mtime no lugar do sha256
+# Escritos por script e hook, não por tarefa: o próprio quadro muda entre as duas fotos.
+FORA_DA_FOTO = (".agents/quadro/", ".agents/execucoes/", ".agents/ciclo/")
+
+
+def _git(raiz: Path, *args: str, timeout: int = 60) -> subprocess.CompletedProcess | None:
+    try:
+        return subprocess.run(["git", "-C", str(raiz), *args], capture_output=True,
+                              timeout=timeout, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def impressao(arquivo: Path) -> str:
+    """O conteúdo de um arquivo reduzido a uma marca: muda quando o conteúdo muda."""
+    try:
+        if arquivo.is_symlink():
+            return "link:" + str(arquivo.readlink())
+        if arquivo.is_dir():
+            return "dir"
+        info = arquivo.stat()
+        if info.st_size > LIMITE_IMPRESSAO:
+            return f"tamanho:{info.st_size}:{info.st_mtime_ns}"
+        return hashlib.sha256(arquivo.read_bytes()).hexdigest()
+    except OSError:
+        return "ausente"
+
+
+def _fora_da_foto(rel: str) -> bool:
+    return any(rel.startswith(p) for p in FORA_DA_FOTO)
+
+
+def arquivos_do_status(bruto: bytes, raiz: Path) -> dict[str, str] | None:
+    """Os arquivos do `git status -z`, cada um com a impressão. None acima do limite."""
+    pedacos = bruto.decode("utf-8", errors="surrogateescape").split("\0")
+    arquivos: dict[str, str] = {}
+    i = 0
+    while i < len(pedacos):
+        item = pedacos[i]
+        i += 1
+        if len(item) < 4:
+            continue
+        codigo, rel = item[:2], item[3:]
+        i += "R" in codigo or "C" in codigo   # renomeação: a origem vem no pedaço seguinte
+        if len(arquivos) >= LIMITE_FOTO:
+            return None                       # sujo demais: não vale hashear o resto
+        if not _fora_da_foto(rel):
+            arquivos[rel] = f"{codigo}:{impressao(raiz / rel)}"
+    return arquivos
+
+
+def foto_do_checkout(checkout: Path) -> dict | None:
+    """HEAD e arquivos sujos do checkout, cada um com a sua impressão. None fora do git."""
+    topo = _git(checkout, "rev-parse", "--show-toplevel")
+    if topo is None or topo.returncode != 0:
+        return None
+    raiz = Path(topo.stdout.decode().strip())
+    head = _git(raiz, "rev-parse", "--verify", "-q", "HEAD")
+    status = _git(raiz, "status", "--porcelain=v1", "-z", "--untracked-files=all", timeout=120)
+    if status is None or status.returncode != 0:
+        return None
+    arquivos = arquivos_do_status(status.stdout, raiz)
+    if arquivos is None:
+        return None
+    return {"raiz": str(raiz),
+            "head": head.stdout.decode().strip() if head and head.returncode == 0 else None,
+            "arquivos": arquivos}
+
+
+def caminhos_mudados(antes: dict, depois: dict) -> list[str]:
+    """O que mudou entre duas fotos: sujeira nova ou alterada, mais o que entrou em commit."""
+    a, d = antes["arquivos"], depois["arquivos"]
+    mudados = {rel for rel in set(a) | set(d) if a.get(rel) != d.get(rel)}
+    if antes.get("head") and depois.get("head") and antes["head"] != depois["head"]:
+        r = _git(Path(depois["raiz"]), "diff", "--name-only", "-z", antes["head"], depois["head"])
+        if r is not None and r.returncode == 0:
+            mudados |= {x for x in r.stdout.decode("utf-8", errors="surrogateescape").split("\0") if x}
+    return sorted(rel for rel in mudados if not _fora_da_foto(rel))
+
+
+def _regex_da_posse(padrao: str) -> re.Pattern:
+    """Glob de posse para regex: `**` atravessa pastas, `*` e `?` não, e um padrão que
+    nomeia uma pasta cobre o que está dentro dela (a convenção do gitignore)."""
+    p = padrao.strip()
+    if p.startswith("./"):
+        p = p[2:]
+    p = p.strip("/")
+    saida, i = "", 0
+    while i < len(p):
+        pedaco, avanco = _pedaco_do_glob(p, i)
+        saida, i = saida + pedaco, i + avanco
+    return re.compile(saida + "(?:/.*)?$")
+
+
+def _pedaco_do_glob(p: str, i: int) -> tuple[str, int]:
+    """O trecho de regex do glob que começa em `i`, e quantos caracteres ele consome."""
+    for curinga, regex in (("**/", "(?:.*/)?"), ("**", ".*"), ("*", "[^/]*"), ("?", "[^/]")):
+        if p.startswith(curinga, i):
+            return regex, len(curinga)
+    fim = p.find("]", i + 2) if p[i] == "[" else -1
+    if fim < 0:
+        return re.escape(p[i]), 1
+    miolo = p[i + 1:fim]
+    return "[" + ("^" + miolo[1:] if miolo.startswith("!") else miolo) + "]", fim + 1 - i
+
+
+def cabe_na_posse(rel: str, posse: list[str]) -> bool:
+    return any(_regex_da_posse(p).match(rel) for p in posse)
+
+
+def trabalharam_junto(q: dict, tid: str, foto: dict) -> set[str]:
+    """As tarefas que estiveram em voo em algum momento junto com `tid`.
+
+    Pela ordem do histórico, não pelo relógio: o carimbo tem resolução de segundo, e uma
+    tarefa que concluiu no mesmo segundo em que esta começou não trabalhou junto com ela.
+    Junto é quem já estava em voo no `iniciar` desta, ou quem foi iniciado depois dele.
+    """
+    junto = set(foto.get("junto", []))
+    for ev in q.get("historico", [])[foto.get("seq", 0):]:
+        if ev.get("evento") == "iniciou":
+            junto.add(ev.get("task"))
+    junto.discard(tid)
+    return {x for x in junto if x in q["tasks"]}
+
+
+def fora_da_posse(q: dict, tid: str, mudados: list[str], junto: set[str]) -> list[str]:
+    """Os arquivos mudados que não são desta tarefa nem de outra que trabalhava junto."""
+    vizinhas = [p for outro in sorted(junto) for p in q["tasks"][outro]["posse"]]
+    propria = q["tasks"][tid]["posse"]
+    return [rel for rel in mudados
+            if not cabe_na_posse(rel, propria) and not cabe_na_posse(rel, vizinhas)]
+
+
+def caminho_da_foto(slug: str, tid: str) -> Path:
+    limpo = re.sub(r"[^A-Za-z0-9_-]", "-", slug)
+    return PASTA_FOTOS / limpo / f"{re.sub(r'[^A-Za-z0-9_.-]', '-', tid)}.json"
+
+
+def guardar_foto(q: dict, tid: str, checkout: Path) -> dict | None:
+    foto = foto_do_checkout(checkout)
+    alvo = caminho_da_foto(q["slug"], tid)
+    if foto is None:
+        alvo.unlink(missing_ok=True)
+        print(f"   ⚠️  sem foto do checkout ({checkout} fora do git ou sujo demais): o "
+              "`concluir` não vai conferir o que a tarefa mudou.")
+        return None
+    foto["em"] = agora()
+    foto["seq"] = len(q.get("historico", []))
+    foto["junto"] = sorted(x for x, t in q["tasks"].items()
+                           if t["estado"] == "em_progresso" and x != tid)
+    alvo.parent.mkdir(parents=True, exist_ok=True)
+    alvo.write_text(json.dumps(foto, ensure_ascii=False) + "\n", encoding="utf-8")
+    return foto
+
+
+def conferir_posse(q: dict, tid: str) -> tuple[bool, list[str], list[str]]:
+    """(conferida, mudados, fora) da tarefa contra a foto do `iniciar`."""
+    alvo = caminho_da_foto(q["slug"], tid)
+    if not alvo.is_file():
+        return False, [], []
+    antes = json.loads(alvo.read_text(encoding="utf-8"))
+    depois = foto_do_checkout(Path(antes["raiz"]))
+    if depois is None:
+        return False, [], []
+    mudados = caminhos_mudados(antes, depois)
+    return True, mudados, fora_da_posse(q, tid, mudados, trabalharam_junto(q, tid, antes))
 
 
 # --- persistência --------------------------------------------------------------------
@@ -431,6 +623,9 @@ def contrato_publico() -> dict:
             "prontas: estado planejada + dependências concluídas + posse livre + vaga na onda",
             "posse: dois padrões colidem salvo refinamento por caminho ou por nome",
             "concluir exige evidência e resultado de gate (rodado ou pulado com motivo)",
+            "concluir confere no git o que a tarefa mudou desde o iniciar: arquivo fora da "
+            "posse dela e das que trabalhavam junto recusa, salvo --fora-da-posse com motivo",
+            "tarefa --leitura tem posse vazia: qualquer arquivo mudado fica fora da posse",
             "encerrar exige quadro completo OU lacuna declarada para cada tarefa aberta",
             "dependência inexistente é recusada na inserção; ciclo é recusado em `depender`",
             "onda nova começa quando nada está em voo (fan-in), não a cada lançamento",
@@ -471,6 +666,21 @@ def cmd_abrir(a) -> int:
     return 0
 
 
+def posse_declarada(texto: str | None, leitura: bool) -> list[str] | None:
+    """A posse da tarefa nova; None, com a recusa impressa, se a declaração não fecha."""
+    posse = [x.strip() for x in (texto or "").split(",") if x.strip()]
+    if bool(posse) != leitura:
+        return posse
+    if leitura:
+        print("❌ --leitura e --posse juntas. Tarefa de leitura não escreve: a posse dela é "
+              "vazia, e é isso que o `concluir` confere.")
+    else:
+        print("❌ --posse vazia. Tarefa sem posse de arquivo declarada não entra no "
+              "quadro — é assim que dois workers acabam no mesmo arquivo.\n"
+              "   Tarefa que só lê (pesquisa, crítica no canal): declare --leitura.")
+    return None
+
+
 def cmd_adicionar(a) -> int:
     q = carregar(a.slug)
     if q.get("encerrado_em"):
@@ -496,10 +706,8 @@ def cmd_adicionar(a) -> int:
         print(f"❌ isso fecharia um ciclo: {' → '.join(ciclo)}")
         return 1
 
-    posse = [x.strip() for x in a.posse.split(",") if x.strip()]
-    if not posse:
-        print("❌ --posse vazia. Tarefa sem posse de arquivo declarada não entra no "
-              "quadro — é assim que dois workers acabam no mesmo arquivo.")
+    posse = posse_declarada(a.posse, a.leitura)
+    if posse is None:
         return 1
     if a.tier not in TIERS:
         print(f"❌ tier '{a.tier}' inválido — use {', '.join(TIERS)}.")
@@ -511,6 +719,7 @@ def cmd_adicionar(a) -> int:
         "dono": a.dono,
         "tier": a.tier,
         "posse": posse,
+        "leitura": bool(a.leitura),
         "gate": a.gate,
         "tempo_limite": a.tempo_limite,
         "pronto_quando": a.pronto_quando,
@@ -539,6 +748,7 @@ def cmd_adicionar(a) -> int:
         if ch and a.id not in t.get("depende", []) and outro not in depende:
             avisos.append(f"{outro} ({ch[0][0]} × {ch[0][1]})")
     print(f"✅ {a.id} adicionada · dono {a.dono} · tier {a.tier}"
+          + (" · só leitura" if a.leitura else "")
           + (f" · depende de {', '.join(depende)}" if depende else ""))
     if avisos:
         print(f"   ⚠️  posse sobreposta com {'; '.join(avisos)} — nunca sairão na mesma\n       onda. Para fixar a ordem: quadro.py depender {a.slug} {a.id} --de <outra>;\n       para soltar as duas, refine os padrões de posse.")
@@ -610,6 +820,23 @@ def cmd_iniciar(a) -> int:
     limite = t.get("tempo_limite") or q.get("tempo_limite_padrao") or TEMPO_LIMITE_PADRAO
     print(f"▶️  {a.task} em progresso com {t['agente']} (onda {q['onda']}) · "
           f"tempo limite {limite} min.")
+    guardar_foto(q, a.task, Path(a.checkout))
+    print(f"   O worker roda, da própria sessão: quadro.py vincular {q['slug']} {a.task}")
+    return 0
+
+
+def cmd_vincular(a) -> int:
+    """Liga a sessão do worker à tarefa, para os tokens da sessão contarem na tarefa.
+
+    O script não sabe o id da sessão, mas o hook sabe: o `PostToolUse` grava este
+    comando na trajetória com a sessão de quem o rodou. Por isso quem roda é o worker,
+    da própria sessão, e não a líder, que é quem mexe no resto do quadro.
+    """
+    q = carregar(a.slug)
+    if a.task not in q["tasks"]:
+        print(f"❌ tarefa '{a.task}' não existe.")
+        return 1
+    print(f"🔗 sessão ligada a {a.task} na trajetória de {q['slug']}.")
     return 0
 
 
@@ -632,20 +859,63 @@ def cmd_concluir(a) -> int:
               "   Use --gate-ok se rodou e passou, ou --gate-pulado \"motivo\" "
               "se não foi possível. Silêncio sobre o gate não é opção.")
         return 1
+    exercida = posse_exercida(q, a.task, a.fora_da_posse)
+    if recusar_fora_da_posse(a.task, t, exercida):
+        return 1
     t["estado"] = "concluida"
     t["iniciado_em"] = None
+    t["concluida_em"] = agora()
     t["evidencia"] = a.evidencia
     t["gate_resultado"] = "ok" if a.gate_ok else f"pulado: {a.gate_pulado}"
-    registrar(q, "concluiu", task=a.task, gate=t["gate_resultado"])
+    t["posse_exercida"] = exercida
+    registrar(q, "concluiu", task=a.task, gate=t["gate_resultado"],
+              fora_da_posse=len(exercida["fora"]))
     salvar(q)
+    caminho_da_foto(q["slug"], a.task).unlink(missing_ok=True)
     vista = vista_publica(q)
     feitas = vista["por_estado"]["concluida"]
     print(f"✅ {a.task} concluída ({feitas} de {vista['total']}) · gate: {t['gate_resultado']}")
-    if vista["prontas"]:
-        print(f"   🔓 liberou: {', '.join(vista['prontas'])}")
-    elif vista["completo"]:
-        print("   🏁 quadro completo — rode `encerrar`.")
+    print(resumo_da_posse(exercida))
+    print(o_que_liberou(vista))
     return 0
+
+
+def posse_exercida(q: dict, tid: str, motivo: str | None) -> dict:
+    conferida, mudados, fora = conferir_posse(q, tid)
+    return {"conferida": conferida, "mudados": len(mudados), "fora": fora[:50],
+            "total_fora": len(fora), "motivo": (motivo or "").strip() or None}
+
+
+def recusar_fora_da_posse(tid: str, t: dict, exercida: dict) -> bool:
+    """Imprime a recusa e devolve True quando há arquivo fora da posse sem motivo escrito."""
+    fora = exercida["fora"]
+    if not fora or exercida["motivo"]:
+        return False
+    quem = "tarefa de leitura" if t.get("leitura") else f"posse {', '.join(t['posse'])}"
+    print(f"❌ {tid} mudou {exercida['total_fora']} arquivo(s) fora da posse ({quem}):")
+    print("\n".join(f"   · {rel}" for rel in fora[:10]))
+    print("   A posse declarada era a promessa; o git mostra o que foi feito. Desfaça o\n"
+          "   que não era desta tarefa, ou, se a mudança era necessária, conclua com\n"
+          "   --fora-da-posse \"motivo\" — fica registrado e aparece no ledger.")
+    return True
+
+
+def resumo_da_posse(exercida: dict) -> str:
+    if exercida["fora"]:
+        return (f"   ⚠️  {exercida['total_fora']} arquivo(s) fora da posse, aceitos: "
+                f"{exercida['motivo']}")
+    if exercida["conferida"]:
+        return (f"   posse conferida no git: {exercida['mudados']} arquivo(s) mudado(s), "
+                "todos na posse.")
+    return "   ⚠️  posse não conferida: não houve foto no `iniciar`."
+
+
+def o_que_liberou(vista: dict) -> str:
+    if vista["prontas"]:
+        return f"   🔓 liberou: {', '.join(vista['prontas'])}"
+    if vista["completo"]:
+        return "   🏁 quadro completo — rode `encerrar`."
+    return "   ⏳ nada liberado ainda."
 
 
 def cmd_bloquear(a) -> int:
@@ -887,31 +1157,94 @@ def cmd_estado(a) -> int:
     return 0
 
 
-def cmd_ledger(a) -> int:
-    """A tabela do relatório final (ADR-0013), montada do quadro em vez de na lembrança."""
-    q = carregar(a.slug)
+def _telemetria():
+    """O telemetria.py, que lê a trajetória. None se não der para importar."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import telemetria
+        return telemetria
+    except Exception:
+        return None
+
+
+def gasto_do_quadro(q: dict, tel) -> dict | None:
+    """Os tokens da mobilização, lidos da trajetória (ADR-0048). None se não foram medidos."""
+    if tel is None:
+        return None
+    try:
+        gasto = tel.tokens_da_mobilizacao(tel.carregar(Path.cwd(), None), q)
+    except Exception:
+        return None
+    return gasto if gasto["medido"] else None
+
+
+def por_dono_do_quadro(q: dict, gasto: dict | None, tel) -> dict[str, dict]:
     por_dono: dict[str, dict] = {}
-    for t in q["tasks"].values():
-        d = por_dono.setdefault(t["dono"], {"tier": t["tier"], "tasks": 0,
-                                            "concluidas": 0, "rodadas": 0})
+    por_tarefa = gasto["por_tarefa"] if gasto else {}
+    for tid, t in q["tasks"].items():
+        d = por_dono.setdefault(t["dono"], {"tier": t["tier"], "tasks": 0, "concluidas": 0,
+                                            "rodadas": 0, "fora": 0, "tokens": {}})
         d["tasks"] += 1
         d["concluidas"] += t["estado"] == "concluida"
         d["rodadas"] += t["rodadas"]
-    print("| Teammate | Tier | Tasks | Concluídas | Rodadas de correção |")
-    print("|---|---|---|---|---|")
+        d["fora"] += (t.get("posse_exercida") or {}).get("total_fora", 0)
+        for uso in por_tarefa.get(tid, {}).values():
+            d["tokens"] = d["tokens"] or tel.zero()
+            tel.somar(d["tokens"], uso)
+    return por_dono
+
+
+def linhas_por_dono(q: dict, gasto: dict | None, tel) -> list[str]:
+    """A tabela por teammate. A coluna de tokens só aparece quando houve medida."""
+    por_dono = por_dono_do_quadro(q, gasto, tel)
+    coluna = " Tokens novos |" if gasto else ""
+    saida = [f"| Teammate | Tier | Tasks | Concluídas | Rodadas de correção | Fora da posse |{coluna}",
+             "|---|---|---|---|---|---|" + ("---|" if gasto else "")]
     for dono in sorted(por_dono):
         d = por_dono[dono]
-        print(f"| {dono} | {d['tier']} | {d['tasks']} | {d['concluidas']} | {d['rodadas']} |")
+        extra = f" {tel.formatar(tel.novos(d['tokens']))} |" if gasto else ""
+        saida.append(f"| {dono} | {d['tier']} | {d['tasks']} | {d['concluidas']} | "
+                     f"{d['rodadas']} | {d['fora']} |{extra}")
+    return saida
+
+
+def linha_de_tokens(gasto: dict | None, tel) -> str:
+    if gasto is None:
+        return ("Tokens: não medidos — nenhuma leitura do hook Stop durante o quadro (hoje só "
+                "o Claude Code grava). Custo real: /cost.")
+    cat = gasto["categorias"]
+
+    def n(uso: dict) -> str:
+        return tel.formatar(tel.novos(uso))
+
+    return (f"Tokens novos (relatados pelo transcript, {gasto['sessoes']} sessão(ões)): "
+            f"{n(gasto['total'])} — em tarefa concluída {n(cat['concluida'])} · desfeita "
+            f"{n(cat['desfeita'])} · em aberto {n(cat['aberta'])} · sem tarefa vinculada "
+            f"{n(cat['sem_tarefa'])}. Cache lido à parte: "
+            f"{tel.formatar(gasto['total']['cache_leitura'])}.")
+
+
+def cmd_ledger(a) -> int:
+    """A tabela do relatório final (ADR-0013), montada do quadro em vez de na lembrança."""
+    q = carregar(a.slug)
+    tel = _telemetria()
+    gasto = gasto_do_quadro(q, tel)
+    print("\n".join(linhas_por_dono(q, gasto, tel)))
     vista = vista_publica(q)
     teto = q["orcamento"].get("rodadas_por_task", RODADAS_PADRAO)
-    total_rodadas = sum(d["rodadas"] for d in por_dono.values())
+    total_rodadas = sum(t["rodadas"] for t in q["tasks"].values())
     print(f"\nOrçamento: {total_rodadas} rodadas usadas · teto {teto} por task · "
           f"ondas: {vista['onda']} · teto de onda {vista['teto_onda']}")
     print(f"Entrega: {vista['por_estado']['concluida']} de {vista['total']} tarefas planejadas.")
     if not vista["completo"]:
         abertas = [tid for tid, t in vista["tasks"].items() if t["estado"] != "concluida"]
         print(f"Lacunas: {', '.join(abertas)} — declare cada uma, nunca omita.")
-    print("(O plugin não mede tokens de dentro da sessão. Custo real: /cost.)")
+    excedidas = [f"{tid} ({(t.get('posse_exercida') or {}).get('motivo')})"
+                 for tid, t in q["tasks"].items()
+                 if (t.get("posse_exercida") or {}).get("total_fora")]
+    if excedidas:
+        print(f"Fora da posse, aceito com motivo: {'; '.join(excedidas)}")
+    print(linha_de_tokens(gasto, tel))
     return 0
 
 
@@ -999,7 +1332,9 @@ def main() -> int:
     p.add_argument("--titulo", required=True)
     p.add_argument("--requisito", default=None)
     p.add_argument("--dono", required=True)
-    p.add_argument("--posse", required=True, help="globs separados por vírgula")
+    p.add_argument("--posse", default="", help="globs separados por vírgula")
+    p.add_argument("--leitura", action="store_true",
+                   help="tarefa que não escreve: posse vazia, conferida no concluir")
     p.add_argument("--pronto-quando", required=True)
     p.add_argument("--gate", default=None)
     p.add_argument("--depende", default="")
@@ -1018,7 +1353,14 @@ def main() -> int:
     p.add_argument("slug")
     p.add_argument("task")
     p.add_argument("--agente", default=None)
+    p.add_argument("--checkout", default=".",
+                   help="onde a tarefa escreve, se for num worktree próprio (default: aqui)")
     p.set_defaults(fn=cmd_iniciar)
+
+    p = sub.add_parser("vincular", help="o worker liga a própria sessão à tarefa")
+    p.add_argument("slug")
+    p.add_argument("task")
+    p.set_defaults(fn=cmd_vincular)
 
     p = sub.add_parser("concluir", help="marca a tarefa concluída com evidência")
     p.add_argument("slug")
@@ -1026,6 +1368,8 @@ def main() -> int:
     p.add_argument("--evidencia", required=True)
     p.add_argument("--gate-ok", action="store_true")
     p.add_argument("--gate-pulado", default=None)
+    p.add_argument("--fora-da-posse", default=None,
+                   help="motivo para aceitar arquivo mudado fora da posse")
     p.set_defaults(fn=cmd_concluir)
 
     p = sub.add_parser("varrer", help="bloqueia tarefas em voo além do tempo limite")

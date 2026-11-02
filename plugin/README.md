@@ -256,7 +256,9 @@ passam de prosa a código:
 - **colisão de posse** detectada na inserção — posse sobreposta nunca sai na mesma onda;
 - **tempo limite** (`varrer`, ADR-0036) — worker que morre sem avisar vira `bloqueada` e devolve a vaga;
 - **compensação** (`compensar`, ADR-0036) — tarefa concluída que se revelou inválida é desfeita junto com só o que foi construído sobre ela, em ordem inversa (Saga), pelo `--reverter` declarado antes;
-- **`encerrar` recusa lacuna escondida** — tarefa aberta só sai com a lacuna declarada.
+- **`encerrar` recusa lacuna escondida** — tarefa aberta só sai com a lacuna declarada;
+- **posse exercida** (ADR-0048) — o `concluir` confere no git o que a tarefa mudou desde o `iniciar` e recusa arquivo fora da posse dela e das que trabalhavam junto, salvo `--fora-da-posse "motivo"`, que fica no ledger; tarefa `--leitura` tem posse vazia;
+- **tokens por tarefa** (ADR-0048) — no Claude Code, o `ledger` mostra os tokens que o transcript registrou, divididos entre tarefa concluída, desfeita, em aberto e sem tarefa vinculada (o worker roda `quadro.py vincular` da própria sessão).
 
 Quem escreve no quadro é a Laura, não o teammate. O quadro é o mesmo nos quatro CLIs;
 só o adaptador de lançamento muda (veja [Compatibilidade](#compatibilidade-entre-plataformas)).

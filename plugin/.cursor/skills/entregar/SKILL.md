@@ -102,7 +102,8 @@ enquadrando ─▶ aguardando_entendimento ─▶ desenhando ─▶ aguardando_a
 ```
 aguardando_aprovacao ─▶ construindo ─▶ validando ──┐
                              ▲                     │ bloqueado
-                    corrigindo_validacao ◀─────────┘ (orçamento)
+                    corrigindo_validacao ◀─────────┤ (orçamento)
+                    provando ◀─────────────────────┘ só falta de prova
                                                     │ aprovado
                    ┌────────────────────────────────┘
                    ▼
@@ -159,13 +160,16 @@ Ao final, `registrar pronto`.
 `/kairos-forge:validar SPEC-NNN`; registre o veredicto do relatório (`kairos-validacao`): `registrar aprovado`,
 `registrar aprovado_com_ressalvas` ou `registrar bloqueado`. Em `corrigindo_validacao`, acione **só os
 agentes dos achados** que o relatório nomeou, rode o gate do requisito afetado, atualize `verificado:` e
-`registrar pronto`. Quantas rodadas cabem não é decisão sua. Detalhe: `references/loops-de-correcao.md`.
+`registrar pronto`. Em `provando` (todos os bloqueios são falta de prova, ADR-0048), rode a checagem que
+falta antes de mexer no código. Quantas rodadas cabem não é decisão sua. Detalhe: `references/loops-de-correcao.md`.
 
 ### 7. `revisando` / `corrigindo_revisao` — o segundo loop
 
 `/kairos-forge:revisar`; pelo relatório (`kairos-revisao`): `registrar limpo` (zero 🔴) ou `registrar critico`.
 🟠 e 🟡 viram follow-up no corpo do PR. Correção de segurança **nunca vira workaround** — sem caminho,
 `ciclo.py escalar --motivo "..."`. Depois de corrigir, `registrar pronto` leva a **`validando`**, não a `revisando`.
+Na revisão seguinte, cada 🔴 pendente (`pendentes_revisao` no estado) é marcado em `anteriores`; sem isso
+o `limpo` é recusado (ADR-0048).
 
 ### 7.5. Evidência proporcional à faixa (ADR-0031)
 

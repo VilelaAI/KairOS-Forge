@@ -1,7 +1,7 @@
 # Loops de correção — crítica, validação e revisão
 
 Material de apoio da skill `entregar`. Leia quando o `ciclo.py estado` devolver
-`criticando`, `corrigindo_spec`, `corrigindo_validacao`, `corrigindo_revisao` ou
+`criticando`, `corrigindo_spec`, `corrigindo_validacao`, `provando`, `corrigindo_revisao` ou
 `revisando` — aqui está o detalhe de cada loop: quem entra na correção, o que reabre,
 o que nunca vira workaround e quanta evidência a faixa de raio de explosão exige.
 
@@ -34,6 +34,18 @@ Em `corrigindo_validacao`, **não devolva o problema ao usuário**:
 
 Quantas rodadas cabem não é decisão sua: o `ciclo.py` conta e escala sozinho.
 
+**`provando` — falta de prova não é falha (ADR-0048).** Quando o bloco da validação diz
+`sem_evidencia` igual a `bloqueios`, nenhum bloqueio mostrou falha: o que falta é rodar a
+checagem. O ciclo vai para `provando`, e a ordem é a contrária da correção:
+
+1. Rode o comando que prova cada requisito sem evidência, ou acione o Ricardo para
+   escrever o teste que o prova. Não mexa no código de produção antes.
+2. Atualize a célula `verificado:` com o comando que rodou.
+3. `registrar pronto` — a validação reabre. Se a prova falhou, ela mostra a falha, e aí
+   sim o próximo bloqueio vai para `corrigindo_validacao`.
+
+A rodada conta no orçamento da validação como qualquer bloqueio.
+
 **Atacar a premissa (ADR-0045).** Se o `ciclo.py` devolver `atacando_premissa_*` — neste
 loop ou nos outros dois —, duas correções seguidas falharam sem baixar os achados — e a terceira, escrita no mesmo
 embalo, repetiria a mesma suposição. Antes de acionar agente: escreva em uma frase a
@@ -54,6 +66,12 @@ Depois de corrigir um 🔴, `registrar pronto` leva a **`validando`**, não a
 `revisando`. Correção que quebra requisito já validado é o modo de falha
 silencioso deste arco — e agora ele está fechado por construção, não por
 lembrança.
+
+**A re-revisão presta contas (ADR-0048).** Os 🔴 da revisão bloqueada ficam no estado
+como `pendentes_revisao`. Na rodada seguinte, os revisores olham primeiro o diff da
+correção e marcam cada pendente em `anteriores` (`resolvido` ou `nao_resolvido`). O
+`ciclo.py` recusa `limpo` com pendente sem marca ou ainda `nao_resolvido`; um `critico`
+carrega adiante os não resolvidos junto com os 🔴 novos.
 
 ### 7.5. Evidência proporcional à faixa (ADR-0031)
 

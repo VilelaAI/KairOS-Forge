@@ -99,7 +99,8 @@ quadro.py adicionar forge-export-relatorio \
 da anterior. `--posse` sobreposta é detectada na inserção e nunca sai na mesma onda;
 recurso compartilhado que não é arquivo o quadro não vê — declare com `--depende` ou
 `quadro.py depender <task> --de <outra>`. Ciclo, dependência inexistente e tarefa sem
-`--posse` são recusados. Regras completas: `references/planejamento.md`.
+`--posse` são recusados; tarefa que só lê (pesquisa, crítica) declara `--leitura` e fica
+com posse vazia. Regras completas: `references/planejamento.md`.
 
 ### Passo 5 — Lançar a onda
 
@@ -111,7 +112,10 @@ Devolve só o que pode entrar agora e o motivo de cada uma de fora. Para cada de
 ```bash
 quadro.py iniciar forge-export-relatorio T1 --agente <id ou task_name do worker>
 ```
-`iniciar` recusa tarefa não liberada — conserte o quadro, não o contorne. Lance com a
+`iniciar` recusa tarefa não liberada — conserte o quadro, não o contorne. Ele também tira
+uma foto do checkout (com worktree, `--checkout <pasta>`): é contra ela que o `concluir`
+confere a posse exercida (ADR-0048). O worker roda `quadro.py vincular` uma vez, da própria
+sessão — só lê o quadro e liga a sessão à tarefa para os tokens. Lance com a
 tool do CLI (`references/capacidades-por-cli.md`) e o prompt de
 `references/prompt-do-teammate.md` (template + anti-drift; com `.agents/grafo/`, inclua
 o subgrafo k=2 das entidades da tarefa — Passo 6.5 em `references/coordenacao.md`).
@@ -143,6 +147,9 @@ tarefa irreversível, e irreversível para no usuário. O quadro avisa quando fa
    ```bash
    quadro.py concluir forge-<slug> T1 --evidencia "<arquivos, requisitos, gate>" --gate-ok
    ```
+   O `concluir` confere no git o que a tarefa mudou: arquivo fora da posse dela (e das que
+   trabalhavam junto) recusa. Desfaça o que não era dela ou, se a mudança era necessária,
+   `--fora-da-posse "motivo"` — fica no ledger, com o motivo.
 2. **Worker que não responde tem prazo.** Antes de cada onda nova, varra: além do tempo
    limite a tarefa vira `bloqueada` e devolve a vaga; ao reabrir, relance ou aumente o `--tempo-limite`.
    ```bash
@@ -175,6 +182,8 @@ tarefa irreversível, e irreversível para no usuário. O quadro avisa quando fa
    quadro.py ledger forge-<slug>       # a tabela do relatório, montada do estado
    quadro.py encerrar forge-<slug>
    ```
+   O ledger traz o que saiu da posse e, no Claude Code, os tokens como o transcript
+   registrou: em tarefa concluída, desfeita, em aberto e sem tarefa vinculada (ADR-0048).
 
 ## Quando NÃO usar mobilizar
 

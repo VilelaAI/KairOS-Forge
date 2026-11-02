@@ -132,8 +132,33 @@ def avaliar_saida(resposta) -> bool | None:
     return None
 
 
+def raiz_do_projeto(cwd: Path) -> Path:
+    """O checkout principal quando `cwd` é um worktree ligado; senão, o próprio `cwd`.
+
+    Teammate em worktree (ADR-0024) gravava a trajetória dentro do worktree, que é
+    descartável: os eventos dele sumiam junto, e o quadro e o /auditar nunca os viam.
+    Lido do arquivo `.git` (o `gitdir:` e o `commondir`), sem rodar git: hook roda em
+    toda ferramenta e não pode pagar um processo a cada vez.
+    """
+    try:
+        marca = cwd / ".git"
+        if not marca.is_file():
+            return cwd
+        m = re.match(r"gitdir:\s*(.+)", marca.read_text(encoding="utf-8").strip())
+        if not m:
+            return cwd
+        gitdir = (cwd / m.group(1).strip()).resolve()
+        comum = gitdir / "commondir"
+        if not comum.is_file():          # submódulo: não é worktree, fica onde está
+            return cwd
+        principal = (gitdir / comum.read_text(encoding="utf-8").strip()).resolve()
+        return principal.parent if principal.name == ".git" else cwd
+    except OSError:
+        return cwd
+
+
 def destino(payload: dict) -> Path:
-    raiz = Path(payload.get("cwd") or ".").resolve()
+    raiz = raiz_do_projeto(Path(payload.get("cwd") or ".").resolve())
     pasta = raiz / ".agents" / "execucoes"
     pasta.mkdir(parents=True, exist_ok=True)
     return pasta / f"{datetime.now(timezone.utc):%Y-%m}.jsonl"
@@ -199,8 +224,73 @@ def ev_ferramenta(p: dict) -> dict | None:
     return None
 
 
+# --- tokens da sessão, como a CLI registrou (ADR-0048) -------------------------------
+# Da Alethe: gasto relatado, nunca estimado. O transcript do Claude Code guarda o uso
+# de cada resposta do modelo; o hook recebe o caminho dele em `transcript_path`.
+CAMPOS_USO = (("entrada", "input_tokens"), ("cache_escrita", "cache_creation_input_tokens"),
+              ("cache_leitura", "cache_read_input_tokens"), ("saida", "output_tokens"))
+
+
+def _resposta(linha: str) -> tuple[dict, dict] | None:
+    """(evento, mensagem) de uma linha de resposta do modelo; None nas demais."""
+    if '"usage"' not in linha:
+        return None
+    try:
+        ev = json.loads(linha)
+    except Exception:
+        return None
+    msg = ev.get("message") if isinstance(ev, dict) and ev.get("type") == "assistant" else None
+    return (ev, msg) if isinstance(msg, dict) and isinstance(msg.get("usage"), dict) else None
+
+
+def _uso_da_linha(linha: str) -> tuple[str, dict, str] | None:
+    """(id da resposta, uso, modelo) de uma linha de resposta do modelo; None nas demais."""
+    lida = _resposta(linha)
+    if lida is None:
+        return None
+    ev, msg = lida
+    modelo = str(msg.get("model") or "")
+    return (str(msg.get("id") or ev.get("uuid") or linha), msg["usage"],
+            "" if modelo.startswith("<") else modelo)   # "<synthetic>" não é modelo
+
+
+def _acumular(atual: dict[str, int], uso: dict) -> None:
+    """Guarda o maior valor visto de cada campo: a última linha da resposta é a completa."""
+    for nosso, deles in CAMPOS_USO:
+        valor = uso.get(deles)
+        if isinstance(valor, int) and not isinstance(valor, bool):
+            atual[nosso] = max(atual[nosso], valor)
+
+
+def tokens_do_transcript(caminho: str) -> dict | None:
+    """O uso acumulado da sessão: a soma de cada resposta do modelo, contada uma vez.
+
+    Uma resposta vira várias linhas no transcript (uma por bloco de conteúdo), todas com
+    o mesmo `message.id` e o mesmo uso. Somar linha a linha conta a mesma resposta duas,
+    três vezes — num transcript real, 955 linhas eram 387 respostas. Conta-se cada id
+    uma vez, com o maior valor visto em cada campo.
+    """
+    if not caminho or not Path(caminho).is_file():
+        return None
+    por_resposta: dict[str, dict[str, int]] = {}
+    modelos: set[str] = set()
+    with Path(caminho).open(encoding="utf-8", errors="replace") as fh:
+        for lida in filter(None, map(_uso_da_linha, fh)):
+            chave, uso, modelo = lida
+            _acumular(por_resposta.setdefault(chave, {n: 0 for n, _ in CAMPOS_USO}), uso)
+            modelos.add(modelo)
+    if not por_resposta:
+        return None
+    total: dict = {n: sum(r[n] for r in por_resposta.values()) for n, _ in CAMPOS_USO}
+    total["respostas"] = len(por_resposta)
+    total["modelos"] = sorted(modelos - {""})
+    return total
+
+
 def ev_fim(p: dict) -> dict:
-    return {"tipo": "sessao_fim"}
+    """O `Stop` roda a cada turno: grava o acumulado da sessão até ali, não o do turno."""
+    tokens = tokens_do_transcript(str(p.get("transcript_path") or ""))
+    return {"tipo": "sessao_fim", **({"tokens": tokens} if tokens else {})}
 
 
 CONSTRUTORES = {

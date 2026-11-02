@@ -95,6 +95,14 @@ Resultado: o time ficava com as versões originais do plugin, que citam
 `forge-<nome>`, as menções `/kairos-forge:<nome>` viram `forge-<nome>`, o preâmbulo manda não
 usar as homônimas sem prefixo, e o validador recusa nome igual ao de uma skill do plugin.
 
+### 6. Consultivo não edita código, mas grava o artefato da fábrica (v0.40.1)
+
+No primeiro arco real, a Patrícia fez a crítica da SPEC no canal e recusou gravar o relatório
+e registrar no ciclo, porque o preâmbulo dizia que o consultivo "não edita arquivos do
+projeto". Sem o arquivo, o `ciclo.py` não tem o que ler. A regra passa a ser a da fábrica: o
+consultivo não edita **código nem teste**, mas escreve os artefatos que a skill pede (SPEC,
+crítica, relatório de validação ou de revisão em `docs/specs/`) e o `registrar` do ciclo.
+
 ## Consequências
 
 - **O pedido funciona sem fork.** Você importa o time, empresta a pasta, liga o computador

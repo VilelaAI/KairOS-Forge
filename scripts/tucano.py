@@ -107,8 +107,10 @@ def para_o_projeto(texto: str) -> str:
 
 def preambulo(nome: str, papel: str, ferramentas: set[str]) -> str:
     consultivo = "" if ferramentas & ESCRITA else (
-        "- Na fábrica você é **consultivo**: lê, roda comandos de leitura e dá parecer, mas "
-        "não edita arquivos do projeto. Mudança, peça a quem constrói.\n")
+        "- Na fábrica você é **consultivo**: lê, roda comandos de leitura e dá parecer, e **não "
+        "edita código nem teste**. Os artefatos da fábrica que a skill pede você escreve: SPEC, "
+        "crítica, relatório de validação ou de revisão em `docs/specs/`, e o `registrar` do "
+        f"`{PASTA}/scripts/ciclo.py`. Mudança no código, peça a quem constrói.\n")
     return (
         f"## Você está no Tucano, como {nome} ({papel}) da fábrica KairOS-Forge\n\n"
         "- **O canal é o projeto.** Cada canal da fábrica tem o nome da pasta do projeto: no "

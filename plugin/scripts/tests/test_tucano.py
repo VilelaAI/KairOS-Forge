@@ -44,6 +44,10 @@ class TimeGerado(unittest.TestCase):
         self.assertIn("Lucas (Backend) da fábrica KairOS-Forge", por["lucas"])
         self.assertIn("Defensivo. Valida input.", por["lucas"])
         self.assertIn("consultivo", por["patricia"])     # allow-list sem Write/Edit
+        # Consultivo não mexe em código, mas grava o artefato da fábrica: sem isso a crítica
+        # e o relatório da Patrícia ficam só no canal e o ciclo.py não tem o que ler.
+        self.assertIn("não edita código nem teste", por["patricia"])
+        self.assertIn("relatório de validação ou de revisão em `docs/specs/`", por["patricia"])
         self.assertNotIn("consultivo", por["lucas"])
 
     def test_skill_traz_as_references_e_o_caminho_do_projeto(self) -> None:

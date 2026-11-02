@@ -34,6 +34,14 @@ Em `corrigindo_validacao`, **não devolva o problema ao usuário**:
 
 Quantas rodadas cabem não é decisão sua: o `ciclo.py` conta e escala sozinho.
 
+**Atacar a premissa (ADR-0045).** Se o `ciclo.py` devolver `atacando_premissa_*` — neste
+loop ou nos outros dois —, duas correções seguidas falharam sem baixar os achados — e a terceira, escrita no mesmo
+embalo, repetiria a mesma suposição. Antes de acionar agente: escreva em uma frase a
+premissa que as duas correções compartilharam ("o saldo vem do cache", "a validação roda
+no cliente"), diga quais agentes ou componentes sustentam essa suposição e o que muda na
+atribuição. Depois, `registrar premissa_escrita --nota "<a premissa>"`; a correção seguinte
+parte de outra premissa. Premissa repetida na mesma sequência é recusada.
+
 ### 7. `revisando` / `corrigindo_revisao` — o segundo loop
 
 Rode `/kairos-forge:revisar`. Depois: `registrar limpo` (zero 🔴) ou

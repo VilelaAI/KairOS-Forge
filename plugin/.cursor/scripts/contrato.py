@@ -75,7 +75,7 @@ FAIXAS = (1, 2, 3)
 #
 # MENOR (1.x): campo opcional novo, fence nova, mensagem de erro diferente.
 # MAIOR (x.0): campo obrigatório novo ou removido, regra de aceitação mais estrita.
-CONTRATO_VERSAO = "1.0"
+CONTRATO_VERSAO = "1.1"
 
 # Teto de itens nas listas de cobertura. Existe para o parser não virar vetor de
 # payload absurdo, não porque 200 seja um número especial.
@@ -206,8 +206,31 @@ def ler_validacao(texto: str) -> Resultado:
 
 # --- contrato da revisão --------------------------------------------------------------
 
+def _coerencia_da_revisao(veredicto: str, criticos: int, examinado: list[str],
+                          incompletos: list[str]) -> Resultado | None:
+    """A falha de coerência, cobertura ou completude da revisão; None se o bloco se sustenta."""
+    if veredicto == "bloqueado" and criticos == 0:
+        return _falha(ESTRUTURAL, "veredicto 'bloqueado' com criticos=0 — "
+                                  "🔴 é o que bloqueia; sem 🔴 o veredicto é outro")
+    if veredicto != "bloqueado" and criticos > 0:
+        return _falha(ESTRUTURAL, f"veredicto '{veredicto}' com criticos={criticos} — "
+                                  "🔴 não vira ressalva (regra 6 do /kairos-forge:revisar)")
+    if criticos == 0 and not examinado:
+        return _falha(SEM_COBERTURA, "revisão sem 🔴 precisa listar em 'examinado' o que "
+                                     "foi lido — arquivo, dimensão ou revisor. Lista vazia "
+                                     "com veredicto limpo é ausência de busca")
+    # ADR-0046, do orch-review do ECC: revisor que não rodou não aprovou. Revisão com uma
+    # dimensão a menos e veredicto limpo é o mesmo texto tranquilizador da lista vazia.
+    if incompletos and veredicto != "bloqueado":
+        return _falha(SEM_COBERTURA, f"revisão incompleta — sem parecer de "
+                                     f"{', '.join(incompletos)}. Revisão incompleta não "
+                                     "aprova: acione de novo quem faltou")
+    return None
+
+
 def ler_revisao(texto: str) -> Resultado:
-    """Lê o bloco ```kairos-revisao. Campos: veredicto, faixa, criticos, examinado[]."""
+    """Lê o bloco ```kairos-revisao. Campos: veredicto, faixa, criticos, examinado[] e, desde
+    o contrato 1.1, o opcional incompletos[] — revisor da faixa que não entregou parecer."""
     dados, erro = _carregar(texto, FENCE_REVISAO)
     if erro:
         return erro
@@ -232,17 +255,12 @@ def ler_revisao(texto: str) -> Resultado:
     if e:
         return _falha(ESTRUTURAL, e)
 
-    if veredicto == "bloqueado" and criticos == 0:
-        return _falha(ESTRUTURAL, "veredicto 'bloqueado' com criticos=0 — "
-                                  "🔴 é o que bloqueia; sem 🔴 o veredicto é outro")
-    if veredicto != "bloqueado" and criticos > 0:
-        return _falha(ESTRUTURAL, f"veredicto '{veredicto}' com criticos={criticos} — "
-                                  "🔴 não vira ressalva (regra 6 do /kairos-forge:revisar)")
-
-    if criticos == 0 and not examinado:
-        return _falha(SEM_COBERTURA, "revisão sem 🔴 precisa listar em 'examinado' o que "
-                                     "foi lido — arquivo, dimensão ou revisor. Lista vazia "
-                                     "com veredicto limpo é ausência de busca")
+    incompletos, e = _lista_de(dados.get("incompletos", []), "incompletos")
+    if e:
+        return _falha(ESTRUTURAL, e)
+    falha = _coerencia_da_revisao(veredicto, criticos, examinado, incompletos)
+    if falha:
+        return falha
 
     return Resultado(ok=True, dados={
         "tipo": "revisao",
@@ -250,6 +268,7 @@ def ler_revisao(texto: str) -> Resultado:
         "faixa": faixa,
         "criticos": criticos,
         "examinado": examinado,
+        "incompletos": incompletos,
     })
 
 
@@ -368,9 +387,11 @@ def contrato_publico() -> dict:
                 "arquivo": "REVISAO-<SPEC ou slug>-<AAAA-MM-DD>.md",
                 "obrigatorios": {"veredicto": "string", "faixa": "1|2|3",
                                  "criticos": "integer>=0", "examinado": "string[]"},
-                "opcionais": {},
+                "opcionais": {"incompletos": "string[]"},
                 "regras": comum + [
                     "cobertura: criticos=0 exige 'examinado' não-vazio",
+                    "completude: 'incompletos' não-vazio exige veredicto 'bloqueado' — "
+                    "revisor que não rodou não aprovou (1.1)",
                     "faixa 3 (difícil de reverter) nunca fecha por evidência — ADR-0031",
                 ],
             },

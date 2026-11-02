@@ -87,11 +87,16 @@ def carregar(raiz: Path, dias: int | None) -> list[dict]:
     return eventos
 
 
+# Evento que só conta: tipo → campo da sessão.
+CONTADORES = {"delegacao": "delegacoes", "guardrail_erro": "erros_guardrail"}
+
+
 def por_sessao(eventos: list[dict]) -> dict[str, dict]:
     s: dict[str, dict] = defaultdict(
         lambda: {
             "prompts": 0, "skills": [], "gates": [], "escritas": 0,
             "producao": 0, "delegacoes": 0, "recusas": [], "inicio": None, "fim": None,
+            "erros_guardrail": 0,
         }
     )
     for ev in eventos:
@@ -112,8 +117,8 @@ def por_sessao(eventos: list[dict]) -> dict[str, dict]:
             d["escritas"] += 1
             if ev.get("producao"):
                 d["producao"] += 1
-        elif tipo == "delegacao":
-            d["delegacoes"] += 1
+        elif tipo in CONTADORES:
+            d[CONTADORES[tipo]] += 1
         elif tipo == "recusa":
             d["recusas"].append((ev.get("classe", "?"), ev.get("modo", "?")))
     return dict(s)
@@ -161,6 +166,7 @@ def metricas(sessoes: dict[str, dict]) -> dict:
         "recusas_por_classe": dict(sorted(por_classe.items(), key=lambda kv: -kv[1])),
         "recusas_em_modo_aviso": em_aviso,
         "sessoes_com_recusa": sum(1 for v in sessoes.values() if v["recusas"]),
+        "falhas_do_guardrail": sum(v["erros_guardrail"] for v in sessoes.values()),
         "ciclos": len(ciclos),
         "ciclos_autonomos": len(autonomos),
         "autonomia_pct": pct(len(autonomos), len(ciclos)),
@@ -474,6 +480,18 @@ def imprimir_prs(r: dict, dias: int | None) -> None:
 
 # --- apresentação ------------------------------------------------------------------
 
+def alertas(m: dict) -> list[str]:
+    """O que o resumo destaca com ⚠️: o que deixou de ser medido ou de ser guardado."""
+    saida = []
+    if m["falhas_do_guardrail"]:
+        saida.append(f"Guardrail falhou e deixou passar: {m['falhas_do_guardrail']} vez(es) — "
+                     "`tipo: guardrail_erro` na trajetória diz onde (ADR-0046)")
+    if m["sessoes_com_producao_sem_gate"]:
+        saida.append("Código de produção escrito sem nenhum gate: "
+                     f"{m['sessoes_com_producao_sem_gate']} sessão(ões)")
+    return saida
+
+
 def imprimir_resumo(m: dict, dias: int | None) -> None:
     janela = f"últimos {dias} dias" if dias else "todo o histórico"
     print(f"📊 Telemetria da fábrica — {janela}\n")
@@ -500,9 +518,8 @@ def imprimir_resumo(m: dict, dias: int | None) -> None:
         if m["recusas_em_modo_aviso"]:
             print(f"     {m['recusas_em_modo_aviso']} em modo aviso. Taxa baixa e estável "
                   "é o sinal de que a regra pode virar bloqueio.")
-    if m["sessoes_com_producao_sem_gate"]:
-        print(f"  ⚠️  Código de produção escrito sem nenhum gate: "
-              f"{m['sessoes_com_producao_sem_gate']} sessão(ões)")
+    for alerta in alertas(m):
+        print(f"  ⚠️  {alerta}")
     if m["skills_usadas"]:
         top = ", ".join(f"{k} ({v})" for k, v in list(m["skills_usadas"].items())[:6])
         print(f"\n  Skills mais usadas:   {top}")

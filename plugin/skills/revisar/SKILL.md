@@ -97,6 +97,11 @@ Cada revisor lê o diff **na sua dimensão** e produz parecer em primeira pessoa
 > 🟡 **Médio** — `services/relatorio.ts` adicionou função `gerarPDF` sem teste.
 > 🔵 **Baixo** — `components/RelatorioForm.tsx` tem 3 caminhos de erro mas só 1 tem teste.
 
+**Revisor que não entregou parecer não aprovou** (ADR-0046). Erro, tempo limite ou contexto
+estourado: o nome vai em `incompletos` no bloco do relatório, e o revisor é acionado de novo.
+Com `incompletos` preenchido o contrato recusa veredicto limpo — revisão com uma dimensão a
+menos e "aprovado" no topo é o mesmo texto tranquilizador da lista `examinado` vazia.
+
 ### 4.5. Segunda passada — o revisor relê os próprios achados (ADR-0039)
 
 Antes de entregar o parecer, cada revisor relê **cada achado** contra o diff e responde duas
@@ -104,6 +109,12 @@ perguntas: *o código citado existe nessa linha?* e *o problema acontece de fato
 ou só se parece com um padrão conhecido?* Achado que não sobrevive sai antes de ser publicado.
 O motivo é o efeito cry wolf: revisão com 30% de ruído é revisão que o time aprende a ignorar
 em poucos sprints — e aí o 🔴 verdadeiro passa junto.
+
+**Dúvida não refuta um 🔴** (ADR-0046, do ECC). O 🔴 só sai se a releitura o **refutar**: o
+código citado não está ali, ou o caminho não acontece. "Não tenho certeza" não é refutação —
+o achado fica, com ` · incerto` na linha, conta em `criticos` e bloqueia até alguém refutar
+com evidência. A assimetria é deliberada: o falso positivo custa uma rodada de correção; o
+falso negativo vai para produção. Em 🟠, 🟡 e 🔵 vale a regra de cima: não sobreviveu, sai.
 
 Patrícia, na passada dela, roda o que é determinístico antes de opinar:
 
@@ -153,7 +164,8 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
   "veredicto": "aprovado | aprovado_com_ressalvas | bloqueado",
   "faixa": 1,
   "criticos": 0,
-  "examinado": ["api/users.ts (Helena)", "queries/relatorios.sql (Vinícius)", "migrations/ (Carlos)"]
+  "examinado": ["api/users.ts (Helena)", "queries/relatorios.sql (Vinícius)", "migrations/ (Carlos)"],
+  "incompletos": []
 }
 ```
 ```

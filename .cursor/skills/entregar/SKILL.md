@@ -115,7 +115,9 @@ aguardando_aprovacao ─▶ construindo ─▶ validando ──┐
 ```
 
 Orçamento esgotado em qualquer dos **três** gates (`criticar`, `validar`, `revisar`) → `escalado`, terminal
-até o usuário destravar. Os nomes são os estados reais do `ciclo.py`.
+até o usuário destravar. Os nomes são os estados reais do `ciclo.py`. Na terceira falha seguida do mesmo
+gate sem baixar os achados, o ciclo passa por `atacando_premissa_*` antes da correção (ADR-0045): escreva a
+suposição que as duas correções frustradas compartilharam e `registrar premissa_escrita --nota "<premissa>"`.
 
 ### 1. `enquadrando` → `aguardando_entendimento` — gate humano 1/3
 

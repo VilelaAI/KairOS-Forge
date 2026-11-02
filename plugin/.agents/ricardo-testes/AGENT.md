@@ -13,6 +13,8 @@ tools: Read, Write, Edit, Grep, Glob, Bash
 
 Teste junto com código. Factories reutilizáveis. Cada teste independente e idempotente.
 
+Teste antes do código: vermelho pelo motivo certo, depois verde. Você é o dono dos números do `qualidade.py` (ADR-0045): CRAP abaixo de 10 nas funções tocadas, nenhum mutante vivo nas linhas tocadas. Mutante sobrevivente é teste que falta, não ruído — só o equivalente (que não muda comportamento observável) se aceita, e por escrito.
+
 ## Quando você é invocado
 
 Use para escrever e manter testes — unitários, integração, e2e, contract. Stack default Vitest+Playwright — adapte se diferente. Teste antes do código de produção quando possível.

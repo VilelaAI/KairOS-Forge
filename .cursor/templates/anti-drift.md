@@ -44,6 +44,8 @@ Por que: drift acumula silenciosamente e o checkpoint entre ondas pega cedo. A o
   - `feat(modulo): adiciona endpoint de exportação`
   - `fix(auth): corrige expiração de token em fuso horário não-UTC`
   - `test(relatorios): cobre cenário de lista vazia`
+- O corpo do commit diz **por quê**, **o que mudou** e **como você provou** (o gate que rodou e o
+  resultado). Commits pequenos e em ordem: cada um compila e passa sozinho.
 - Todo commit seu termina com o trailer `Fabrica: kairos-forge`, numa linha própria depois de
   uma linha em branco. É como o histórico separa o que a fábrica escreveu do que uma pessoa
   escreveu, e a autonomia de PR é medida por ele (ADR-0044) — nunca o ponha em commit que
@@ -58,6 +60,7 @@ Você só reporta a tarefa como pronta se:
 3. ✅ Teste mínimo escrito (caminho feliz + 1 erro) — se for código de produção; o teste novo **falha sem a mudança**, e teste existente não se afrouxa para a suite ficar verde (ADR-0039)
 4. ✅ Commit feito com mensagem PT-BR padronizada
 5. ✅ Não introduziu erro em CI (lint passa, type check passa, testes passam localmente)
+6. ✅ As funções que você tocou passam no `qualidade.py` (seção 6.2) — ou o achado está no relatório com o porquê
 
 Se algum item não foi cumprido, **não reporte como pronta**: diga o que falta. Quem fecha a tarefa no quadro é a Laura, com o seu relatório — você nunca fecha a própria tarefa (`.agents/quadro/` é protegido pelo guardrail).
 
@@ -77,6 +80,40 @@ não ajuda de forma confiável e frequentemente piora o resultado (Huang et al.,
 O que faz esta etapa funcionar é a âncora fora do modelo: o "Pronto quando" da tarefa, o gate que
 roda, o `arquivo:linha` que você cita. Tire a âncora e sobra ruído com aparência de rigor —
 por isso "olhei e parece bom" é explicitamente recusado acima.
+
+### 6.2. Primeiro funcionar, depois deixar certo (ADR-0045)
+
+Código de produção passa por duas metades, nesta ordem.
+
+**Fazer funcionar**
+
+- **Teste primeiro, vermelho pelo motivo certo.** Escreva o teste, rode e veja falhar pelo
+  motivo que você esperava, não por import quebrado. Só então a menor mudança que o deixa
+  verde. Se um teste honesto é inviável, diga isso em vez de escrever um que não prova nada.
+- **A menor mudança que resolve, com cada decisão num lugar só.** Antes de somar, veja o que
+  dá para tirar.
+- **A forma dos dados antes da lógica.** Estrutura em que o estado inválido não se escreve;
+  dado de fora validado uma vez, na entrada; regra de negócio em função pura.
+- **Requisito novo não se enxerta.** Pergunte como seria o desenho se ele existisse desde o
+  começo, e entregue em fatias.
+- **Operação repetível.** Rodar duas vezes, ou de novo depois de cair no meio, termina no
+  mesmo estado.
+
+**Deixar certo**
+
+- **Causa, não sintoma.** Reproduza e corrija a causa; guarda que só esconde a queda não é
+  correção.
+- **Teste de comportamento.** O teste chama o código como quem usa e confere o que quem usa
+  veria. Se ele passaria com a função devolvendo nada, jogue fora.
+- **Os três números do diff.** `qualidade.py crap` abaixo de 10 em toda função que você tocou
+  (ou, se ela já estava acima, sem piorar), nenhum par de `qualidade.py duplicacao` ≥ 0,8 que
+  você criou e nenhum mutante vivo de `qualidade.py mutacao` nas linhas tocadas. Rode antes
+  de reportar: o `/validar` roda de novo e bloqueia.
+- **Refatorar é fixar, mudar, provar.** Teste que fixa o comportamento atual, mudança de
+  estrutura, a mesma suíte verde.
+- **Duas correções falharam no mesmo gate?** Não escreva a terceira no mesmo embalo: escreva a
+  premissa que as duas compartilharam e ataque essa premissa. No `/entregar`, o `ciclo.py`
+  cobra isso.
 
 ### 7. Guardrails determinísticos não se negociam
 

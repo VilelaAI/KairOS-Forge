@@ -440,6 +440,12 @@ class ReRevisao(Sandbox):
         self.assertEqual(codigo, 1)
         self.assertIn("R1", err)
 
+    def test_estado_mostra_os_pendentes_so_quando_ha(self) -> None:
+        self.revisando()
+        self.assertNotIn("pendentes da revisão anterior", rodar("estado", "SPEC-001")[1])
+        self.critico_e_volta(["R1"])
+        self.assertIn("pendentes da revisão anterior: R1", rodar("estado", "SPEC-001")[1])
+
     def test_revisao_sem_ids_nao_cria_pendencia(self) -> None:
         self.revisando()
         self.revisao(veredicto="bloqueado", criticos=1)

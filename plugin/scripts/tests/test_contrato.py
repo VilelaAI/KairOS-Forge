@@ -92,6 +92,11 @@ class FaltaDeProva(unittest.TestCase):
         r = contrato.ler_validacao(validacao(sem_evidencia=3))
         self.assertEqual(r.codigo, contrato.ESTRUTURAL)
 
+    def test_spec_vem_do_bloco_ou_fica_nula(self) -> None:
+        self.assertEqual(contrato.ler_validacao(validacao(spec=" SPEC-001 ")).dados["spec"],
+                         "SPEC-001")
+        self.assertIsNone(contrato.ler_validacao(validacao()).dados["spec"])
+
     def test_aprovado_sem_bloqueio_nao_e_so_falta_de_prova(self) -> None:
         r = contrato.ler_validacao(validacao(veredicto="aprovado", bloqueios=0))
         self.assertTrue(r.ok, r.erro)
@@ -111,6 +116,18 @@ class ReRevisao(unittest.TestCase):
         r = contrato.ler_revisao(revisao(veredicto="bloqueado", criticos=2,
                                          achados=["R1", "r1"]))
         self.assertEqual(r.codigo, contrato.ESTRUTURAL)
+
+    def test_achados_que_nao_e_lista_e_estrutural(self) -> None:
+        r = contrato.ler_revisao(revisao(veredicto="bloqueado", criticos=1, achados="R1"))
+        self.assertEqual(r.codigo, contrato.ESTRUTURAL)
+        self.assertIn("achados", r.erro)
+
+    def test_faixa(self) -> None:
+        self.assertEqual(contrato.ler_revisao(revisao(faixa="2")).dados["faixa"], 2)
+        for faixa in (4, "três", None):
+            r = contrato.ler_revisao(revisao(faixa=faixa))
+            self.assertEqual(r.codigo, contrato.ESTRUTURAL, faixa)
+            self.assertIn("faixa", r.erro)
 
     def test_anterior_nao_resolvido_nao_aprova(self) -> None:
         r = contrato.ler_revisao(revisao(anteriores={"R1": "não resolvido"}))

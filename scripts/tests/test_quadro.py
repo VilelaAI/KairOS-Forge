@@ -188,6 +188,58 @@ class Adicionar(ComRepositorio):
         self.assertEqual(json.loads(saida)["prontas"], ["T1", "T2"])
 
 
+class Foto(unittest.TestCase):
+    """As bordas da foto do checkout: tamanho do arquivo, sujeira demais e repo sem commit."""
+
+    def test_impressao_troca_o_sha_por_tamanho_acima_do_limite(self) -> None:
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(quadro, "LIMITE_IMPRESSAO", 4):
+            no_limite, acima = Path(tmp, "a"), Path(tmp, "b")
+            no_limite.write_bytes(b"1234")
+            acima.write_bytes(b"12345")
+            self.assertEqual(len(quadro.impressao(no_limite)), 64)        # sha256
+            self.assertTrue(quadro.impressao(acima).startswith("tamanho:5:"))
+            self.assertEqual(quadro.impressao(Path(tmp)), "dir")
+            self.assertEqual(quadro.impressao(Path(tmp, "nao-existe")), "ausente")
+
+    def test_sujeira_acima_do_limite_nao_tira_foto(self) -> None:
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(quadro, "LIMITE_FOTO", 2):
+            dois = b" M a.txt\0?? b.txt\0"
+            self.assertEqual(sorted(quadro.arquivos_do_status(dois, Path(tmp))), ["a.txt", "b.txt"])
+            self.assertIsNone(quadro.arquivos_do_status(dois + b"?? c.txt\0", Path(tmp)))
+
+    def test_renomeacao_pula_a_origem_e_o_quadro_fica_fora(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            bruto = b"R  novo.py\0velho.py\0?? .agents/quadro/q.json\0 M src/x.py\0"
+            self.assertEqual(sorted(quadro.arquivos_do_status(bruto, Path(tmp))),
+                             ["novo.py", "src/x.py"])
+
+    def test_repositorio_sem_commit_tem_head_nulo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(["git", "init", "-q", tmp], check=True, capture_output=True)
+            Path(tmp, "a.txt").write_text("a\n", encoding="utf-8")
+            foto = quadro.foto_do_checkout(Path(tmp))
+            self.assertIsNone(foto["head"])
+            self.assertEqual(list(foto["arquivos"]), ["a.txt"])
+
+
+class Mensagens(ComRepositorio):
+    def test_concluir_diz_o_que_liberou_e_quando_acabou(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        self.adicionar("T2", "--posse", "docs/**", "--depende", "T1")
+        self.adicionar("T3", "--posse", "lib/**")
+        rodar("iniciar", "q", "T1")
+        rodar("iniciar", "q", "T3")
+        _, saida = self.concluir("T3")
+        self.assertIn("nada liberado ainda", saida)
+        _, saida = self.concluir("T1")
+        self.assertIn("liberou: T2", saida)
+        rodar("iniciar", "q", "T2")
+        _, saida = self.concluir("T2")
+        self.assertIn("quadro completo", saida)
+
+
 class Iniciar(ComRepositorio):
     def test_recusas(self) -> None:
         self.adicionar("T1", "--posse", "src/**")

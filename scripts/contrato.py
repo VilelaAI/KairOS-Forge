@@ -67,6 +67,10 @@ MIN_CRITICOS = 2
 VEREDICTOS = ("aprovado", "aprovado_com_ressalvas", "bloqueado")
 FAIXAS = (1, 2, 3)
 
+# O que a re-revisão diz de cada 🔴 da rodada anterior (ADR-0048, do ADDRESSED / NOT
+# ADDRESSED da Alethe). Tentativa que deixa o defeito no lugar é `nao_resolvido`.
+ESTADOS_ANTERIOR = ("resolvido", "nao_resolvido")
+
 # --- contrato de integração (ADR-0034) ----------------------------------------------
 # As três fences e as regras abaixo são CONTRATO PÚBLICO — o kairos-symphony (e
 # qualquer outro consumidor) precisa produzir e ler estes blocos. `contrato.py esquema`
@@ -75,7 +79,9 @@ FAIXAS = (1, 2, 3)
 #
 # MENOR (1.x): campo opcional novo, fence nova, mensagem de erro diferente.
 # MAIOR (x.0): campo obrigatório novo ou removido, regra de aceitação mais estrita.
-CONTRATO_VERSAO = "1.1"
+CONTRATO_VERSAO = "1.2"   # 1.1: `incompletos` na revisão (ADR-0046)
+                          # 1.2: `sem_evidencia` na validação; `achados` e `anteriores`
+                          #      na revisão (ADR-0048)
 
 # Teto de itens nas listas de cobertura. Existe para o parser não virar vetor de
 # payload absurdo, não porque 200 seja um número especial.
@@ -146,6 +152,22 @@ def _inteiro_de(valor, campo: str) -> tuple[int | None, str | None]:
     return valor, None
 
 
+def _estados_de(valor, campo: str) -> tuple[dict[str, str] | None, str | None]:
+    """`{"R1": "resolvido", "R2": "nao_resolvido"}`, tolerando acento e espaço no valor."""
+    if not isinstance(valor, dict):
+        return None, f"campo '{campo}' precisa ser objeto {{id: estado}}"
+    if len(valor) > MAX_ITENS:
+        return None, f"campo '{campo}' tem {len(valor)} itens, teto {MAX_ITENS}"
+    saida: dict[str, str] = {}
+    for chave, estado in valor.items():
+        norma = str(estado).strip().lower().replace("ã", "a").replace(" ", "_")
+        if norma not in ESTADOS_ANTERIOR:
+            return None, (f"'{campo}.{chave}' = '{estado}' inválido — use "
+                          f"{' ou '.join(ESTADOS_ANTERIOR)}")
+        saida[str(chave).strip()] = norma
+    return saida, None
+
+
 def _carregar(texto: str, fence: str) -> tuple[dict | None, Resultado | None]:
     bruto = extrair_ultimo_bloco(texto, fence)
     if bruto is None:
@@ -162,7 +184,9 @@ def _carregar(texto: str, fence: str) -> tuple[dict | None, Resultado | None]:
 # --- contrato da validação ------------------------------------------------------------
 
 def ler_validacao(texto: str) -> Resultado:
-    """Lê o bloco ```kairos-validacao. Campos: veredicto, bloqueios, verificado[]."""
+    """Lê o bloco ```kairos-validacao. Campos: veredicto, bloqueios, verificado[] e, desde o
+    contrato 1.2, o opcional sem_evidencia — quantos bloqueios são falta de prova, não
+    falha mostrada (o NOT_PROVEN da Alethe, ADR-0048)."""
     dados, erro = _carregar(texto, FENCE_VALIDACAO)
     if erro:
         return erro
@@ -180,28 +204,50 @@ def ler_validacao(texto: str) -> Resultado:
     if e:
         return _falha(ESTRUTURAL, e)
 
-    # Coerência: o veredicto não pode contradizer a própria contagem.
+    falha = _coerencia_da_validacao(veredicto, bloqueios, verificado)
+    prova, falha = (None, falha) if falha else _falta_de_prova(dados, bloqueios)
+    if falha:
+        return falha
+
+    return Resultado(ok=True, dados={
+        "tipo": "validacao",
+        "veredicto": veredicto,
+        "bloqueios": bloqueios,
+        **prova,
+        "verificado": verificado,
+        "spec": str(dados.get("spec", "")).strip() or None,
+    })
+
+
+def _coerencia_da_validacao(veredicto: str, bloqueios: int,
+                            verificado: list[str]) -> Resultado | None:
+    """O veredicto não pode contradizer a própria contagem, e limpo exige cobertura."""
     if veredicto == "bloqueado" and bloqueios == 0:
         return _falha(ESTRUTURAL, "veredicto 'bloqueado' com bloqueios=0 — "
                                   "se nada bloqueia, o veredicto é outro")
     if veredicto != "bloqueado" and bloqueios > 0:
         return _falha(ESTRUTURAL, f"veredicto '{veredicto}' com bloqueios={bloqueios} — "
                                   "achado bloqueante não vira ressalva por escolha de palavra")
-
-    # Prova de cobertura.
     if bloqueios == 0 and not verificado:
         return _falha(SEM_COBERTURA, "relatório sem bloqueio precisa listar em "
                                      "'verificado' o que foi conferido — requisito, gate "
                                      "ou arquivo. Lista vazia com veredicto limpo é "
                                      "ausência de busca, não ausência de defeito")
+    return None
 
-    return Resultado(ok=True, dados={
-        "tipo": "validacao",
-        "veredicto": veredicto,
-        "bloqueios": bloqueios,
-        "verificado": verificado,
-        "spec": str(dados.get("spec", "")).strip() or None,
-    })
+
+def _falta_de_prova(dados: dict, bloqueios: int) -> tuple[dict | None, Resultado | None]:
+    """`sem_evidencia` e o derivado `so_falta_prova`: nenhuma falha foi mostrada, o que
+    falta é rodar a checagem, não mexer no código (ADR-0048)."""
+    sem_evidencia, e = _inteiro_de(dados.get("sem_evidencia", 0), "sem_evidencia")
+    if e:
+        return None, _falha(ESTRUTURAL, e)
+    if sem_evidencia > bloqueios:
+        return None, _falha(ESTRUTURAL, f"sem_evidencia={sem_evidencia} maior que "
+                                        f"bloqueios={bloqueios} — requisito sem prova é um "
+                                        "tipo de bloqueio, não um a mais")
+    return {"sem_evidencia": sem_evidencia,
+            "so_falta_prova": bloqueios > 0 and sem_evidencia == bloqueios}, None
 
 
 # --- contrato da revisão --------------------------------------------------------------
@@ -240,12 +286,9 @@ def ler_revisao(texto: str) -> Resultado:
         return _falha(ESTRUTURAL, f"veredicto '{dados.get('veredicto')}' inválido — "
                                   f"use um de: {', '.join(VEREDICTOS)}")
 
-    faixa = dados.get("faixa")
-    if isinstance(faixa, str) and faixa.strip().isdigit():
-        faixa = int(faixa.strip())
-    if faixa not in FAIXAS:
-        return _falha(ESTRUTURAL, f"faixa '{dados.get('faixa')}' inválida — "
-                                  "use 1 (contida), 2 (ampla) ou 3 (difícil de reverter)")
+    faixa, falha = _faixa_de(dados)
+    if falha:
+        return falha
 
     criticos, e = _inteiro_de(dados.get("criticos"), "criticos")
     if e:
@@ -262,6 +305,10 @@ def ler_revisao(texto: str) -> Resultado:
     if falha:
         return falha
 
+    rodada, falha = _rodada_da_revisao(dados, veredicto, criticos)
+    if falha:
+        return falha
+
     return Resultado(ok=True, dados={
         "tipo": "revisao",
         "veredicto": veredicto,
@@ -269,7 +316,84 @@ def ler_revisao(texto: str) -> Resultado:
         "criticos": criticos,
         "examinado": examinado,
         "incompletos": incompletos,
+        **rodada,
     })
+
+
+def _faixa_de(dados: dict) -> tuple[int | None, Resultado | None]:
+    faixa = dados.get("faixa")
+    if isinstance(faixa, str) and faixa.strip().isdigit():
+        faixa = int(faixa.strip())
+    if faixa not in FAIXAS:
+        return None, _falha(ESTRUTURAL, f"faixa '{dados.get('faixa')}' inválida — use 1 "
+                                        "(contida), 2 (ampla) ou 3 (difícil de reverter)")
+    return faixa, None
+
+
+def _achados_de(dados: dict, criticos: int) -> tuple[list[str] | None, str | None]:
+    """Um id por 🔴, sem repetição (ADR-0048)."""
+    achados, e = _lista_de(dados.get("achados", []), "achados")
+    if e:
+        return None, e
+    if achados and len(achados) != criticos:
+        return None, f"'achados' lista {len(achados)} id(s) e criticos={criticos} — um id por 🔴"
+    if len({a.casefold() for a in achados}) != len(achados):
+        return None, "id repetido em 'achados' — cada 🔴 tem o seu"
+    return achados, None
+
+
+def _anteriores_de(dados: dict, veredicto: str) -> tuple[dict | None, str | None]:
+    """O que a re-revisão diz de cada 🔴 anterior; não resolvido mantém o bloqueio."""
+    anteriores, e = _estados_de(dados.get("anteriores", {}), "anteriores")
+    if e:
+        return None, e
+    abertos = sorted(k for k, v in anteriores.items() if v == "nao_resolvido")
+    if abertos and veredicto != "bloqueado":
+        return None, (f"🔴 anterior não resolvido ({', '.join(abertos)}) com veredicto "
+                      f"'{veredicto}' — o defeito segue no lugar, o 🔴 também")
+    return anteriores, None
+
+
+def _rodada_da_revisao(dados: dict, veredicto: str,
+                       criticos: int) -> tuple[dict | None, Resultado | None]:
+    achados, e = _achados_de(dados, criticos)
+    anteriores, e2 = _anteriores_de(dados, veredicto) if not e else (None, None)
+    if e or e2:
+        return None, _falha(ESTRUTURAL, e or e2)
+    return {"achados": achados, "anteriores": anteriores}, None
+
+
+# --- a re-revisão presta contas (ADR-0048) -------------------------------------------
+# Depois de uma correção, a revisão começava do zero, e nada obrigava a dizer o que
+# aconteceu com cada 🔴 da rodada anterior. Revisão limpa que esquece um 🔴 é a mesma
+# ausência de busca que a prova de cobertura recusa. As duas funções abaixo são o que o
+# `ciclo.py` chama: ele guarda os ids pendentes entre as rodadas (o relatório do mesmo
+# dia sobrescreve o anterior, então o arquivo não serve de memória).
+
+def prestar_contas(pendentes: list[str], dados: dict) -> str | None:
+    """Por que esta revisão não pode fechar limpa diante dos 🔴 pendentes — ou None."""
+    if not pendentes:
+        return None
+    marcados = {k.casefold(): v for k, v in (dados.get("anteriores") or {}).items()}
+    faltando = [p for p in pendentes if p.casefold() not in marcados]
+    if faltando:
+        return (f"re-revisão sem conta de {len(faltando)} 🔴 da rodada anterior "
+                f"({', '.join(faltando)}) — marque cada um em 'anteriores' como "
+                "resolvido ou nao_resolvido, olhando o diff da correção")
+    abertos = [p for p in pendentes if marcados[p.casefold()] != "resolvido"]
+    if abertos:
+        return f"🔴 da rodada anterior ainda não resolvido: {', '.join(abertos)}"
+    return None
+
+
+def pendentes_depois(pendentes: list[str], dados: dict) -> list[str]:
+    """Os 🔴 que seguem abertos depois de uma revisão bloqueada: os novos desta rodada e os
+    anteriores que ela não marcou como resolvidos."""
+    marcados = {k.casefold(): v for k, v in (dados.get("anteriores") or {}).items()}
+    seguem = [p for p in pendentes if marcados.get(p.casefold()) != "resolvido"]
+    novos = [a for a in dados.get("achados") or [] if a.casefold() not in
+             {s.casefold() for s in seguem}]
+    return seguem + novos
 
 
 # --- contrato da crítica da SPEC (ADR-0033) -------------------------------------------
@@ -378,8 +502,13 @@ def contrato_publico() -> dict:
                 "arquivo": "VALIDACAO-<SPEC>-<AAAA-MM-DD>.md",
                 "obrigatorios": {"veredicto": "string", "bloqueios": "integer>=0",
                                  "verificado": "string[]"},
-                "opcionais": {"spec": "string"},
-                "regras": comum + ["cobertura: bloqueios=0 exige 'verificado' não-vazio"],
+                "opcionais": {"spec": "string", "sem_evidencia": "integer>=0"},
+                "regras": comum + [
+                    "cobertura: bloqueios=0 exige 'verificado' não-vazio",
+                    "sem_evidencia ≤ bloqueios: falta de prova é um tipo de bloqueio (1.2)",
+                    "sem_evidencia = bloqueios > 0: nenhuma falha mostrada — o ciclo manda "
+                    "rodar a prova antes de mexer no código (1.2)",
+                ],
             },
             "revisao": {
                 "fence": FENCE_REVISAO,
@@ -387,11 +516,16 @@ def contrato_publico() -> dict:
                 "arquivo": "REVISAO-<SPEC ou slug>-<AAAA-MM-DD>.md",
                 "obrigatorios": {"veredicto": "string", "faixa": "1|2|3",
                                  "criticos": "integer>=0", "examinado": "string[]"},
-                "opcionais": {"incompletos": "string[]"},
+                "opcionais": {"incompletos": "string[]", "achados": "string[]",
+                              "anteriores": "object<string," + "|".join(ESTADOS_ANTERIOR) + ">"},
                 "regras": comum + [
                     "cobertura: criticos=0 exige 'examinado' não-vazio",
                     "completude: 'incompletos' não-vazio exige veredicto 'bloqueado' — "
                     "revisor que não rodou não aprovou (1.1)",
+                    "achados: um id por 🔴, sem repetição (1.2)",
+                    "anteriores: 'nao_resolvido' exige veredicto 'bloqueado' (1.2)",
+                    "re-revisão: com 🔴 pendente da rodada anterior, fechar limpo exige cada "
+                    "id em 'anteriores' como 'resolvido' — cobrado pelo ciclo.py (1.2)",
                     "faixa 3 (difícil de reverter) nunca fecha por evidência — ADR-0031",
                 ],
             },

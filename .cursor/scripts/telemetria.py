@@ -19,6 +19,8 @@ Uso:
     telemetria.py prs [--dias 30] [--fonte gh|git] [--marca REGEX]... [--json]
                                                   # autonomia de PR, medida pelo git
                                                   # (ADR-0044) — funciona sem hook
+    telemetria.py tokens [--dias 7] [--json]      # tokens por sessão, como o transcript
+                                                  # registrou (ADR-0048)
 
 Definições (explícitas de propósito — métrica sem definição é chute com casa decimal):
 
@@ -46,6 +48,11 @@ Definições (explícitas de propósito — métrica sem definição é chute co
                 (ADR-0044). Sai do histórico, não da trajetória: o modelo não
                 escreve o merge, e o número existe onde não há hook. Sem PR da
                 fábrica, é "não medido", nunca 0%.
+  tokens novos  entrada + escrita de cache + saída, somados por resposta do modelo
+                como o transcript registrou, cada resposta uma vez (ADR-0048).
+                O cache lido vem à parte: é relido a cada resposta, domina a
+                soma e custa uma fração. Só o Claude Code grava hoje; nos
+                outros CLIs é "não medido", nunca 0.
 
 Só stdlib.
 """
@@ -122,6 +129,170 @@ def por_sessao(eventos: list[dict]) -> dict[str, dict]:
         elif tipo == "recusa":
             d["recusas"].append((ev.get("classe", "?"), ev.get("modo", "?")))
     return dict(s)
+
+
+# --- tokens (ADR-0048) ------------------------------------------------------------------
+USO = ("entrada", "cache_escrita", "cache_leitura", "saida", "respostas")
+VINCULO = re.compile(r"quadro\.py\s+vincular\s+(\S+)\s+(\S+)")
+
+
+def zero() -> dict[str, int]:
+    return {campo: 0 for campo in USO}
+
+
+def somar(alvo: dict[str, int], parte: dict) -> None:
+    for campo in USO:
+        valor = parte.get(campo)
+        if isinstance(valor, int) and not isinstance(valor, bool):
+            alvo[campo] += valor
+
+
+def novos(uso: dict) -> int:
+    """Tokens novos: o que entrou, o que foi escrito no cache e o que saiu. Sem o cache lido."""
+    return sum(int(uso.get(c) or 0) for c in ("entrada", "cache_escrita", "saida"))
+
+
+def _delta(leitura: dict, base: dict | None) -> dict[str, int]:
+    """O que a sessão gastou desde a leitura anterior. Leitura menor que a base (transcript
+    novo na mesma sessão) recomeça a contagem em vez de dar número negativo."""
+    if base is None:
+        return {c: int(leitura.get(c) or 0) for c in USO}
+    if any(int(leitura.get(c) or 0) < int(base.get(c) or 0) for c in USO):
+        return {c: int(leitura.get(c) or 0) for c in USO}
+    return {c: int(leitura.get(c) or 0) - int(base.get(c) or 0) for c in USO}
+
+
+def _vinculo(ev: dict, slug: str | None) -> str | None:
+    """A tarefa que este evento vincula à sessão, se for o `quadro.py vincular` do quadro."""
+    m = VINCULO.search(ev.get("cmd") or "") if ev.get("tipo") == "comando" else None
+    return m.group(2) if m and m.group(1) == slug else None
+
+
+def _leitura(ev: dict) -> dict | None:
+    tokens = ev.get("tokens") if ev.get("tipo") == "sessao_fim" else None
+    return tokens if isinstance(tokens, dict) else None
+
+
+def _gastos(eventos: list[dict], q: dict):
+    """(sessão, tarefa vinculada ou None, instante, gasto) de cada leitura dentro do quadro.
+
+    O gasto é a diferença para a leitura anterior da mesma sessão, calculada também fora
+    da janela: senão a primeira leitura de uma sessão antiga traria tudo o que veio antes.
+    """
+    inicio, fim = q.get("aberto_em") or "", q.get("encerrado_em") or "9999"
+    corrente: dict[str, str] = {}
+    anterior: dict[str, dict] = {}
+    for ev in eventos:
+        sessao, t = ev.get("sessao", "?"), ev.get("t", "")
+        corrente[sessao] = _vinculo(ev, q.get("slug")) or corrente.get(sessao, "")
+        leitura = _leitura(ev)
+        if leitura is None:
+            continue
+        gasto, anterior[sessao] = _delta(leitura, anterior.get(sessao)), leitura
+        if inicio <= t <= fim:
+            yield sessao, corrente[sessao] or None, t, gasto
+
+
+def _categoria(task: dict, t: str) -> str:
+    """Gasto de tarefa compensada depois dele foi trabalho desfeito (ADR-0036)."""
+    if any((c.get("em") or "") >= t for c in task.get("compensacoes", [])):
+        return "desfeita"
+    return "concluida" if task["estado"] == "concluida" else "aberta"
+
+
+CATEGORIAS = ("concluida", "desfeita", "aberta")
+
+
+def tokens_da_mobilizacao(eventos: list[dict], q: dict) -> dict:
+    """Os tokens gastos durante um quadro do /mobilizar, divididos por tarefa.
+
+    Cada sessão grava o acumulado a cada turno; o que ela gastou entre uma leitura e a
+    seguinte vai para a tarefa a que estava vinculada naquele momento (`quadro.py
+    vincular`, rodado pelo worker na própria sessão). Sem vínculo — a líder, ou um worker
+    que não vinculou — o gasto fica em "sem tarefa".
+    """
+    por_tarefa: dict[str, dict[str, dict[str, int]]] = {}
+    sem_tarefa, sessoes = zero(), set()
+    for sessao, tid, t, gasto in _gastos(eventos, q):
+        sessoes.add(sessao)
+        task = q.get("tasks", {}).get(tid or "")
+        if task is None:
+            somar(sem_tarefa, gasto)
+            continue
+        conta = por_tarefa.setdefault(tid, {k: zero() for k in CATEGORIAS})
+        somar(conta[_categoria(task, t)], gasto)
+    categorias = {k: zero() for k in CATEGORIAS}
+    for conta in por_tarefa.values():
+        for k, uso in conta.items():
+            somar(categorias[k], uso)
+    categorias["sem_tarefa"] = sem_tarefa
+    total = zero()
+    for uso in categorias.values():
+        somar(total, uso)
+    return {"medido": bool(sessoes), "sessoes": len(sessoes), "total": total,
+            "categorias": categorias, "por_tarefa": por_tarefa}
+
+
+def ultimas_leituras(eventos: list[dict]) -> dict[str, dict]:
+    """A leitura mais recente de cada sessão: o Stop grava o acumulado a cada turno."""
+    saida: dict[str, dict] = {}
+    for ev in eventos:
+        leitura = _leitura(ev)
+        if leitura is not None:
+            saida[ev.get("sessao", "?")] = leitura
+    return saida
+
+
+def resumo_de_tokens(eventos: list[dict]) -> dict:
+    uso = zero()
+    leituras = ultimas_leituras(eventos)
+    for leitura in leituras.values():
+        somar(uso, leitura)
+    return {"sessoes_com_tokens": len(leituras), "tokens_novos": novos(uso),
+            "tokens_cache_lido": uso["cache_leitura"]}
+
+
+def linha_de_tokens_do_resumo(m: dict) -> str:
+    if not m.get("sessoes_com_tokens"):
+        return "  Tokens:               não medidos (o Stop só grava no Claude Code)"
+    return (f"  Tokens novos:         {formatar(m['tokens_novos'])}  "
+            f"(+ {formatar(m['tokens_cache_lido'])} de cache lido, "
+            f"{m['sessoes_com_tokens']} sessão(ões) medida(s))")
+
+
+def cmd_tokens(eventos: list[dict], como_json: bool) -> int:
+    leituras = ultimas_leituras(eventos)
+    if como_json:
+        print(json.dumps(leituras, ensure_ascii=False, indent=2))
+        return 0
+    if not leituras:
+        print("Tokens não medidos: nenhuma leitura do hook Stop na janela. Hoje só o "
+              "Claude Code grava (ADR-0048).")
+        return 0
+    print(f"{'sessão':<18} {'respostas':>9} {'novos':>10} {'cache lido':>11}  modelos")
+    print("-" * 72)
+    for sid, u in leituras.items():
+        print(f"{sid:<18} {u.get('respostas', 0):>9} {formatar(novos(u)):>10} "
+              f"{formatar(int(u.get('cache_leitura') or 0)):>11}  "
+              f"{', '.join(u.get('modelos') or [])}")
+    return 0
+
+
+def _cmd_sessoes(eventos: list[dict], como_json: bool) -> int:
+    imprimir_sessoes(por_sessao(eventos))
+    return 0
+
+
+SIMPLES = {"sessoes": _cmd_sessoes, "tokens": cmd_tokens}
+
+
+def formatar(n: int) -> str:
+    """1234567 → '1,2 mi'; 45300 → '45 mil'. Número de relatório, não de planilha."""
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f} mi".replace(".", ",")
+    if n >= 10_000:
+        return f"{round(n / 1000)} mil"
+    return f"{n:,}".replace(",", ".")
 
 
 def metricas(sessoes: dict[str, dict]) -> dict:
@@ -518,6 +689,7 @@ def imprimir_resumo(m: dict, dias: int | None) -> None:
         if m["recusas_em_modo_aviso"]:
             print(f"     {m['recusas_em_modo_aviso']} em modo aviso. Taxa baixa e estável "
                   "é o sinal de que a regra pode virar bloqueio.")
+    print(linha_de_tokens_do_resumo(m))
     for alerta in alertas(m):
         print(f"  ⚠️  {alerta}")
     if m["skills_usadas"]:
@@ -590,16 +762,15 @@ def main() -> int:
     eventos = carregar(raiz, dias)
 
     if comando == "resumo":
-        m = metricas(por_sessao(eventos))
+        m = {**metricas(por_sessao(eventos)), **resumo_de_tokens(eventos)}
         if como_json:
             print(json.dumps(m, ensure_ascii=False, indent=2))
         else:
             imprimir_resumo(m, dias)
         return 0
 
-    if comando == "sessoes":
-        imprimir_sessoes(por_sessao(eventos))
-        return 0
+    if comando in SIMPLES:
+        return SIMPLES[comando](eventos, como_json)
 
     if comando == "ruido":
         r = ruido(raiz, dias)

@@ -280,7 +280,7 @@ class AtacarPremissa(Sandbox):
         self.assertEqual(e["estado"], "atacando_premissa_validacao")
         self.assertEqual(e["resultados_validos"], ["premissa_escrita"])
         self.assertFalse(e["aguardando_humano"])
-        self.assertEqual(e["contrato"], "1.2")
+        self.assertEqual(e["contrato"], "1.3")
 
     def test_premissa_precisa_ser_uma_frase(self) -> None:
         self.validando()
@@ -336,9 +336,120 @@ class AtacarPremissa(Sandbox):
     def test_contrato_publica_os_estados_novos(self) -> None:
         codigo, out, _ = rodar("contrato")
         c = json.loads(out)
-        self.assertEqual(c["versao"], "1.2")
+        self.assertEqual(c["versao"], "1.3")
         self.assertEqual(c["transicoes"]["atacando_premissa_revisao"],
                          {"premissa_escrita": "corrigindo_revisao"})
+
+
+class FaltaDeProva(Sandbox):
+    """ADR-0048: validação bloqueada só por falta de prova vai para `provando`."""
+
+    def bloqueado(self, sem_evidencia: int) -> None:
+        Path("docs/specs/validacoes/VALIDACAO-SPEC-001-2026-01-01.md").write_text(
+            "# Validação\n\n```kairos-validacao\n"
+            f'{{"veredicto": "bloqueado", "bloqueios": 2, "sem_evidencia": {sem_evidencia}, '
+            '"verificado": ["EX-01 (npm test)"]}\n```\n', encoding="utf-8")
+        rodar("abrir", "SPEC-001", "--spec-aprovada")
+        rodar("registrar", "pronto", "SPEC-001")
+        self.assertEqual(rodar("registrar", "bloqueado", "SPEC-001")[0], 0)
+
+    def test_so_falta_de_prova_vai_para_provando_e_volta_a_validar(self) -> None:
+        self.bloqueado(sem_evidencia=2)
+        e = estado()
+        self.assertEqual(e["estado"], "provando")
+        self.assertIn("ANTES de mexer no código", e["proximo_passo"])
+        self.assertEqual(e["resultados_validos"], ["pronto"])
+        self.assertEqual(rodar("registrar", "pronto", "SPEC-001")[0], 0)
+        self.assertEqual(estado()["estado"], "validando")
+
+    def test_falha_mostrada_vai_para_a_correcao(self) -> None:
+        self.bloqueado(sem_evidencia=1)
+        self.assertEqual(estado()["estado"], "corrigindo_validacao")
+
+    def test_falta_de_prova_queima_rodada_como_qualquer_bloqueio(self) -> None:
+        self.bloqueado(sem_evidencia=2)
+        self.assertEqual(estado()["rodadas"]["validar"], 1)
+
+
+class ReRevisao(Sandbox):
+    """ADR-0048: cada 🔴 de uma revisão bloqueada fica pendente até ser resolvido."""
+
+    def revisao(self, **campos) -> None:
+        bloco = {"veredicto": "aprovado", "faixa": 1, "criticos": 0,
+                 "examinado": ["api.py (Helena)"], **campos}
+        Path("docs/specs/revisoes").mkdir(exist_ok=True)
+        Path("docs/specs/revisoes/REVISAO-SPEC-001-2026-01-01.md").write_text(
+            f"# Revisão\n\n```kairos-revisao\n{json.dumps(bloco)}\n```\n", encoding="utf-8")
+
+    def revisando(self) -> None:
+        rodar("abrir", "SPEC-001", "--spec-aprovada", "--orcamento-revisar", "5")
+        rodar("registrar", "pronto", "SPEC-001")
+        Path("docs/specs/validacoes/VALIDACAO-SPEC-001-2026-01-01.md").write_text(
+            VALIDACAO_OK, encoding="utf-8")
+        self.assertEqual(rodar("registrar", "aprovado", "SPEC-001")[0], 0)
+
+    def critico_e_volta(self, achados: list[str], **campos) -> None:
+        self.revisao(veredicto="bloqueado", criticos=len(achados), achados=achados, **campos)
+        self.assertEqual(rodar("registrar", "critico", "SPEC-001")[0], 0)
+        rodar("registrar", "pronto", "SPEC-001")         # corrigindo_revisao → validando
+        self.assertEqual(rodar("registrar", "aprovado", "SPEC-001")[0], 0)
+
+    def test_critico_fica_pendente_no_estado(self) -> None:
+        self.revisando()
+        self.critico_e_volta(["R1", "R2"])
+        self.assertEqual(estado()["pendentes_revisao"], ["R1", "R2"])
+
+    def test_limpo_sem_prestar_contas_e_recusado(self) -> None:
+        self.revisando()
+        self.critico_e_volta(["R1", "R2"])
+        self.revisao()
+        codigo, _, err = rodar("registrar", "limpo", "SPEC-001")
+        self.assertEqual(codigo, 1)
+        self.assertIn("R1", err)
+        self.assertEqual(estado()["estado"], "revisando")
+
+    def test_limpo_com_um_pendente_esquecido_e_recusado(self) -> None:
+        self.revisando()
+        self.critico_e_volta(["R1", "R2"])
+        self.revisao(anteriores={"R1": "resolvido"})
+        codigo, _, err = rodar("registrar", "limpo", "SPEC-001")
+        self.assertEqual(codigo, 1)
+        self.assertIn("R2", err)
+
+    def test_limpo_prestando_contas_fecha_e_zera_os_pendentes(self) -> None:
+        self.revisando()
+        self.critico_e_volta(["R1", "R2"])
+        self.revisao(anteriores={"R1": "resolvido", "R2": "resolvido"})
+        self.assertEqual(rodar("registrar", "limpo", "SPEC-001")[0], 0)
+        e = estado()
+        self.assertEqual(e["estado"], "pronto_para_pr")
+        self.assertEqual(e["pendentes_revisao"], [])
+
+    def test_segunda_rodada_bloqueada_carrega_o_que_nao_foi_resolvido(self) -> None:
+        self.revisando()
+        self.critico_e_volta(["R1", "R2"])
+        self.critico_e_volta(["R1", "R3"], anteriores={"R1": "nao_resolvido", "R2": "resolvido"})
+        self.assertEqual(estado()["pendentes_revisao"], ["R1", "R3"])
+
+    def test_limpo_em_prosa_com_pendente_e_recusado(self) -> None:
+        self.revisando()
+        self.critico_e_volta(["R1"])
+        Path("docs/specs/revisoes/REVISAO-SPEC-001-2026-01-01.md").write_text(
+            "# Revisão\n\n**Veredicto:** aprovado\n", encoding="utf-8")
+        codigo, _, err = rodar("registrar", "limpo", "SPEC-001")
+        self.assertEqual(codigo, 1)
+        self.assertIn("R1", err)
+
+    def test_revisao_sem_ids_nao_cria_pendencia(self) -> None:
+        self.revisando()
+        self.revisao(veredicto="bloqueado", criticos=1)
+        rodar("registrar", "critico", "SPEC-001")
+        self.assertEqual(estado()["pendentes_revisao"], [])
+
+    def test_contrato_publica_o_estado_e_o_campo(self) -> None:
+        c = json.loads(rodar("contrato")[1])
+        self.assertEqual(c["transicoes"]["provando"], {"pronto": "validando"})
+        self.assertIn("pendentes_revisao", c["campos"])
 
 
 class BranchDoCiclo(Sandbox):

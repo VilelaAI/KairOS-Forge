@@ -9,15 +9,15 @@
     "Regerar: python3 scripts/release.py assinar-contratos"
   ],
   "ciclo": {
-    "versao": "1.2",
-    "sha256": "2338b5d338cddf9ba7c074fe5dd4ff61c700e367c95e6a5c946ac54f27d04326"
+    "versao": "1.3",
+    "sha256": "b8c1d020fbc6c0f57b0c6d6827e4d59ebb8427fae2aa2dd497eeb9a637bc8827"
   },
   "contrato": {
-    "versao": "1.1",
-    "sha256": "ed32d550070fd06c0c7099424d7bed81574e06a601ec879359f6848693049b13"
+    "versao": "1.2",
+    "sha256": "ae298b5bb5496bb587c9afadb56fc0f09c79f49e99c13669e4d02718fef7afb6"
   },
   "quadro": {
-    "versao": "1.1",
-    "sha256": "bf14cb2822671c7e3f039d3e0c63b2197f42cac305c66ff9dff2da4f0cd38e63"
+    "versao": "1.2",
+    "sha256": "387fc71f5b34597388da2d42306ddb9f48c083ea9f7a8808cb84e2bfbf9b50a4"
   }
 }

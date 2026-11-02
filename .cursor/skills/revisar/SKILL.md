@@ -138,7 +138,10 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
 **Veredicto agregado:** ✅ aprovado / ⚠️ aprovado com ressalvas / ❌ bloqueado
 
 ## 🔴 Crítico (qualquer revisor) → bloqueia merge
-- [Helena] api/users.ts:42 — SQL injection. Use prepared statement.
+- [Helena] R1 · api/users.ts:42 — SQL injection. Use prepared statement.
+
+## Rodada anterior (só na re-revisão)
+- R1 · resolvido — api/users.ts:42 agora usa prepared statement (diff da correção).
 
 ## 🟠 Alto → corrigir antes do merge
 - [Helena] lib/auth.ts:18 — Logout não invalida JWT.
@@ -165,7 +168,9 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
   "faixa": 1,
   "criticos": 0,
   "examinado": ["api/users.ts (Helena)", "queries/relatorios.sql (Vinícius)", "migrations/ (Carlos)"],
-  "incompletos": []
+  "incompletos": [],
+  "achados": [],
+  "anteriores": {}
 }
 ```
 ```
@@ -187,6 +192,14 @@ O bloco ` ```kairos-revisao ` é o contrato, com as mesmas três regras do `/val
 `**Veredicto:**` e sem fences distintas um vira o outro), **coerência**
 (`bloqueado` ⟺ `criticos ≥ 1`) e **prova de cobertura** (`criticos: 0` exige
 `examinado` não-vazio, com arquivo e revisor). O guardrail recusa a escrita se faltar.
+
+**A re-revisão presta contas (ADR-0048).** Cada 🔴 ganha um id (`R1`, `R2`…) na linha e em
+`achados` — um por 🔴, sem repetir. Quando a revisão bloqueia, o `ciclo.py` guarda esses ids
+como pendentes. Na rodada seguinte, revise primeiro o diff da correção e marque cada
+pendente em `anteriores` como `resolvido` ou `nao_resolvido`; tentativa que deixou o defeito
+no lugar é `nao_resolvido`, e `nao_resolvido` mantém o veredicto `bloqueado`. O ciclo recusa
+`limpo` enquanto algum pendente não estiver marcado como `resolvido`: revisão limpa que
+esquece um 🔴 da rodada anterior é ausência de busca.
 
 ### 6. Regras de bloqueio
 

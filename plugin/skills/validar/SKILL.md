@@ -216,6 +216,7 @@ Formato:
   "spec": "SPEC-NNN",
   "veredicto": "aprovado | aprovado_com_ressalvas | bloqueado",
   "bloqueios": 0,
+  "sem_evidencia": 0,
   "verificado": ["REQ-01 (npm test -- exportar)", "REQ-02 (gate lint)", "critério de aceite 3"]
 }
 ```
@@ -242,6 +243,14 @@ E `bloqueios` tem uma segunda função: o `ciclo.py` compara a contagem com a me
 marca já atingida. **Baixou, a ficha do orçamento volta**; não baixou, queima. Por isso
 a contagem precisa ser honesta nos dois sentidos — inflar esconde progresso, esvaziar
 compra rodada que você não ganhou.
+
+**`sem_evidencia` separa falta de prova de falha (ADR-0048).** Dos `bloqueios`, quantos são
+requisito "sem evidência" na matriz — nenhum comando provou, `nao_corroborado` ou
+`passou_na_base` — e não falha mostrada. Nunca passa de `bloqueios`. Quando todos os
+bloqueios são falta de prova, o `ciclo.py` não manda o construtor mexer no código: vai para
+`provando`, onde se roda a checagem que falta (ou o Ricardo escreve o teste) antes de
+qualquer correção. Se a prova falhar, a validação seguinte mostra a falha. Contar falha
+como falta de prova para fugir da correção é o mesmo erro de esvaziar a contagem.
 
 ### 7. Responder ao usuário
 

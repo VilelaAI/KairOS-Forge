@@ -384,9 +384,19 @@ def modo_de(cfg: dict, classe: str) -> str:
     return modo if modo in ("bloqueio", "aviso") else padrao
 
 
+def pasta_da_trajetoria(raiz: Path) -> Path:
+    """A mesma pasta em que o execucao.py grava: a do checkout principal, num worktree
+    ligado (ADR-0048). Gate de parada que lesse outra pasta não veria a escrita."""
+    try:
+        from execucao import raiz_do_projeto
+        return raiz_do_projeto(raiz.resolve()) / ".agents" / "execucoes"
+    except Exception:
+        return raiz.resolve() / ".agents" / "execucoes"
+
+
 def registrar_evento(raiz: Path, evento: dict) -> None:
     try:
-        pasta = raiz.resolve() / ".agents" / "execucoes"
+        pasta = pasta_da_trajetoria(raiz)
         pasta.mkdir(parents=True, exist_ok=True)
         evento = {"t": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                   "sessao": (os.environ.get("CLAUDE_SESSION_ID") or "?")[:16], **evento}
@@ -1018,7 +1028,7 @@ def checar_leitura(payload: dict) -> int:
 # leitura vira ruído, e ruído vira regra desligada.
 
 def eventos_da_sessao(raiz: Path, sessao: str) -> list[dict]:
-    pasta = raiz / ".agents" / "execucoes"
+    pasta = pasta_da_trajetoria(raiz)
     if not pasta.is_dir():
         return []
     eventos: list[dict] = []

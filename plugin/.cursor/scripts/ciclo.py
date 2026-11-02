@@ -64,6 +64,13 @@ diferente das que já foram atacadas na mesma sequência. Progresso real ou gate
 zeram a sequência. Com o orçamento padrão (2) a escalada chega antes, e a instrução
 de `escalado` pede a mesma frase para levar ao humano.
 
+E duas, desde a v0.41 (ADR-0048, da Alethe): **falta de prova não é falha, e a
+re-revisão presta contas.** Validação bloqueada só por requisito sem evidência — o
+bloco diz `sem_evidencia` igual a `bloqueios` — não manda o construtor mexer no código:
+vai para `provando`, onde se roda a checagem que falta. E cada 🔴 de uma revisão
+bloqueada fica pendente no estado (`pendentes_revisao`); a revisão seguinte só fecha
+limpa marcando cada um como `resolvido` no campo `anteriores` do bloco.
+
 Uso:
     ciclo.py abrir SPEC-001 [--orcamento-criticar 2] [--orcamento-validar 2]
                             [--orcamento-revisar 2] [--teto-criticar 6]
@@ -102,9 +109,10 @@ from pathlib import Path
 sys.dont_write_bytecode = True   # não escrever __pycache__ no diretório do plugin
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
-    from contrato import AUSENTE, ler_critica, ler_revisao, ler_validacao
+    from contrato import (AUSENTE, ler_critica, ler_revisao, ler_validacao,
+                          pendentes_depois, prestar_contas)
 except Exception:  # contrato ausente/quebrado nunca derruba a máquina de estados
-    ler_critica = ler_revisao = ler_validacao = None  # type: ignore[assignment]
+    ler_critica = ler_revisao = ler_validacao = pendentes_depois = prestar_contas = None  # type: ignore[assignment]
     AUSENTE = "ausente"
 
 PASTA = Path(".agents/ciclo")
@@ -117,8 +125,9 @@ PASTA = Path(".agents/ciclo")
 #
 # MENOR (1.x): campo novo, estado novo, aresta nova. Consumidor antigo continua válido.
 # MAIOR (x.0): campo removido/renomeado, semântica alterada, aresta removida.
-CONTRATO_VERSAO = "1.2"   # 1.1: campo `spec_alterada` (digest do contrato da SPEC)
+CONTRATO_VERSAO = "1.3"   # 1.1: campo `spec_alterada` (digest do contrato da SPEC)
                           # 1.2: estados `atacando_premissa_*` (ADR-0045)
+                          # 1.3: estado `provando` e campo `pendentes_revisao` (ADR-0048)
 
 # Gates com orçamento próprio. Cada um conta rodadas SEM progresso, tem teto absoluto
 # e guarda a melhor marca já atingida (ADR-0032).
@@ -170,6 +179,9 @@ TRANSICOES: dict[str, dict[str, str | None]] = {
                             "aprovado_com_ressalvas": "revisando",
                             "bloqueado": None},
     "corrigindo_validacao": {"pronto": "validando"},
+    # ADR-0048: todos os bloqueios são falta de prova. `bloqueado` chega aqui pelo
+    # orçamento (destino calculado), no lugar de `corrigindo_validacao`.
+    "provando":            {"pronto": "validando"},
     # A aresta que fecha o modo de falha silencioso: correção de revisão NÃO volta
     # direto para revisar — ela reabre a validação.
     "revisando":           {"limpo": "pronto_para_pr", "critico": None},
@@ -219,8 +231,13 @@ INSTRUCAO = {
                  "`registrar aprovado_com_ressalvas` | `registrar bloqueado`.",
     "corrigindo_validacao": "Corrija SÓ os achados bloqueantes, acionando os agentes que o "
                             "relatório nomeou. Rode o gate afetado. Depois: `registrar pronto`.",
+    "provando": "Nenhuma falha foi mostrada: todos os bloqueios da validação são requisito "
+                "sem evidência. Rode a checagem que falta ou escreva o teste que prova o "
+                "requisito (Ricardo) ANTES de mexer no código de produção — se a prova "
+                "falhar, a próxima validação mostra a falha. Depois: `registrar pronto`.",
     "revisando": "Rode /kairos-forge:revisar. Depois: `registrar limpo` (zero 🔴) ou "
-                 "`registrar critico`.",
+                 "`registrar critico`. Com 🔴 pendente da rodada anterior, o bloco marca "
+                 "cada um em `anteriores` (resolvido ou nao_resolvido).",
     "corrigindo_revisao": "Corrija os achados 🔴 — nunca por workaround. Depois: "
                           "`registrar pronto` (o ciclo REABRE a validação, não a revisão).",
     "pronto_para_pr": "Abra o PR com a evidência no corpo. NUNCA faça merge. Depois: "
@@ -257,6 +274,7 @@ CAMPOS_ESTADO = {
     "teto": "object", "marca": "object",
     "historico": "object[]",
     "spec_alterada": "boolean|null",  # contrato da SPEC mudou desde a aprovação; null = sem digest
+    "pendentes_revisao": "string[]",  # ids dos 🔴 que a próxima revisão precisa resolver (1.3)
     "motivo_escalacao": "string?", "motivo_encerramento": "string?",
 }
 
@@ -389,6 +407,51 @@ def ler_relatorio(spec: str, gate: str) -> tuple[str | None, int | None, str, st
     return _veredicto_da_prosa(texto), None, "prosa", None
 
 
+def dados_do_relatorio(spec: str, gate: str | None, fonte: str) -> dict | None:
+    """O bloco de contrato inteiro do relatório mais recente do gate, quando é válido."""
+    if not gate or fonte != "contrato":
+        return None
+    leitor = {"criticar": ler_critica, "validar": ler_validacao,
+              "revisar": ler_revisao}[gate]
+    texto = _mais_recente(FONTE_DO_GATE[gate][0], FONTE_DO_GATE[gate][1], spec)
+    r = leitor(texto or "")
+    return r.dados if r.ok else None
+
+
+def destino_do_bloqueio(d: dict, gate: str, contagem: int | None,
+                        dados: dict | None) -> tuple[str, str | None]:
+    """O orçamento decide; e validação bloqueada só por falta de prova vai provar (ADR-0048)."""
+    destino, motivo = decidir_orcamento(d, gate, contagem)
+    if destino == CORRIGIR["validar"] and (dados or {}).get("so_falta_prova"):
+        return "provando", motivo
+    return destino, motivo
+
+
+def atualizar_pendentes(d: dict, estado: str, resultado: str, dados: dict | None) -> None:
+    """Revisão limpa zera os 🔴 pendentes; bloqueada leva adiante os não resolvidos."""
+    if estado != "revisando":
+        return
+    if resultado == "limpo":
+        d["pendentes_revisao"] = []
+    elif dados is not None and pendentes_depois is not None:
+        d["pendentes_revisao"] = pendentes_depois(d["pendentes_revisao"], dados)
+
+
+def _recusa_da_rerevisao(d: dict, resultado: str, dados: dict | None) -> str | None:
+    """Revisão limpa com 🔴 pendente da rodada anterior só passa prestando contas."""
+    if resultado != "limpo" or not d["pendentes_revisao"]:
+        return None
+    pendentes = ", ".join(d["pendentes_revisao"])
+    if dados is None or prestar_contas is None:
+        return (f"🛑 recusado: há 🔴 pendente da revisão anterior ({pendentes}) e o relatório "
+                "não tem bloco ```kairos-revisao válido para dizer o que foi feito de cada um.")
+    erro = prestar_contas(d["pendentes_revisao"], dados)
+    if erro:
+        return (f"🛑 recusado: {erro}.\n   Revisão limpa que esquece um 🔴 da rodada anterior "
+                "é ausência de busca (ADR-0048). Revise o diff da correção e marque cada um.")
+    return None
+
+
 # --- comandos ----------------------------------------------------------------------
 
 # --- digest do contrato da SPEC ----------------------------------------------------
@@ -498,6 +561,7 @@ def abrir(spec: str, orcamento: dict, teto: dict, spec_aprovada: bool) -> int:
         # falhas seguidas do gate sem progresso e premissas já atacadas nessa sequência.
         "seguidas": {g: 0 for g in GATES},
         "premissas": {g: [] for g in GATES},
+        "pendentes_revisao": [],
         "historico": [{"t": agora(), "de": None, "para": estado, "resultado": "abrir"}],
     }
     if spec_aprovada:
@@ -516,6 +580,7 @@ def compatibilizar(d: dict) -> dict:
     d.setdefault("marca", {})
     d.setdefault("seguidas", {})
     d.setdefault("premissas", {})
+    d.setdefault("pendentes_revisao", [])
     for g in GATES:
         orc.setdefault(g, 2)
         d["rodadas"].setdefault(g, 0)
@@ -615,9 +680,10 @@ def _recusa_da_premissa(d: dict, estado: str, nota: str | None) -> str | None:
 
 
 def _recusa(d: dict, estado: str, resultado: str, gate: str | None, leitura: tuple,
-            nota: str | None) -> str | None:
+            nota: str | None, dados: dict | None = None) -> str | None:
     if resultado in LIMPO_DO_GATE.get(estado, ()):
-        return _recusa_do_verde(d, estado, gate, leitura)
+        return _recusa_do_verde(d, estado, gate, leitura) or _recusa_da_rerevisao(
+            d, resultado, dados)
     if estado in GATE_DA_PREMISSA:
         return _recusa_da_premissa(d, estado, nota)
     return None
@@ -666,7 +732,8 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
     leitura = (ler_relatorio(d["spec"], gate_do_estado) if gate_do_estado
                else (None, None, "ausente", None))
     _, contagem, fonte, erro_bloco = leitura
-    recusa = _recusa(d, estado, resultado, gate_do_estado, leitura, nota)
+    dados = dados_do_relatorio(d["spec"], gate_do_estado, fonte)
+    recusa = _recusa(d, estado, resultado, gate_do_estado, leitura, nota, dados)
     if recusa:
         print(recusa, file=sys.stderr)
         return 1
@@ -674,7 +741,8 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
     destino = aceitos[resultado]
     motivo = None
     if destino is None:  # bloqueio/crítico — o orçamento decide
-        destino, motivo = decidir_orcamento(d, gate_do_estado or "validar", contagem)
+        destino, motivo = destino_do_bloqueio(d, gate_do_estado or "validar", contagem, dados)
+    atualizar_pendentes(d, estado, resultado, dados)
 
     evento = {"t": agora(), "de": estado, "para": destino, "resultado": resultado}
     if contagem is not None:
@@ -769,6 +837,8 @@ def imprimir(d: dict) -> None:
         print(f"   Motivo: {d['motivo_escalacao']}")
     if d.get("motivo_encerramento"):
         print(f"   Motivo: {d['motivo_encerramento']}")
+    if d["pendentes_revisao"] and e not in TERMINAIS:
+        print(f"   🔴 pendentes da revisão anterior: {', '.join(d['pendentes_revisao'])}")
     if spec_alterada(d) and e not in TERMINAIS:
         print(f"   ⚠️  SPEC alterada desde a aprovação (selo {d['spec_digest'][:12]}, "
               f"{d.get('spec_selada_por', '?')}). Resultado verde de gate será recusado "
@@ -795,6 +865,8 @@ def vista_publica(d: dict) -> dict:
         "proximo_passo": INSTRUCAO[e],
         "resultados_validos": sorted(TRANSICOES.get(e, {})),
         "spec_alterada": spec_alterada(d),
+        # Prometido no contrato 1.3: sai sempre, mesmo de estado gravado antes dele.
+        "pendentes_revisao": list(d.get("pendentes_revisao") or []),
     }
 
 

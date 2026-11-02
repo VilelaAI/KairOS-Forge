@@ -98,6 +98,35 @@ class Worktree(unittest.TestCase):
             (sub / ".git").write_text("lixo\n", encoding="utf-8")
             self.assertEqual(execucao.raiz_do_projeto(sub), sub)
 
+    def test_git_ilegivel_fica_onde_esta(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sub = Path(tmp).resolve()
+            (sub / ".git").write_bytes(b"gitdir: \xff\xfe\n")           # não é UTF-8
+            self.assertEqual(execucao.raiz_do_projeto(sub), sub)
+
+    def test_destino_usa_o_cwd_do_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as projeto, tempfile.TemporaryDirectory() as outro:
+            antes = os.getcwd()
+            os.chdir(outro)
+            try:
+                alvo = execucao.destino({"cwd": projeto})
+                self.assertEqual(alvo.parent, Path(projeto).resolve() / ".agents" / "execucoes")
+                self.assertEqual(execucao.destino({}).parent,
+                                 Path(outro).resolve() / ".agents" / "execucoes")
+            finally:
+                os.chdir(antes)
+
+    def test_guardrail_le_a_mesma_pasta_e_tem_reserva(self) -> None:
+        import guardrail
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = Path(tmp).resolve()
+            self.assertEqual(guardrail.pasta_da_trajetoria(raiz),
+                             raiz / ".agents" / "execucoes")
+            with mock.patch("execucao.raiz_do_projeto", side_effect=RuntimeError("quebrou")):
+                self.assertEqual(guardrail.pasta_da_trajetoria(raiz),
+                                 raiz / ".agents" / "execucoes")
+
 
 def leitura(sessao: str, t: str, novos_saida: int, cache: int = 0) -> dict:
     return {"t": t, "sessao": sessao, "tipo": "sessao_fim",
@@ -158,6 +187,21 @@ class TokensDaMobilizacao(unittest.TestCase):
         r = self.dividir([leitura("L", "2026-11-02T10:01:00+00:00", 900),
                           leitura("L", "2026-11-02T10:02:00+00:00", 50)])
         self.assertEqual(r["sem_tarefa"], 950)
+
+    def test_leitura_na_abertura_e_no_encerramento_conta(self) -> None:
+        fechado = {**QUADRO, "encerrado_em": "2026-11-02T11:00:00+00:00"}
+        eventos = [leitura("L", "2026-11-02T10:00:00+00:00", 40),
+                   leitura("L", "2026-11-02T11:00:00+00:00", 100),
+                   leitura("L", "2026-11-02T11:00:01+00:00", 900)]
+        r = telemetria.tokens_da_mobilizacao(eventos, fechado)
+        self.assertEqual(r["categorias"]["sem_tarefa"]["saida"], 100)   # 40 + 60; 800 fora
+
+    def test_somar_ignora_o_que_nao_e_inteiro(self) -> None:
+        alvo = telemetria.zero()
+        telemetria.somar(alvo, {"entrada": None, "saida": "3", "cache_leitura": True,
+                                "respostas": 2})
+        self.assertEqual(alvo, {"entrada": 0, "cache_escrita": 0, "cache_leitura": 0,
+                                "saida": 0, "respostas": 2})
 
     def test_sem_leitura_nao_e_medido(self) -> None:
         r = telemetria.tokens_da_mobilizacao([vinculo("W", "2026-11-02T10:01:00+00:00", "T1")],

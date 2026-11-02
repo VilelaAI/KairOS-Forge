@@ -153,7 +153,7 @@ def raiz_do_projeto(cwd: Path) -> Path:
             return cwd
         principal = (gitdir / comum.read_text(encoding="utf-8").strip()).resolve()
         return principal.parent if principal.name == ".git" else cwd
-    except OSError:
+    except (OSError, ValueError):     # ValueError: `.git` com bytes que não são UTF-8
         return cwd
 
 

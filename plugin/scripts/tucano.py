@@ -82,6 +82,10 @@ SKILLS_ENTREGA = {
     "auditar": ["laura"],
 }
 ESCRITA = {"Write", "Edit", "NotebookEdit"}
+# O Tucano lê as skills dos plugins do Claude Code ligados na máquina — o da fábrica
+# inclusive — e o importador pula, sem avisar, skill com nome que já existe. Nome próprio
+# evita que a versão adaptada perca para a original, que cita caminhos do plugin.
+PREFIXO_SKILL = "forge-"
 
 
 # --- leitura dos canônicos ------------------------------------------------------------
@@ -97,7 +101,8 @@ def separar(texto: str) -> tuple[dict[str, str], str]:
 
 def para_o_projeto(texto: str) -> str:
     """Os caminhos do plugin viram os do projeto: o agente roda tudo da raiz dele."""
-    return texto.replace("${CLAUDE_PLUGIN_ROOT}", PASTA).replace("<plugin>/", f"{PASTA}/")
+    return (texto.replace("${CLAUDE_PLUGIN_ROOT}", PASTA).replace("<plugin>/", f"{PASTA}/")
+            .replace("/kairos-forge:", PREFIXO_SKILL))
 
 
 def preambulo(nome: str, papel: str, ferramentas: set[str]) -> str:
@@ -110,8 +115,11 @@ def preambulo(nome: str, papel: str, ferramentas: set[str]) -> str:
         "#loja, trabalhe na pasta emprestada `loja` (em `/projetos/`). Sem a pasta "
         "emprestada, peça antes de começar.\n"
         f"- **Os scripts da fábrica estão no projeto, em `{PASTA}/scripts/`.** Rode-os pelo seu "
-        f"computador, da raiz do projeto: `python3 {PASTA}/scripts/<script>.py`. Onde uma skill "
-        "citar `/kairos-forge:<nome>`, leia e siga a skill `<nome>`.\n"
+        f"computador, da raiz do projeto: `python3 {PASTA}/scripts/<script>.py`.\n"
+        f"- **As skills da fábrica aqui se chamam `{PREFIXO_SKILL}<nome>`** "
+        f"(`{PREFIXO_SKILL}especificar`, `{PREFIXO_SKILL}validar`…). Se aparecer uma de mesmo nome "
+        "sem o prefixo, é a do plugin do Claude Code: não use, ela cita caminhos que não existem "
+        "no seu computador.\n"
         "- **O estado mora no repositório, não na conversa:** SPEC em `docs/specs/`, ciclo do "
         f"`/entregar` em `python3 {PASTA}/scripts/ciclo.py estado <SPEC> --json`, relatórios em "
         "`docs/specs/validacoes/` e `docs/specs/revisoes/`. Leia o estado antes de agir e "
@@ -148,7 +156,7 @@ def skill(nome: str, agentes: list[str]) -> dict:
     for ref in sorted((pasta / "references").glob("*.md")):
         partes.append(f"# Referência: references/{ref.name}\n\n"
                       + ref.read_text(encoding="utf-8").strip())
-    return {"name": nome, "description": campos.get("description", "").strip(),
+    return {"name": PREFIXO_SKILL + nome, "description": campos.get("description", "").strip(),
             "body": para_o_projeto("\n\n---\n\n".join(partes)), "agents": agentes}
 
 
@@ -231,7 +239,11 @@ def problemas_dos_agentes(agentes: list[dict]) -> list[str]:
 
 def problemas_das_skills(skills: list[dict], handles: set[str]) -> list[str]:
     problemas = []
+    do_plugin = {p.parent.name for p in (ROOT / "skills").glob("*/SKILL.md")}
     for k in skills:
+        if k["name"] in do_plugin:
+            problemas.append(f"skill {k['name']}: mesmo nome de uma skill do plugin — o Tucano "
+                             "pularia a importação sem avisar")
         if set(k["agents"]) - handles:
             problemas.append(f"skill {k['name']}: agente que não está no time")
         if len(k["body"]) > TETO_RESULTADO:

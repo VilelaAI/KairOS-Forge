@@ -82,6 +82,19 @@ Antes de escrever, valida o time pelas regras do importador do Tucano. A primeir
 que mais engana: **modelo desconhecido vira `sonnet` sem aviso** na importação. Por isso a
 lista de modelos é fechada, e `--opencode-modelo` em branco recusa a instalação.
 
+### 5. As skills do time têm nome próprio (v0.40.1)
+
+A primeira importação real, no Tucano 0.2.6, trouxe 7 agentes e **1 skill**, quando o arquivo
+tinha 6. O motivo:
+- o Tucano lê as skills dos plugins do Claude Code ligados na máquina, o da fábrica inclusive;
+- o importador pula, sem avisar, skill cujo nome já existe;
+- a skill ligada vale para todos os agentes quando ninguém restringe.
+
+Resultado: o time ficava com as versões originais do plugin, que citam
+`${CLAUDE_PLUGIN_ROOT}` e não trazem as `references/`. As skills do time passam a se chamar
+`forge-<nome>`, as menções `/kairos-forge:<nome>` viram `forge-<nome>`, o preâmbulo manda não
+usar as homônimas sem prefixo, e o validador recusa nome igual ao de uma skill do plugin.
+
 ## Consequências
 
 - **O pedido funciona sem fork.** Você importa o time, empresta a pasta, liga o computador

@@ -82,6 +82,10 @@ SKILLS_ENTREGA = {
     "auditar": ["laura"],
 }
 ESCRITA = {"Write", "Edit", "NotebookEdit"}
+# O Tucano lê as skills dos plugins do Claude Code ligados na máquina — o da fábrica
+# inclusive — e o importador pula, sem avisar, skill com nome que já existe. Nome próprio
+# evita que a versão adaptada perca para a original, que cita caminhos do plugin.
+PREFIXO_SKILL = "forge-"
 
 
 # --- leitura dos canônicos ------------------------------------------------------------
@@ -97,27 +101,42 @@ def separar(texto: str) -> tuple[dict[str, str], str]:
 
 def para_o_projeto(texto: str) -> str:
     """Os caminhos do plugin viram os do projeto: o agente roda tudo da raiz dele."""
-    return texto.replace("${CLAUDE_PLUGIN_ROOT}", PASTA).replace("<plugin>/", f"{PASTA}/")
+    return (texto.replace("${CLAUDE_PLUGIN_ROOT}", PASTA).replace("<plugin>/", f"{PASTA}/")
+            .replace("/kairos-forge:", PREFIXO_SKILL))
 
 
 def preambulo(nome: str, papel: str, ferramentas: set[str]) -> str:
     consultivo = "" if ferramentas & ESCRITA else (
-        "- Na fábrica você é **consultivo**: lê, roda comandos de leitura e dá parecer, mas "
-        "não edita arquivos do projeto. Mudança, peça a quem constrói.\n")
+        "- Na fábrica você é **consultivo**: lê, roda comandos de leitura e dá parecer, e **não "
+        "edita código nem teste**. Os artefatos da fábrica que a skill pede você escreve: SPEC, "
+        "crítica, relatório de validação ou de revisão em `docs/specs/`, e o `registrar` do "
+        f"`{PASTA}/scripts/ciclo.py`. Mudança no código, peça a quem constrói.\n")
     return (
         f"## Você está no Tucano, como {nome} ({papel}) da fábrica KairOS-Forge\n\n"
         "- **O canal é o projeto.** Cada canal da fábrica tem o nome da pasta do projeto: no "
         "#loja, trabalhe na pasta emprestada `loja` (em `/projetos/`). Sem a pasta "
         "emprestada, peça antes de começar.\n"
         f"- **Os scripts da fábrica estão no projeto, em `{PASTA}/scripts/`.** Rode-os pelo seu "
-        f"computador, da raiz do projeto: `python3 {PASTA}/scripts/<script>.py`. Onde uma skill "
-        "citar `/kairos-forge:<nome>`, leia e siga a skill `<nome>`.\n"
+        f"computador, da raiz do projeto: `python3 {PASTA}/scripts/<script>.py`.\n"
+        f"- **As skills da fábrica aqui se chamam `{PREFIXO_SKILL}<nome>`** "
+        f"(`{PREFIXO_SKILL}especificar`, `{PREFIXO_SKILL}validar`…). Se aparecer uma de mesmo nome "
+        "sem o prefixo, é a do plugin do Claude Code: não use, ela cita caminhos que não existem "
+        "no seu computador.\n"
         "- **O estado mora no repositório, não na conversa:** SPEC em `docs/specs/`, ciclo do "
         f"`/entregar` em `python3 {PASTA}/scripts/ciclo.py estado <SPEC> --json`, relatórios em "
         "`docs/specs/validacoes/` e `docs/specs/revisoes/`. Leia o estado antes de agir e "
         "registre depois.\n"
-        "- **Passe a vez com @handle**, fora de bloco de código, dizendo o que o próximo faz e "
-        "onde está o artefato. Um próximo por vez.\n"
+        "- **O Tucano encadeia no máximo 3 respostas de agente por mensagem humana**, e corta a "
+        "passagem de vez que vier depois. Trabalhe em trechos que caibam nisso e terminem num ponto "
+        "de decisão humano: **planejar** (SPEC → críticas → consolidar e pedir aprovação), "
+        "**construir** (despachar → construir → validar) e **revisar** (revisões → correção → "
+        "pedir o PR).\n"
+        "- **Passe a vez com @handle direto para o dono do próximo passo**, fora de bloco de "
+        f"código; `python3 {PASTA}/scripts/ciclo.py estado <SPEC> --json` diz qual é. A Laura entra "
+        "para decidir, não para repassar. Críticos e revisores vão **juntos na mesma mensagem** "
+        "(até 3 @): rodam em paralelo, e um não lê o parecer do outro antes de escrever.\n"
+        "- **Termine toda resposta com o bastão:** `Estado: <estado do ciclo> · Próximo: @<handle> "
+        "<ação>`. Se o Tucano parar a conversa, o humano continua com `@<handle> segue`.\n"
         "- **Os guardrails em hook da fábrica não rodam aqui.** Respeite-os por conta própria: "
         "nada de `--no-verify`, nada de afrouxar teste existente ou config do linter sem dizer "
         f"por quê. Antes de pedir o PR, rode `python3 {PASTA}/scripts/guardrail.py verificar .`.\n"
@@ -148,7 +167,7 @@ def skill(nome: str, agentes: list[str]) -> dict:
     for ref in sorted((pasta / "references").glob("*.md")):
         partes.append(f"# Referência: references/{ref.name}\n\n"
                       + ref.read_text(encoding="utf-8").strip())
-    return {"name": nome, "description": campos.get("description", "").strip(),
+    return {"name": PREFIXO_SKILL + nome, "description": campos.get("description", "").strip(),
             "body": para_o_projeto("\n\n---\n\n".join(partes)), "agents": agentes}
 
 
@@ -231,7 +250,11 @@ def problemas_dos_agentes(agentes: list[dict]) -> list[str]:
 
 def problemas_das_skills(skills: list[dict], handles: set[str]) -> list[str]:
     problemas = []
+    do_plugin = {p.parent.name for p in (ROOT / "skills").glob("*/SKILL.md")}
     for k in skills:
+        if k["name"] in do_plugin:
+            problemas.append(f"skill {k['name']}: mesmo nome de uma skill do plugin — o Tucano "
+                             "pularia a importação sem avisar")
         if set(k["agents"]) - handles:
             problemas.append(f"skill {k['name']}: agente que não está no time")
         if len(k["body"]) > TETO_RESULTADO:

@@ -44,13 +44,28 @@ class TimeGerado(unittest.TestCase):
         self.assertIn("Lucas (Backend) da fábrica KairOS-Forge", por["lucas"])
         self.assertIn("Defensivo. Valida input.", por["lucas"])
         self.assertIn("consultivo", por["patricia"])     # allow-list sem Write/Edit
+        # Consultivo não mexe em código, mas grava o artefato da fábrica: sem isso a crítica
+        # e o relatório da Patrícia ficam só no canal e o ciclo.py não tem o que ler.
+        self.assertIn("não edita código nem teste", por["patricia"])
+        self.assertIn("relatório de validação ou de revisão em `docs/specs/`", por["patricia"])
         self.assertNotIn("consultivo", por["lucas"])
 
+    def test_preambulo_cabe_no_limite_de_3_respostas_do_tucano(self) -> None:
+        # O Tucano corta a cadeia na 3ª resposta de agente: o trecho termina num ponto de
+        # decisão, o bastão fica escrito e o humano retoma com @handle (sem @ decide o roteador).
+        laura = next(a["instructions"] for a in self.time["agents"] if a["handle"] == "laura")
+        self.assertIn("no máximo 3 respostas de agente", laura)
+        self.assertIn("juntos na mesma mensagem", laura)
+        self.assertIn("`Estado: <estado do ciclo> · Próximo: @<handle> <ação>`", laura)
+        self.assertIn("`@<handle> segue`", laura)
+
     def test_skill_traz_as_references_e_o_caminho_do_projeto(self) -> None:
-        entregar = next(k for k in self.time["skills"] if k["name"] == "entregar")
+        entregar = next(k for k in self.time["skills"] if k["name"] == "forge-entregar")
         self.assertIn("# Referência: references/escalacao.md", entregar["body"])
         self.assertIn(".kairos-forge/scripts/ciclo.py", entregar["body"])
         self.assertNotIn("${CLAUDE_PLUGIN_ROOT}", entregar["body"])
+        self.assertNotIn("/kairos-forge:", entregar["body"])
+        self.assertIn("forge-validar", entregar["body"])
         self.assertEqual(entregar["agents"], ["laura"])
 
     def test_canal_e_rotina_apontam_para_o_projeto(self) -> None:
@@ -98,6 +113,12 @@ class Validar(unittest.TestCase):
         self.time["agents"][0]["color"] = "violet"
         self.time["agents"][0]["effort"] = "max"
         self.assertIn("cor ou esforço", self.problemas())
+
+    def test_skill_com_nome_do_plugin_seria_pulada(self) -> None:
+        # O Tucano lê as skills do plugin da fábrica no Claude Code; nome igual = importação pulada.
+        self.assertTrue(all(k["name"].startswith("forge-") for k in self.time["skills"]))
+        self.time["skills"][0]["name"] = "especificar"
+        self.assertIn("mesmo nome de uma skill do plugin", self.problemas())
 
     def test_skill_de_quem_nao_esta_no_time_grande_ou_com_caminho_do_plugin(self) -> None:
         k = self.time["skills"][0]

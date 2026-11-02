@@ -82,6 +82,44 @@ Antes de escrever, valida o time pelas regras do importador do Tucano. A primeir
 que mais engana: **modelo desconhecido vira `sonnet` sem aviso** na importação. Por isso a
 lista de modelos é fechada, e `--opencode-modelo` em branco recusa a instalação.
 
+### 5. As skills do time têm nome próprio (v0.40.1)
+
+A primeira importação real, no Tucano 0.2.6, trouxe 7 agentes e **1 skill**, quando o arquivo
+tinha 6. O motivo:
+- o Tucano lê as skills dos plugins do Claude Code ligados na máquina, o da fábrica inclusive;
+- o importador pula, sem avisar, skill cujo nome já existe;
+- a skill ligada vale para todos os agentes quando ninguém restringe.
+
+Resultado: o time ficava com as versões originais do plugin, que citam
+`${CLAUDE_PLUGIN_ROOT}` e não trazem as `references/`. As skills do time passam a se chamar
+`forge-<nome>`, as menções `/kairos-forge:<nome>` viram `forge-<nome>`, o preâmbulo manda não
+usar as homônimas sem prefixo, e o validador recusa nome igual ao de uma skill do plugin.
+
+### 6. Consultivo não edita código, mas grava o artefato da fábrica (v0.40.1)
+
+No primeiro arco real, a Patrícia fez a crítica da SPEC no canal e recusou gravar o relatório
+e registrar no ciclo, porque o preâmbulo dizia que o consultivo "não edita arquivos do
+projeto". Sem o arquivo, o `ciclo.py` não tem o que ler. A regra passa a ser a da fábrica: o
+consultivo não edita **código nem teste**, mas escreve os artefatos que a skill pede (SPEC,
+crítica, relatório de validação ou de revisão em `docs/specs/`) e o `registrar` do ciclo.
+
+### 7. O arco em trechos de três (v0.40.1)
+
+O Tucano encadeia no máximo 3 respostas de agente por mensagem humana: é uma constante no
+código (`MAX_DEPTH` em `src/core/runs.ts`), não uma configuração. Quando corta, a passagem de
+vez pendente se perde, e a próxima mensagem sem @ vai para o roteador. Em vez de esperar o
+limite mudar, a fábrica se ajusta a ele. O preâmbulo passa a pedir quatro coisas:
+
+- **trechos que terminam num ponto de decisão humano:** planejar, construir e revisar, cada um
+  com até três respostas;
+- **passagem direta ao dono do próximo passo**, pelo estado do `ciclo.py`, com a Laura entrando
+  para decidir e não para repassar;
+- **críticos e revisores juntos na mesma menção**, que o Tucano roda em paralelo, o que também
+  deixa a crítica mais independente (ADR-0033);
+- **toda resposta terminando com o bastão escrito:** `Estado: … · Próximo: @fulano …`.
+
+Um limite do Tucano vira, assim, os três pontos em que uma pessoa olha o arco.
+
 ## Consequências
 
 - **O pedido funciona sem fork.** Você importa o time, empresta a pasta, liga o computador

@@ -115,3 +115,34 @@ time a ignorar o vermelho.
 | Instalar o plugin via marketplace no CI | O comando é TUI e não roda headless. Copiar `plugin/skills` e `plugin/agents` para `.claude/` é o caminho portátil documentado |
 | Rodar `entregar` (arco completo) por gatilho | Arco completo dispara o gate de aprovação da SPEC, que precisa de humano. Gatilho por evento serve para o que fecha sem decisão de escopo: revisar, corrigir, auditar |
 | Não entregar templates e deixar o usuário montar | Era o estado até a v0.18, e o resultado observado é que ninguém monta. Fábrica que não entrega a esteira entrega bancada |
+
+## Emenda (v0.41.3): fronteira de confiança
+
+Os templates passavam texto de fora ao `claude -p` sem marcá-lo como dado e sem declarar
+ferramentas, e o `corrigir` interpolava o nome do branch no script com `${{ }}`. A
+leitura de dois artigos sobre fábricas de agentes levou à conferência: o *How to Build
+an Agent Factory* trata saída de ferramenta como dado não confiável. A conferência achou
+três caminhos:
+
+- **CI de fork no `corrigir`.** O `workflow_run` roda no contexto da base, com o segredo e
+  token de escrita. Um branch de fork com o mesmo nome de um branch da base passava pelo
+  checkout e entregava ao agente um log escrito por quem abriu o PR.
+- **Nome de branch no script.** `git checkout -b "forge/corrige-${{ ...head_branch }}"`
+  executa `$(...)` contido no nome. O checkout de antes bloqueava o caso de fork por
+  acaso, não por desenho.
+- **Ferramentas e hooks do branch.** Sem ferramentas na linha de comando, quem decidia
+  era o `.claude/settings.json` do branch. E o `claude -p` roda os hooks e os servidores
+  MCP do projeto mesmo numa pasta nunca confiada.
+
+Decisão: a regra 6 do `templates/ci/README.md`. Nada de `${{ }}` de texto do evento em
+`run:`; cada `claude -p` declara as ferramentas (`--allowedTools`, `--disallowedTools`),
+desliga hooks e MCP do projeto e diz no prompt que o texto de fora é dado; o `corrigir`
+filtra fork e só roda o comando de teste declarado em `GATE`.
+
+Efeito colateral: nas versões recentes do Claude Code, `claude -p` sem regra de allow
+nega edição e Bash, e o allow do `.claude/settings.json` não vale numa pasta nunca
+confiada, como a do runner. O `corrigir` provavelmente não conseguia editar; não foi
+conferido num runner. Agora ele edita por `--permission-mode acceptEdits` e roda só o
+`GATE`.
+
+O `scripts/tests/test_ci.py` lê os YAML e roda cada `claude -p` contra uma CLI falsa.

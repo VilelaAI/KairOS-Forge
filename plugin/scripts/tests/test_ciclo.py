@@ -458,6 +458,49 @@ class ReRevisao(Sandbox):
         self.assertIn("pendentes_revisao", c["campos"])
 
 
+class AjudaEOpcaoDesconhecida(Sandbox):
+    """`ciclo.py abrir -h` abria um ciclo para a SPEC "-h"; ajuda e erro de digitação não abrem nada."""
+
+    def ciclos(self) -> list[str]:
+        pasta = Path(".agents/ciclo")
+        return sorted(p.name for p in pasta.glob("*.json")) if pasta.is_dir() else []
+
+    def test_ajuda_em_qualquer_posicao_mostra_o_uso_e_sai_zero(self) -> None:
+        for args in (["-h"], ["--help"], ["abrir", "-h"], ["abrir", "SPEC-001", "--help"],
+                     ["registrar", "-h"], ["estado", "--json", "-h"]):
+            codigo, out, _ = rodar(*args)
+            self.assertEqual(codigo, 0, args)
+            self.assertIn("ciclo.py", out, args)
+        self.assertEqual(self.ciclos(), [])
+
+    def test_opcao_desconhecida_recusa_sem_abrir(self) -> None:
+        codigo, _, err = rodar("abrir", "--spec-aprovad", "SPEC-001")
+        self.assertEqual(codigo, 1)
+        self.assertIn("opção desconhecida: --spec-aprovad", err)
+        self.assertEqual(self.ciclos(), [])
+
+    def test_so_opcoes_sem_comando_e_erro_e_nao_excecao(self) -> None:
+        codigo, _, err = rodar("--json")
+        self.assertEqual(codigo, 1)
+        self.assertIn("falta o comando", err)
+
+    def test_sem_argumento_continua_saindo_um(self) -> None:
+        codigo, out, _ = rodar()
+        self.assertEqual(codigo, 1)
+        self.assertIn("ciclo.py", out)
+
+    def test_orcamento_com_nome_errado_era_ignorado_e_agora_recusa(self) -> None:
+        codigo, _, err = rodar("abrir", "SPEC-001", "--orcamento-validacao", "3")
+        self.assertEqual(codigo, 1)
+        self.assertIn("--orcamento-validacao", err)
+        self.assertEqual(self.ciclos(), [])
+
+    def test_opcoes_conhecidas_seguem_valendo(self) -> None:
+        self.assertEqual(rodar("abrir", "SPEC-001", "--spec-aprovada", "--orcamento-validar", "3")[0], 0)
+        self.assertEqual(self.ciclos(), ["SPEC-001.json"])
+        self.assertEqual(estado()["orcamento"]["validar"], 3)
+
+
 class BranchDoCiclo(Sandbox):
     """O guardrail julga o `gh pr create` pela branch do ciclo — o `abrir` grava qual é."""
 

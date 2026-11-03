@@ -76,6 +76,10 @@ EXT_PRODUCAO = re.compile(
 )
 EH_TESTE = re.compile(r"(^|/)(tests?|specs?|__tests__|e2e|playwright)/|\.(test|spec)\.")
 
+
+def eh_producao(arquivo: str) -> bool:
+    return bool(EXT_PRODUCAO.search(arquivo)) and not EH_TESTE.search(arquivo)
+
 SKILLS = re.compile(
     r"/(?:kairos-forge:)?(onboardar|mapear-arquitetura|especificar|analisar-ameacas"
     r"|desenhar|mobilizar|rodar|validar|revisar|lancar|entregar|avaliar"
@@ -91,14 +95,38 @@ def redigir(texto: str) -> str:
     return texto
 
 
+def _relativo(caminho: str, base) -> str | None:
+    """`caminho` relativo a `base`; None quando fica fora dela (ou não dá para resolver)."""
+    try:
+        return str(Path(caminho).resolve().relative_to(Path(base or ".").resolve()))
+    except Exception:
+        return None
+
+
 def relativizar(caminho: str, cwd: str | None) -> str:
     """Caminho relativo à raiz do projeto — mais legível e sem expor a árvore da máquina."""
     if not caminho:
         return ""
+    rel = _relativo(caminho, cwd)
+    return caminho[-LIMITE_ARQ:] if rel is None else rel
+
+
+def raiz_do_checkout(cwd: str | None) -> Path:
+    """A pasta mais próxima com `.git`, de `cwd` para cima; sem nenhuma, o próprio `cwd`."""
     try:
-        return str(Path(caminho).resolve().relative_to(Path(cwd or ".").resolve()))
-    except Exception:
-        return caminho[-LIMITE_ARQ:]
+        inicio = Path(cwd or ".").resolve()
+        return next((p for p in (inicio, *inicio.parents) if (p / ".git").exists()), inicio)
+    except (OSError, RuntimeError):
+        return Path(cwd or ".")
+
+
+def no_projeto(caminho: str, cwd: str | None) -> bool:
+    """Escrita fora do checkout (o scratchpad do Claude Code, `/tmp`) não é do projeto.
+
+    O gate de parada contava o script de medição do scratchpad como produção sem gate
+    verde depois — falso positivo numa sessão que não tinha tocado o código do projeto.
+    """
+    return bool(caminho) and _relativo(caminho, raiz_do_checkout(cwd)) is not None
 
 
 def classificar_gate(cmd: str) -> str | None:
@@ -206,14 +234,12 @@ def ev_ferramenta(p: dict) -> dict | None:
         }
 
     if nome in ("Write", "Edit", "NotebookEdit", "MultiEdit"):
-        arquivo = relativizar(
-            str(entrada.get("file_path") or entrada.get("notebook_path") or ""),
-            p.get("cwd"),
-        )
+        bruto = str(entrada.get("file_path") or entrada.get("notebook_path") or "")
+        arquivo = relativizar(bruto, p.get("cwd"))
         return {
             "tipo": "escrita",
             "arquivo": arquivo,
-            "producao": bool(EXT_PRODUCAO.search(arquivo)) and not bool(EH_TESTE.search(arquivo)),
+            "producao": eh_producao(arquivo) and no_projeto(bruto, p.get("cwd")),
             "ferramenta": nome,
         }
 

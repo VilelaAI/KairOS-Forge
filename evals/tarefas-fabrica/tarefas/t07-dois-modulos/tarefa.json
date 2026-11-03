@@ -1,0 +1,9 @@
+{
+  "id": "t07-dois-modulos",
+  "tipo": "construir",
+  "titulo": "Duas funções independentes (candidata a trabalho paralelo)",
+  "prompt": "Duas funções novas, independentes uma da outra: `por_regiao(vendas)` em `vendas/agregacao.py`, que devolve {regiao: total} só com as linhas de valor válido; e `formatar_reais(valor)` em `vendas/formato.py`, que devolve o valor no formato `R$ 1.234,56` (negativo como `-R$ 1.234,56`).",
+  "oraculo": true,
+  "checagens": [],
+  "tempo_limite_s": 900
+}

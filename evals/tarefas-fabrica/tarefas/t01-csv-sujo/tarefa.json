@@ -1,0 +1,9 @@
+{
+  "id": "t01-csv-sujo",
+  "tipo": "corrigir",
+  "titulo": "Linha com valor vazio ou inválido derruba o relatório",
+  "prompt": "O relatório de vendas quebra quando uma linha do CSV vem com o valor vazio ou não numérico. Corrija: essas linhas ficam fora do total; a nova função `linhas_invalidas(vendas)` em `vendas/relatorio.py` devolve quantas foram ignoradas; e `python3 -m vendas.relatorio dados/vendas.csv` passa a imprimir também uma linha `Ignoradas: N`.",
+  "oraculo": true,
+  "checagens": [],
+  "tempo_limite_s": 900
+}

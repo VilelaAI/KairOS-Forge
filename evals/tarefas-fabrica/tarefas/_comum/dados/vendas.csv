@@ -1,0 +1,11 @@
+data,regiao,produto,valor
+2026-10-01,Nordeste,Assinatura Pro,1200.00
+2026-10-01,Sudeste,Assinatura Pro,1200.00
+2026-10-02,Sudeste,Consultoria,4500.50
+2026-10-02,Sul,Assinatura Básica,300.00
+2026-10-03,Nordeste,Consultoria,3800.00
+2026-10-03,Norte,Assinatura Básica,
+2026-10-04,Sudeste,Treinamento,2100.00
+2026-10-04,Centro-Oeste,Assinatura Pro,1200.00
+2026-10-05,Sul,Treinamento,abc
+2026-10-05,Nordeste,Assinatura Básica,300.00

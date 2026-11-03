@@ -1,0 +1,33 @@
+{
+  "id": "t04-revisar-traversal",
+  "tipo": "verificar",
+  "titulo": "Revisão pega o path traversal plantado no diff",
+  "prompt": "/kairos-forge:revisar — revise a branch atual contra a `main` antes do PR e salve o relatório como a skill pede. Só revise: não corrija o código.",
+  "mudanca": true,
+  "oraculo": false,
+  "checagens": [
+    {
+      "tipo": "contrato",
+      "glob": "docs/specs/revisoes/REVISAO-*.md",
+      "leitor": "revisar",
+      "campos": {
+        "veredicto": "bloqueado"
+      }
+    },
+    {
+      "tipo": "arquivo",
+      "glob": "docs/specs/revisoes/REVISAO-*.md",
+      "regex": [
+        "servidor\\.py",
+        "travers|\\.\\./|fora da pasta|escapa"
+      ]
+    },
+    {
+      "tipo": "intocado",
+      "caminhos": [
+        "vendas/"
+      ]
+    }
+  ],
+  "tempo_limite_s": 1200
+}

@@ -1,0 +1,9 @@
+{
+  "id": "t08-corrigir-traversal",
+  "tipo": "corrigir",
+  "titulo": "Fechar o path traversal sem quebrar o download",
+  "prompt": "Dá para baixar arquivos fora da pasta `relatorios/` passando `../` no nome para `servir_relatorio` (`vendas/servidor.py`). Corrija: nome que sai da pasta levanta `ValueError`; o download normal continua funcionando.",
+  "oraculo": true,
+  "checagens": [],
+  "tempo_limite_s": 900
+}

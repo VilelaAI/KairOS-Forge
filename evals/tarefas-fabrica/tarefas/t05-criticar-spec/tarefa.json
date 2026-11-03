@@ -1,0 +1,35 @@
+{
+  "id": "t05-criticar-spec",
+  "tipo": "verificar",
+  "titulo": "Crítica adversarial acha o adjetivo e a contradição plantados",
+  "prompt": "Faça a crítica adversarial da SPEC-001 em `docs/specs/` (o passo 7 do /kairos-forge:especificar): ataque requisito, plano e testabilidade e salve o relatório de crítica com o bloco de contrato. Não altere a SPEC.",
+  "oraculo": false,
+  "checagens": [
+    {
+      "tipo": "contrato",
+      "glob": "docs/specs/criticas/CRITICA-SPEC-001-*.md",
+      "leitor": "criticar",
+      "campos": {
+        "veredicto": "bloqueado"
+      },
+      "minimos": {
+        "achados": 2
+      }
+    },
+    {
+      "tipo": "arquivo",
+      "glob": "docs/specs/criticas/CRITICA-SPEC-001-*.md",
+      "regex": [
+        "EXP-02",
+        "EXP-03"
+      ]
+    },
+    {
+      "tipo": "intocado",
+      "caminhos": [
+        "docs/specs/SPEC-001-exportar-json.md"
+      ]
+    }
+  ],
+  "tempo_limite_s": 1200
+}

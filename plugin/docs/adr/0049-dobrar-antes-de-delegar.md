@@ -1,0 +1,116 @@
+# ADR-0049 — Dobrar antes de delegar: subagente só onde ganha o contexto
+
+- **Status:** proposto. Os critérios, o eval e a auditoria valem já; as mudanças de comportamento
+  esperam a linha de base do eval e a sua concordância com os veredictos.
+- **Data:** 2026-11-03
+- **Versão:** v0.42.0
+
+## Contexto
+
+O artigo da Anthropic *Building agents: when to fold subagents into your main agent loop*
+(out/2026) e o [single-agent-loop-kit](https://github.com/anthropics/single-agent-loop-kit)
+(Apache 2.0) relatam algo que a equipe de IA aplicada viu em várias implantações: um agente só,
+com skills e ferramentas carregadas sob demanda, muitas vezes supera tanto o prompt único quanto
+o desenho com subagentes. Supera em qualidade e, com frequência, também em custo e latência.
+
+Subagente continua valendo em três casos:
+- o loop principal incha com o que ele lê;
+- trabalho paralelo, ou verificação independente;
+- conflito de ferramentas que skills não resolvem.
+
+Persona própria, dono diferente, prompt longo e passos fixos não são motivo. O artigo chama de
+lei de Conway a arquitetura que copia o organograma.
+
+A fábrica tem 71 personas em 11 times e 10 squads. A auditoria
+([`docs/loop-unico/AUDITORIA.md`](../loop-unico/AUDITORIA.md)) mostrou um retrato diferente do
+organograma:
+- **17 das 18 skills não abrem subagente.** A persona fala no mesmo contexto, e o arquivo dela
+  não é lido.
+- **Só o `/mobilizar` abre subagente,** em onda paralela.
+- **A verificação não é independente.** A crítica adversarial, a revisão e a validação, que
+  pelo próprio critério do artigo deveriam ganhar contexto independente, fazem papel no mesmo
+  contexto que produziu o artefato. A independência é cobrada pelo nome da persona, não pelo
+  contexto.
+
+Faltava também o número que decide: nenhum eval media se a tarefa ficou pronta.
+
+## Decisão
+
+### 1. Critério escrito para delegar
+
+Uma skill só abre subagente quando vale um dos três casos do artigo, e diz qual. Fora deles, o
+papel entra no loop principal, e o conhecimento da persona entra como `references/` carregável.
+O critério vale para o que for escrito daqui em diante. O que já existe muda pela lista de
+trabalho da auditoria, um item por vez.
+
+### 2. Eval de tarefa concluída de ponta a ponta
+
+O `evals/tarefas-fabrica/` (dogfooding, não distribuído) tem oito tarefas:
+- três de corrigir, duas de construir (uma é o arco inteiro do `/entregar`), duas de verificar
+  (com defeitos plantados) e uma de perguntar;
+- todas sobre o `relatorio-vendas`.
+
+O que decide se a tarefa ficou pronta é código:
+- o oráculo escondido;
+- as checagens lidas do disco (bloco de contrato válido, estado do ciclo, arquivo intocado,
+  resposta que pergunta).
+
+`rodar.py validar` roda no CI, sem modelo e sem custo. Ele exige três coisas de cada tarefa:
+- o projeto como está é reprovado;
+- a solução de referência é aprovada;
+- cada solução errada conhecida é reprovada.
+
+A rodada paga (`rodar.py rodar`) usa `claude -p` com o plugin por `--plugin-dir` e sem as
+configurações de quem roda. Ela grava rota de subagentes, skills, tokens e duração por tarefa e
+rep. O `comparar` lista o que piorou, o que melhorou e onde a rota mudou.
+
+### 3. Auditoria com veredicto por persona
+
+O `docs/loop-unico/inventario.tsv` dá a cada persona um veredicto, com evidência e confiança:
+
+| Veredicto | Personas |
+|---|---|
+| `principal` | 1 |
+| `como-ferramenta` | 36: 18 na verificação, 16 só na onda paralela, 2 leitores pesados |
+| `juntar` | 22, em 7 squads de apoio |
+| `dobrar` | 12 |
+
+A `AUDITORIA.md` ordena a lista de trabalho:
+1. linha de base;
+2. verificação isolada;
+3. juntar o apoio;
+4. correção no loop do `/entregar`;
+5. dobrar o resto;
+6. o Tucano de 7 para 3.
+
+### 4. Nada muda sem medida
+
+Cada item da lista é uma variante do eval, comparada com a última que ficou. Fica só se a
+tarefa concluída não piorar. Toda rodada paga pede ok, com tamanho e estimativa de tokens.
+
+## Consequências
+
+- **A primeira mudança provável vai contra a tese do artigo:** mais subagente, não menos, na
+  verificação. É o caso que o próprio artigo defende, a verificação às cegas, e a fábrica não
+  fazia.
+- **O organograma de 71 personas continua como identidade e como dono de conhecimento,** mas
+  deixa de ser arquitetura. Personas juntadas ou dobradas viram `references/`, não somem do texto.
+- **O eval de roteamento perde peso à medida que as personas dobram.** O artigo trata a precisão
+  de roteamento como métrica de transição; depois da dobra, a pergunta passa a ser se o loop
+  carregou a skill ou a reference certa.
+- **A rodada paga tem custo e precisa do Claude Code autenticado** numa máquina descartável
+  (`bypassPermissions` numa pasta temporária). Por isso ela não está no CI, só a validação seca.
+- **O tráfego da auditoria é inferido do texto.** O real viria dos eventos de delegação do
+  `execucao.py` nos projetos dos usuários, e juntar isso é outro passo.
+
+## Alternativas consideradas
+
+- **Dobrar direto, sem eval.** Recusado. O artigo e o kit insistem em medir antes, e o caso do
+  agente de suporte deles mostra por quê: uma dobra baixou a latência e quebrou um processo que
+  passava, o que só apareceu numa de duas rodadas.
+- **Usar o kit como está.** O kit lê código de orquestração e espera traces de produção. A
+  orquestração da fábrica é prosa nas skills, e as tarefas precisam do projeto e das checagens
+  da fábrica (contrato, ciclo). Ficaram o desenho em variantes, a comparação por tarefa e a
+  regra de uma mudança por vez; o código é próprio.
+- **Juiz-LLM para a qualidade da crítica e da revisão.** Adiado. Defeito plantado e regex pegam o
+  essencial sem juiz. O juiz entra pela higiene do `/avaliar` quando o eval crescer.

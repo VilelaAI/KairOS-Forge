@@ -903,11 +903,32 @@ def listar() -> int:
     return 0
 
 
+def sem_comando(args: list[str]) -> int | None:
+    """Nenhum argumento ou ajuda pedida: imprime o uso e devolve o código de saída; senão None.
+
+    `ciclo.py abrir -h` abria um ciclo para uma SPEC chamada "-h": o agente pediu ajuda e
+    ganhou um `.agents/ciclo/-h.json`.
+    """
+    if args and not any(a in ("-h", "--help") for a in args):
+        return None
+    print(__doc__.strip())
+    return 0 if args else 1
+
+
+def recusar_opcao_desconhecida(args: list[str]) -> None:
+    """O que sobra começando com `-` depois das opções conhecidas é erro, nunca id de SPEC."""
+    sobra = [a for a in args if a.startswith("-")]
+    if sobra:
+        sys.exit(f"erro: opção desconhecida: {' '.join(sobra)} — veja: ciclo.py --help")
+    if not args:
+        sys.exit("erro: falta o comando — veja: ciclo.py --help")
+
+
 def main() -> int:
     args = sys.argv[1:]
-    if not args:
-        print(__doc__.strip())
-        return 1
+    codigo = sem_comando(args)
+    if codigo is not None:
+        return codigo
 
     como_json = "--json" in args
     args = [a for a in args if a != "--json"]
@@ -930,6 +951,7 @@ def main() -> int:
     nota = opcao("--nota", str, None)
     spec_aprovada = "--spec-aprovada" in args
     args = [a for a in args if a != "--spec-aprovada"]
+    recusar_opcao_desconhecida(args)
 
     cmd = args[0]
     resto = args[1:]

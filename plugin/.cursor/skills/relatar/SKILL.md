@@ -25,6 +25,8 @@ Esta skill **lê e relata**. Não roda gate, não muda SPEC, ciclo nem quadro. A
    andamento, a mesma régua do `painel.py`.
 5. **Notícia ruim primeiro.** Ciclo escalado, tarefa bloqueada e gate esperando alguém abrem
    o relatório.
+6. **Meça a linha, nunca as pessoas.** Nenhum número por nome de pessoa: painel com nome vira
+   ranking, e ranking faz o time contornar a medição.
 
 ## Passo 0 — janela e alvo
 
@@ -42,7 +44,8 @@ raiz do projeto.
 | O que entregamos? | `telemetria.py prs --dias N` | PRs mesclados, quantos têm código da fábrica e quantos não tiveram nenhum commit humano. Com `--fonte git`, só merges com commit de merge (squash não aparece) |
 | Em que pé estão as SPECs? | `painel.py --json --dias N [SPEC]` | Progresso por SPEC, P1 abertos, `sem_prova`, último veredicto de crítica, validação e revisão, estado de cada ciclo |
 | O que espera por alguém? | `painel.py --caixa` (com `--github` se o usuário autorizar o `gh`) | Gate humano, SPEC alterada depois de aprovada, ciclo escalado, tarefa bloqueada ou vencida |
-| Quanto custou? | `telemetria.py tokens --dias N`; por tarefa, `quadro.py ledger <slug>` | Tokens novos e cache lido por sessão; no ledger, por tarefa concluída, desfeita e em aberto |
+| Quanto custou? | `telemetria.py por-spec --dias N`; por sessão, `telemetria.py tokens`; por tarefa, `quadro.py ledger <slug>` | Tokens novos e cache lido por SPEC (a chave é o branch do ciclo, o id no nome do branch ou o id citado; o resto fica em "sem SPEC"); no ledger, por tarefa concluída, desfeita e em aberto |
+| Onde o trabalho esperou? | `telemetria.py espera --dias N` | Por ciclo: lead time, trabalho e espera por pessoa (os gates `aguardando_*` e o PR esperando merge), a maior espera e as voltas de correção |
 | Como foi o processo? | `telemetria.py resumo --dias N` | Gates verdes de primeira, rodadas de correção, recusas e falhas do guardrail, sessões com produção sem gate |
 | A revisão está acertando? | `telemetria.py ruido --dias N` | Achados descartados por revisor |
 | Que decisões entraram? | `git log --since="N days ago" --diff-filter=A --name-only --format= -- docs/adr decisoes` | ADRs e registros novos no período; o título é a primeira linha `# ` |
@@ -75,8 +78,11 @@ Entregue: <1 linha> · Em andamento: <1 linha> · Travado: <1 linha>
 ## Processo
 <gates verdes de primeira, rodadas de correção, recusas e falhas do guardrail, ruído da revisão>
 
+## Onde esperou
+<espera por pessoa em % do tempo de ciclo, a maior espera e em qual estado>
+
 ## Custo em tokens
-<novos e cache lido; "não medido" onde não há hook>
+<por SPEC, novos e cache lido; "não medido" onde não há hook>
 
 ## Riscos e próximos passos
 <RAID do Breno, se existir em decisoes/gestao/; follow-ups com dono e data>

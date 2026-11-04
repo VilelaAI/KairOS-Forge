@@ -21,6 +21,10 @@ Uso:
                                                   # (ADR-0044) — funciona sem hook
     telemetria.py tokens [--dias 7] [--json]      # tokens por sessão, como o transcript
                                                   # registrou (ADR-0048)
+    telemetria.py por-spec [--dias 7] [--json]    # os mesmos tokens somados por SPEC, pela
+                                                  # chave do branch (ADR-0050, emenda)
+    telemetria.py espera [--dias 30] [--json]     # tempo por estado de cada ciclo: quanto
+                                                  # foi trabalho e quanto esperou alguém
 
 Definições (explícitas de propósito — métrica sem definição é chute com casa decimal):
 
@@ -283,7 +287,187 @@ def _cmd_sessoes(eventos: list[dict], como_json: bool) -> int:
     return 0
 
 
-SIMPLES = {"sessoes": _cmd_sessoes, "tokens": cmd_tokens}
+# --- custo por SPEC: a chave entre sessão e SPEC (aula 5 do Tech Leads Club) ---------
+# Cada sessão grava o branch (início e cada Stop) e os ids de SPEC citados no prompt. A
+# SPEC da sessão sai, nesta ordem: do ciclo aberto naquele branch, do id no nome do branch,
+# do primeiro id citado. Sessão sem nenhum dos três fica em "sem SPEC" e continua medida.
+
+SPEC_NO_TEXTO = re.compile(r"\bSPEC-\d+\b", re.I)
+
+
+def ler_ciclos(raiz: Path) -> list[dict]:
+    pasta = raiz / ".agents" / "ciclo"
+    saida = []
+    for arq in sorted(pasta.glob("*.json")) if pasta.is_dir() else []:
+        try:
+            saida.append(json.loads(arq.read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            continue
+    return saida
+
+
+def spec_da_sessao(evs: list[dict], spec_do_branch: dict[str, str]) -> tuple[str | None, str]:
+    """(SPEC, por onde foi achada) — `ciclo`, `branch`, `prompt` ou `sem chave`."""
+    branch = next((ev["branch"] for ev in reversed(evs) if ev.get("branch")), None)
+    no_nome = SPEC_NO_TEXTO.search(branch or "")
+    citada = next((ev["specs"][0] for ev in evs if ev.get("specs")), None)
+    for spec, via in ((spec_do_branch.get(branch or ""), "ciclo"),
+                      (no_nome.group(0).upper() if no_nome else None, "branch"),
+                      (citada, "prompt")):
+        if spec:
+            return spec, via
+    return None, "sem chave"
+
+
+def tokens_por_spec(eventos: list[dict], raiz: Path) -> dict:
+    spec_do_branch = {c["branch"]: c["spec"] for c in ler_ciclos(raiz) if c.get("branch")}
+    grupos: dict[str, list[dict]] = defaultdict(list)
+    for ev in eventos:
+        grupos[ev.get("sessao", "?")].append(ev)
+    specs: dict[str, dict] = {}
+    for sid, uso in ultimas_leituras(eventos).items():
+        spec, via = spec_da_sessao(grupos.get(sid, []), spec_do_branch)
+        r = specs.setdefault(spec or "sem SPEC", {"sessoes": 0, "novos": 0, "cache_lido": 0,
+                                                   "por": {}})
+        r["sessoes"] += 1
+        r["novos"] += novos(uso)
+        r["cache_lido"] += int(uso.get("cache_leitura") or 0)
+        r["por"][via] = r["por"].get(via, 0) + 1
+    ordem = sorted(specs.items(), key=lambda kv: (kv[0] == "sem SPEC", -kv[1]["novos"]))
+    return {"medido": bool(specs), "specs": dict(ordem)}
+
+
+def cmd_por_spec(eventos: list[dict], raiz: Path, como_json: bool) -> int:
+    r = tokens_por_spec(eventos, raiz)
+    if como_json:
+        print(json.dumps(r, ensure_ascii=False, indent=2))
+    elif not r["medido"]:
+        print("Tokens por SPEC não medidos: nenhuma leitura do hook Stop na janela. Hoje só "
+              "o Claude Code grava (ADR-0048).")
+    else:
+        print(f"{'SPEC':<14} {'sessões':>8} {'novos':>10} {'cache lido':>11}  chave")
+        print("-" * 64)
+        for spec, v in r["specs"].items():
+            chave = ", ".join(f"{k} {n}" for k, n in v["por"].items())
+            print(f"{spec:<14} {v['sessoes']:>8} {formatar(v['novos']):>10} "
+                  f"{formatar(v['cache_lido']):>11}  {chave}")
+    return 0
+
+
+# --- tempo e espera por estado do ciclo (aula 5 do Tech Leads Club) ---------------
+# Acelerar o código 10× rende uns 10% na entrega, porque o trabalho passa a maior parte do
+# tempo esperando alguém: a lei de Amdahl no ciclo de desenvolvimento. O histórico de cada
+# ciclo já tem a hora de cada transição; esta conta só lê. Esperar pessoa = os estados
+# `aguardando_*` (os três gates do planejamento) e `pronto_para_pr` (o PR esperando merge).
+# `escalado` e `encerrado` são terminais: o relógio para neles.
+
+TERMINAIS_DO_CICLO = {"encerrado", "escalado"}
+
+
+def esperando_pessoa(estado: str) -> bool:
+    return estado.startswith("aguardando_") or estado == "pronto_para_pr"
+
+
+def _instante(t) -> datetime | None:
+    try:
+        d = datetime.fromisoformat(str(t))
+    except (TypeError, ValueError):
+        return None
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+
+def _horas(segundos: float) -> float:
+    return round(segundos / 3600, 1)
+
+
+def segundos_por_estado(hist: list[tuple[str, datetime]], agora: datetime) -> dict[str, float]:
+    soma: dict[str, float] = defaultdict(float)
+    for i, (estado, inicio) in enumerate(hist):
+        fim = hist[i + 1][1] if i + 1 < len(hist) else (None if estado in TERMINAIS_DO_CICLO
+                                                       else agora)
+        if fim is not None:
+            soma[estado] += max(0.0, (fim - inicio).total_seconds())
+    return soma
+
+
+def tempos_do_ciclo(c: dict, agora: datetime) -> dict | None:
+    hist = [(h.get("para"), _instante(h.get("t"))) for h in c.get("historico") or []]
+    hist = [(e, t) for e, t in hist if e and t]
+    if not hist:
+        return None
+    por_estado = segundos_por_estado(hist, agora)
+    espera = {e: s for e, s in por_estado.items() if esperando_pessoa(e)}
+    total = sum(por_estado.values())
+    maior = max(espera.items(), key=lambda kv: kv[1], default=(None, 0.0))
+    return {
+        "spec": c.get("spec"), "estado": c.get("estado"), "ultima": hist[-1][1].isoformat(),
+        "lead_h": _horas(total), "espera_h": _horas(sum(espera.values())),
+        "trabalho_h": _horas(total - sum(espera.values())),
+        "espera_pct": round(100 * sum(espera.values()) / total) if total else None,
+        "maior_espera": {"estado": maior[0], "h": _horas(maior[1])} if maior[0] else None,
+        "voltas": {g: sum(1 for e, _ in hist if e == f"corrigindo_{g}")
+                   for g in ("spec", "validacao", "revisao")},
+    }
+
+
+def espera_dos_ciclos(raiz: Path, dias: int | None, agora: datetime | None = None) -> dict:
+    agora = agora or datetime.now(timezone.utc)
+    corte = agora - timedelta(days=dias) if dias else None
+    linhas = []
+    for c in ler_ciclos(raiz):
+        t = tempos_do_ciclo(c, agora)
+        aberto = c.get("estado") not in TERMINAIS_DO_CICLO
+        if t and (aberto or corte is None or datetime.fromisoformat(t["ultima"]) >= corte):
+            linhas.append(t)
+    total = sum(l["lead_h"] for l in linhas)
+    espera = sum(l["espera_h"] for l in linhas)
+    return {"ciclos": linhas, "lead_h": round(total, 1), "espera_h": round(espera, 1),
+            "espera_pct": round(100 * espera / total) if total else None}
+
+
+def _h(x: float) -> str:
+    return f"{x:.1f} h".replace(".", ",")
+
+
+def cmd_espera(raiz: Path, dias: int | None, como_json: bool) -> int:
+    r = espera_dos_ciclos(raiz, dias)
+    if como_json:
+        print(json.dumps(r, ensure_ascii=False, indent=2))
+        return 0
+    janela = f"últimos {dias} dias" if dias else "todo o histórico"
+    print(f"⏱️  Tempo por estado do ciclo — {janela} (e os ciclos abertos)\n")
+    if not r["ciclos"]:
+        print("   nenhum ciclo em .agents/ciclo/ — o /entregar abre um por SPEC.")
+        return 0
+    for l in r["ciclos"]:
+        maior = (f" · maior espera: {l['maior_espera']['estado']} {_h(l['maior_espera']['h'])}"
+                 if l["maior_espera"] else "")
+        voltas = ", ".join(f"{g} {n}" for g, n in l["voltas"].items() if n) or "nenhuma"
+        print(f"   {l['spec']:<10} {l['estado']:<22} lead {_h(l['lead_h'])} · trabalho "
+              f"{_h(l['trabalho_h'])} · esperando pessoa {_h(l['espera_h'])} "
+              f"({l['espera_pct']}%){maior} · voltas: {voltas}")
+    print(f"\n   Total: {len(r['ciclos'])} ciclo(s), esperando pessoa {r['espera_pct']}% do "
+          "tempo. Esperar pessoa = aguardando_* e pronto_para_pr (PR esperando merge).")
+    return 0
+
+
+def _cmd_ruido(raiz: Path, dias: int | None, como_json: bool) -> int:
+    r = ruido(raiz, dias)
+    if como_json:
+        print(json.dumps(r, ensure_ascii=False, indent=2))
+    else:
+        imprimir_ruido(r, dias)
+    return 0
+
+
+# Comandos que só leem e mostram: (eventos, raiz, dias, json) → exit code.
+SIMPLES = {
+    "sessoes": lambda ev, raiz, dias, j: _cmd_sessoes(ev, j),
+    "tokens": lambda ev, raiz, dias, j: cmd_tokens(ev, j),
+    "por-spec": lambda ev, raiz, dias, j: cmd_por_spec(ev, raiz, j),
+    "espera": lambda ev, raiz, dias, j: cmd_espera(raiz, dias, j),
+    "ruido": lambda ev, raiz, dias, j: _cmd_ruido(raiz, dias, j),
+}
 
 
 def formatar(n: int) -> str:
@@ -770,15 +954,7 @@ def main() -> int:
         return 0
 
     if comando in SIMPLES:
-        return SIMPLES[comando](eventos, como_json)
-
-    if comando == "ruido":
-        r = ruido(raiz, dias)
-        if como_json:
-            print(json.dumps(r, ensure_ascii=False, indent=2))
-        else:
-            imprimir_ruido(r, dias)
-        return 0
+        return SIMPLES[comando](eventos, raiz, dias, como_json)
 
     if comando == "corroborar":
         if len(args) < 2:

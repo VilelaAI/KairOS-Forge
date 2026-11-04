@@ -193,7 +193,7 @@ Helena (segurança) + Patrícia (QA) sempre rodam. Vinícius (performance), Marc
 
 Veredicto agregado: ✅ aprovado / ⚠️ ressalvas / ❌ bloqueado.
 
-Antes de publicar, cada revisor relê os próprios achados contra o diff — o código citado existe nessa linha? o problema acontece de fato nesse caminho? — e o que não sobrevive sai (ADR-0039). Achado que você decide não acatar não é apagado: ganha `· descartado: <motivo>` na própria linha, e `telemetria.py ruido` mede o ruído por revisor, número que o `/auditar` reporta.
+Antes de publicar, cada revisor relê os próprios achados contra o diff — o código citado existe nessa linha? o problema acontece de fato nesse caminho? — e o que não sobrevive sai (ADR-0039). Achado que você decide não acatar não é apagado: ganha `· descartado: <motivo>` na própria linha, e `telemetria.py ruido` mede o ruído por revisor, número que o `/auditar` reporta. Na revisão do gatilho de CI, que vira comentário no PR, a marca vai na linha do comentário, e o `ruido --github` a lê.
 
 O relatório abre com a **faixa de raio de explosão** (ADR-0031), porque ela é que decide o rigor — e a pergunta não é "quão confiante estou?", é **"quanto custa desfazer se estiver errado?"**:
 

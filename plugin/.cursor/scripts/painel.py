@@ -39,7 +39,6 @@ import html as _html
 import json
 import re
 import shutil
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -63,9 +62,12 @@ try:
 except Exception:
     spec_alterada = None  # type: ignore[assignment]
 try:
-    from telemetria import commit_de_agente
+    from telemetria import commit_de_agente, gh_json
 except Exception:
     commit_de_agente = None  # type: ignore[assignment]
+
+    def gh_json(raiz: Path, *args: str) -> list | None:   # sem o telemetria.py ao lado:
+        return None                                       # a consulta ao GitHub "falhou"
 try:
     from execucao import pasta_do_projeto
 except Exception:                     # cópia avulsa do script, sem o execucao.py ao lado
@@ -262,21 +264,12 @@ ICONE_CAIXA = {"gate": "🚦", "escalado": "🧯", "spec_alterada": "✍️ ", "
                "vencida": "⏰", "falta_informacao": "❓", "pr_da_fabrica": "🔀"}
 
 
-def _gh_json(raiz: Path, *args: str) -> list | None:
-    try:
-        r = subprocess.run(["gh", *args], cwd=raiz, capture_output=True, text=True, timeout=60)
-        dados = json.loads(r.stdout or "[]") if r.returncode == 0 else None
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return None
-    return dados if isinstance(dados, list) else None
-
-
 def caixa_github(raiz: Path) -> tuple[dict, list[dict]]:
     if not shutil.which("gh"):
         return {"estado": "sem_gh"}, []
-    issues = _gh_json(raiz, "issue", "list", "--state", "open", "--label",
+    issues = gh_json(raiz, "issue", "list", "--state", "open", "--label",
                       "forge:falta-informacao", "--json", "number,title,url")
-    prs = _gh_json(raiz, "pr", "list", "--state", "open", "--json",
+    prs = gh_json(raiz, "pr", "list", "--state", "open", "--json",
                    "number,title,url,isDraft,commits")
     if issues is None or prs is None:
         return {"estado": "falhou"}, []

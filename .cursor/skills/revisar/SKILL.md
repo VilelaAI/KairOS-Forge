@@ -207,7 +207,9 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
 a rodada de correção contesta e o humano concorda — recebe ` · descartado: <motivo>` **na própria
 linha** e fica no relatório. É essa marca que `telemetria.py ruido` lê para medir, por revisor,
 quantos achados foram ruído: o número que calibra a persona e que o `/auditar` reporta. Achado
-apagado é ruído que ninguém mediu.
+apagado é ruído que ninguém mediu. No gatilho de CI (`kairos-forge-revisar.yml`), o relatório é o
+comentário no PR: a marca vai na mesma linha, editando o comentário da revisão mais recente, e
+`telemetria.py ruido --github` a lê.
 
 Antes da v0.24 a revisão só aparecia na tela: o `/kairos-forge:entregar` registrava
 `limpo` ou `critico` na palavra do agente, enquanto a validação já vinha de artefato.

@@ -48,7 +48,7 @@ raiz do projeto.
 | Quanto custou? | `telemetria.py por-spec --dias N`; por sessão, `telemetria.py tokens`; por tarefa, `quadro.py ledger <slug>` | Tokens novos e cache lido por SPEC (a chave é o branch do ciclo, o id no nome do branch ou o id citado; o resto fica em "sem SPEC"); no ledger, por tarefa concluída, desfeita e em aberto |
 | Onde o trabalho esperou? | `telemetria.py espera --dias N` | Por ciclo: lead time, trabalho e espera por pessoa (os gates `aguardando_*` e o PR esperando merge), a maior espera e as voltas de correção |
 | Como foi o processo? | `telemetria.py resumo --dias N` | Gates verdes de primeira, rodadas de correção, recusas e falhas do guardrail, sessões com produção sem gate, e as perguntas por falta de fonte (`falta-fonte`), por fonte |
-| A revisão está acertando? | `telemetria.py ruido --dias N` | Achados descartados por revisor |
+| A revisão está acertando? | `telemetria.py ruido --dias N [--github]` | Achados descartados por revisor; com `--github`, também na revisão do gatilho no PR |
 | Que decisões entraram? | `git log --since="N days ago" --diff-filter=A --name-only --format= -- docs/adr decisoes` | ADRs e registros novos no período; o título é a primeira linha `# ` |
 | Por que decidimos X? | `grep -rni "<termo>" docs/adr decisoes docs/specs`; com grafo, `grafo.py subgrafo <entidade>` | Cite `arquivo:linha`. Sem registro, diga "decisão não registrada" e sugira um ADR, sem reconstruir o porquê de memória |
 

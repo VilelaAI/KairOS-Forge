@@ -8,6 +8,7 @@ Rode: python3 -m unittest discover -s scripts/tests -t scripts -v
 from __future__ import annotations
 
 import contextlib
+import importlib.util
 import io
 import json
 import os
@@ -104,11 +105,19 @@ class Caixa(unittest.TestCase):
         respostas = [subprocess.CompletedProcess([], 0, stdout=json.dumps(x), stderr="")
                      for x in (issues, prs)]
         with mock.patch.object(painel.shutil, "which", return_value="/usr/bin/gh"), \
-                mock.patch.object(painel.subprocess, "run", side_effect=respostas):
+                mock.patch.object(subprocess, "run", side_effect=respostas):
             d = painel.caixa(Path.cwd(), github=True)
         self.assertEqual(d["github"]["estado"], "consultado")
         self.assertEqual(self.tipos(d), {("falta_informacao", "issue #9"),
                                          ("pr_da_fabrica", "PR #1")})
+
+    def test_painel_sem_o_telemetria_ao_lado_diz_que_a_consulta_falhou(self) -> None:
+        spec = importlib.util.spec_from_file_location("_painel_avulso", Path(painel.__file__))
+        avulso = importlib.util.module_from_spec(spec)
+        with mock.patch.dict(sys.modules, {"telemetria": None}):
+            spec.loader.exec_module(avulso)
+        with mock.patch.object(avulso.shutil, "which", return_value="/usr/bin/gh"):
+            self.assertEqual(avulso.caixa_github(Path.cwd()), ({"estado": "falhou"}, []))
 
 
 

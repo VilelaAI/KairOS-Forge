@@ -76,7 +76,8 @@ Acoplamento e duplicação: amostragem manual. Marque como hipótese se não hou
 
 ```bash
 python3 <plugin>/scripts/telemetria.py resumo --dias 30
-python3 <plugin>/scripts/telemetria.py ruido --dias 90    # achados de revisão descartados, por revisor (ADR-0039)
+python3 <plugin>/scripts/telemetria.py ruido --dias 90    # achados de revisão descartados, por revisor (ADR-0039);
+                                                          # --github soma a revisão do gatilho no PR
 python3 <plugin>/scripts/telemetria.py prs --dias 30      # PRs da fábrica mesclados sem commit humano (ADR-0044)
 python3 <plugin>/scripts/telemetria.py comparar --dias 90 # o que a fábrica entrega volta mais que o das pessoas?
 python3 <plugin>/scripts/telemetria.py espera --dias 30   # quanto do tempo de ciclo foi esperando uma pessoa (não pontua)

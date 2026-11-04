@@ -109,5 +109,7 @@ jobs:
             echo
             echo "---"
             echo "_Parecer automático — não substitui julgamento humano em decisão de design._"
+            echo
+            echo "_Achado que o time decidir não acatar: edite este comentário e acrescente \` · descartado: <motivo>\` na linha do achado. Só a revisão mais recente do PR conta. É o que \`telemetria.py ruido --github\` mede, por revisor (ADR-0039)._"
           } > comentario.md
           gh pr comment "$PR" --body-file comentario.md

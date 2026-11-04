@@ -152,7 +152,7 @@ O `crap` lê o relatório de cobertura que a suíte gerou **nesta rodada** (cove
 |---|---|
 | `crap` `acima_do_limite` (CRAP ≥ 10) em função nova ou que piorou | **Bloqueia.** Volta a quem construiu: quebrar a função, testar o que falta, ou as duas coisas |
 | `crap` `legado_acima` | Ressalva. Já estava acima na base e não piorou: a catraca proíbe piorar, não obriga a reescrever o que ninguém pediu |
-| `duplicacao` par ≥ 0,8 | Ressalva com o par nomeado. Bloqueia quando a função nova duplica uma existente que o plano mandava reutilizar |
+| `duplicacao` par ≥ 0,8 | Ressalva com o par nomeado. Bloqueia quando a função nova duplica uma existente que a coluna Reusa do plano apontava |
 | `mutacao` sobrevivente em linha de requisito P1 | **Bloqueia**: a suíte não percebe a linha mudar. Exceção aceita por escrito: mutante equivalente (não muda comportamento observável), com o porquê |
 | `mutacao` base vermelha, sem comando ou teto atingido | Gate não executado; registre o motivo |
 

@@ -30,10 +30,18 @@ diff, é um caso pronto — o pedido, o commit de antes e os testes como gabarit
 entra o caso cujo teste falha na base e passa na entrega, porque teste que passa na
 base não separa quem resolveu de quem não resolveu.
 
+E a revisão ganha candidatos com nome: o `atalhos` lista, nas linhas que o diff
+acrescenta em código, os desvios que o `guardrail.py` não pegava — TLS desligado, erro
+engolido, tipo burlado, HTML sem escape e `sleep` como sincronização. Adaptado do
+`scan_bypasses.py` da skill the-judge (Felipe Rodrigues, CC-BY-4.0). Cada linha é
+candidata, nunca achado: `except: pass` numa limpeza e `sleep` num backoff são
+legítimos. Quem julga é o revisor, por isso o `atalhos` sai com 0 sempre que leu o diff.
+
 ## Uso
 
     prova.py pre-patch        [--base REF] [--comando "TEMPLATE"] [--tempo-limite S] [--json]
     prova.py testes-alterados [--base REF] [--json]
+    prova.py atalhos          [--base REF] [--json]
     prova.py selado           [--raiz DIR] [--json]
     prova.py colher           [--dias N] [--saida ARQ] [--validar] [--comando "TEMPLATE"]
                               [--fonte gh|git] [--json]
@@ -381,6 +389,97 @@ def testes_alterados(raiz: Path, base: str | None) -> dict:
             "com_sinal": sum(1 for i in itens if i["sinal"])}
 
 
+# --- atalhos no diff (do the-judge) -------------------------------------------------
+# Só as categorias que ainda não tinham dono: supressão inline é da classe `regua` do
+# `guardrail.py`, e teste pulado é do `testes-alterados`.
+
+ATALHOS = (
+    ("tls-desligado", re.compile(
+        r"rejectUnauthorized\s*:\s*false|verify\s*=\s*False\b|InsecureSkipVerify\s*:\s*true"
+        r"|NODE_TLS_REJECT_UNAUTHORIZED|CURLOPT_SSL_VERIFYPEER\s*,\s*(false|0)\b")),
+    ("erro-engolido", re.compile(
+        r"^\s*except(\s+[\w.(), ]+?(\s+as\s+\w+)?)?\s*:\s*(pass|\.\.\.)\s*$"
+        r"|catch\s*(\([^)]*\))?\s*\{\s*\}|\.catch\(\s*\(\s*\w*\s*\)\s*=>\s*\{\s*\}\s*\)")),
+    ("tipo-burlado", re.compile(r"\bas\s+any\b|\bas\s+unknown\s+as\b")),
+    ("html-sem-escape", re.compile(
+        r"dangerouslySetInnerHTML|bypassSecurityTrust\w*|\bv-html\b|\bmark_safe\s*\("
+        r"|\.innerHTML\s*=(?!=)")),
+    ("sleep-como-sincronia", re.compile(
+        r"\btime\.sleep\s*\(|\bThread\.sleep\s*\(|\bawait\s+(sleep|delay)\s*\(")),
+)
+EXT_CODIGO = {".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts", ".go",
+              ".rb", ".java", ".kt", ".rs", ".php", ".cs", ".swift", ".scala", ".vue",
+              ".svelte"}
+CABECALHO = re.compile(r"^\+\+\+ b/(.+)$")
+TRECHO = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
+
+
+ABRE_EXCECAO = re.compile(r"^\s*except\b[^:]*:\s*$|catch\s*(\([^)]*\))?\s*\{\s*$")
+CORPO_VAZIO = re.compile(r"^\s*(pass|\.\.\.|\})\s*$")
+
+
+def categoria_de(linha: str) -> str | None:
+    return next((nome for nome, rx in ATALHOS if rx.search(linha)), None)
+
+
+def engolido_em_duas_linhas(anterior: tuple | None, rel: str, n: int, linha: str) -> bool:
+    """`except X:` numa linha e `pass` na seguinte — a forma em que o Python é escrito."""
+    return (anterior is not None and anterior[0] == rel and anterior[1] == n - 1
+            and bool(ABRE_EXCECAO.search(anterior[2])) and bool(CORPO_VAZIO.match(linha)))
+
+
+def linhas_acrescentadas(raiz: Path, ponto: str):
+    """(arquivo, número da linha, texto) de cada linha nova, commitada ou não."""
+    yield from _linhas_do_diff(raiz, ponto)
+    yield from _linhas_nao_rastreadas(raiz)
+
+
+def _linhas_do_diff(raiz: Path, ponto: str):
+    arquivo, numero, anterior = None, 0, ""
+    for linha in git(raiz, "diff", "-U0", "--no-color", ponto).stdout.splitlines():
+        trecho = TRECHO.match(linha)
+        if linha.startswith("+++ ") and anterior.startswith("--- "):
+            m = CABECALHO.match(linha)
+            arquivo = m.group(1) if m else None      # `+++ /dev/null`: arquivo apagado
+        elif trecho:
+            numero = int(trecho.group(1))
+        elif linha.startswith("+") and arquivo:
+            yield arquivo, numero, linha[1:]
+            numero += 1
+        anterior = linha
+
+
+def _linhas_nao_rastreadas(raiz: Path):
+    for rel in nao_rastreados(raiz):
+        try:
+            texto = (raiz / rel).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for i, linha in enumerate(texto.splitlines(), 1):
+            yield rel, i, linha
+
+
+def atalhos(raiz: Path, base: str | None) -> dict:
+    base = base or base_padrao(raiz)
+    ponto = ponto_de_partida(raiz, base) if base else None
+    if not ponto:
+        return {"erro": f"sem base para o diff ({base or 'nenhuma ref'}) — passe --base",
+                "candidatos": []}
+    candidatos, anterior = [], None
+    for rel, n, linha in linhas_acrescentadas(raiz, ponto):
+        if Path(rel).suffix not in EXT_CODIGO:
+            continue
+        if engolido_em_duas_linhas(anterior, rel, n, linha):
+            cat, n_cand, trecho = "erro-engolido", n - 1, f"{anterior[2].strip()} {linha.strip()}"
+        else:
+            cat, n_cand, trecho = categoria_de(linha), n, linha.strip()
+        if cat:
+            candidatos.append({"arquivo": rel, "linha": n_cand, "categoria": cat,
+                               "teste": eh_teste(rel), "trecho": trecho[:160]})
+        anterior = (rel, n, linha)
+    return {"base": base, "ponto": ponto[:12], "candidatos": candidatos}
+
+
 # --- 3. conjunto selado fora da instrução (ADR-0043) ------------------------------
 
 def normalizar(texto: str) -> str:
@@ -691,6 +790,21 @@ def imprimir_pre_patch(r: dict) -> None:
         print("\n   Nenhum teste novo passa na base sem a mudança.")
 
 
+def imprimir_atalhos(r: dict) -> None:
+    if r.get("erro"):
+        print(f"🚫 {r['erro']}")
+        return
+    cands = r["candidatos"]
+    print(f"🔎 Atalhos no diff contra {r['base']} ({r['ponto']}): {len(cands)} candidato(s)")
+    if not cands:
+        print("   nenhum: TLS, erro engolido, tipo burlado, HTML sem escape e sleep conferidos")
+        return
+    print("   Candidato não é achado: com justificativa e link, fica; sem, vira achado.\n")
+    for c in cands:
+        onde = f"{c['arquivo']}:{c['linha']}" + (" (teste)" if c["teste"] else "")
+        print(f"   {onde}\t{c['categoria']}\t{c['trecho'][:100]}")
+
+
 def imprimir_testes_alterados(r: dict) -> None:
     if r.get("erro"):
         print(f"🚫 testes alterados: {r['erro']}")
@@ -771,7 +885,7 @@ def imprimir_colher(r: dict) -> None:
 
 def main() -> int:
     args = sys.argv[1:]
-    if not args or args[0] not in ("pre-patch", "testes-alterados", "selado", "colher"):
+    if not args or args[0] not in ("pre-patch", "testes-alterados", "atalhos", "selado", "colher"):
         print(__doc__.strip())
         return 1
     comando = args[0]
@@ -829,25 +943,27 @@ def main() -> int:
     if raiz is None:
         print("🚫 fora de um repositório git — sem diff não há prova", file=sys.stderr)
         return 1
-
-    if comando == "pre-patch":
-        r = pre_patch(raiz, base, template, tempo)
-        if como_json:
-            print(json.dumps(r, ensure_ascii=False, indent=2))
-        else:
-            imprimir_pre_patch(r)
-        if r.get("erro"):
-            return 1
-        return 1 if any(t["veredicto"] == "passou_na_base" for t in r["testes"]) else 0
-
-    r = testes_alterados(raiz, base)
+    calcular, imprimir, reprova = SOBRE_O_DIFF[comando]
+    r = calcular(raiz, base, template, tempo)
     if como_json:
         print(json.dumps(r, ensure_ascii=False, indent=2))
     else:
-        imprimir_testes_alterados(r)
-    if r.get("erro"):
-        return 1
-    return 1 if r.get("com_sinal") else 0
+        imprimir(r)
+    return 1 if r.get("erro") or reprova(r) else 0
+
+
+# Os comandos que medem o diff contra a base: (calcular, imprimir, sai 1 quando).
+SOBRE_O_DIFF = {
+    "pre-patch": (lambda raiz, base, template, tempo: pre_patch(raiz, base, template, tempo),
+                  lambda r: imprimir_pre_patch(r),
+                  lambda r: any(t["veredicto"] == "passou_na_base" for t in r["testes"])),
+    "testes-alterados": (lambda raiz, base, *_: testes_alterados(raiz, base),
+                         lambda r: imprimir_testes_alterados(r),
+                         lambda r: bool(r.get("com_sinal"))),
+    "atalhos": (lambda raiz, base, *_: atalhos(raiz, base),
+                lambda r: imprimir_atalhos(r),
+                lambda r: False),   # candidato não é achado: quem julga é o revisor
+}
 
 
 if __name__ == "__main__":

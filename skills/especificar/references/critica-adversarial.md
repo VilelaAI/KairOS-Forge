@@ -18,8 +18,8 @@ Escolha entre as personas que **não participaram da redação**, pelo eixo de r
 
 | Eixo | Quem ataca | Pergunta |
 |---|---|---|
-| Requisito | Joana, Norma | Requisito ambíguo, sem critério de aceite verificável, ou inventado sem fonte? |
-| Arquitetura | Diego, Fernanda, Thiago | Abordagem cria acoplamento, contradiz o que existe, ou ignora carga real? |
+| Requisito | Joana, Norma | Requisito ambíguo, sem critério de aceite verificável, ou inventado sem fonte? Na Média+, cada dimensão da Varredura termina em requisito, proteção existente ou `n/a` com motivo? |
+| Arquitetura | Diego, Fernanda, Thiago | Abordagem cria acoplamento, contradiz o que existe, ou ignora carga real? O Desenho do programa declara tipos, assinaturas, o caminho da T1 e as portas de mão única? A coluna Reusa aponta o que o `grafo.py contexto` mostra que já existe? |
 | Testabilidade | Ricardo, Patrícia | Dá para provar cada P1? Comando existe? Evidência é observável? Critério tem valor ou adjetivo (ADR-0039)? |
 | Segurança | Helena | Toca auth, PII, autorização ou input externo sem mitigação declarada? |
 | Escopo | Camila, Hugo | O apetite comporta? O P1 é mesmo P1? T1 é fatia fim a fim, ou o plano é por camada (ADR-0039)? |

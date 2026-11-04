@@ -65,6 +65,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py subgrafo "<componente/feature cit
 
 Decisões, dependências e restrições já registradas (com fonte) entram na SPEC em vez de serem redescobertas — e conflito entre a feature nova e uma aresta existente ("X substitui Y", "X depende de Z") vira pergunta ao usuário antes de virar requisito.
 
+**Se o projeto tem a camada de código** (`.agents/grafo/codigo.jsonl`, ADR-0041 — gere com `grafo.py codigo` se faltar), rode `grafo.py contexto <arquivo>` nos arquivos que a feature vai tocar. Quem importa, quem herda e o que já existe ali alimentam o **Desenho do programa** e a coluna **Reusa** do plano: função que já resolve o problema entra como reuso, não como tarefa nova.
+
 **Se as tools MCP `memory_*` estiverem disponíveis** (ai-memory, ADR-0010), complemente com `memory_query` sobre as entidades da feature: tentativas passadas, abordagens descartadas e discussões de sessões anteriores que nunca chegaram aos arquivos curados. Abordagem já descartada volta para a SPEC como não-objetivo, com o porquê.
 
 **Se houver MCPs de dados do projeto** — banco, métricas, tracker (ADR-0040) — consulte antes de perguntar ao humano o que a máquina já responde: volume real da tabela, uso atual da tela, a issue de origem e seus comentários. Pergunta cuja resposta está numa query é pergunta que custa a paciência do usuário à toa.

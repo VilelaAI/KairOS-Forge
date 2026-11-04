@@ -19,6 +19,9 @@ Uso:
     telemetria.py prs [--dias 30] [--fonte gh|git] [--marca REGEX]... [--json]
                                                   # autonomia de PR, medida pelo git
                                                   # (ADR-0044) — funciona sem hook
+    telemetria.py comparar [--dias 90] [--fonte gh|git] [--marca REGEX]... [--json]
+                                                  # a entrega da fábrica × a humana:
+                                                  # PRs revertidos e corrigidos depois
     telemetria.py tokens [--dias 7] [--json]      # tokens por sessão, como o transcript
                                                   # registrou (ADR-0048)
     telemetria.py por-spec [--dias 7] [--json]    # os mesmos tokens somados por SPEC, pela
@@ -756,15 +759,15 @@ def _prs_do_git(raiz: Path, dias: int | None) -> list[dict]:
             return ""
         return r.stdout if r.returncode == 0 else ""
 
-    args = ["log", "--merges", "--first-parent", "--format=%H%x1f%P%x1f%cI%x1f%s"]
+    args = ["log", "--merges", "--first-parent", "--format=%H%x1f%P%x1f%cI%x1f%s%x1f%b%x1e"]
     if dias:
         args.append(f"--since={dias}.days")
     prs = []
-    for linha in git(*args).splitlines():
-        partes = linha.split("\x1f")
-        if len(partes) != 4 or len(partes[1].split()) < 2:
+    for registro in git(*args).split("\x1e"):
+        partes = registro.strip("\n").split("\x1f")
+        if len(partes) != 5 or len(partes[1].split()) < 2:
             continue
-        oid, pais, quando, assunto = partes
+        oid, pais, quando, assunto, corpo = partes
         p1, p2 = pais.split()[:2]
         commits = []
         for bloco in git("log", "--no-merges", "--reverse", "--format=%H%x1f%an%x1f%B%x1e",
@@ -775,7 +778,8 @@ def _prs_do_git(raiz: Path, dias: int | None) -> list[dict]:
         m = MERGE_DE_PR.match(assunto)
         b = MERGE_DE_BRANCH.match(assunto)
         n = m or NUMERO_NO_TITULO.search(assunto)
-        prs.append({"numero": int(n.group(1)) if n else None, "titulo": assunto,
+        titulo = titulo_do_commit({"assunto": assunto, "corpo": corpo})
+        prs.append({"numero": int(n.group(1)) if n else None, "titulo": titulo,
                     "branch": m.group(2) if m else (b.group(1) if b else ""),
                     "mesclado_em": quando, "entrega": oid, "issues": [], "commits": commits})
     return prs
@@ -831,6 +835,229 @@ def imprimir_prs(r: dict, dias: int | None) -> None:
         rotulo = f"#{l['numero']}" if l["numero"] else (l["branch"] or "merge")
         print(f"   {'✅' if l['autonomo'] else '· '} {rotulo:<10} agente {l['agente']} · "
               f"humano {l['humano']}  {l['titulo'][:60]}")
+
+
+# --- a entrega da fábrica comparada com a humana (aula 5 do Tech Leads Club) -------
+# "O que está faltando para nós são boas métricas para verificar se [a fábrica] está
+# entregando tão bem quanto humanos." A autonomia de PR (ADR-0044) diz quanto a fábrica
+# entrega sozinha; esta conta diz se o que ela entrega aguenta. Dois sinais que saem do git
+# e que o modelo não consegue influenciar, os mesmos para os dois grupos:
+#
+#   revertido  um commit posterior desfaz o PR: `Revert "<título ou #N>"` ou
+#              "This reverts commit <sha>" apontando para a entrega ou um commit do PR
+#   corrigido  um commit posterior `fix:`/`hotfix:`/"corrige", em até 14 dias, mexe num
+#              arquivo de código (não teste) que o PR mexeu
+#
+# Fábrica = PR com commit de agente (o critério do ADR-0044); humano = sem nenhum. Abaixo de
+# 5 PRs num grupo, a conta mostra os números e não a taxa: amostra pequena não vira veredicto.
+# PR mesclado há menos de 14 dias fica "em observação", fora dos dois grupos: a janela dele
+# não fechou, e contá-lo daria vantagem a quem entregou por último.
+
+JANELA_CORRECAO_DIAS = 14
+MINIMO_DO_GRUPO = 5
+CORRECAO = re.compile(r"^(fix|hotfix)(\([^)]*\))?!?:|^corrig|^conserta", re.I)
+REVERTE_SHA = re.compile(r"This reverts commit ([0-9a-f]{7,40})", re.I)
+REVERTE_TITULO = re.compile(r'^Revert "(.+)"', re.I)
+NUMERO_CITADO = re.compile(r"#(\d+)\b")
+EXT_CODIGO = re.compile(r"\.(py|ts|tsx|js|jsx|mjs|cjs|go|rs|java|rb|php|kt|swift|cs|scala|vue|svelte)$")
+EH_TESTE = re.compile(r"(^|/)(tests?|specs?|__tests__|e2e)/|\.(test|spec)\.|(^|/)test_[^/]*\.py$")
+
+
+def historico_principal(raiz: Path) -> list[dict]:
+    """Commits da linha principal, do mais antigo ao mais novo, com os arquivos de cada um."""
+    try:
+        r = subprocess.run(["git", "-C", str(raiz), "log", "--reverse", "--first-parent",
+                            "--diff-merges=first-parent", "--name-only",
+                            "--format=%x1e%H%x1f%cI%x1f%s%x1f%b%x1f"],
+                           capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    commits = []
+    for bloco in r.stdout.split("\x1e")[1:] if r.returncode == 0 else []:
+        partes = bloco.split("\x1f")
+        if len(partes) < 5:
+            continue
+        arquivos = [a.strip() for a in partes[4].splitlines() if a.strip()]
+        commits.append({"oid": partes[0], "quando": _data(partes[1]), "assunto": partes[2],
+                        "corpo": partes[3], "arquivos": arquivos})
+    return commits
+
+
+def titulo_do_commit(c: dict) -> str:
+    """O título que conta: no merge commit do GitHub, o assunto é "Merge pull request #N" e o
+    título do PR (o `fix:` ou o `Revert "..."`) vem na primeira linha do corpo."""
+    if MERGE_DE_PR.match(c["assunto"]):
+        return next((l.strip() for l in c["corpo"].splitlines() if l.strip()), c["assunto"])
+    return c["assunto"]
+
+
+def de_codigo(arquivos) -> set[str]:
+    return {a for a in arquivos if EXT_CODIGO.search(a) and not EH_TESTE.search(a)}
+
+
+def reverte(c: dict, pr: dict, oids) -> bool:
+    """O commit `c` desfaz o PR? Pelo sha citado ou pelo título/número entre aspas."""
+    shas = REVERTE_SHA.findall(c["corpo"]) + REVERTE_SHA.findall(c["assunto"])
+    if any(o.startswith(s) for s in shas for o in oids if o):
+        return True
+    m = REVERTE_TITULO.match(titulo_do_commit(c))
+    citado = m.group(1) if m else ""
+    numeros = {int(n) for n in NUMERO_CITADO.findall(citado)}
+    return bool(citado) and (citado.strip() == pr["titulo"].strip() or pr["numero"] in numeros)
+
+
+def corrige(c: dict, quando: datetime, codigo: set[str]) -> bool:
+    dentro = c["quando"] is not None and timedelta(0) < c["quando"] - quando <= timedelta(
+        days=JANELA_CORRECAO_DIAS)
+    return (dentro and bool(CORRECAO.match(titulo_do_commit(c)))
+            and bool(codigo & de_codigo(c["arquivos"])))
+
+
+def _oids_do_pr(pr: dict) -> set[str]:
+    oids = {pr.get("entrega") or ""} | {c.get("oid") or "" for c in pr["commits"]}
+    return oids - {""}
+
+
+def _posteriores(historico: list[dict], quando: datetime, oids: set[str]) -> list[dict]:
+    return [c for c in historico if c["quando"] and c["quando"] > quando and c["oid"] not in oids]
+
+
+def _rotulo(c: dict | None) -> str | None:
+    return f"{c['oid'][:9]} {titulo_do_commit(c)[:60]}" if c else None
+
+
+def sinais_do_pr(pr: dict, historico: list[dict]) -> dict:
+    quando = _data(pr.get("mesclado_em"))
+    if quando is None:
+        return {"revertido": None, "corrigido": None}
+    oids = _oids_do_pr(pr)
+    entrega = next((c for c in historico if c["oid"] == pr.get("entrega")), None)
+    codigo = de_codigo(entrega["arquivos"]) if entrega else set()
+    depois = _posteriores(historico, quando, oids)
+    return {"revertido": _rotulo(next((c for c in depois if reverte(c, pr, oids)), None)),
+            "corrigido": _rotulo(next((c for c in depois if corrige(c, quando, codigo)), None))}
+
+
+def _grupo(itens: list[dict]) -> dict:
+    n = len(itens)
+    rev = sum(1 for i in itens if i["revertido"])
+    cor = sum(1 for i in itens if i["corrigido"])
+    voltou = sum(1 for i in itens if i["revertido"] or i["corrigido"])
+    def taxa(k: int) -> float | None:
+        return round(100 * k / n, 1) if n >= MINIMO_DO_GRUPO else None
+    return {"prs": n, "revertidos": rev, "corrigidos": cor, "voltaram": voltou,
+            "taxa_reversao": taxa(rev), "taxa_correcao": taxa(cor), "taxa_voltaram": taxa(voltou),
+            "voltaram_lista": [i for i in itens if i["revertido"] or i["corrigido"]]}
+
+
+def janela_fechada(pr: dict, agora: datetime) -> bool:
+    quando = _data(pr.get("mesclado_em"))
+    return quando is not None and agora - quando >= timedelta(days=JANELA_CORRECAO_DIAS)
+
+
+def comparar_entregas(raiz: Path, prs: list[dict], extras: tuple = (),
+                      agora: datetime | None = None) -> dict:
+    agora = agora or datetime.now(timezone.utc)
+    historico = historico_principal(raiz)
+    grupos: dict[str, list[dict]] = {"fabrica": [], "humano": []}
+    em_observacao = {"fabrica": 0, "humano": 0}
+    for pr in prs:
+        lado = "fabrica" if any(commit_de_agente(c, extras) for c in pr["commits"]) else "humano"
+        if not janela_fechada(pr, agora):
+            em_observacao[lado] += 1
+            continue
+        grupos[lado].append({"numero": pr.get("numero"), "titulo": (pr.get("titulo") or "")[:80],
+                             **sinais_do_pr(pr, historico)})
+    f, h = _grupo(grupos["fabrica"]), _grupo(grupos["humano"])
+    comparavel = f["taxa_voltaram"] is not None and h["taxa_voltaram"] is not None
+    return {"janela_correcao_dias": JANELA_CORRECAO_DIAS, "minimo_do_grupo": MINIMO_DO_GRUPO,
+            "fabrica": f, "humano": h, "em_observacao": em_observacao, "comparavel": comparavel,
+            "diferenca_pp": round(f["taxa_voltaram"] - h["taxa_voltaram"], 1) if comparavel else None}
+
+
+def _linha_do_grupo(nome: str, g: dict) -> str:
+    if g["taxa_voltaram"] is None:
+        return (f"   {nome:<8} {g['prs']} PR(s) — amostra pequena (menos de {MINIMO_DO_GRUPO}): "
+                f"{g['revertidos']} revertido(s), {g['corrigidos']} corrigido(s), sem taxa")
+    return (f"   {nome:<8} {g['prs']} PR(s) — voltaram {g['taxa_voltaram']}% "
+            f"(revertidos {g['taxa_reversao']}%, corrigidos em até {JANELA_CORRECAO_DIAS} dias "
+            f"{g['taxa_correcao']}%)")
+
+
+def _frase_da_diferenca(r: dict) -> str:
+    if not r["comparavel"]:
+        return f"Não comparável: precisa de ao menos {MINIMO_DO_GRUPO} PRs mesclados em cada grupo."
+    d = r["diferenca_pp"]
+    if d == 0:
+        return "A entrega da fábrica volta tanto quanto a das pessoas."
+    return f"A entrega da fábrica volta {abs(d)} p.p. {'acima' if d > 0 else 'abaixo'} da das pessoas."
+
+
+def _os_que_voltaram(r: dict) -> list[str]:
+    linhas = []
+    for nome, g in (("fábrica", r["fabrica"]), ("humano", r["humano"])):
+        for i in g["voltaram_lista"][:10]:
+            rotulo = f"#{i['numero']}" if i["numero"] else "merge"
+            sinal = "; ".join(f"{k}: {i[k]}" for k in ("revertido", "corrigido") if i[k])
+            linhas.append(f"   · [{nome}] {rotulo} {i['titulo'][:50]} — {sinal}")
+    return linhas
+
+
+def imprimir_comparacao(r: dict, dias: int | None) -> None:
+    janela = f"últimos {dias} dias" if dias else "todo o histórico"
+    print(f"⚖️  Entrega da fábrica × humana — {janela} (fonte: {r['fonte']})\n")
+    print(_linha_do_grupo("fábrica", r["fabrica"]))
+    print(_linha_do_grupo("humano", r["humano"]))
+    obs = r.get("em_observacao") or {}
+    if any(obs.values()):
+        print(f"   em observação (mesclados há menos de {JANELA_CORRECAO_DIAS} dias, fora da conta): "
+              f"fábrica {obs.get('fabrica', 0)}, humano {obs.get('humano', 0)}")
+    print(f"\n   {_frase_da_diferenca(r)}")
+    for linha in _os_que_voltaram(r):
+        print(linha)
+
+
+def _opcoes_de_pr(args: list[str]) -> tuple[str | None, list] | str:
+    """(fonte, marcas extras) de `--fonte` e `--marca`; ou a mensagem de erro."""
+    fonte, extras = None, []
+    while "--fonte" in args or "--marca" in args:
+        flag = "--fonte" if "--fonte" in args else "--marca"
+        i = args.index(flag)
+        if i + 1 >= len(args):
+            return f"erro: {flag} precisa de um valor"
+        valor = args.pop(i + 1)
+        args.pop(i)
+        try:
+            if flag == "--fonte":
+                fonte = valor
+            else:
+                extras.append(re.compile(valor, re.I | re.M))
+        except re.error as e:
+            return f"erro: --marca inválida — {e}"
+    if fonte not in (None, "gh", "git"):
+        return "erro: --fonte é gh ou git"
+    return fonte, extras
+
+
+def _cmd_prs(raiz: Path, dias: int | None, fonte, extras, como_json: bool) -> int:
+    origem, prs = prs_mesclados(raiz, dias, fonte)
+    r = {"fonte": origem, **autonomia_de_prs(prs, tuple(extras))}
+    print(json.dumps(r, ensure_ascii=False, indent=2)) if como_json else imprimir_prs(r, dias)
+    return 0
+
+
+def _cmd_comparar(raiz: Path, dias: int | None, fonte, extras, como_json: bool) -> int:
+    origem, prs = prs_mesclados(raiz, dias, fonte)
+    r = {"fonte": origem, **comparar_entregas(raiz, prs, tuple(extras))}
+    if como_json:
+        print(json.dumps(r, ensure_ascii=False, indent=2))
+    else:
+        imprimir_comparacao(r, dias)
+    return 0
+
+
+# Comandos sobre os PRs mesclados: (raiz, dias, fonte, marcas, json) → exit code.
+SOBRE_PRS = {"prs": _cmd_prs, "comparar": _cmd_comparar}
 
 
 # --- apresentação ------------------------------------------------------------------
@@ -914,34 +1141,12 @@ def main() -> int:
     raiz = Path.cwd()
     comando = args[0]
 
-    if comando == "prs":
-        fonte, extras = None, []
-        while "--fonte" in args or "--marca" in args:
-            flag = "--fonte" if "--fonte" in args else "--marca"
-            i = args.index(flag)
-            if i + 1 >= len(args):
-                print(f"erro: {flag} precisa de um valor", file=sys.stderr)
-                return 1
-            valor = args[i + 1]
-            args = args[:i] + args[i + 2:]
-            if flag == "--fonte":
-                fonte = valor
-            else:
-                try:
-                    extras.append(re.compile(valor, re.I | re.M))
-                except re.error as e:
-                    print(f"erro: --marca inválida — {e}", file=sys.stderr)
-                    return 1
-        if fonte not in (None, "gh", "git"):
-            print("erro: --fonte é gh ou git", file=sys.stderr)
+    if comando in SOBRE_PRS:
+        opcoes = _opcoes_de_pr(args)
+        if isinstance(opcoes, str):
+            print(opcoes, file=sys.stderr)
             return 1
-        origem, prs = prs_mesclados(raiz, dias, fonte)
-        r = {"fonte": origem, **autonomia_de_prs(prs, tuple(extras))}
-        if como_json:
-            print(json.dumps(r, ensure_ascii=False, indent=2))
-        else:
-            imprimir_prs(r, dias)
-        return 0
+        return SOBRE_PRS[comando](raiz, dias, *opcoes, como_json)
 
     eventos = carregar(raiz, dias)
 

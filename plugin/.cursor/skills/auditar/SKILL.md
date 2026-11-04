@@ -78,6 +78,7 @@ Acoplamento e duplicação: amostragem manual. Marque como hipótese se não hou
 python3 <plugin>/scripts/telemetria.py resumo --dias 30
 python3 <plugin>/scripts/telemetria.py ruido --dias 90    # achados de revisão descartados, por revisor (ADR-0039)
 python3 <plugin>/scripts/telemetria.py prs --dias 30      # PRs da fábrica mesclados sem commit humano (ADR-0044)
+python3 <plugin>/scripts/telemetria.py comparar --dias 90 # o que a fábrica entrega volta mais que o das pessoas?
 python3 <plugin>/scripts/telemetria.py espera --dias 30   # quanto do tempo de ciclo foi esperando uma pessoa (não pontua)
 python3 <plugin>/scripts/painel.py --dias 30      # o mesmo estado com as SPECs ao lado
 ```
@@ -128,7 +129,9 @@ Template completo em `references/relatorio.md`. Seções, nesta ordem:
    falhas do guardrail, tempo de ciclo esperando pessoa (`telemetria.py espera`); e
    **Nível estimado: L<N>** com justificativa ancorada nos números. Sem telemetria: "não medida" em
    todas as linhas — nunca preencher por estimativa. Mais a **autonomia de PR** (taxa, N e fonte
-   `gh`/`git`), ou "não medida" se nenhum PR mesclado tem commit da fábrica.
+   `gh`/`git`), ou "não medida" se nenhum PR mesclado tem commit da fábrica, e a **entrega da
+   fábrica × humana** (`telemetria.py comparar`: quanto de cada grupo voltou, revertido ou
+   corrigido), ou "não comparável" com o N de cada grupo.
 4. **Top 3 lacunas**: para cada uma, dimensão, esforço (pequeno/médio/grande), por que esta
    primeiro e como fechar em 1-3 bullets.
 5. **Histórico** com as auditorias anteriores de `decisoes/auditorias/` (anteriores à v0.17 têm

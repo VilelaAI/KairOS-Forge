@@ -7,7 +7,10 @@ Rode: python3 -m unittest discover -s scripts/tests -t scripts -v
 """
 from __future__ import annotations
 
+import contextlib
+import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -199,3 +202,93 @@ class ColherDoHistorico(Repo):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Atalhos(Repo):
+    """`prova.py atalhos` — candidatos com nome nas linhas que o diff acrescenta em código."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        git(self.raiz, "init", "-q", "-b", "main", ".")
+        self.escrever("src/cliente.py", "import requests\n\n\ndef buscar(url):\n    return requests.get(url)\n")
+        git(self.raiz, "add", ".")
+        git(self.raiz, "commit", "-q", "-m", "base")
+        git(self.raiz, "checkout", "-q", "-b", "feat")
+
+    def categorias(self) -> dict[str, str]:
+        r = prova.atalhos(self.raiz, "main")
+        self.assertNotIn("erro", r)
+        return {f"{c['arquivo']}:{c['linha']}": c["categoria"] for c in r["candidatos"]}
+
+    def test_cada_categoria_com_arquivo_e_linha_do_diff(self) -> None:
+        self.escrever("src/cliente.py",
+                      "import requests\n\n\ndef buscar(url):\n"
+                      "    try:\n"
+                      "        return requests.get(url, verify=False)\n"
+                      "    except Exception:\n"
+                      "        pass\n")
+        git(self.raiz, "commit", "-qam", "atalhos commitados")
+        self.escrever("web/tela.tsx",
+                      "const x = dado as any;\n"
+                      "el.innerHTML = texto;\n"
+                      "<div dangerouslySetInnerHTML={{ __html: h }} />\n"
+                      "if (a.innerHTML == b) {}\n")
+        self.escrever("tests/test_fila.py", "import time\n\ntime.sleep(2)\n")
+        self.escrever("web/api.ts", "try {\n  enviar();\n} catch (e) {\n}\n")
+        self.assertEqual(self.categorias(), {
+            "web/api.ts:3": "erro-engolido",
+            "src/cliente.py:6": "tls-desligado",
+            "src/cliente.py:7": "erro-engolido",
+            "web/tela.tsx:1": "tipo-burlado",
+            "web/tela.tsx:2": "html-sem-escape",
+            "web/tela.tsx:3": "html-sem-escape",
+            "tests/test_fila.py:3": "sleep-como-sincronia",
+        })
+
+    def test_teste_e_marcado_e_nao_commitado_entra(self) -> None:
+        self.escrever("src/cliente.py", "import requests\n\n\ndef buscar(url):\n"
+                                        "    return requests.get(url)  # ok\n"
+                                        "promise.catch(() => {})\n")
+        r = prova.atalhos(self.raiz, "main")
+        self.assertEqual([(c["linha"], c["categoria"]) for c in r["candidatos"]], [(6, "erro-engolido")])
+        self.escrever("tests/test_x.py", "time.sleep(1)\n")
+        teste = [c for c in prova.atalhos(self.raiz, "main")["candidatos"] if c["arquivo"] == "tests/test_x.py"]
+        self.assertTrue(teste and teste[0]["teste"])
+
+    def test_documentacao_linha_removida_e_codigo_legitimo_nao_contam(self) -> None:
+        self.escrever("docs/guia.md", "Nunca use `verify=False` nem `as any`.\n")
+        self.escrever("src/cliente.py", "import requests\n\n\ndef buscar(url):\n"
+                                        "    try:\n"
+                                        "        return requests.get(url, verify=True)\n"
+                                        "    except ValueError:\n"
+                                        "        raise\n"
+                                        "except_handler = 1\n")
+        git(self.raiz, "add", ".")
+        git(self.raiz, "commit", "-qm", "doc e código")
+        git(self.raiz, "checkout", "-q", "main")
+        self.escrever("src/velho.py", "x = requests.get(u, verify=False)\n")
+        git(self.raiz, "add", ".")
+        git(self.raiz, "commit", "-qm", "atalho que já estava na base")
+        git(self.raiz, "checkout", "-q", "feat")
+        self.assertEqual(self.categorias(), {})
+
+    def test_linha_acrescentada_que_comeca_com_mais_mais_nao_vira_cabecalho(self) -> None:
+        self.escrever("src/contador.js", "let i = 0;\n")
+        git(self.raiz, "add", ".")
+        git(self.raiz, "commit", "-qm", "contador")
+        self.escrever("src/contador.js", "let i = 0;\n++ b/fake\nconst y = z as any;\n")
+        self.assertEqual(self.categorias(), {"src/contador.js:3": "tipo-burlado"})
+
+    def test_cli_sai_zero_com_candidato_e_um_sem_base(self) -> None:
+        self.escrever("src/cliente.py", "x = requests.get(u, verify=False)\n")
+        antes = os.getcwd()
+        os.chdir(self.raiz)
+        try:
+            for argv, esperado in ((["atalhos", "--base", "main"], 0),
+                                   (["atalhos", "--base", "nao-existe"], 1)):
+                sys.argv = ["prova.py", *argv]
+                with contextlib.redirect_stdout(io.StringIO()) as out:
+                    self.assertEqual(prova.main(), esperado, argv)
+            self.assertIn("sem base", out.getvalue())
+        finally:
+            os.chdir(antes)

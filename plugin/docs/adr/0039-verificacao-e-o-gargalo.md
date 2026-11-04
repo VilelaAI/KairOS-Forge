@@ -156,3 +156,29 @@ decididos sem modelo no caminho.
 | Rodar o `pre-patch` com `git stash` em vez de worktree | Stash mexe na árvore de trabalho do usuário no meio de uma sessão; worktree é isolado e descartável, e a fábrica já usa worktree por teammate (ADR-0024) |
 | Medir ruído por reação no PR (thumbs down, thread resolvida) | Depende da plataforma e de API; a marca no arquivo funciona em qualquer CLI e em qualquer forge, e é o mesmo arquivo que o contrato já governa |
 | Revisor dedicado "Regressão e Alucinação" (persona nova) | Persona nova exige ADR e vaga num time; a dimensão cabe na Patrícia, que já cobre regressão, e o determinístico dela é um comando |
+
+## Emenda (v0.42.1): o que a revisão aprendeu com a skill the-judge
+
+A skill the-judge (Felipe Rodrigues, CC-BY-4.0), distribuída no plugin do time do Tech Leads
+Club, revisa PR com uma régua de evidência mais estrita que a do `/revisar`. Entram quatro
+pontos:
+
+- **Afirmação sobre o que está fora do repositório leva fonte.** Comportamento de biblioteca,
+  API, versão ou vulnerabilidade só vira achado com a fonte oficial consultada na revisão, e
+  a URL vai na linha. Sem fonte, vira pergunta.
+- **A re-revisão não abre frente nova.** Da segunda rodada em diante, só os anteriores (ADR-0048)
+  e 🔴 introduzido pela correção; 🔴 achado tarde entra marcado `perdido na rodada 1`. Sem isso,
+  cada rodada descobre uma frente nova e o orçamento de revisão do `ciclo.py` queima em
+  pingue-pongue.
+- **Achado determinístico vira regra.** O relatório ganha "Promover a regra determinística",
+  insumo do `/evoluir`.
+- **`prova.py atalhos`.** Candidatos com arquivo e linha, nas linhas que o diff acrescenta em
+  código, para as categorias que o `guardrail.py` não pegava: TLS desligado, erro engolido
+  (inclusive o `except X:` com `pass` na linha seguinte, que o original não pegava), tipo
+  burlado, HTML sem escape e `sleep` como sincronização. Supressão inline continua da classe
+  `regua` (ADR-0046); teste pulado, do `testes-alterados`. Sai 0 sempre que leu o diff:
+  candidato não é achado.
+
+Não entram o filtro de palavras e de travessão nos comentários (estilo do autor, não
+evidência) nem a publicação no GitHub pelo script (a fábrica entrega o relatório no disco,
+ADR-0032).

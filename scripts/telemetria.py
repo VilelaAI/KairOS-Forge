@@ -14,8 +14,10 @@ Uso:
     telemetria.py corroborar "<comando>" [--dias 30] [--json]
                                                   # usado pelo /validar: esse gate
                                                   # realmente rodou? com que resultado?
-    telemetria.py ruido [--dias 90] [--json]      # achados de revisão descartados por
-                                                  # revisor — calibra quem grita à toa
+    telemetria.py ruido [--dias 90] [--github] [--json]
+                                                  # achados de revisão descartados por
+                                                  # revisor — calibra quem grita à toa;
+                                                  # --github soma a revisão no PR
     telemetria.py prs [--dias 30] [--fonte gh|git] [--marca REGEX]... [--json]
                                                   # autonomia de PR, medida pelo git
                                                   # (ADR-0044) — funciona sem hook
@@ -46,7 +48,9 @@ Definições (explícitas de propósito — métrica sem definição é chute co
   indeterminado saída do comando não permitiu afirmar sucesso nem falha. Conta
                 separado — nunca vira "verde" por otimismo.
   ruído         achado de revisão que o humano marcou `descartado: <motivo>` na
-                linha do achado, em `docs/specs/revisoes/`. Revisor com 30% de
+                linha do achado, em `docs/specs/revisoes/` ou, com `--github`, no
+                comentário da revisão do gatilho de CI (a mais recente de cada PR,
+                editada por quem tem escrita no repositório). Revisor com 30% de
                 ruído é revisor que o time aprende a ignorar (ADR-0039) — e
                 aí o 🔴 verdadeiro passa junto. Sem marcação, ruído é 0 e o
                 número é declarado "não medido", não "bom".
@@ -492,8 +496,9 @@ def cmd_espera(raiz: Path, dias: int | None, como_json: bool) -> int:
     return 0
 
 
-def _cmd_ruido(raiz: Path, dias: int | None, como_json: bool) -> int:
-    r = ruido(raiz, dias)
+def _cmd_ruido(comando: str, raiz: Path, dias: int | None, args: list[str],
+               como_json: bool) -> int:
+    r = ruido(raiz, dias, github="--github" in args)
     if como_json:
         print(json.dumps(r, ensure_ascii=False, indent=2))
     else:
@@ -507,7 +512,6 @@ SIMPLES = {
     "tokens": lambda ev, raiz, dias, j: cmd_tokens(ev, j),
     "por-spec": lambda ev, raiz, dias, j: cmd_por_spec(ev, raiz, j),
     "espera": lambda ev, raiz, dias, j: cmd_espera(raiz, dias, j),
-    "ruido": lambda ev, raiz, dias, j: _cmd_ruido(raiz, dias, j),
 }
 
 
@@ -658,22 +662,62 @@ def achados_de(texto: str) -> list[dict]:
     return achados
 
 
-def ruido(raiz: Path, dias: int | None) -> dict:
+def _data_no_nome(nome: str):
+    """A data `AAAA-MM-DD` do nome do relatório; None sem data ou com data impossível."""
+    m = DATA_NO_NOME.search(nome)
+    try:
+        return datetime.strptime(m.group(1), "%Y-%m-%d").date() if m else None
+    except ValueError:
+        return None   # 2026-13-45 no nome: o relatório conta, como os sem data
+
+
+def relatorios_em_disco(raiz: Path, dias: int | None) -> list[str]:
+    """Os relatórios do /revisar em `docs/specs/revisoes/`, pela data no nome do arquivo."""
     pasta = raiz / "docs" / "specs" / "revisoes"
     corte = (datetime.now(timezone.utc) - timedelta(days=dias)).date() if dias else None
+    textos = []
+    for arq in sorted(pasta.glob("*.md")) if pasta.is_dir() else []:
+        data = _data_no_nome(arq.name) if corte else None
+        if data and data < corte:
+            continue
+        textos.append(arq.read_text(encoding="utf-8", errors="replace"))
+    return textos
+
+
+# A revisão do gatilho de CI (kairos-forge-revisar.yml) não vira arquivo: é um comentário
+# no PR, com este cabeçalho. Cada push revisa o PR inteiro de novo e comenta outra vez,
+# então só a revisão mais recente de cada PR conta, a do head que vai ser mesclado; somar
+# todas contaria o mesmo achado a cada push. A marca de descarte é a mesma do arquivo, na
+# linha do achado, editando o comentário: o GitHub guarda quem editou e quando.
+MARCA_REVISAO_NO_PR = "Revisão da fábrica kairos-forge"
+
+
+def _revisao_mais_recente(pr: dict, corte: datetime | None) -> str | None:
+    da_fabrica = [c for c in pr.get("comments") or [] if MARCA_REVISAO_NO_PR in str(c.get("body"))]
+    if not da_fabrica:
+        return None
+    ultima = max(da_fabrica, key=lambda c: c.get("createdAt", ""))
+    quando = _data(ultima.get("createdAt"))
+    return None if corte and quando and quando < corte else ultima["body"]
+
+
+def revisoes_no_pr(raiz: Path, dias: int | None) -> list[str] | None:
+    """O texto da revisão mais recente da fábrica em cada PR, pelo `gh`. None se não der."""
+    prs = gh_json(raiz, "pr", "list", "--state", "all", "--limit", "200",
+                   "--json", "number,comments")
+    if prs is None:
+        return None
+    corte = datetime.now(timezone.utc) - timedelta(days=dias) if dias else None
+    return [t for t in (_revisao_mais_recente(pr, corte) for pr in prs) if t is not None]
+
+
+def ruido(raiz: Path, dias: int | None, github: bool = False) -> dict:
     por_revisor: dict[str, dict] = defaultdict(lambda: {"achados": 0, "descartados": 0})
     por_severidade: dict[str, dict] = defaultdict(lambda: {"achados": 0, "descartados": 0})
-    relatorios = 0
-    for arq in sorted(pasta.glob("*.md")) if pasta.is_dir() else []:
-        if corte:
-            m = DATA_NO_NOME.search(arq.name)
-            try:
-                if m and datetime.strptime(m.group(1), "%Y-%m-%d").date() < corte:
-                    continue
-            except ValueError:
-                pass
-        relatorios += 1
-        for a in achados_de(arq.read_text(encoding="utf-8", errors="replace")):
+    no_disco = relatorios_em_disco(raiz, dias)
+    nos_prs = revisoes_no_pr(raiz, dias) if github else None
+    for texto in no_disco + (nos_prs or []):
+        for a in achados_de(texto):
             for bucket in (por_revisor[a["revisor"]], por_severidade[a["severidade"]]):
                 bucket["achados"] += 1
                 bucket["descartados"] += int(a["descartado"])
@@ -684,7 +728,9 @@ def ruido(raiz: Path, dias: int | None) -> dict:
         return round(100 * b["descartados"] / b["achados"]) if b["achados"] else None
 
     return {
-        "relatorios": relatorios,
+        "relatorios": len(no_disco),
+        "prs": len(nos_prs) if nos_prs is not None else None,   # None: GitHub não consultado
+        "github": "consultado" if nos_prs is not None else ("indisponivel" if github else "nao_pedido"),
         "achados": total,
         "descartados": descartados,
         "ruido_pct": taxa({"achados": total, "descartados": descartados}),
@@ -696,26 +742,43 @@ def ruido(raiz: Path, dias: int | None) -> dict:
     }
 
 
+LINHA_DO_GITHUB = {
+    "consultado": "PRs: a revisão mais recente da fábrica em {prs} PR(s) entra na conta.",
+    "indisponivel": "PRs: não consultados — `gh` indisponível ou sem acesso; só os relatórios "
+                    "em disco entram.",
+    "nao_pedido": "PRs: não consultados — rode com --github para somar a revisão do gatilho "
+                  "de CI no PR.",
+}
+
+
 def imprimir_ruido(r: dict, dias: int | None) -> None:
     janela = f"últimos {dias} dias" if dias else "todo o histórico"
     print(f"📣 Ruído da revisão — {janela}\n")
-    if not r["relatorios"]:
+    print(f"  {LINHA_DO_GITHUB[r['github']].format(prs=r['prs'])}")
+    if not r["relatorios"] and not r["prs"]:
         print("  nenhum relatório em docs/specs/revisoes/ — o /revisar salva um por rodada.")
         return
-    print(f"  Relatórios: {r['relatorios']}   Achados: {r['achados']}   "
-          f"Descartados: {r['descartados']}")
+    print(f"  Relatórios: {r['relatorios']}   PRs: {r['prs'] if r['prs'] is not None else '—'}   "
+          f"Achados: {r['achados']}   Descartados: {r['descartados']}")
     if not r["medido"]:
         print("  Ruído: não medido — nenhum achado marcado `descartado: <motivo>`.\n"
               "  Zero descartes em muitos achados é mais provável ser ninguém marcando do que\n"
-              "  revisor perfeito. A marcação é do humano, na linha do achado.")
+              "  revisor perfeito. A marcação é do humano, na linha do achado: no relatório,\n"
+              "  ou editando o comentário da revisão mais recente do PR.")
         return
     print(f"  Ruído geral: {r['ruido_pct']}%   (limiar de atenção: 30% — o time passa a ignorar)\n")
+    imprimir_por_revisor(r["por_revisor"])
+
+
+def imprimir_por_revisor(por_revisor: dict) -> None:
+    """Revisor só entra com algum achado, então a taxa sempre existe. ⚠️ a partir de 30%,
+    com 3 achados ou mais: com menos, um descarte já passa do limiar."""
     print(f"  {'revisor':<14} {'achados':>8} {'descart.':>9} {'ruído':>7}")
     print("  " + "-" * 42)
-    for nome, v in r["por_revisor"].items():
-        pct = f"{v['ruido_pct']}%" if v["ruido_pct"] is not None else "—"
-        alerta = "  ⚠️" if (v["ruido_pct"] or 0) >= 30 and v["achados"] >= 3 else ""
-        print(f"  {nome:<14} {v['achados']:>8} {v['descartados']:>9} {pct:>7}{alerta}")
+    for nome, v in por_revisor.items():
+        alerta = "  ⚠️" if v["ruido_pct"] >= 30 and v["achados"] >= 3 else ""
+        print(f"  {nome:<14} {v['achados']:>8} {v['descartados']:>9} "
+              f"{str(v['ruido_pct']) + '%':>7}{alerta}")
 
 
 # --- autonomia de PR, medida pelo git (ADR-0044) -----------------------------------
@@ -748,18 +811,25 @@ def _data(iso: str | None) -> datetime | None:
         return None
 
 
-def _prs_do_gh(raiz: Path, corte: datetime | None) -> list[dict] | None:
-    """PRs mesclados pelo `gh`, cobrindo merge, squash e rebase. None se não der."""
+def gh_json(raiz: Path, *argumentos: str) -> list | None:
+    """Uma lista JSON do `gh`; None sem `gh`, sem acesso ou com saída que não é lista.
+    O `painel.py` usa o mesmo, para a caixa."""
     if not shutil.which("gh"):
         return None
     try:
-        r = subprocess.run(["gh", "pr", "list", "--state", "merged", "--limit", "200",
-                            "--json", CAMPOS_GH], cwd=raiz, capture_output=True,
+        r = subprocess.run(["gh", *argumentos], cwd=raiz, capture_output=True,
                            text=True, timeout=90)
         dados = json.loads(r.stdout or "[]") if r.returncode == 0 else None
     except (OSError, subprocess.SubprocessError, ValueError):
         return None
-    if not isinstance(dados, list):
+    return dados if isinstance(dados, list) else None
+
+
+def _prs_do_gh(raiz: Path, corte: datetime | None) -> list[dict] | None:
+    """PRs mesclados pelo `gh`, cobrindo merge, squash e rebase. None se não der."""
+    dados = gh_json(raiz, "pr", "list", "--state", "merged", "--limit", "200",
+                     "--json", CAMPOS_GH)
+    if dados is None:
         return None
     prs = []
     for p in dados:
@@ -1258,7 +1328,7 @@ def _rodar_sobre_prs(comando: str, raiz: Path, dias, args: list[str], como_json:
 
 # Comandos que não leem a trajetória: (comando, raiz, dias, args, json) → exit code.
 SEM_TRAJETORIA = {"prs": _rodar_sobre_prs, "comparar": _rodar_sobre_prs,
-                  "custo-eval": _cmd_custo_eval}
+                  "custo-eval": _cmd_custo_eval, "ruido": _cmd_ruido}
 
 
 # --- apresentação ------------------------------------------------------------------

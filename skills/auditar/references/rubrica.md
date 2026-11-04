@@ -84,7 +84,7 @@ python3 <plugin>/scripts/painel.py --dias 30      # o mesmo estado com as SPECs 
 
 **Regra em modo aviso é regra em observação, não regra cumprida.** Se `recusas_em_modo_aviso` está alto e estável, ou a regra vira `bloqueio` ou ela sai — regra que só avisa para sempre é decoração.
 
-**Ruído da revisão (ADR-0039).** Rode `telemetria.py ruido --dias 90`. Não pontua — reporta: revisor com ≥ 30% de achados marcados `descartado:` (mínimo 3 achados) entra no relatório como lacuna, dona Patrícia (recalibrar a persona ou a segunda passada). `não medido` — nenhum achado marcado — também é achado: significa que ninguém marca, e revisão que ninguém mede não calibra.
+**Ruído da revisão (ADR-0039).** Rode `telemetria.py ruido --dias 90`, com `--github` se o projeto usa o gatilho de revisão no PR (a revisão mais recente de cada PR entra na conta). Não pontua — reporta: revisor com ≥ 30% de achados marcados `descartado:` (mínimo 3 achados) entra no relatório como lacuna, dona Patrícia (recalibrar a persona ou a segunda passada). `não medido` — nenhum achado marcado — também é achado: significa que ninguém marca, e revisão que ninguém mede não calibra.
 
 **Autonomia de PR (ADR-0044).** Rode `telemetria.py prs --dias 30`. Não pontua — reporta: dos
 PRs mesclados com ao menos um commit da fábrica, quantos chegaram ao merge sem nenhum commit

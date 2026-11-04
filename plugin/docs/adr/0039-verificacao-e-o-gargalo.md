@@ -228,3 +228,37 @@ para esta entrega). No `/entregar`, isso é escalação. O `/revisar` roda o mes
   vínculo para ler pelo título, um custo que se paga com a branch curta.
 - **Nenhum campo novo na fence.** Contradição é bloqueio e entra em `bloqueios`, e o contrato
   `kairos-validacao` não muda.
+
+## Emenda (v0.42.12): o ruído da revisão no PR
+
+O `telemetria.py ruido` só lia `docs/specs/revisoes/`. A revisão do gatilho de CI
+(`kairos-forge-revisar.yml`, ADR-0026) não vira arquivo, vira comentário no PR, e ninguém a
+media. O guia de adoção por peça teve de marcar "não medido" justo na peça que muitos times
+ligam primeiro.
+
+`telemetria.py ruido --github` passa a ler, pelo `gh`, os comentários dos últimos 200 PRs,
+abertos e fechados. Em cada um, entra a revisão mais recente que tem o cabeçalho do gatilho
+(`Revisão da fábrica kairos-forge`). O parser e a marca são os mesmos do arquivo:
+
+- **A marca é editada na linha.** Achado que o time não acata ganha ` · descartado: <motivo>`
+  na própria linha do comentário. Quem tem escrita no repositório pode editar o comentário, e o
+  histórico de edição do GitHub mostra quem marcou e quando. O rodapé do comentário ensina isso.
+- **Só a revisão mais recente de cada PR conta.** Cada push revisa o PR inteiro e comenta de
+  novo; somar todas contaria o mesmo achado uma vez por push. A mais recente é a do head que vai
+  ser mesclado, a mesma regra de "só a mais recente conta" do README dos gatilhos.
+- **Sem `--github`, nada sai da máquina**, como no `painel.py --caixa` e no `prova.py
+  decisoes`. Com `gh` indisponível ou sem acesso, a saída diz "não consultado", nunca 0.
+- **A janela (`--dias`) vale pela data em que o comentário foi criado.**
+
+Reação no comentário (👍/👎) não serve como marca: um comentário traz vários achados, e a
+reação é do comentário inteiro.
+
+### Limites
+
+- **Descarte marcado numa revisão antiga se perde** quando um push gera a seguinte. O rodapé
+  pede para marcar na mais recente; o achado que volta no push seguinte é ruído de novo, e é
+  justo que conte de novo.
+- **O filtro é o cabeçalho, não o autor**, porque o comentário sai em nome do app da fábrica ou
+  do `github-actions[bot]`, conforme a identidade configurada. Uma pessoa que cole o mesmo
+  cabeçalho entra na conta.
+- **Os últimos 200 PRs.** Projeto com mais PRs que isso na janela fica com a conta parcial.

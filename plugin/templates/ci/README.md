@@ -14,7 +14,7 @@ ou é segunda-feira de manhã.
 
 | Arquivo | Dispara quando | O que faz | Escreve? |
 |---|---|---|---|
-| `kairos-forge-revisar.yml` | PR aberto, atualizado, reaberto ou tirado de rascunho (PR em rascunho é ignorado) | Roda `/kairos-forge:revisar` e comenta o parecer | Só comentário |
+| `kairos-forge-revisar.yml` | PR aberto, atualizado, reaberto ou tirado de rascunho (PR em rascunho é ignorado) | Roda `/kairos-forge:revisar` e comenta o parecer; achado não acatado ganha ` · descartado: <motivo>` na linha, editando o comentário, e `telemetria.py ruido --github` mede o ruído por revisor | Só comentário |
 | `kairos-forge-corrigir.yml` | O workflow de CI observado termina em falha numa branch deste repositório (não de fork) que **não** é a default nem `forge/corrige-*` | Diagnostica e tenta corrigir em uma rodada, **abrindo PR** contra a branch que falhou; pula se já houver PR de correção aberto para ela | Branch nova + PR |
 | `kairos-forge-auditar.yml` | Segunda-feira 09:00 em UTC-3 (cron `0 12 * * 1` — o cron do Actions é UTC), ou manual | Roda `/kairos-forge:auditar` e abre issue com as 3 lacunas | Issue |
 | `kairos-forge-triar.yml` | Issue aberta/reaberta, ou rotulada `forge:triar` | Laura e Joana classificam: `forge:pronto` · `forge:precisa-spec` · `forge:falta-informacao` (com as perguntas) · `forge:aguardar` (ADR-0040), e estimam a faixa de raio de explosão, `forge:faixa-1/2/3` (ADR-0031) | Rótulos + comentário |

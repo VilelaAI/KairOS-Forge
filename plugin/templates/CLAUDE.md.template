@@ -38,7 +38,7 @@
 - Backlog: <GitHub Issues | Linear | Jira> (<time/projeto>). Issue ou card é entrada válida: a fábrica lê via CLI/MCP e registra a Origem na SPEC.
 - Formato de tarefa: o da SPEC (`docs/specs/`) — outras skills instaladas não mudam o formato.
 - Design doc externo: <Notion/Confluence | no repo>. O contrato fica na SPEC; o link é rastro.
-- Rótulos de triagem (`templates/ci/kairos-forge-triar.yml`): `forge:pronto`, `forge:precisa-spec`, `forge:falta-informacao`, `forge:aguardar`. `forge:construir` é seu, não da fábrica.
+- Rótulos de triagem (`templates/ci/kairos-forge-triar.yml`): `forge:pronto`, `forge:precisa-spec`, `forge:falta-informacao`, `forge:aguardar`, mais a faixa de raio estimada, `forge:faixa-1/2/3` (faixa 3 nunca é `forge:pronto`). `forge:construir` é seu, não da fábrica.
 - Fonte que a fábrica não alcança: quando a pergunta a você existe porque a resposta está numa ferramenta sem acesso (métricas, banco, tracker, logs, design), ela traz uma linha `falta-fonte: <fonte>`, com o nome do serviço numa palavra. O hook conta, e o `/kairos-forge:evoluir` propõe ligar a fonte que mais faltou.
 
 ---

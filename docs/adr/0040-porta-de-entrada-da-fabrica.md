@@ -171,3 +171,40 @@ Três peças:
   "não medidas", como os tokens. No Cursor, o formato do transcript não foi conferido.
 - **Ligar a fonte é dar acesso.** O `/evoluir` propõe e confirma o escopo (só leitura, qual
   ambiente); quem liga é a pessoa. A fábrica não se dá acesso sozinha.
+
+## Emenda (v0.42.6): a faixa de raio no parecer da triagem
+
+Na aula 5 do Tech Leads Club, a triagem do professor dá um grau de impacto já na entrada. A
+regra da skill é: com impacto baixo ou médio, o agente segue; com impacto alto, chama uma pessoa
+para validar. *"A primeira coisa: ele tem que dizer qual é o impacto daquilo ali."* O Forge tem a
+mesma régua desde o ADR-0031, as faixas de raio de explosão, mas ela só aparecia no `/revisar` e
+no `/entregar`, quando o código já existia. Na triagem, quem decidia mover `forge:construir`
+via rótulo e tamanho, e tamanho não é impacto: um diff de 20 linhas pode apagar dados.
+
+Três peças:
+
+- **A triagem estima a faixa**, pela mesma pergunta do ADR-0031: *quanto custa desfazer se
+  estiver errado?* A segunda linha do parecer é `FAIXA: <1|2|3> — <por quê>`. O workflow tira
+  a faixa por regex, aplica `forge:faixa-N` (filtrável no board, como o rótulo) e abre o
+  comentário com ela ao lado do rótulo. Parecer sem faixa legível sai "faixa não estimada",
+  sem rótulo de faixa. Na re-triagem, a faixa anterior sai.
+- **Faixa 3 nunca fica `forge:pronto`.** Quando o parecer pede `pronto` para uma mudança
+  difícil de reverter, o shell troca por `forge:precisa-spec` e diz no comentário que trocou.
+  A mudança passa por SPEC e pela aprovação humana (`aguardando_aprovacao`) antes de qualquer
+  código. A regra é do workflow, não do modelo, pelo mesmo motivo que o `forge:construir` nunca
+  sai por regex.
+- **A faixa segue o trabalho.** O `/especificar` registra a faixa na Origem da SPEC, e faixa 3
+  é o irreversível do ADR-0019: sem default da feature Pequena e com o caminho de volta nos
+  Riscos. O `/revisar` compara a faixa do diff com a estimada. Entrega numa faixa acima vai no
+  topo do relatório, porque quem aprovou a construção olhou um raio menor.
+
+### Limites
+
+- **É estimativa de quem ainda não viu o código.** O `/revisar` classifica de novo pelo diff,
+  e é essa classificação que decide o rigor da revisão. A da triagem decide o caminho de
+  entrada.
+- **"Na dúvida, a maior" infla a faixa 3**, e mais issues passam pela SPEC. É o erro barato:
+  uma SPEC a mais custa uma aprovação, e um `pronto` errado na faixa 3 custa um revert que não
+  existe.
+- **Rótulo de faixa que falta no repositório não derruba a triagem.** O comentário sai e o log
+  avisa. Instalação antiga sem os rótulos novos continua funcionando.

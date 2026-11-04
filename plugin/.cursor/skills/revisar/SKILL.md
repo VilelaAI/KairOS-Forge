@@ -82,6 +82,10 @@ evidência. Mesmo critério, momentos diferentes.
 Declare a faixa no topo do relatório. Um diff de 20 linhas na faixa 3 recebe mais escrutínio
 que um de 400 na faixa 1 — e o revisor precisa saber disso antes de começar a ler.
 
+Se a entrega veio de uma issue triada, compare com a faixa estimada lá (`forge:faixa-N`, ou a
+Origem da SPEC). Diff numa faixa acima da estimada vai no topo do relatório, com as duas: quem
+moveu `forge:construir` decidiu olhando um raio menor que o entregue.
+
 **O histórico entra aqui, não a impressão.** Se o projeto tem `diagnostico.py`, a taxa de
 reversão da área tocada é evidência: área que já voltou atrás três vezes neste trimestre
 sobe de faixa. É o sinal que o modelo não consegue influenciar — e por isso vale mais que

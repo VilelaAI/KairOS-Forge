@@ -17,7 +17,7 @@ ou é segunda-feira de manhã.
 | `kairos-forge-revisar.yml` | PR aberto, atualizado, reaberto ou tirado de rascunho (PR em rascunho é ignorado) | Roda `/kairos-forge:revisar` e comenta o parecer | Só comentário |
 | `kairos-forge-corrigir.yml` | O workflow de CI observado termina em falha numa branch deste repositório (não de fork) que **não** é a default nem `forge/corrige-*` | Diagnostica e tenta corrigir em uma rodada, **abrindo PR** contra a branch que falhou; pula se já houver PR de correção aberto para ela | Branch nova + PR |
 | `kairos-forge-auditar.yml` | Segunda-feira 09:00 em UTC-3 (cron `0 12 * * 1` — o cron do Actions é UTC), ou manual | Roda `/kairos-forge:auditar` e abre issue com as 3 lacunas | Issue |
-| `kairos-forge-triar.yml` | Issue aberta/reaberta, ou rotulada `forge:triar` | Laura e Joana classificam: `forge:pronto` · `forge:precisa-spec` · `forge:falta-informacao` (com as perguntas) · `forge:aguardar` (ADR-0040) | Rótulo + comentário |
+| `kairos-forge-triar.yml` | Issue aberta/reaberta, ou rotulada `forge:triar` | Laura e Joana classificam: `forge:pronto` · `forge:precisa-spec` · `forge:falta-informacao` (com as perguntas) · `forge:aguardar` (ADR-0040), e estimam a faixa de raio de explosão, `forge:faixa-1/2/3` (ADR-0031) | Rótulos + comentário |
 
 ## Instalação
 
@@ -181,12 +181,26 @@ intenção, a mesma fronteira do ADR-0023. O que consome `forge:construir` (o ar
 `/entregar` headless) ainda não existe como template, de propósito: entra quando o arco
 headless tiver trajetória medida.
 
-Crie os seis rótulos no repositório antes de instalar — os quatro que o workflow aplica
-(`forge:pronto`, `forge:precisa-spec`, `forge:falta-informacao`, `forge:aguardar`) e os
-dois que são do humano (`forge:triar`, para pedir re-triagem, e `forge:construir`):
+A triagem também estima a **faixa de raio de explosão** da mudança (ADR-0031), pela pergunta
+"quanto custa desfazer se estiver errado?": `forge:faixa-1` (reversível e contido),
+`forge:faixa-2` (reversível mas amplo) ou `forge:faixa-3` (difícil de reverter). A faixa
+abre o comentário, ao lado do rótulo, para você mover `forge:construir` vendo o impacto. E
+faixa 3 nunca fica `forge:pronto`: se o parecer pedir, o próprio workflow troca por
+`forge:precisa-spec`, e a mudança passa por SPEC e pela sua aprovação antes de qualquer
+código. A troca é do shell, não do modelo. Parecer sem faixa legível sai "faixa não
+estimada", sem rótulo de faixa.
+
+Crie os nove rótulos no repositório antes de instalar:
+- os quatro que o workflow aplica (`forge:pronto`, `forge:precisa-spec`,
+  `forge:falta-informacao`, `forge:aguardar`);
+- os três de faixa (`forge:faixa-1`, `forge:faixa-2`, `forge:faixa-3`);
+- os dois que são do humano (`forge:triar`, para pedir re-triagem, e `forge:construir`).
+
+Rótulo de faixa que falta não derruba a triagem: o workflow avisa no log e comenta mesmo
+assim.
 
 ```bash
-for r in pronto precisa-spec falta-informacao aguardar triar construir; do
+for r in pronto precisa-spec falta-informacao aguardar faixa-1 faixa-2 faixa-3 triar construir; do
   gh label create "forge:$r" --force
 done
 ```

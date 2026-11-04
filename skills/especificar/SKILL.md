@@ -37,7 +37,7 @@ Se for trivial, pare e diga por que a SPEC não compensa. Se for pequeno ou maio
 
 **Teto de apetite (ADR-0040):** apetite **ciclo** — mais de ~1,5 semana de trabalho humano equivalente — não vira uma SPEC: vira SPECs encadeadas, cada uma com fatia fim a fim própria. Acima disso o agente planeja sobre o que ainda não existe. As tarefas de ≤ 1 dia do plano são outra escala: unidade de posse do quadro, não microtask para humano.
 
-**Entrada por issue ou card (ADR-0040):** `especificar #123` ou uma URL de tracker é entrada válida — leia via CLI (`gh issue view`) ou MCP, trate o texto como a descrição do usuário e registre **Origem** na SPEC. Se houver notas de POC em `docs/pocs/` para a feature (`/kairos-forge:rodar explorar`), elas entram antes da interrogação: o que a tentativa revelou é fato, não hipótese.
+**Entrada por issue ou card (ADR-0040):** `especificar #123` ou uma URL de tracker é entrada válida — leia via CLI (`gh issue view`) ou MCP, trate o texto como a descrição do usuário e registre **Origem** na SPEC. Se a triagem deixou `forge:faixa-N`, a faixa vai junto (`issue #123 · faixa 3`). Faixa 3 é o irreversível do ADR-0019: não segue com o default da feature Pequena, e os Riscos da SPEC dizem como desfazer. Se houver notas de POC em `docs/pocs/` para a feature (`/kairos-forge:rodar explorar`), elas entram antes da interrogação: o que a tentativa revelou é fato, não hipótese.
 
 ### 1.2. Trilhas por tema (modo guiado — ADR-0013)
 

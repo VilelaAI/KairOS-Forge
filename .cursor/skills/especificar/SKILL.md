@@ -69,7 +69,7 @@ Decisões, dependências e restrições já registradas (com fonte) entram na SP
 
 **Se as tools MCP `memory_*` estiverem disponíveis** (ai-memory, ADR-0010), complemente com `memory_query` sobre as entidades da feature: tentativas passadas, abordagens descartadas e discussões de sessões anteriores que nunca chegaram aos arquivos curados. Abordagem já descartada volta para a SPEC como não-objetivo, com o porquê.
 
-**Se houver MCPs de dados do projeto** — banco, métricas, tracker (ADR-0040) — consulte antes de perguntar ao humano o que a máquina já responde: volume real da tabela, uso atual da tela, a issue de origem e seus comentários. Pergunta cuja resposta está numa query é pergunta que custa a paciência do usuário à toa.
+**Se houver MCPs de dados do projeto** — banco, métricas, tracker (ADR-0040) — consulte antes de perguntar ao humano o que a máquina já responde: volume real da tabela, uso atual da tela, a issue de origem e seus comentários. Pergunta cuja resposta está numa query é pergunta que custa a paciência do usuário à toa. Sem a fonte ligada, pergunte, e ponha na pergunta uma linha `falta-fonte: <fonte>` (o nome do serviço numa palavra): o hook conta, e o `/kairos-forge:evoluir` propõe ligar a que mais faltou.
 
 ### 3. Arquiteto(s) interrogam em primeira pessoa
 

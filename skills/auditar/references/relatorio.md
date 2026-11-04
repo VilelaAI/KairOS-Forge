@@ -35,6 +35,7 @@ não medida" — ou "nenhum">
 | Rodadas de correção | NN |
 | Produção escrita sem gate | NN sessão(ões) |
 | Tempo de ciclo esperando pessoa | NN% (`telemetria.py espera`; maior espera: <estado>) |
+| Perguntas por falta de fonte | NN, por fonte (`telemetria.py resumo`), ou "não medidas" |
 | Entrega da fábrica × humana (90 dias) | voltaram NN% × NN% (N = NN × NN), ou "não comparável" com os N (`telemetria.py comparar`) |
 
 **Nível estimado:** L<N> — <justificativa em uma linha, ancorada nos números acima>

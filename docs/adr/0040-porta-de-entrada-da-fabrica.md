@@ -133,3 +133,41 @@ tradução.
 | `DESIGN.md` gerado pelo `/onboardar` | Extrair sistema de design de código é trabalho de Pablo com julgamento; gerar esqueleto vazio é placeholder, que o Pare e Pergunte proíbe |
 | Tarefas do plano maiores (a "task" da aula) | Confunde as escalas: a tarefa de ≤ 1 dia é a unidade de posse do quadro; o tamanho da aula é o apetite da SPEC, e o teto entra lá |
 | Campo `origem` na fence `kairos-critica`/`kairos-validacao` | Muda o contrato assinado (ADR-0034) por metadado que o cabeçalho da SPEC carrega igual |
+
+## Emenda (v0.42.5): pergunta por falta de fonte vira proposta de ligar a fonte
+
+Esta ADR mandou consultar os MCPs de dados do projeto antes de perguntar ao humano. Faltava o
+outro lado: quando a fonte não está ligada e a pergunta acontece mesmo assim, nada registrava
+isso. Na aula 5 do Tech Leads Club, o agente vai apagar rotas antigas e pede ao professor os
+acessos de cada uma no PostHog, que não está conectado. O professor tira a lição: buscar o dado
+à mão toda vez não escala; o certo é ligar o PostHog, e o agente nunca mais pergunta. *"É uma
+melhoria constante até que ele fique autônomo."*
+
+Três peças:
+
+- **A convenção.** A pergunta que existe porque a resposta está numa ferramenta sem acesso
+  (métricas, banco, tracker, logs, design) traz uma linha `falta-fonte: <fonte>`, com o nome do
+  serviço numa palavra. A regra está no `CLAUDE.md.template` do projeto, no bloco de bloqueio
+  do anti-drift (o teammate pergunta à Laura, e a linha segue se ela levar a pergunta à pessoa),
+  no `/especificar` e na escalação do `/entregar`.
+- **A contagem é do hook, não do agente.** O `Stop` já relê o transcript para somar os tokens
+  (ADR-0048). Na mesma passada, conta as respostas do modelo que declaram cada fonte e grava em
+  `sessao_fim` só o nome e a contagem, nunca o texto. Texto de usuário e de ferramenta não
+  conta, e a mesma resposta em várias linhas conta uma vez. Um filtro de substring antes da
+  regex mantém o `Stop` no tempo de antes: 0,2 s num transcript real de 24 MB.
+- **O consumo.** O `telemetria.py resumo` traz "Fontes que faltaram", com perguntas e sessões
+  por fonte, somadas pela última leitura de cada sessão. Para o `/evoluir`, uma fonte que
+  faltou em 2+ sessões é candidata pronta: o modo de falha é conhecido, a capacidade que o
+  resolve é ligar a fonte, e a linha de base já existe. O veredicto da semana seguinte lê o
+  mesmo número (ADR-0043). O `/auditar` reporta a contagem e não pontua, e o `/relatar` a mostra
+  em "Como foi o processo?".
+
+### Limites
+
+- **É auto-declarado.** A linha depende do agente escrevê-la, e um esquecimento subconta. O que
+  a protege é não ter incentivo para mentir: nada pontua, e o número só serve para propor uma
+  ligação que a pessoa aprova.
+- **Só onde o Stop lê o transcript.** No Claude Code, sim. No Codex, no OpenCode e no Tucano,
+  "não medidas", como os tokens. No Cursor, o formato do transcript não foi conferido.
+- **Ligar a fonte é dar acesso.** O `/evoluir` propõe e confirma o escopo (só leitura, qual
+  ambiente); quem liga é a pessoa. A fábrica não se dá acesso sozinha.

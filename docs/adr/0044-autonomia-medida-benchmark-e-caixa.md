@@ -149,3 +149,53 @@ para quem quiser notificar.
 | Selar automaticamente parte dos casos colhidos | A divisão e a rotação são decisão de quem avalia (ADR-0030). Selar por script tiraria a Alice da única decisão que é dela |
 | Notificação ativa da caixa (Telegram, Slack, e-mail) | É runtime (ADR-0001). A ponte Hermes (ADR-0019) e o kairos-symphony consomem o `--json` |
 | Custo em dinheiro por ciclo e execução remota com retomada local | Pedem quem chama a API e quem hospeda a VM. O ledger de consumo do `/mobilizar` (ADR-0013) é o que cabe no plugin; o resto é do kairos-symphony |
+
+## Emenda (v0.42.3): a entrega da fábrica comparada com a humana
+
+Na aula 5 do Tech Leads Club (Fábricas Agênticas), o professor descreve a própria fábrica no
+nível 3 e diz o que falta para o 4: *"boas métricas para verificar se [a fábrica] está entregando
+tão bem quanto humanos"*. A autonomia de PR desta ADR diz quanto a fábrica entrega sozinha, mas
+não se o que ela entrega aguenta. Uma fábrica com 100% de autonomia cujos PRs voltam o dobro dos
+humanos não está no nível 4. Está mandando retrabalho para a semana seguinte.
+
+**`telemetria.py comparar`** divide os PRs mesclados pelo mesmo critério do `prs`: fábrica é o PR
+com commit de agente, humano é o PR sem nenhum. Para cada PR, dois sinais do git, que o modelo
+não escreve e que valem para os dois grupos:
+
+- **revertido:** um commit posterior na linha principal desfaz o PR, por `Revert "<título>"`,
+  por `Revert "... #N"` ou por "This reverts commit <sha>" apontando para a entrega ou para um
+  commit do PR;
+- **corrigido:** um commit posterior com `fix:`, `hotfix:` ou "corrige" no título, em até 14
+  dias, mexe num arquivo de código (não de teste) que o PR mexeu.
+
+O título vem do assunto ou, no merge commit do GitHub, da primeira linha do corpo, onde o GitHub
+grava o título do PR. Com isso, a fonte `git` do `prs` passa a mostrar o título do PR em vez de
+"Merge pull request #N".
+
+Três travas contra o número enganar:
+
+- **Abaixo de 5 PRs num grupo, não há taxa**, só os números e "não comparável".
+- **PR mesclado há menos de 14 dias fica em observação**, fora dos dois grupos. A janela de
+  correção dele não fechou, e a fábrica, que costuma ter os PRs mais recentes, sairia
+  favorecida.
+- **A saída lista os PRs que voltaram**, com o commit que os trouxe de volta, para que a leitura
+  comece pelos casos e não pela taxa.
+
+O `/auditar` reporta a comparação ao lado da autonomia de PR. A tabela de nível ganha uma condição
+no L4: a entrega da fábrica volta no máximo tanto quanto a humana. Quando não é comparável, o
+nível sai com a ressalva "qualidade da entrega não comparada com a humana". O `/relatar` ganha a
+pergunta "O que entregamos aguenta?".
+
+### Limites
+
+- **O sinal é aproximado.** Correção sem `fix:` no título escapa, e um `fix:` que mexe num arquivo
+  de dois PRs conta para os dois. O erro é o mesmo nos dois grupos, então o que se lê é a
+  diferença, não a taxa absoluta.
+- **Os grupos não são sorteados.** Se as pessoas ficam com o trabalho difícil e a fábrica com o
+  fácil, a fábrica parece melhor sem ser. O relatório lista os PRs, e a comparação informa o
+  julgamento sem substituí-lo.
+- **Projeto em que só a fábrica abre PR não tem linha de base.** É "não comparável", e isso
+  também é achado.
+- **Não pontua.** A rubrica de 120 pontos não muda, e as auditorias anteriores continuam
+  comparáveis. A comparação entra no nível, que já era julgamento sobre os números.
+- **Nenhum número por pessoa.** O grupo humano é um só (regra 6 do `/relatar`).

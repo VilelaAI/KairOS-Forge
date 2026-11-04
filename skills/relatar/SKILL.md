@@ -42,6 +42,7 @@ raiz do projeto.
 | Pergunta | Comando | O que ler |
 |---|---|---|
 | O que entregamos? | `telemetria.py prs --dias N` | PRs mesclados, quantos têm código da fábrica e quantos não tiveram nenhum commit humano. Com `--fonte git`, só merges com commit de merge (squash não aparece) |
+| O que entregamos aguenta? | `telemetria.py comparar --dias N` | PRs revertidos ou corrigidos em até 14 dias, da fábrica e das pessoas lado a lado. Só compara com 5+ PRs de janela fechada em cada grupo; abaixo disso, diga "não comparável" e dê os N |
 | Em que pé estão as SPECs? | `painel.py --json --dias N [SPEC]` | Progresso por SPEC, P1 abertos, `sem_prova`, último veredicto de crítica, validação e revisão, estado de cada ciclo |
 | O que espera por alguém? | `painel.py --caixa` (com `--github` se o usuário autorizar o `gh`) | Gate humano, SPEC alterada depois de aprovada, ciclo escalado, tarefa bloqueada ou vencida |
 | Quanto custou? | `telemetria.py por-spec --dias N`; por sessão, `telemetria.py tokens`; por tarefa, `quadro.py ledger <slug>` | Tokens novos e cache lido por SPEC (a chave é o branch do ciclo, o id no nome do branch ou o id citado; o resto fica em "sem SPEC"); no ledger, por tarefa concluída, desfeita e em aberto |
@@ -67,7 +68,8 @@ Entregue: <1 linha> · Em andamento: <1 linha> · Travado: <1 linha>
 <da caixa: gate humano, escalado, bloqueado — com o comando que mostra cada um>
 
 ## Entregue
-<PRs mesclados com número e título; SPECs com requisitos verificados no período>
+<PRs mesclados com número e título; SPECs com requisitos verificados no período; o que
+voltou (revertido ou corrigido) e a comparação com a entrega humana, se comparável>
 
 ## Em andamento
 <SPEC, progresso, estado do ciclo, último veredicto de cada gate>

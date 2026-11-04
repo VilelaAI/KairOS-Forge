@@ -101,6 +101,25 @@ projeto acrescenta marcas com `--marca`. Três leituras:
 - **Leia a fonte.** `git` só vê merge com commit de merge; com squash ou rebase, rode com o `gh`
   autenticado. Nenhum PR com commit da fábrica é "não medido", nunca 0%.
 
+**Entrega da fábrica × humana (emenda ao ADR-0044).** Rode `telemetria.py comparar --dias 90`.
+A autonomia de PR diz quanto a fábrica entrega sozinha; esta conta diz se o que ela entrega
+aguenta. Para cada PR mesclado, dois sinais do git, iguais para os dois grupos: **revertido**
+(um `Revert "..."` ou "This reverts commit" que aponta para ele) e **corrigido** (um `fix:`,
+`hotfix:` ou "corrige" em até 14 dias que mexe num arquivo de código, não de teste, que o PR
+mexeu). "Voltou" é ter um dos dois. Não pontua; entra no nível (tabela abaixo) e no relatório.
+
+- **Só compara com 5+ PRs em cada grupo.** Abaixo disso, o relatório mostra os números e diz
+  "não comparável". Projeto em que só a fábrica abre PR não tem com o que comparar, e isso é
+  o achado: a linha de base humana não existe.
+- **PR mesclado há menos de 14 dias fica em observação**, fora dos dois grupos, porque a janela
+  de correção dele não fechou.
+- **O sinal é aproximado e vale para os dois lados.** Correção sem `fix:` no título escapa;
+  um `fix:` que mexe num arquivo de dois PRs conta para os dois. O que se compara é a
+  diferença entre os grupos, não a taxa absoluta.
+- **A fábrica voltando mais que as pessoas é lacuna do `/validar` ou do `/revisar`**, como a
+  divergência acima: o gate aprovou o que não aguentou. Leia os PRs listados antes de culpar
+  o modelo.
+
 Penalidade dura: **sessões com escrita em código de produção e nenhum gate rodado** (campo `sessoes_com_producao_sem_gate`) — subtraia 2 pontos por ocorrência, até zerar a dimensão. Código de produção escrito sem nenhuma verificação é o oposto exato de autonomia confiável; é vibe coding com mais etapas.
 
 **Sem telemetria no projeto:** pontue 0 na dimensão inteira e registre no relatório *"telemetria não instalada — autonomia não medida"*. Não estime. A regra da casa vale aqui com força total: autonomia sem instrumento é chute, e chute otimista sobre autonomia é exatamente como se produz um pipeline sem supervisão.
@@ -116,8 +135,11 @@ arredonde para cima: o nível é o **menor** que ainda descreve a evidência.
 |---|---|
 | **L2 — Babá** | Autonomia < 20%; mediana de intervenções ≥ 3; humano aprova etapa a etapa |
 | **L3 — Gerente** | Autonomia 20–79%; SPECs rastreáveis em uso; humano no planejamento e na revisão final do PR |
-| **L4 — Fábrica** | Autonomia ≥ 80%; gates verdes de primeira ≥ 70%; arco fechado (`entregar`) em uso; guardrails determinísticos ativos; ao menos um gatilho por evento; zero sessões com produção sem gate |
+| **L4 — Fábrica** | Autonomia ≥ 80%; gates verdes de primeira ≥ 70%; arco fechado (`entregar`) em uso; guardrails determinísticos ativos; ao menos um gatilho por evento; zero sessões com produção sem gate; entrega da fábrica voltando no máximo tanto quanto a humana (`telemetria.py comparar`) |
 
-L4 exige **todos** os critérios da linha, não a média deles. Uma fábrica com 90% de autonomia e
+L4 exige **todos** os critérios da linha, não a média deles. A comparação com a entrega humana
+só conta quando é comparável; quando não é, o nível sai com a ressalva *"qualidade da entrega
+não comparada com a humana"* ao lado, porque autonomia alta sem essa conta mede volume, não
+qualidade. Uma fábrica com 90% de autonomia e
 nenhum guardrail determinístico não é L4 — é pipeline sem supervisão, e o relatório deve dizer
 isso com essas palavras.

@@ -34,6 +34,7 @@ Achado: <o achado exato, com arquivo:linha>
 Já tentei: <as rodadas consumidas e o que cada uma mudou>
 Premissa: <a suposição que as tentativas compartilharam, em uma frase>
 Preciso de: <a decisão específica que destrava>
+falta-fonte: <fonte>   (só se o que destrava é um dado de uma ferramenta que a fábrica não alcança)
 
 Estado atual: <o que está pronto e verificado, o que não está>
 ```

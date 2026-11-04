@@ -309,5 +309,69 @@ class Ledger(unittest.TestCase):
                 os.chdir(antes)
 
 
+
+class FaltaDeFonte(unittest.TestCase):
+    """Pergunta à pessoa por falta de fonte (`falta-fonte:`): o Stop conta, só o nome."""
+
+    def ler(self, *linhas: str) -> tuple[dict | None, dict]:
+        with tempfile.TemporaryDirectory() as tmp:
+            arq = Path(tmp) / "sessao.jsonl"
+            arq.write_text("\n".join(linhas) + "\n", encoding="utf-8")
+            return execucao.ler_transcript(str(arq))
+
+    def test_conta_por_resposta_so_o_texto_do_modelo_e_so_o_nome(self) -> None:
+        pergunta = "Preciso do uso das rotas antes de apagar.\nfalta-fonte: posthog — acessos em 90 dias"
+        ferramenta = json.dumps({"type": "assistant", "message": {
+            "id": "m5", "usage": {"output_tokens": 1},
+            "content": [{"type": "tool_use", "input": {"text": "falta-fonte: sentry"}}]}})
+        usuario = json.dumps({"type": "user", "message": {"content": "falta-fonte: sentry"}})
+        raciocinio = json.dumps({"type": "assistant", "uuid": "u-r", "message": {
+            "id": "m6", "usage": {"output_tokens": 1},
+            "content": [{"type": "thinking", "text": "falta-fonte: datadog"}]}})
+        _, faltas = self.ler(   # m1: dois blocos, dois uuids, uma resposta só
+            resposta("m1", 1, 1, texto=pergunta),
+            resposta("m1", 1, 1, texto="Resumindo:\nfalta-fonte: posthog"), raciocinio,
+            resposta("m2", 1, 1, texto="De novo:\n- falta-fonte: `PostHog`. Pode me passar?"),
+            resposta("m3", 1, 1, texto="> **falta-fonte: linear**"),
+            resposta("m4", 1, 1, texto="A regra é falta-fonte: x no meio da frase\nfalta-fonte: <fonte>"),
+            ferramenta, usuario)
+        self.assertEqual(faltas, {"linear": 1, "posthog": 2})
+
+    def test_conteudo_em_texto_puro_e_stop_que_so_grava_quando_ha(self) -> None:
+        linha = json.dumps({"type": "assistant", "message": {
+            "id": "m1", "usage": {"output_tokens": 2}, "content": "FALTA-FONTE: Grafana"}})
+        self.assertEqual(self.ler(linha)[1], {"grafana": 1})
+        with tempfile.TemporaryDirectory() as tmp:
+            arq = Path(tmp) / "s.jsonl"
+            arq.write_text(resposta("m1", 1, 2, texto="falta-fonte: posthog") + "\n", encoding="utf-8")
+            self.assertEqual(execucao.ev_fim({"transcript_path": str(arq)})["faltas_de_fonte"],
+                             {"posthog": 1})
+            arq.write_text(resposta("m1", 1, 2) + "\n", encoding="utf-8")
+            self.assertNotIn("faltas_de_fonte", execucao.ev_fim({"transcript_path": str(arq)}))
+
+    def test_resumo_soma_a_ultima_leitura_de_cada_sessao_e_nao_mede_sem_leitura(self) -> None:
+        def fim(sessao: str, faltas: dict | None) -> dict:
+            ev = leitura(sessao, "2026-11-02T10:00:00+00:00", 1)
+            return {**ev, "faltas_de_fonte": faltas} if faltas is not None else ev
+        eventos = [fim("A", {"posthog": 1}), fim("A", {"posthog": 2, "linear": 1}),
+                   fim("B", {"posthog": 1, "x": True, "y": 0}), fim("C", None),
+                   {"sessao": "D", "tipo": "sessao_fim", "faltas_de_fonte": {"figma": 9}}]
+        r = telemetria.faltas_de_fonte(eventos)
+        self.assertTrue(r["faltas_medidas"])
+        self.assertEqual(r["faltas_de_fonte"], {"posthog": {"perguntas": 3, "sessoes": 2},
+                                                "linear": {"perguntas": 1, "sessoes": 1}})
+        self.assertIn("posthog (3 pergunta(s) em 2 sessão(ões)), linear (1 pergunta(s) em 1 sessão(ões))",
+                      telemetria.linha_de_faltas_do_resumo(r))
+        self.assertIn("nenhuma pergunta", telemetria.linha_de_faltas_do_resumo(
+            telemetria.faltas_de_fonte([fim("C", None)])))
+        self.assertEqual(telemetria.faltas_de_fonte(eventos[-1:]),
+                         {"faltas_medidas": False, "faltas_de_fonte": {}})
+        self.assertIn("não medidas", telemetria.linha_de_faltas_do_resumo({}))
+        m = {**telemetria.metricas(telemetria.por_sessao(eventos)),
+             **telemetria.resumo_de_tokens(eventos), **r}
+        _, texto = saida_de(telemetria.imprimir_resumo, m, 7)
+        self.assertIn("Fontes que faltaram:  posthog", texto)
+
+
 if __name__ == "__main__":
     unittest.main()

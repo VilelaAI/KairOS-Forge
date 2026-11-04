@@ -259,6 +259,34 @@ def resumo_de_tokens(eventos: list[dict]) -> dict:
             "tokens_cache_lido": uso["cache_leitura"]}
 
 
+def faltas_de_fonte(eventos: list[dict]) -> dict:
+    """Perguntas à pessoa por falta de fonte (`falta-fonte:`), da última leitura de cada
+    sessão. Só conta onde o Stop leu o transcript; sem leitura, não medido, nunca zero."""
+    por_sessao: dict[str, dict] = {}
+    for ev in eventos:
+        if _leitura(ev) is not None:
+            por_sessao[ev.get("sessao", "?")] = ev.get("faltas_de_fonte") or {}
+    fontes: dict[str, dict[str, int]] = {}
+    for faltas in por_sessao.values():
+        for fonte, n in faltas.items():
+            if isinstance(n, int) and not isinstance(n, bool) and n > 0:
+                f = fontes.setdefault(str(fonte), {"perguntas": 0, "sessoes": 0})
+                f["perguntas"] += n
+                f["sessoes"] += 1
+    return {"faltas_medidas": bool(por_sessao),
+            "faltas_de_fonte": dict(sorted(fontes.items(), key=lambda kv: (-kv[1]["perguntas"], kv[0])))}
+
+
+def linha_de_faltas_do_resumo(m: dict) -> str:
+    if not m.get("faltas_medidas"):
+        return "  Fontes que faltaram:  não medidas (o Stop só lê o transcript no Claude Code)"
+    if not m["faltas_de_fonte"]:
+        return "  Fontes que faltaram:  nenhuma pergunta por falta de fonte"
+    partes = ", ".join(f"{f} ({v['perguntas']} pergunta(s) em {v['sessoes']} sessão(ões))"
+                       for f, v in list(m["faltas_de_fonte"].items())[:5])
+    return f"  Fontes que faltaram:  {partes}"
+
+
 def linha_de_tokens_do_resumo(m: dict) -> str:
     if not m.get("sessoes_com_tokens"):
         return "  Tokens:               não medidos (o Stop só grava no Claude Code)"
@@ -1101,6 +1129,7 @@ def imprimir_resumo(m: dict, dias: int | None) -> None:
             print(f"     {m['recusas_em_modo_aviso']} em modo aviso. Taxa baixa e estável "
                   "é o sinal de que a regra pode virar bloqueio.")
     print(linha_de_tokens_do_resumo(m))
+    print(linha_de_faltas_do_resumo(m))
     for alerta in alertas(m):
         print(f"  ⚠️  {alerta}")
     if m["skills_usadas"]:
@@ -1151,7 +1180,8 @@ def main() -> int:
     eventos = carregar(raiz, dias)
 
     if comando == "resumo":
-        m = {**metricas(por_sessao(eventos)), **resumo_de_tokens(eventos)}
+        m = {**metricas(por_sessao(eventos)), **resumo_de_tokens(eventos),
+             **faltas_de_fonte(eventos)}
         if como_json:
             print(json.dumps(m, ensure_ascii=False, indent=2))
         else:

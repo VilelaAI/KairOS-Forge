@@ -28,6 +28,8 @@ Uso:
     painel.py --dias 7                 # janela da trajetória (default 14)
     painel.py --caixa [--github]       # caixa de entrada: o que espera por uma pessoa
                                        # (ADR-0044); --github junta issues e PRs via `gh`
+    painel.py --pr SPEC-001            # corpo do PR: o que a pessoa decide em cima, a
+                                       # evidência recolhida embaixo (emenda ao ADR-0023)
 
 Só stdlib.
 """
@@ -104,6 +106,7 @@ def ler_spec(caminho: Path) -> dict | None:
             "prioridade": next((c for c in cels if re.fullmatch(r"P[123]", c)), "—"),
             "estado": estado.lower(),
             "verificado": verificacao.lower().startswith("verificado:"),
+            "verificacao": verificacao,
         })
     if not reqs:
         return None
@@ -616,6 +619,183 @@ da SPEC e blocos de contrato dos relatórios. O painel não guarda estado: se o 
 
 # --- CLI ---------------------------------------------------------------------------------
 
+# --- corpo do PR (aula 5 do Tech Leads Club) -------------------------------------------
+# "Eu não consigo mais ler nada desse texto: li as coisas que eram importantes." O corpo
+# que a fábrica escrevia despejava objetivo, P1, gates, ressalvas e rodadas no mesmo nível,
+# e a pessoa lia tudo para achar o que era dela decidir. Aqui a ordem inverte: numa tela, a
+# SPEC (apontada, não repetida), a origem, a faixa e o que a pessoa decide; recolhida, a
+# evidência. O que os arquivos já dizem vem deles; o agente escreve só o que pede julgamento.
+
+ORIGEM = re.compile(r"^\*\*Origem:\*\*\s*(.+)$", re.M)
+ISSUE = re.compile(r"#(\d+)\b")
+FAIXA_NA_ORIGEM = re.compile(r"faixa\s*([123])\b", re.I)
+OBJETIVO = re.compile(r"^## Objetivo[ \t]*\n(?:[ \t]*\n)*[ \t]*([^#\s][^\n]*)", re.M)
+
+
+def cabecalho_da_spec(texto: str) -> dict:
+    """Título, Origem (issue e faixa estimada na triagem) e a primeira linha do Objetivo."""
+    titulo = next((l[2:].strip() for l in texto.splitlines() if l.startswith("# ")), "")
+    origem = (ORIGEM.search(texto) or [None, ""])[1].strip()
+    issue, faixa = ISSUE.search(origem), FAIXA_NA_ORIGEM.search(origem)
+    objetivo = OBJETIVO.search(texto)   # Objetivo vazio não pega a seção seguinte
+    return {"titulo": titulo, "origem": origem, "issue": issue.group(1) if issue else None,
+            "faixa_estimada": int(faixa.group(1)) if faixa else None,
+            "objetivo": objetivo.group(1).strip()[:300] if objetivo else ""}
+
+
+def _voltas(ciclo: dict | None) -> dict[str, int]:
+    hist = (ciclo or {}).get("historico") or []
+    return {g: sum(1 for h in hist if h.get("para") == f"corrigindo_{g}")
+            for g in ("validacao", "revisao")}
+
+
+def _gates(spec: dict) -> tuple[tuple[str, dict], ...]:
+    rel = spec["relatorios"]
+    return (("validação", rel.get("validacao") or {}), ("revisão", rel.get("revisao") or {}))
+
+
+def _sem_relatorio(spec: dict, cab: dict, ciclo: dict | None) -> list[str]:
+    return [f"Sem relatório de {nome} — o arco não fechou esse gate."
+            for nome, rel in _gates(spec) if not rel.get("veredicto")]
+
+
+def _ressalvas(spec: dict, cab: dict, ciclo: dict | None) -> list[str]:
+    return [f"Aceitar as ressalvas da {nome} (`{rel['arquivo']}`)."
+            for nome, rel in _gates(spec) if rel.get("veredicto") == "aprovado_com_ressalvas"]
+
+
+def _fora(spec: dict, cab: dict, ciclo: dict | None) -> list[str]:
+    fora = [f"{x['id']} ({x['prioridade']})" for x in spec["requisitos"] if not x["verificado"]]
+    return ["Fica de fora ou sem prova: " + ", ".join(fora) + "."] if fora else []
+
+
+def _faixa_subestimada(spec: dict, cab: dict, ciclo: dict | None) -> list[str]:
+    faixa, estimada = _gates(spec)[1][1].get("faixa"), cab["faixa_estimada"]
+    if estimada and faixa and int(faixa) > estimada:
+        return [f"A triagem estimou faixa {estimada}; o diff é faixa {faixa}."]
+    return []
+
+
+def _faixa_3(spec: dict, cab: dict, ciclo: dict | None) -> list[str]:
+    faixa = _gates(spec)[1][1].get("faixa") or cab["faixa_estimada"]
+    return (["Faixa 3, difícil de reverter: o merge é a decisão de produção, e os Riscos da "
+             "SPEC dizem como desfazer."] if str(faixa) == "3" else [])
+
+
+def _spec_mudou(spec: dict, cab: dict, ciclo: dict | None) -> list[str]:
+    if ciclo and spec_alterada is not None and spec_alterada(ciclo):
+        return [f"A SPEC mudou depois da aprovação: `ciclo.py reaprovar {spec['id']}` antes do merge."]
+    return []
+
+
+# Cada sinal lê os arquivos e diz o que só uma pessoa decide; a ordem é a do corpo.
+SINAIS_DO_PR = (_sem_relatorio, _ressalvas, _fora, _faixa_subestimada, _faixa_3, _spec_mudou)
+
+
+def decisoes_do_pr(spec: dict, cab: dict, ciclo: dict | None) -> list[str]:
+    """O que só uma pessoa decide, tirado dos arquivos. O agente acrescenta o que exige
+    julgamento (decisão posterior à aprovação, trade-off aceito)."""
+    itens = [i for sinal in SINAIS_DO_PR for i in sinal(spec, cab, ciclo)]
+    return itens or ["Nada além do merge."]
+
+
+def dados_do_pr(raiz: Path, alvo: str) -> dict | None:
+    d = coletar(raiz, alvo, DIAS_PADRAO)
+    spec = next((s for s in d["specs"] if s["id"].lower() == alvo.lower()), None)
+    if spec is None:
+        return None
+    try:
+        cab = cabecalho_da_spec(Path(spec["arquivo"]).read_text(encoding="utf-8"))
+    except OSError:
+        cab = cabecalho_da_spec("")
+    ciclo = next((c for c in d["ciclos"] if str(c.get("spec", "")).lower() == alvo.lower()), None)
+    caminho = Path(spec["arquivo"]).resolve()
+    arquivo = (caminho.relative_to(raiz.resolve()).as_posix()   # nunca o caminho da máquina
+               if caminho.is_relative_to(raiz.resolve()) else caminho.name)
+    return {"spec": spec, "arquivo": arquivo, "cabecalho": cab, "ciclo": ciclo,
+            "decisoes": decisoes_do_pr(spec, cab, ciclo), "voltas": _voltas(ciclo)}
+
+
+def _linha_do_gate(nome: str, pasta: str, rel: dict) -> str:
+    if not rel.get("veredicto"):
+        return f"- {nome}: sem relatório"
+    faixa = f", faixa {rel['faixa']}" if rel.get("faixa") else ""
+    return f"- {nome}: `{rel['veredicto']}`{faixa} (`{pasta}/{rel['arquivo']}`)"
+
+
+def _verificacao(x: dict) -> str:
+    """A célula como está; "Concluído" sem `verificado:` diz que falta a prova."""
+    if x["verificacao"]:
+        return x["verificacao"]
+    return f"{x['estado']}, sem `verificado:`" if x["estado"].startswith("conclu") else x["estado"]
+
+
+def _faixa(p: dict) -> str:
+    da_revisao = (p["spec"]["relatorios"].get("revisao") or {}).get("faixa")
+    estimada = p["cabecalho"]["faixa_estimada"]
+    if da_revisao:
+        return f" · **Faixa:** {da_revisao} (revisão)"
+    return f" · **Faixa:** {estimada} (estimada na triagem)" if estimada else ""
+
+
+def _evidencia(p: dict) -> list[str]:
+    spec, rel, voltas = p["spec"], p["spec"]["relatorios"], p["voltas"]
+    p1 = [x for x in spec["requisitos"] if x["prioridade"] == "P1"]
+    resumo = (f"{sum(x['verificado'] for x in p1)}/{len(p1)} P1 verificados · validação "
+              f"{(rel.get('validacao') or {}).get('veredicto') or 'sem relatório'} · revisão "
+              f"{(rel.get('revisao') or {}).get('veredicto') or 'sem relatório'} · "
+              f"{sum(voltas.values())} rodada(s) de correção")
+    linhas = ["<details>", f"<summary>Evidência: {resumo}</summary>", "",
+              "| Requisito | Prioridade | Verificação |", "|---|---|---|"]
+    linhas += [f"| {x['id']} | {x['prioridade']} | {_verificacao(x)} |"
+               for x in spec["requisitos"]]
+    linhas += ["", _linha_do_gate("Validação", "docs/specs/validacoes", rel.get("validacao") or {}),
+               _linha_do_gate("Revisão", "docs/specs/revisoes", rel.get("revisao") or {})]
+    if p["ciclo"]:
+        linhas.append(f"- Ciclo: `{p['ciclo'].get('estado')}`; voltas de correção: validação "
+                      f"{voltas['validacao']} · revisão {voltas['revisao']} "
+                      f"(`ciclo.py estado {spec['id']}`)")
+    return linhas + ["", f"_Gerado por `painel.py --pr {spec['id']}`, da SPEC, dos relatórios "
+                         "e do ciclo._", "</details>"]
+
+
+def render_pr(p: dict) -> str:
+    spec, cab = p["spec"], p["cabecalho"]
+    topo = [f"**SPEC:** {cab['titulo'] or spec['id']} (`{p['arquivo']}`)"
+            + (f" · **Origem:** {cab['origem']}" if cab["origem"] else "") + _faixa(p)]
+    if cab["issue"]:
+        topo.append(f"Refs #{cab['issue']} <!-- troque por Closes #{cab['issue']} se este PR "
+                    "entrega a issue inteira -->")
+    linhas = topo + ["", "## O que você decide", ""] + [f"- {i}" for i in p["decisoes"]]
+    linhas += ["<!-- acrescente o que exige julgamento: decisão posterior à aprovação, "
+               "trade-off aceito, o que entrou sem ser pedido -->", "", "## O que muda", "",
+               cab["objetivo"] or "<!-- 2 a 3 linhas para quem usa o sistema -->",
+               "<!-- para quem usa, não para quem lê o diff; o resto está na SPEC -->", ""]
+    return "\n".join(linhas + _evidencia(p)) + "\n"
+
+
+def _cmd_pr(args: list[str], como_json: bool) -> int:
+    i = args.index("--pr")
+    alvo = args[i + 1] if i + 1 < len(args) else ""
+    p = dados_do_pr(Path.cwd(), alvo) if alvo else None
+    if p is None:
+        print(f"🚫 SPEC {alvo or '(nenhuma)'} não encontrada em docs/specs/ — "
+              "uso: painel.py --pr SPEC-NNN", file=sys.stderr)
+        return 1
+    print(json.dumps(p, ensure_ascii=False, indent=2) if como_json else render_pr(p), end="")
+    return 0
+
+
+def _cmd_caixa(args: list[str], como_json: bool) -> int:
+    d = caixa(Path.cwd(), github="--github" in args)
+    print(json.dumps(d, ensure_ascii=False, indent=2) if como_json else render_caixa(d))
+    return 0
+
+
+# Modos que não são o painel: (args, json) → exit code.
+MODOS = {"--caixa": _cmd_caixa, "--pr": _cmd_pr}
+
+
 def main() -> int:
     args = sys.argv[1:]
     como_json = "--json" in args
@@ -636,10 +816,9 @@ def main() -> int:
             else:
                 dias = v
 
-    if "--caixa" in args:
-        d = caixa(Path.cwd(), github="--github" in args)
-        print(json.dumps(d, ensure_ascii=False, indent=2) if como_json else render_caixa(d))
-        return 0
+    modo = next((m for m in MODOS if m in args), None)
+    if modo:
+        return MODOS[modo](args, como_json)
 
     alvo = args[0] if args else None
     d = coletar(Path.cwd(), alvo, dias)

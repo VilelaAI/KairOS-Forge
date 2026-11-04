@@ -256,5 +256,53 @@ class FaixaNaTriagem(unittest.TestCase):
         self.assertIn("quanto custa desfazer se estiver errado?", cmd)
 
 
+
+class CorpoDoPRDaCorrecao(unittest.TestCase):
+    """O passo que abre o PR do `corrigir`, rodado num git de verdade com um remoto local:
+    o que a pessoa decide e o que mudou em cima, o diagnóstico recolhido embaixo."""
+
+    def test_decisao_e_arquivos_em_cima_e_diagnostico_recolhido(self) -> None:
+        (script,) = [s for _, s in blocos_run(ler("corrigir")) if "gh pr create" in s]
+        script = script.replace("${{ github.event.workflow_run.id }}", "123")
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz, remoto = Path(tmp) / "repo", Path(tmp) / "remoto.git"
+            def git(*a: str, cwd: Path = raiz) -> None:
+                subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=cwd,
+                               check=True, capture_output=True)
+            raiz.mkdir()
+            git("init", "-q", "--bare", str(remoto), cwd=Path(tmp))
+            git("init", "-q", "-b", "main")
+            (raiz / "src").mkdir()
+            (raiz / "src/x.py").write_text("x = 1\n", encoding="utf-8")
+            git("add", ".")
+            git("commit", "-q", "-m", "base")
+            git("remote", "add", "origin", str(remoto))
+            git("checkout", "-q", "-b", "forge/corrige-123")
+            (raiz / "src/x.py").write_text("x = 2\n", encoding="utf-8")
+            (raiz / "tests").mkdir()
+            (raiz / "tests/test_x.py").write_text("assert True\n", encoding="utf-8")
+            (raiz / "falha.log").write_text("FAIL test_x\n", encoding="utf-8")
+            (raiz / "diagnostico.md").write_text("Causa: x valia 1.\nEvidência: pytest passa.\n", encoding="utf-8")
+            (raiz / ".claude/skills").mkdir(parents=True)
+            (raiz / ".claude/skills/a.md").write_text("fábrica\n", encoding="utf-8")
+            (Path(tmp) / "gh").write_text('#!/bin/sh\nwhile [ "$1" != "--body-file" ]; do shift; done\n'
+                                          'cp "$2" ../corpo-do-pr.md\n', encoding="utf-8")
+            (Path(tmp) / "gh").chmod(0o755)
+            env = {**os.environ, "PATH": f"{tmp}{os.pathsep}{os.environ.get('PATH', '')}",
+                   "BRANCH": "main", "GH_TOKEN": "x", "GIT_AUTHOR_NAME": "t",
+                   "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+            subprocess.run(["bash", "-e", "-c", script], cwd=raiz, env=env, check=True,
+                           capture_output=True, text=True)
+            corpo = (Path(tmp) / "corpo-do-pr.md").read_text(encoding="utf-8")
+        topo, recolhido = corpo.split("<details>")
+        self.assertIn("**O que você decide:** se a correção está certa, mescle na `main`", topo)
+        self.assertIn("**O que mudou:** 2 files changed", topo)
+        self.assertIn("- `src/x.py`\n- `tests/test_x.py`\n", topo)
+        self.assertNotIn("Causa:", topo)
+        self.assertNotIn("falha.log", corpo)
+        self.assertNotIn(".claude", corpo)
+        self.assertIn("Causa: x valia 1.", recolhido)
+
+
 if __name__ == "__main__":
     unittest.main()

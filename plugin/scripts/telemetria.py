@@ -80,7 +80,7 @@ from pathlib import Path
 
 
 def carregar(raiz: Path, dias: int | None) -> list[dict]:
-    pasta = raiz / ".agents" / "execucoes"
+    pasta = pasta_do_projeto(raiz, "execucoes")       # onde o hook grava, mesmo num worktree
     if not pasta.is_dir():
         return []
     corte = None
@@ -106,6 +106,12 @@ def carregar(raiz: Path, dias: int | None) -> list[dict]:
 
 
 # Evento que só conta: tipo → campo da sessão.
+try:
+    from execucao import pasta_do_projeto
+except Exception:                     # cópia avulsa do script, sem o execucao.py ao lado
+    def pasta_do_projeto(raiz, nome: str) -> Path:
+        return Path(raiz) / ".agents" / nome
+
 CONTADORES = {"delegacao": "delegacoes", "guardrail_erro": "erros_guardrail"}
 
 
@@ -331,7 +337,7 @@ SPEC_NO_TEXTO = re.compile(r"\bSPEC-\d+\b", re.I)
 
 
 def ler_ciclos(raiz: Path) -> list[dict]:
-    pasta = raiz / ".agents" / "ciclo"
+    pasta = pasta_do_projeto(raiz, "ciclo")
     saida = []
     for arq in sorted(pasta.glob("*.json")) if pasta.is_dir() else []:
         try:

@@ -37,8 +37,8 @@ agente — mesma regra do veredicto. Relatório sem bloco de contrato degrada pa
 comportamento anterior (toda rodada queima ficha), o que é honesto: sem número, não há
 como afirmar progresso.
 
-E o estado vive em `.agents/ciclo/<spec>.json`: sobrevive a reset de contexto, a troca
-de sessão e a troca de CLI. O agente não escreve ali (guardrail bloqueia, ADR-0022) —
+E o estado vive em `.agents/ciclo/<spec>.json` do checkout principal, também quando o
+ciclo roda num worktree: sobrevive a reset de contexto, a troca de sessão e a troca de CLI. O agente não escreve ali (guardrail bloqueia, ADR-0022) —
 pelo mesmo motivo que não escreve a própria telemetria.
 
 E uma quinta, desde a v0.26 (ADR-0033): **o planejamento também tem fases e gate.**
@@ -115,7 +115,18 @@ except Exception:  # contrato ausente/quebrado nunca derruba a máquina de estad
     ler_critica = ler_revisao = ler_validacao = pendentes_depois = prestar_contas = None  # type: ignore[assignment]
     AUSENTE = "ausente"
 
-PASTA = Path(".agents/ciclo")
+PASTA_RELATIVA = Path(".agents/ciclo")
+
+try:
+    from execucao import estado_no_principal
+except Exception:                     # cópia avulsa do script, sem o execucao.py ao lado
+    def estado_no_principal(relativa: Path) -> Path:
+        return relativa
+
+
+def pasta_do_estado() -> Path:
+    """`.agents/ciclo` do checkout principal, também num worktree ligado (emenda ao ADR-0024)."""
+    return estado_no_principal(PASTA_RELATIVA)
 
 # --- contrato de integração (ADR-0034) ----------------------------------------------
 # A saída de `estado --json` é CONTRATO PÚBLICO: o kairos-symphony e qualquer outro
@@ -304,14 +315,14 @@ def agora() -> str:
 
 
 def caminho(spec: str) -> Path:
-    return PASTA / f"{re.sub(r'[^A-Za-z0-9_-]', '-', spec)}.json"
+    return pasta_do_estado() / f"{re.sub(r'[^A-Za-z0-9_-]', '-', spec)}.json"
 
 
 def abertos() -> list[Path]:
-    if not PASTA.is_dir():
+    if not pasta_do_estado().is_dir():
         return []
     saida = []
-    for p in sorted(PASTA.glob("*.json")):
+    for p in sorted(pasta_do_estado().glob("*.json")):
         try:
             if json.loads(p.read_text(encoding="utf-8")).get("estado") not in TERMINAIS:
                 saida.append(p)
@@ -881,11 +892,11 @@ def estado(spec: str | None, como_json: bool) -> int:
 
 
 def listar() -> int:
-    if not PASTA.is_dir():
+    if not pasta_do_estado().is_dir():
         print("nenhum ciclo registrado.")
         return 0
     linhas = []
-    for p in sorted(PASTA.glob("*.json")):
+    for p in sorted(pasta_do_estado().glob("*.json")):
         try:
             d = compatibilizar(ler(p))
         except Exception:

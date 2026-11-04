@@ -78,8 +78,19 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True   # não escrever __pycache__ no diretório do plugin
 
-PASTA = Path(".agents/quadro")
-PASTA_FOTOS = PASTA / "fotos"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+PASTA_RELATIVA = Path(".agents/quadro")
+
+try:
+    from execucao import estado_no_principal
+except Exception:                     # cópia avulsa do script, sem o execucao.py ao lado
+    def estado_no_principal(relativa: Path) -> Path:
+        return relativa
+
+
+def pasta_do_estado() -> Path:
+    """`.agents/quadro` do checkout principal, também num worktree ligado (emenda ao ADR-0024)."""
+    return estado_no_principal(PASTA_RELATIVA)
 
 # --- contrato de integração (ADR-0034/0035) -----------------------------------------
 # `estado --json` e `prontas --json` são CONTRATO PÚBLICO: o kairos-symphony, os
@@ -355,7 +366,7 @@ def fora_da_posse(q: dict, tid: str, mudados: list[str], junto: set[str]) -> lis
 
 def caminho_da_foto(slug: str, tid: str) -> Path:
     limpo = re.sub(r"[^A-Za-z0-9_-]", "-", slug)
-    return PASTA_FOTOS / limpo / f"{re.sub(r'[^A-Za-z0-9_.-]', '-', tid)}.json"
+    return (pasta_do_estado() / "fotos") / limpo / f"{re.sub(r'[^A-Za-z0-9_.-]', '-', tid)}.json"
 
 
 def guardar_foto(q: dict, tid: str, checkout: Path) -> dict | None:
@@ -424,7 +435,7 @@ def vencidas_de(q: dict) -> list[str]:
 
 
 def caminho(slug: str) -> Path:
-    return PASTA / f"{re.sub(r'[^A-Za-z0-9_-]', '-', slug)}.json"
+    return pasta_do_estado() / f"{re.sub(r'[^A-Za-z0-9_-]', '-', slug)}.json"
 
 
 def carregar(slug: str) -> dict:
@@ -435,7 +446,7 @@ def carregar(slug: str) -> dict:
 
 
 def salvar(q: dict) -> None:
-    PASTA.mkdir(parents=True, exist_ok=True)
+    pasta_do_estado().mkdir(parents=True, exist_ok=True)
     caminho(q["slug"]).write_text(
         json.dumps(q, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
@@ -1278,11 +1289,11 @@ def cmd_encerrar(a) -> int:
 
 
 def cmd_listar(a) -> int:
-    if not PASTA.is_dir():
+    if not pasta_do_estado().is_dir():
         print("Nenhum quadro em .agents/quadro/.")
         return 0
     achou = False
-    for p in sorted(PASTA.glob("*.json")):
+    for p in sorted(pasta_do_estado().glob("*.json")):
         try:
             vista = vista_publica(json.loads(p.read_text(encoding="utf-8")))
         except Exception as e:

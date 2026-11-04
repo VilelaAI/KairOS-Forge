@@ -185,6 +185,20 @@ def raiz_do_projeto(cwd: Path) -> Path:
         return cwd
 
 
+def estado_no_principal(relativa: Path) -> Path:
+    """`relativa` no checkout principal quando o diretório atual é um worktree ligado; fora
+    de worktree, ela mesma, relativa como sempre (emenda ao ADR-0024)."""
+    aqui = Path.cwd()
+    principal = raiz_do_projeto(aqui)
+    return relativa if principal == aqui else principal / relativa
+
+
+def pasta_do_projeto(raiz, nome: str) -> Path:
+    """`.agents/<nome>` do checkout principal: a trajetória, o ciclo e o quadro moram lá
+    mesmo quando a sessão roda num worktree ligado (ADR-0048; emenda ao ADR-0024)."""
+    return raiz_do_projeto(Path(raiz).resolve()) / ".agents" / nome
+
+
 def destino(payload: dict) -> Path:
     raiz = raiz_do_projeto(Path(payload.get("cwd") or ".").resolve())
     pasta = raiz / ".agents" / "execucoes"

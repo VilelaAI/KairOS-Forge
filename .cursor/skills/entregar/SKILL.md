@@ -57,6 +57,12 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ciclo.py registrar <res> # o que aconteceu
 (sem ela o `/validar` não corrobora evidência — ADR-0021). Faltando qualquer uma, diga o que falta e
 pare; o que fazer em cada caso: `references/maquina-de-estados.md`.
 
+**Construa fora do checkout principal (ADR-0024).** Entre os gates, ninguém olha cada escrita. Abra o arco
+num worktree (`git worktree add .worktrees/SPEC-NNN -b forge/SPEC-NNN`, com `.worktrees/` no `.gitignore`) e
+rode tudo de lá: desfazer a entrega é remover a pasta, e o checkout principal fica livre para a pessoa. O
+estado do ciclo e do quadro continua no checkout principal, onde a caixa e o painel o leem. Construindo no
+checkout principal, o guardrail avisa uma vez por sessão (classe `checkout`).
+
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ciclo.py abrir SPEC-NNN \
   --orcamento-criticar 2 --orcamento-validar 2 --orcamento-revisar 2

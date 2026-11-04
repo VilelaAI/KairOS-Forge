@@ -111,5 +111,128 @@ class Caixa(unittest.TestCase):
                                          ("pr_da_fabrica", "PR #1")})
 
 
+
+SPEC_012 = """# SPEC-012 — Exportar CSV
+
+**Origem:** issue #40 · faixa 2
+
+## Contexto e problema
+
+O time exporta à mão.
+
+## Objetivo
+
+Quem gerencia baixa o relatório em CSV, sem pedir ao suporte.
+
+## Requisitos rastreáveis
+
+| ID | Requisito | Prioridade | Critério de aceite | Status | Verificação |
+|---|---|---|---|---|---|
+| EXP-01 | Exportar | P1 | WHEN clica THEN baixa em ≤ 2 s | Concluído | verificado: npm test -- exportar (04/11) |
+| EXP-02 | Separador | P1 | WHEN abre THEN usa ; | Concluído | — |
+| EXP-03 | Nome com data | P2 | WHEN baixa THEN nome tem a data | Pendente | — |
+"""
+
+VALIDACAO = """# Validação — SPEC-012
+
+```kairos-validacao
+{"spec": "SPEC-012", "veredicto": "aprovado_com_ressalvas", "bloqueios": 0, "sem_evidencia": 0,
+ "verificado": ["EXP-01 (npm test -- exportar)"]}
+```
+"""
+
+REVISAO = """# Revisão — SPEC-012
+
+```kairos-revisao
+{"veredicto": "aprovado", "faixa": 3, "criticos": 0, "examinado": ["src/exportar.py (Vinícius)"],
+ "incompletos": [], "achados": [], "anteriores": {}}
+```
+"""
+
+
+class CorpoDoPR(unittest.TestCase):
+    """`painel.py --pr`: o que a pessoa decide em cima, a evidência recolhida embaixo."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="kairos-forge-pr-")
+        self._cwd = os.getcwd()
+        os.chdir(self._tmp.name)
+        for pasta in ("docs/specs/validacoes", "docs/specs/revisoes", ".agents/ciclo"):
+            Path(pasta).mkdir(parents=True)
+        Path("docs/specs/SPEC-012-exportar.md").write_text(SPEC_012, encoding="utf-8")
+        Path("docs/specs/SPEC-0120-outra.md").write_text(SPEC.format(n="120"), encoding="utf-8")
+
+    def tearDown(self) -> None:
+        os.chdir(self._cwd)
+        self._tmp.cleanup()
+
+    def entrega_completa(self) -> None:
+        Path("docs/specs/validacoes/VALIDACAO-SPEC-012-2026-11-04.md").write_text(VALIDACAO, encoding="utf-8")
+        Path("docs/specs/revisoes/REVISAO-SPEC-012-2026-11-04.md").write_text(REVISAO, encoding="utf-8")
+        Path(".agents/ciclo/SPEC-012.json").write_text(json.dumps({
+            "spec": "SPEC-012", "estado": "pronto_para_pr", "spec_digest": ciclo.digest_da_spec("SPEC-012"),
+            "historico": [{"para": "validando"}, {"para": "corrigindo_validacao"},
+                          {"para": "validando"}, {"para": "revisando"}, {"para": "pronto_para_pr"}]}),
+            encoding="utf-8")
+
+    def test_decisao_em_cima_evidencia_recolhida_e_spec_apontada(self) -> None:
+        self.entrega_completa()
+        corpo = painel.render_pr(painel.dados_do_pr(Path.cwd(), "spec-012"))
+        topo, evidencia = corpo.split("<details>")
+        self.assertTrue(topo.startswith("**SPEC:** SPEC-012 — Exportar CSV (`docs/specs/SPEC-012-exportar.md`)"
+                                        " · **Origem:** issue #40 · faixa 2 · **Faixa:** 3 (revisão)\nRefs #40"))
+        self.assertIn("- Aceitar as ressalvas da validação (`VALIDACAO-SPEC-012-2026-11-04.md`).", topo)
+        self.assertIn("- Fica de fora ou sem prova: EXP-02 (P1), EXP-03 (P2).", topo)
+        self.assertIn("- A triagem estimou faixa 2; o diff é faixa 3.", topo)
+        self.assertIn("- Faixa 3, difícil de reverter", topo)
+        self.assertIn("## O que muda\n\nQuem gerencia baixa o relatório em CSV, sem pedir ao suporte.", topo)
+        self.assertNotIn("npm test", topo)                    # a evidência não polui o topo
+        self.assertNotIn(self._tmp.name, corpo)               # nem o caminho da máquina
+        self.assertIn("<summary>Evidência: 1/2 P1 verificados · validação aprovado_com_ressalvas · "
+                      "revisão aprovado · 1 rodada(s) de correção</summary>", evidencia)
+        self.assertIn("| EXP-01 | P1 | verificado: npm test -- exportar (04/11) |", evidencia)
+        self.assertIn("| EXP-02 | P1 | concluído, sem `verificado:` |", evidencia)
+        self.assertIn("| EXP-03 | P2 | pendente |", evidencia)
+        self.assertIn("- Revisão: `aprovado`, faixa 3 (`docs/specs/revisoes/REVISAO-SPEC-012-2026-11-04.md`)", evidencia)
+        self.assertIn("- Ciclo: `pronto_para_pr`; voltas de correção: validação 1 · revisão 0", evidencia)
+
+    def test_sem_relatorio_spec_alterada_e_nada_alem_do_merge(self) -> None:
+        p = painel.dados_do_pr(Path.cwd(), "SPEC-012")
+        self.assertIn("Sem relatório de validação — o arco não fechou esse gate.", p["decisoes"])
+        self.assertIn("- Validação: sem relatório", painel.render_pr(p))
+        self.assertIn("· **Faixa:** 2 (estimada na triagem)\n", painel.render_pr(p))
+        self.entrega_completa()
+        spec = Path("docs/specs/SPEC-012-exportar.md")
+        spec.write_text(spec.read_text(encoding="utf-8").replace("≤ 2 s", "≤ 5 s"), encoding="utf-8")
+        self.assertIn("A SPEC mudou depois da aprovação: `ciclo.py reaprovar SPEC-012` antes do merge.",
+                      painel.dados_do_pr(Path.cwd(), "SPEC-012")["decisoes"])
+        limpa = {"id": "SPEC-1", "requisitos": [{"id": "A-1", "prioridade": "P1", "verificado": True}],
+                 "relatorios": {"validacao": {"veredicto": "aprovado"},
+                                "revisao": {"veredicto": "aprovado", "faixa": 1}}}
+        cab = painel.cabecalho_da_spec("# SPEC-1 — x\n\n## Objetivo\n\n## Não-objetivos\n\nnada\n")
+        self.assertEqual((cab["objetivo"], cab["issue"], cab["faixa_estimada"]), ("", None, None))
+        self.assertEqual(painel.decisoes_do_pr(limpa, cab, None), ["Nada além do merge."])
+        mesma = {**cab, "faixa_estimada": 1}                      # estimou certo: nada a dizer
+        self.assertEqual(painel.decisoes_do_pr(limpa, mesma, None), ["Nada além do merge."])
+        so_triagem = {**limpa, "relatorios": {"validacao": {"veredicto": "aprovado"},
+                                              "revisao": {"veredicto": "aprovado"}}}
+        self.assertTrue(painel.decisoes_do_pr(so_triagem, {**cab, "faixa_estimada": 3}, None)[0]
+                        .startswith("Faixa 3, difícil de reverter"))
+
+    def test_cli(self) -> None:
+        self.entrega_completa()
+        spec = Path("docs/specs/SPEC-012-exportar.md")           # alterada: vira item da caixa
+        spec.write_text(spec.read_text(encoding="utf-8").replace("≤ 2 s", "≤ 5 s"), encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(painel._cmd_pr(["--pr", "SPEC-012", "--outro"], True), 0)  # a SPEC é a de depois
+            self.assertEqual(painel._cmd_caixa(["--caixa"], True), 0)
+        self.assertIn('"Quem gerencia baixa o relatório em CSV', out.getvalue())   # sem \\u escapado
+        self.assertIn('"a SPEC mudou depois da aprovação"', out.getvalue())
+        for args, esperado in ((["--pr", "SPEC-012"], 0), (["--pr", "SPEC-012", "--json"], 0),
+                               (["--pr", "SPEC-999"], 1), (["--pr"], 1), (["--caixa"], 0)):
+            with self.subTest(args):
+                self.assertEqual(chamar(painel, *args), esperado)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -117,3 +117,43 @@ impede a próxima entrega de repetir a mesma tentativa. Mesma disciplina da linh
 | Deixar o arco só na ponte Hermes | Entrega o principal ganho de autonomia apenas a quem roda VPS + Telegram. A fábrica é o produto; a ponte é uma superfície |
 | Um script Python orquestrando as skills | Skills são carregadas por match de tarefa no CLI, não por chamada programática. Um orquestrador externo precisaria de `claude -p` por etapa — que é exatamente o que a ponte faz, e perde o contexto entre etapas |
 | Estender o `/mobilizar` em vez de criar skill nova | `mobilizar` é execução paralela de uma SPEC; o arco começa antes (especificar) e termina depois (PR). Empilhar as duas coisas numa skill só faria uma description impossível de rotear |
+
+## Emenda (v0.42.7): o corpo do PR em ordem de decisão
+
+Na aula 5 do Tech Leads Club, o professor abre o parecer que o agente escreveu e para no meio:
+*"eu não consigo mais ler nada desse texto; li as coisas que eram importantes"*. O corpo do PR
+que o arco escrevia tinha o mesmo defeito. Objetivo da SPEC, P1 com evidência, gates, ressalvas,
+follow-ups e rodadas vinham no mesmo nível, e a pessoa lia tudo para achar o que era dela
+decidir. A aula também pede rastro: o PR aponta para a tarefa que o abriu, e a tarefa para o
+design doc.
+
+**`painel.py --pr SPEC-NNN`** gera o corpo, em ordem de decisão:
+
+1. **Cabeçalho:** a SPEC apontada pelo caminho, nunca copiada para o PR (duas cópias divergem);
+   a Origem com `Refs #N`; a faixa, a da revisão ou a estimada na triagem (emenda ao ADR-0040).
+2. **O que você decide:** os itens que os arquivos já dizem:
+   - gate sem relatório;
+   - ressalva a aceitar;
+   - requisito fora ou sem prova;
+   - triagem que estimou faixa menor que a do diff;
+   - faixa 3;
+   - SPEC alterada depois da aprovação.
+
+   Sem nenhum, "Nada além do merge". O agente acrescenta o que pede julgamento.
+3. **O que muda**, em 2 a 3 linhas, começando pelo Objetivo da SPEC.
+4. **Evidência, num `<details>` recolhido:** a célula Verificação de cada requisito, o veredicto
+   e o arquivo de cada gate, as voltas de correção do ciclo. Sai dos arquivos e não passa pelo
+   modelo.
+
+O painel continua sendo renderização (ADR-0013/0032): o modo `--pr` lê e imprime, sem escrever
+nada. O PR do `corrigir.yml` ganha a mesma ordem: o que a pessoa decide e os arquivos mudados em
+cima, o diagnóstico da fábrica recolhido.
+
+### Limites
+
+- **O topo depende do agente completar o que pede julgamento.** O script não sabe de trade-off
+  nem de decisão tomada em conversa. O que ele garante é que o que está nos arquivos não some e
+  não muda de número no caminho.
+- **`Refs`, não `Closes`.** Fechar a issue no merge é decisão de quem sabe se o PR a entrega
+  inteira (SPECs encadeadas pelo teto de apetite, ADR-0040). O comentário no corpo diz como
+  trocar.

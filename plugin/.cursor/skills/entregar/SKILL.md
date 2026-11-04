@@ -175,13 +175,15 @@ o `limpo` é recusado (ADR-0048).
 
 O `/revisar` classifica o diff em faixa de raio de explosão. **Faixa 1**: gates verdes. **Faixa 2**: gates
 verdes **e** trajetória limpa (`telemetria.py`). **Faixa 3**: para e pergunta — `ciclo.py escalar --motivo
-"faixa 3: <o que é irreversível>"`, mesma fronteira do ADR-0024. Diga a faixa no corpo do PR.
+"faixa 3: <o que é irreversível>"`, mesma fronteira do ADR-0024. A faixa sai no topo do corpo do PR.
 
 ### 8. `pronto_para_pr` — abrir o PR
 
-Só com P1 sem bloqueio e revisão sem 🔴. Título `<tipo>(<escopo>): <o que muda>` em PT-BR; corpo com
-evidência, ressalvas, follow-ups e rodadas consumidas (`ciclo.py estado`). **Nunca** faça merge — `gh pr merge`
-fica bloqueado durante ciclo aberto. Depois: `ciclo.py registrar pr_aberto`.
+Só com P1 sem bloqueio e revisão sem 🔴. Título `<tipo>(<escopo>): <o que muda>` em PT-BR. O corpo sai de
+`painel.py --pr SPEC-NNN > corpo.md`: em cima, numa tela, a SPEC apontada, a origem, a faixa e o que a pessoa
+decide; embaixo, recolhida, a evidência tirada dos arquivos. Você completa só o que pede julgamento e abre
+com `gh pr create --body-file corpo.md` — formato em `references/relatorio-de-entrega.md`. **Nunca** faça
+merge — `gh pr merge` fica bloqueado durante ciclo aberto. Depois: `ciclo.py registrar pr_aberto`.
 
 ### 9. Encerrar e registrar
 

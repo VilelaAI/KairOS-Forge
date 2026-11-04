@@ -84,4 +84,4 @@ O `/revisar` classificou o diff em faixa de raio de explosão. A faixa decide o 
   <o que é irreversível>"`. Não existe pontuação que abra essa faixa; é a mesma fronteira
   do ADR-0024.
 
-Diga a faixa no corpo do PR. Quem revisa precisa saber onde olhar antes de abrir o diff.
+A faixa sai no topo do corpo do PR (`painel.py --pr`). Quem revisa precisa saber onde olhar antes de abrir o diff.

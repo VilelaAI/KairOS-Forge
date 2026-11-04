@@ -160,14 +160,24 @@ jobs:
 
           Fabrica: kairos-forge"
           git push -u origin HEAD
+          # O que a pessoa decide em cima, numa tela; o diagnóstico, recolhido embaixo.
           {
             echo "## 🔧 Correção automática de CI"
             echo
             echo "O CI da branch \`$BRANCH\` falhou e a fábrica tentou **uma** rodada de correção."
             echo
+            echo "**O que você decide:** se a correção está certa, mescle na \`$BRANCH\`; se não, feche este PR. Se o CI daqui também ficar vermelho, o problema pede decisão humana: a fábrica não tenta de novo."
+            echo
+            echo "**O que mudou:**$(git show --stat --format= HEAD | tail -n 1)"
+            git show --name-only --format= HEAD | sed 's/^/- `/; s/$/`/'
+            echo
+            echo '<details><summary>Diagnóstico da fábrica</summary>'
+            echo
             cat diagnostico.md
             echo
+            echo '</details>'
+            echo
             echo "---"
-            echo "_Uma tentativa, sem insistência. Se ainda estiver vermelho, o problema pede decisão humana._"
+            echo "_Uma tentativa, sem insistência. (kairos-forge, ADR-0026)_"
           } > corpo.md
           gh pr create --base "$BRANCH" --title "fix(ci): correção automática da fábrica" --body-file corpo.md

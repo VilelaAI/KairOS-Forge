@@ -82,10 +82,23 @@ jobs:
             > auditoria.md || true
           test -s auditoria.md || echo "A auditoria não produziu saída." > auditoria.md
 
+      - name: Identidade da fábrica (GitHub App, opcional)
+        # Com o app da fábrica configurado, tudo o que ela faz sai em nome dele: permissões
+        # dadas na instalação, revogáveis sem tocar em ninguém, e o PR aberto por ele dispara
+        # o CI. Sem app (ou chave ausente), cai no token do workflow. Ver
+        # docs/identidade-do-agente.md no kairos-forge.
+        id: app
+        if: steps.cred.outputs.ativo == 'true' && vars.FORGE_APP_ID != ''
+        continue-on-error: true
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.FORGE_APP_ID }}
+          private-key: ${{ secrets.FORGE_APP_PRIVATE_KEY }}
+
       - name: Abrir issue com as lacunas
         if: steps.cred.outputs.ativo == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
         run: |
           {
             echo "Auditoria automática da fábrica — semana de $(date -u +%d/%m/%Y)."

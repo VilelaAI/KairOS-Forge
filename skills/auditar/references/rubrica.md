@@ -32,7 +32,7 @@ Material de apoio da skill `auditar`. Leia ao pontuar cada dimensão: tabelas cr
 | CI configurado (`.github/workflows/`, `.gitlab-ci.yml`) | 3 |
 | `contextos/testes.md` documenta gates reais de lint/test/build | 3 |
 | Hooks de pre-commit ou guardrail equivalente configurado (`.pre-commit-config.yaml`, Husky, CI obrigatório) | 3 |
-| Setup de agentes/hooks customizados auditado: se o projeto definiu agentes em `.claude/agents/` ou hooks, eles têm allow-list de ferramentas explícita, sem segredos hardcoded, sem injeção em hook (rode `check-agent-security.py` apontando para `.claude`). Sem config customizada, pontue cheio. | 4 |
+| Setup de agentes/hooks customizados auditado: se o projeto definiu agentes em `.claude/agents/` ou hooks, eles têm allow-list de ferramentas explícita, sem segredos hardcoded, sem injeção em hook e sem workflow da fábrica agindo com token de pessoa (rode `check-agent-security.py` apontando para `.claude`). Sem config customizada, pontue cheio. | 4 |
 
 ### Conhecimento (20 pts)
 

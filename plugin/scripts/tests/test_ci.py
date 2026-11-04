@@ -262,6 +262,21 @@ class CorpoDoPRDaCorrecao(unittest.TestCase):
     o que a pessoa decide e o que mudou em cima, o diagnóstico recolhido embaixo."""
 
     def test_decisao_e_arquivos_em_cima_e_diagnostico_recolhido(self) -> None:
+        corpo = self.abrir_pr()
+        topo, recolhido = corpo.split("<details>")
+        self.assertIn("**O que você decide:** se a correção está certa, mescle na `main`", topo)
+        self.assertIn("**O que mudou:** 2 files changed", topo)
+        self.assertIn("- `src/x.py`\n- `tests/test_x.py`\n", topo)
+        self.assertNotIn("Causa:", topo)
+        self.assertNotIn("falha.log", corpo)
+        self.assertNotIn(".claude", corpo)
+        self.assertIn("Causa: x valia 1.", recolhido)
+
+    def test_com_o_token_do_workflow_avisa_que_o_ci_nao_dispara_e_com_o_app_nao(self) -> None:
+        self.assertIn("o GitHub não dispara o CI em PR aberto por ele", self.abrir_pr())
+        self.assertNotIn("não dispara o CI", self.abrir_pr(IDENTIDADE="app"))
+
+    def abrir_pr(self, **extra: str) -> str:
         (script,) = [s for _, s in blocos_run(ler("corrigir")) if "gh pr create" in s]
         script = script.replace("${{ github.event.workflow_run.id }}", "123")
         with tempfile.TemporaryDirectory() as tmp:
@@ -290,18 +305,43 @@ class CorpoDoPRDaCorrecao(unittest.TestCase):
             (Path(tmp) / "gh").chmod(0o755)
             env = {**os.environ, "PATH": f"{tmp}{os.pathsep}{os.environ.get('PATH', '')}",
                    "BRANCH": "main", "GH_TOKEN": "x", "GIT_AUTHOR_NAME": "t",
-                   "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+                   "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+                   **extra}
             subprocess.run(["bash", "-e", "-c", script], cwd=raiz, env=env, check=True,
                            capture_output=True, text=True)
-            corpo = (Path(tmp) / "corpo-do-pr.md").read_text(encoding="utf-8")
-        topo, recolhido = corpo.split("<details>")
-        self.assertIn("**O que você decide:** se a correção está certa, mescle na `main`", topo)
-        self.assertIn("**O que mudou:** 2 files changed", topo)
-        self.assertIn("- `src/x.py`\n- `tests/test_x.py`\n", topo)
-        self.assertNotIn("Causa:", topo)
-        self.assertNotIn("falha.log", corpo)
-        self.assertNotIn(".claude", corpo)
-        self.assertIn("Causa: x valia 1.", recolhido)
+            return (Path(tmp) / "corpo-do-pr.md").read_text(encoding="utf-8")
+
+
+class IdentidadeDaFabrica(unittest.TestCase):
+    """Com o app da fábrica configurado, tudo sai em nome dele; sem, cai no token do
+    workflow. Nunca o token de uma pessoa (emenda ao ADR-0026)."""
+
+    TOKEN = "${{ steps.app.outputs.token || github.token }}"
+
+    def test_todo_template_tenta_o_app_e_cai_no_token_do_workflow(self) -> None:
+        for arq in TEMPLATES:
+            with self.subTest(arq.name):
+                texto = arq.read_text(encoding="utf-8")
+                passo = texto[texto.index("- name: Identidade da fábrica"):]
+                passo = passo[:passo.index("\n\n")]
+                self.assertIn("uses: actions/create-github-app-token@v1", passo)
+                self.assertIn("vars.FORGE_APP_ID != ''", passo)
+                self.assertIn("continue-on-error: true", passo)      # chave ausente não derruba o job
+                self.assertIn("secrets.FORGE_APP_PRIVATE_KEY", passo)
+                usos = re.findall(r"GH_TOKEN: (.+)", texto)
+                self.assertTrue(usos)
+                self.assertEqual(set(usos), {self.TOKEN})
+                self.assertLess(texto.index("- name: Identidade da fábrica"), texto.index("GH_TOKEN:"))
+                self.assertNotRegex(texto, r"secrets\.[A-Z_]*(PAT|PERSONAL)")
+
+    def test_corrigir_empurra_com_a_mesma_identidade_e_le_o_log(self) -> None:
+        texto = ler("corrigir")
+        self.assertLess(texto.index("- name: Identidade da fábrica"), texto.index("actions/checkout@v4"))
+        checkout = texto[texto.index("actions/checkout@v4"):][:300]
+        self.assertIn("token: " + self.TOKEN, checkout)
+        permissoes = texto[texto.index("permissions:"):texto.index("concurrency:")]
+        self.assertIn("actions: read", permissoes)          # sem ele, `gh run view --log-failed` falha
+        self.assertIn("IDENTIDADE: ${{ steps.app.outputs.token && 'app' || 'workflow' }}", texto)
 
 
 if __name__ == "__main__":

@@ -36,6 +36,18 @@ o único comando que a correção pode rodar) e o horário do cron do `auditar`,
 A branch protegida não precisa de ajuste: o `corrigir` compara com a default do
 repositório (`github.event.repository.default_branch`).
 
+**Identidade da fábrica (opcional, recomendada para o `corrigir`).** Crie um GitHub App
+para a fábrica, instale no repositório e crie a variável `FORGE_APP_ID` (Settings →
+Variables) e o segredo `FORGE_APP_PRIVATE_KEY`. Com eles, tudo o que os quatro workflows
+fazem sai em nome do app:
+- com as permissões dadas na instalação;
+- revogável sem tocar em ninguém;
+- e o PR do `corrigir` dispara o CI, o que não acontece com o token do workflow.
+
+Sem eles, os workflows usam o token do workflow, e o `corrigir` avisa no PR que o CI
+precisa de um empurrão. Nunca use um token pessoal (`secrets.*PAT*`): o
+`check-agent-security.py` acusa. O passo a passo está em `docs/identidade-do-agente.md`.
+
 ## O modelo de segurança
 
 Autonomia só é segura se o erro for barato. As seis regras que estes workflows
@@ -60,7 +72,9 @@ seguem, e que você deve manter se editá-los:
 3. **Permissão mínima por workflow.** `revisar`: `contents: read` e
    `pull-requests: write`, para comentar. `auditar` e `triar`: `contents: read` e
    `issues: write`. Só o `corrigir` tem `contents: write` — para empurrar a branch
-   nova —, além de `pull-requests: write`.
+   nova —, além de `pull-requests: write` e `actions: read`, para baixar o log da
+   execução que falhou. Declarar `permissions:` zera o que não foi declarado, e sem
+   `actions: read` o agente recebia "log indisponível" no lugar do erro.
 4. **Timeout em tudo.** 20 min no `revisar` e no `auditar`, 30 no `corrigir`, 15 no
    `triar`. Job travado é custo silencioso.
 5. **Guardrail depois do fato — e só o `corrigir` bloqueia nele.** Em CI não existe

@@ -43,7 +43,7 @@ verificam lendo os caminhos citados na rubrica. Detalhe de cada coleta em `refer
 **Guardrails — segurança do setup** (critério de 4 pts; audita a config de agentes/hooks, não o código do produto):
 
 ```bash
-python3 <plugin>/scripts/check-agent-security.py .claude   # varre .claude/agents/, hooks e segredos
+python3 <plugin>/scripts/check-agent-security.py .claude   # varre .claude/agents/, hooks, segredos e workflows da fábrica
 ```
 
 Exit 0 = pontue cheio (4). Achados ALTA (allow-list ausente/curinga, segredo hardcoded) = 0 e liste

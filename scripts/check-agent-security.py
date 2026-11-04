@@ -20,6 +20,13 @@ Verifica três classes de risco:
      Varre os arquivos versionados do plugin atrás de chaves/tokens/credenciais
      que nunca deveriam estar no repositório.
 
+  4. Identidade da fábrica
+     Workflow da fábrica (que cita `kairos-forge`) não age com o token de uma pessoa:
+     um `secrets.*PAT*` ou `secrets.GH_TOKEN` dá ao agente toda a escrita que a pessoa
+     tem, e revogar o agente é revogar a pessoa. O certo é o app da fábrica
+     (`vars.FORGE_APP_ID`) ou o token do workflow. Olha `.github/workflows/` e
+     `templates/ci/`; apontado para o `.claude` de um projeto, olha os workflows dele.
+
 Uso:
     python3 scripts/check-agent-security.py [RAIZ]
 
@@ -171,6 +178,34 @@ def checar_segredos(raiz: Path) -> int:
     return n
 
 
+# --- 4. identidade da fábrica -------------------------------------------------------
+
+SECRET_CITADO = re.compile(r"secrets\.([A-Za-z0-9_]+)")
+TOKEN_DE_PESSOA = re.compile(r"(^|_)(PAT|PERSONAL|PESSOAL)(_|$)|^GH_TOKEN$|^GITHUB_PAT$", re.I)
+
+
+def pastas_de_workflow(raiz: Path) -> list[Path]:
+    pastas = [raiz / ".github" / "workflows", raiz / "templates" / "ci"]
+    if raiz.name == ".claude":                       # `check-agent-security.py .claude`
+        pastas.append(raiz.parent / ".github" / "workflows")
+    return [d for d in pastas if d.is_dir()]
+
+
+def checar_identidade(raiz: Path) -> int:
+    n = 0
+    for arq in sorted(a for d in pastas_de_workflow(raiz) for a in d.glob("*.y*ml")):
+        texto = arq.read_text(encoding="utf-8", errors="replace")
+        if "kairos-forge" not in texto:
+            continue
+        n += 1
+        for nome in sorted({m for m in SECRET_CITADO.findall(texto) if TOKEN_DE_PESSOA.search(m)}):
+            registrar(MEDIA, "identidade da fábrica",
+                      f"{rel(raiz, arq)}: usa `secrets.{nome}`, que parece token de pessoa — use o "
+                      "app da fábrica (vars.FORGE_APP_ID) ou o github.token "
+                      "(docs/identidade-do-agente.md)")
+    return n
+
+
 # --- relatório -----------------------------------------------------------------------
 
 def main(argv: list[str]) -> int:
@@ -180,8 +215,10 @@ def main(argv: list[str]) -> int:
     n_ag = checar_agentes(raiz)
     n_hk = checar_hooks(raiz)
     n_sg = checar_segredos(raiz)
+    n_wf = checar_identidade(raiz)
 
-    print(f"Cobertura: {n_ag} agentes · {n_hk} arquivos de hook · {n_sg} arquivos varridos por segredos\n")
+    print(f"Cobertura: {n_ag} agentes · {n_hk} arquivos de hook · {n_sg} arquivos varridos por "
+          f"segredos · {n_wf} workflows da fábrica\n")
 
     if not achados:
         print("✅ Nenhum risco encontrado. Setup da fábrica está seguro.")

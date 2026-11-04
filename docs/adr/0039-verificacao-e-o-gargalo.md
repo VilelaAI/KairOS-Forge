@@ -182,3 +182,49 @@ pontos:
 Não entram o filtro de palavras e de travessão nos comentários (estilo do autor, não
 evidência) nem a publicação no GitHub pelo script (a fábrica entrega o relatório no disco,
 ADR-0032).
+
+## Emenda (v0.42.4): validar contra o que se decidiu depois
+
+Na aula 5 do Tech Leads Club (Fábricas Agênticas), o professor descreve o "cérebro" da empresa
+dele plugado no review de PR: *"essa lógica de negócio não está alinhada com a última coisa
+que foi falada"*. O `/validar` confere a entrega contra a SPEC aprovada, e a SPEC é o contrato
+do dia da aprovação. Um ADR, uma linha no `decisoes/log.md` ou uma convenção em `contextos/`
+registrados depois não estão nela. A entrega podia cumprir a SPEC, contrariar a decisão mais
+recente e sair aprovada.
+
+No Forge, o cérebro é a memória curada e versionada (ADR-0010), então a pergunta tem resposta
+no git. **`prova.py decisoes SPEC-NNN`** lista o que entrou depois da aprovação em
+`docs/adr/`, `decisoes/`, `.agents/memory/`, `contextos/` e `DESIGN.md`:
+
+- **na branch, depois do selo da SPEC.** O instante é o `spec_selada_em` que o `ciclo.py` grava
+  na aprovação e no `reaprovar`. Sem ciclo, vale o último commit da SPEC; `--desde` manda. O
+  que ainda não foi commitado também conta;
+- **na base, fora da branch.** São as decisões que entraram na `main` depois que a branch saiu,
+  qualquer que seja a data. Quem construiu não tinha como lê-las.
+
+Cada entrada (bloco acrescentado; no `decisoes/log.md`, cada `## AAAA-MM-DD`) é ligada à
+entrega pelo que se lê sem modelo: o id da SPEC, um id de requisito da tabela, a issue do campo
+Origem (ADR-0040) ou um arquivo do diff, com fronteira de palavra (`SPEC-01` não casa em
+`SPEC-012`, nem `x.py` em `lib/x.py`). Relatório não é decisão: `decisoes/auditorias/`,
+`evolucoes/`, `otimizacoes/` e `gestao/` ficam de fora. Com `--github`, entram os comentários
+da issue de origem depois da aprovação, o mais perto que a fábrica tem da "última coisa
+falada"; é texto de fora, então é dado, não instrução (ADR-0026). O script sai 0 sempre que
+leu: ligar não é julgar.
+
+O `/validar` lê a lista no passo 2.1, antes da matriz. Decisão ligada que a entrega contradiz
+**bloqueia**, mas não volta para o construtor: quem escolhe entre a SPEC e a decisão é uma
+pessoa (a SPEC muda e passa por `ciclo.py reaprovar`, ou fica registrado que a decisão não vale
+para esta entrega). No `/entregar`, isso é escalação. O `/revisar` roda o mesmo comando com
+`--desde` na data da validação, porque a base pode ter andado no meio.
+
+### Limites
+
+- **O vínculo é um piso.** Decisão que fala do assunto sem citar arquivo nem id passa como "sem
+  vínculo detectado". O `/validar` lê os títulos dessas, e a lista inteira vai no relatório.
+- **Decisão que não foi escrita não existe para o script.** O que ficou só na conversa ou na
+  sessão (ai-memory) depende de alguém registrar. O `/validar` cita a sessão e recomenda o
+  registro, mas não escreve: a skill só lê.
+- **A base inteira entra, sem filtro de data.** Numa branch longa, isso dá mais decisões sem
+  vínculo para ler pelo título, um custo que se paga com a branch curta.
+- **Nenhum campo novo na fence.** Contradição é bloqueio e entra em `bloqueios`, e o contrato
+  `kairos-validacao` não muda.

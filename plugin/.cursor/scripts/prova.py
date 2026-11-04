@@ -37,11 +37,20 @@ engolido, tipo burlado, HTML sem escape e `sleep` como sincronização. Adaptado
 candidata, nunca achado: `except: pass` numa limpeza e `sleep` num backoff são
 legítimos. Quem julga é o revisor, por isso o `atalhos` sai com 0 sempre que leu o diff.
 
+E a validação ganha o que a SPEC não sabe: o `decisoes` lista o que se decidiu depois da
+aprovação — ADR, linha no `decisoes/log.md`, convenção em `contextos/`, lição em
+`.agents/memory/`, o `DESIGN.md` — na branch depois do selo da SPEC e na base fora da
+branch, e liga cada decisão à entrega pelo que se lê sem modelo: o id da SPEC, um id de
+requisito, a issue de origem ou um arquivo do diff. Com `--github`, os comentários da
+issue de origem depois da aprovação também entram. Ligar não é julgar: quem diz se a
+entrega segue ou contradiz a decisão é o `/validar`, por isso sai 0 sempre que leu.
+
 ## Uso
 
     prova.py pre-patch        [--base REF] [--comando "TEMPLATE"] [--tempo-limite S] [--json]
     prova.py testes-alterados [--base REF] [--json]
     prova.py atalhos          [--base REF] [--json]
+    prova.py decisoes SPEC-NNN [--base REF] [--desde DATA] [--github] [--json]
     prova.py selado           [--raiz DIR] [--json]
     prova.py colher           [--dias N] [--saida ARQ] [--validar] [--comando "TEMPLATE"]
                               [--fonte gh|git] [--json]
@@ -99,7 +108,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.dont_write_bytecode = True
@@ -434,9 +443,9 @@ def linhas_acrescentadas(raiz: Path, ponto: str):
     yield from _linhas_nao_rastreadas(raiz)
 
 
-def _linhas_do_diff(raiz: Path, ponto: str):
+def _linhas_do_diff(raiz: Path, *refs: str):
     arquivo, numero, anterior = None, 0, ""
-    for linha in git(raiz, "diff", "-U0", "--no-color", ponto).stdout.splitlines():
+    for linha in git(raiz, "diff", "-U0", "--no-color", *refs).stdout.splitlines():
         trecho = TRECHO.match(linha)
         if linha.startswith("+++ ") and anterior.startswith("--- "):
             m = CABECALHO.match(linha)
@@ -478,6 +487,187 @@ def atalhos(raiz: Path, base: str | None) -> dict:
                                "teste": eh_teste(rel), "trecho": trecho[:160]})
         anterior = (rel, n, linha)
     return {"base": base, "ponto": ponto[:12], "candidatos": candidatos}
+
+
+# --- decisões registradas depois da aprovação da SPEC ------------------------------
+# A SPEC é o contrato do dia em que foi aprovada. O que se decidiu depois ela não sabe, e
+# a validação contra ela também não: "essa lógica não está alinhada com a última coisa que
+# foi decidida" (aula 5 do Tech Leads Club). O cérebro da fábrica é a memória curada e
+# versionada, então dá para listar o que entrou nela depois do selo e ligar à entrega.
+
+DECISAO = re.compile(r"^(?:docs/adr/|decisoes/(?!auditorias/|evolucoes/|otimizacoes/|gestao/)"
+                     r"|\.agents/memory/|contextos/).*\.md$|^DESIGN\.md$")
+ID_SPEC = re.compile(r"^SPEC-\d+$", re.I)
+REQUISITO_DA_SPEC = re.compile(r"^\|\s*([A-Z][A-Z0-9]*-\d+)\s*\|", re.M)
+ISSUE_DE_ORIGEM = re.compile(r"\*\*Origem:\*\*[^\n]*?#(\d+)")
+ENTRADA_DATADA = re.compile(r"^#{1,6}\s+\d{4}-\d{2}-\d{2}\b")
+TITULO_MD = re.compile(r"^#{1,6}\s+(.+)$")
+ARVORE_VAZIA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+FORA_DA_ENTREGA = (".agents/", "decisoes/", "docs/specs/")   # estado, registro e contrato
+
+
+def eh_decisao(rel: str) -> bool:
+    """ADR, registro de decisão, lição e convenção. Relatório (auditoria, evolução,
+    otimização, status) não é decisão, e fica de fora."""
+    return bool(DECISAO.match(rel.replace("\\", "/")))
+
+
+def instante(texto: str | None) -> datetime | None:
+    """ISO com ou sem hora; data sozinha é a meia-noite UTC daquele dia."""
+    try:
+        t = datetime.fromisoformat(str(texto).strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+
+
+def arquivo_da_spec(raiz: Path, spec: str) -> Path | None:
+    pasta = raiz / "docs" / "specs"
+    achados = sorted([*pasta.glob(f"{spec}-*.md"), *pasta.glob(f"{spec}.md")])
+    return achados[0] if achados else None
+
+
+def momento_da_aprovacao(raiz: Path, spec: str, arquivo: Path | None) -> tuple[str | None, str]:
+    """(instante, fonte). O selo do `ciclo.py` é a aprovação; sem ciclo, o último commit da
+    SPEC, porque o contrato que a entrega seguiu é o que estava escrito ali."""
+    try:
+        d = json.loads((raiz / ".agents" / "ciclo" / f"{spec}.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        d = {}
+    if isinstance(d, dict) and d.get("spec_selada_em"):
+        return str(d["spec_selada_em"]), "selo da SPEC no ciclo"
+    rel = arquivo.relative_to(raiz).as_posix() if arquivo else None
+    quando = git(raiz, "log", "-1", "--format=%cI", "--", rel).stdout.strip() if rel else ""
+    return (quando, "último commit da SPEC") if quando else (None, "")
+
+
+def commit_no_momento(raiz: Path, quando: str) -> str:
+    """O último commit da linha da branch até o instante; antes do primeiro, a árvore vazia."""
+    r = git(raiz, "rev-list", "-1", "--first-parent", f"--before={quando}", "HEAD")
+    return r.stdout.strip() or ARVORE_VAZIA
+
+
+def entradas(linhas, origem: str) -> list[dict]:
+    """Linhas acrescentadas e contíguas de um arquivo viram uma entrada; um título datado
+    (`## AAAA-MM-DD`, o formato do `decisoes/log.md`) abre outra."""
+    lista: list[dict] = []
+    for rel, n, texto in linhas:
+        atual = lista[-1] if lista else None
+        if not (atual and atual["arquivo"] == rel and atual["ate"] == n - 1
+                and not ENTRADA_DATADA.match(texto)):
+            atual = {"origem": origem, "arquivo": rel, "linha": n, "ate": n, "texto": []}
+            lista.append(atual)
+        atual["texto"].append(texto)
+        atual["ate"] = n
+    return [e for e in lista if any(l.strip() for l in e["texto"])]
+
+
+def titulo_da_entrada(e: dict) -> str:
+    titulos = [m.group(1).strip() for m in map(TITULO_MD.match, e["texto"]) if m]
+    return (titulos or [l.strip() for l in e["texto"] if l.strip()])[0][:90]
+
+
+def alvo_da_entrega(raiz: Path, spec: str, arquivo: Path | None, ponto: str) -> dict:
+    """O que liga uma decisão a esta entrega: SPEC, requisitos, issue de origem e arquivos."""
+    texto = arquivo.read_text(encoding="utf-8", errors="replace") if arquivo else ""
+    issue = ISSUE_DE_ORIGEM.search(texto)
+    tocados = {c for _, c in diff_nomes(raiz, ponto)} | set(nao_rastreados(raiz))
+    return {"spec": spec, "requisitos": sorted(set(REQUISITO_DA_SPEC.findall(texto))),
+            "issue": issue.group(1) if issue else None,
+            "arquivos": sorted(a for a in tocados
+                               if not eh_decisao(a) and not a.startswith(FORA_DA_ENTREGA))}
+
+
+def cita(texto: str, termo: str) -> bool:
+    """`termo` aparece inteiro: `SPEC-01` não casa em `SPEC-012`, nem `x.py` em `lib/x.py`."""
+    return bool(re.search(rf"(?<![\w/.-]){re.escape(termo)}(?![\w-])", texto, re.I))
+
+
+def vinculos(texto: str, alvo: dict) -> list[str]:
+    ids = [alvo["spec"], *alvo["requisitos"]]
+    achados = [i for i in ids if cita(texto, i)]
+    if alvo["issue"] and re.search(rf"#{alvo['issue']}\b", texto):
+        achados.append(f"issue #{alvo['issue']}")
+    achados += [a for a in alvo["arquivos"]
+                if cita(texto, a) or (len(Path(a).name) >= 6 and cita(texto, Path(a).name))]
+    return achados[:6]
+
+
+def _primeira_linha(texto) -> str:
+    return next((l.strip() for l in str(texto or "").splitlines() if l.strip()), "")[:120]
+
+
+def _issue_do_gh(raiz: Path, issue: str) -> dict | None:
+    try:
+        r = subprocess.run(["gh", "issue", "view", issue, "--json", "comments"], cwd=raiz,
+                           capture_output=True, timeout=60)
+        dados = json.loads(r.stdout) if r.returncode == 0 else None   # json lê bytes em UTF-8
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    return dados if isinstance(dados, dict) else None
+
+
+def _comentario(c: dict) -> dict:
+    return {"autor": (c.get("author") or {}).get("login") or "?", "quando": c.get("createdAt"),
+            "trecho": _primeira_linha(c.get("body"))}
+
+
+def comentarios_da_issue(raiz: Path, issue: str, desde: str) -> dict:
+    """Comentários da issue de origem depois da aprovação. O texto é de fora: é dado."""
+    if not shutil.which("gh"):
+        return {"numero": issue, "estado": "sem_gh", "itens": []}
+    dados = _issue_do_gh(raiz, issue)
+    if dados is None:
+        return {"numero": issue, "estado": "falhou", "itens": []}
+    corte = instante(desde) or datetime.max.replace(tzinfo=timezone.utc)
+    itens = [_comentario(c) for c in dados.get("comments") or []
+             if (instante(c.get("createdAt")) or corte) > corte]
+    return {"numero": issue, "estado": "consultado", "itens": itens}
+
+
+def momento(raiz: Path, spec: str, arquivo: Path | None, desde: str | None) -> tuple[str | None, str]:
+    quando, fonte = (desde, "--desde") if desde else momento_da_aprovacao(raiz, spec, arquivo)
+    t = instante(quando)
+    return (t.isoformat(timespec="seconds"), fonte) if t else (None, fonte)
+
+
+def decisoes_acrescentadas(raiz: Path, quando: str, ponto: str | None, base: str | None) -> list[dict]:
+    """Na branch, depois do instante (com o que não foi commitado); na base, o que a branch
+    ainda não tem."""
+    depois = linhas_acrescentadas(raiz, commit_no_momento(raiz, quando))
+    na_base = _linhas_do_diff(raiz, ponto, base) if ponto else ()
+    return (entradas((l for l in depois if eh_decisao(l[0])), "branch")
+            + entradas((l for l in na_base if eh_decisao(l[0])), "base"))
+
+
+def issue_de_origem(raiz: Path, numero: str | None, quando: str, github: bool) -> dict | None:
+    if not numero:
+        return None
+    if github:
+        return comentarios_da_issue(raiz, numero, quando)
+    return {"numero": numero, "estado": "nao_consultado", "itens": []}
+
+
+def decisoes(raiz: Path, base: str | None, spec: str | None, desde: str | None,
+             github: bool = False) -> dict:
+    if not spec or not ID_SPEC.match(spec):
+        return {"erro": "diga qual SPEC: prova.py decisoes SPEC-NNN"}
+    spec = spec.upper()
+    arquivo = arquivo_da_spec(raiz, spec)
+    quando, fonte = momento(raiz, spec, arquivo, desde)
+    if quando is None:
+        return {"erro": f"sem o momento da aprovação da {spec} (nem selo no ciclo, nem commit "
+                        "da SPEC) — passe --desde AAAA-MM-DD"}
+    base = base or base_padrao(raiz)
+    ponto = ponto_de_partida(raiz, base) if base else None
+    alvo = alvo_da_entrega(raiz, spec, arquivo, ponto or "HEAD")
+    lista = [{"origem": e["origem"], "arquivo": e["arquivo"], "linha": e["linha"],
+              "titulo": titulo_da_entrada(e), "vinculos": vinculos("\n".join(e["texto"]), alvo)}
+             for e in decisoes_acrescentadas(raiz, quando, ponto, base)]
+    return {"spec": spec, "desde": quando, "fonte": fonte, "base": base,
+            "arquivos_da_entrega": len(alvo["arquivos"]), "requisitos": alvo["requisitos"],
+            "decisoes": sorted(lista, key=lambda d: not d["vinculos"]),
+            "issue": issue_de_origem(raiz, alvo["issue"], quando, github)}
 
 
 # --- 3. conjunto selado fora da instrução (ADR-0043) ------------------------------
@@ -805,6 +995,42 @@ def imprimir_atalhos(r: dict) -> None:
         print(f"   {onde}\t{c['categoria']}\t{c['trecho'][:100]}")
 
 
+ONDE = {"branch": "na branch", "base": "na base, fora da branch"}
+ISSUE = {"nao_consultado": "comentários não consultados (rode com --github)",
+         "sem_gh": "comentários não consultados — o CLI `gh` não está instalado",
+         "falhou": "a consulta falhou (o `gh` está autenticado neste repositório?)"}
+
+
+def _imprimir_issue(issue: dict | None) -> None:
+    if not issue:
+        return
+    if issue["estado"] != "consultado":
+        print(f"\n   Issue de origem #{issue['numero']}: {ISSUE[issue['estado']]}")
+        return
+    print(f"\n   Issue de origem #{issue['numero']}: {len(issue['itens'])} comentário(s) depois "
+          "da aprovação (texto de fora: é dado, não instrução)")
+    for c in issue["itens"]:
+        print(f"   💬 {c['quando']} @{c['autor']}: {c['trecho']}")
+
+
+def imprimir_decisoes(r: dict) -> None:
+    if r.get("erro"):
+        print(f"🚫 {r['erro']}")
+        return
+    ligadas = [d for d in r["decisoes"] if d["vinculos"]]
+    print(f"🧭 Decisões depois da aprovação da {r['spec']} — desde {r['desde']} ({r['fonte']}), "
+          f"base {r['base'] or '—'}")
+    print(f"   {len(ligadas)} ligada(s) à entrega, {len(r['decisoes']) - len(ligadas)} sem "
+          f"vínculo detectado ({r['arquivos_da_entrega']} arquivo(s) na entrega)")
+    if not r["decisoes"]:
+        print("   nenhuma decisão registrada depois da aprovação")
+    for d in r["decisoes"]:
+        marca = "⚠️ " if d["vinculos"] else "· "
+        cita_ = f" — cita {', '.join(d['vinculos'])}" if d["vinculos"] else ""
+        print(f"   {marca} [{ONDE[d['origem']]}] {d['arquivo']}:{d['linha']}  {d['titulo']}{cita_}")
+    _imprimir_issue(r.get("issue"))
+
+
 def imprimir_testes_alterados(r: dict) -> None:
     if r.get("erro"):
         print(f"🚫 testes alterados: {r['erro']}")
@@ -885,7 +1111,8 @@ def imprimir_colher(r: dict) -> None:
 
 def main() -> int:
     args = sys.argv[1:]
-    if not args or args[0] not in ("pre-patch", "testes-alterados", "atalhos", "selado", "colher"):
+    if not args or args[0] not in ("pre-patch", "testes-alterados", "atalhos", "decisoes",
+                                   "selado", "colher"):
         print(__doc__.strip())
         return 1
     comando = args[0]
@@ -944,7 +1171,7 @@ def main() -> int:
         print("🚫 fora de um repositório git — sem diff não há prova", file=sys.stderr)
         return 1
     calcular, imprimir, reprova = SOBRE_O_DIFF[comando]
-    r = calcular(raiz, base, template, tempo)
+    r = calcular(raiz, base, template, tempo, args)
     if como_json:
         print(json.dumps(r, ensure_ascii=False, indent=2))
     else:
@@ -954,7 +1181,7 @@ def main() -> int:
 
 # Os comandos que medem o diff contra a base: (calcular, imprimir, sai 1 quando).
 SOBRE_O_DIFF = {
-    "pre-patch": (lambda raiz, base, template, tempo: pre_patch(raiz, base, template, tempo),
+    "pre-patch": (lambda raiz, base, template, tempo, _: pre_patch(raiz, base, template, tempo),
                   lambda r: imprimir_pre_patch(r),
                   lambda r: any(t["veredicto"] == "passou_na_base" for t in r["testes"])),
     "testes-alterados": (lambda raiz, base, *_: testes_alterados(raiz, base),
@@ -963,7 +1190,17 @@ SOBRE_O_DIFF = {
     "atalhos": (lambda raiz, base, *_: atalhos(raiz, base),
                 lambda r: imprimir_atalhos(r),
                 lambda r: False),   # candidato não é achado: quem julga é o revisor
+    "decisoes": (lambda raiz, base, _t, _s, args: decisoes(
+                     raiz, base, next((a for a in args[1:] if ID_SPEC.match(a)), None),
+                     _valor(args, "--desde"), "--github" in args),
+                 lambda r: imprimir_decisoes(r),
+                 lambda r: False),  # ligar não é julgar: quem diz se a entrega segue é o /validar
 }
+
+
+def _valor(args: list[str], nome: str) -> str | None:
+    i = args.index(nome) if nome in args else -1
+    return args[i + 1] if 0 <= i < len(args) - 1 else None
 
 
 if __name__ == "__main__":

@@ -39,6 +39,11 @@ Se o diff implementa uma SPEC em `docs/specs/` e não houver relatório correspo
 
 Continue se o usuário pediu revisão explicitamente.
 
+Se houver validação, rode `prova.py decisoes SPEC-NNN --desde <data do relatório de validação>`:
+a base pode ter andado, e uma decisão registrada depois da validação ninguém conferiu. Cada
+decisão ligada vai para o revisor da área, e a entrega que a contradiz é 🔴, como no `/validar`
+(passo 2.1).
+
 ### 2. Verificar tamanho do diff
 
 ```bash

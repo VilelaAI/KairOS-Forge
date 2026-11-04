@@ -205,17 +205,46 @@ def anexar(payload: dict, evento: dict) -> None:
 # --- um construtor de evento por ponto do ciclo de vida ----------------------------
 
 def ev_inicio(p: dict) -> dict:
-    return {"tipo": "sessao_inicio", "origem": p.get("source") or "?"}
+    return {"tipo": "sessao_inicio", "origem": p.get("source") or "?", **_com_branch(p)}
+
+
+# --- a chave entre sessão e SPEC (aula 5 do Tech Leads Club) -------------------------
+# Cada CLI agrupa o trabalho pela própria sessão e nenhuma sabe a qual SPEC ele pertence.
+# O branch é a chave comum: o `ciclo.py` grava o branch de cada ciclo, e o `telemetria.py
+# por-spec` cruza os dois. Lido do `.git` sem rodar git (hook roda em toda ferramenta), e
+# gravado no início e em cada `Stop`, porque o `/entregar` troca de branch no meio da sessão.
+SPEC_CITADA = re.compile(r"\bSPEC-\d+\b", re.I)
+
+
+def branch_atual(cwd: str | None) -> str | None:
+    """O branch do checkout de `cwd`, lendo `HEAD`; None em HEAD destacado ou sem git."""
+    try:
+        marca = raiz_do_checkout(cwd) / ".git"
+        if marca.is_file():
+            m = re.match(r"gitdir:\s*(.+)", marca.read_text(encoding="utf-8").strip())
+            marca = (marca.parent / m.group(1).strip()) if m else marca
+        head = (marca / "HEAD").read_text(encoding="utf-8").strip()
+    except (OSError, ValueError, AttributeError):
+        return None
+    return head[len("ref: refs/heads/"):] if head.startswith("ref: refs/heads/") else None
+
+
+def _com_branch(p: dict) -> dict:
+    """Sem `cwd` no payload, não adivinha: o diretório do processo pode ser outro repositório."""
+    b = branch_atual(p["cwd"]) if p.get("cwd") else None
+    return {"branch": b[:LIMITE_ARQ]} if b else {}
 
 
 def ev_prompt(p: dict) -> dict:
     """O contador de autonomia: quantas vezes o humano precisou digitar."""
     texto = p.get("prompt") or ""
     achadas = SKILLS.findall(texto)
+    specs = sorted({s.upper() for s in SPEC_CITADA.findall(texto)})
     return {
         "tipo": "prompt",
         "skill": achadas[0] if achadas else None,
         "chars": len(texto),
+        **({"specs": specs[:5]} if specs else {}),   # só o id sai do prompt, nunca o texto
     }
 
 
@@ -316,7 +345,7 @@ def tokens_do_transcript(caminho: str) -> dict | None:
 def ev_fim(p: dict) -> dict:
     """O `Stop` roda a cada turno: grava o acumulado da sessão até ali, não o do turno."""
     tokens = tokens_do_transcript(str(p.get("transcript_path") or ""))
-    return {"tipo": "sessao_fim", **({"tokens": tokens} if tokens else {})}
+    return {"tipo": "sessao_fim", **({"tokens": tokens} if tokens else {}), **_com_branch(p)}
 
 
 CONSTRUTORES = {

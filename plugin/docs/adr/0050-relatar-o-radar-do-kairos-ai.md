@@ -73,3 +73,32 @@ Uma skill nova, **`/kairos-forge:relatar`**, com a Talita como dona.
   o relatório passar a rodar sem pessoa, por gatilho de CI, o agregador volta à mesa.
 - **Estender o `/auditar`.** Recusado. O `/auditar` pontua a montagem da fábrica no projeto;
   o `/relatar` presta contas do trabalho. Juntar os dois mistura nota com status.
+
+## Emenda (v0.42.2): medir a linha
+
+A aula 5 do Tech Leads Club (Fábricas Agênticas) parte da lei de Amdahl: acelerar o código 10×
+rende uns 10% na entrega, porque o trabalho passa a maior parte do tempo esperando alguém. O
+`/relatar` dizia o que foi entregue e quanto custou por sessão, mas não onde o trabalho
+esperou, nem quanto custou cada SPEC. Três peças, todas só leitura:
+
+- **`telemetria.py espera`.** Tempo por estado de cada ciclo, lido do `historico` que o
+  `ciclo.py` já grava. Mostra o lead time, o trabalho e a espera por pessoa (os gates
+  `aguardando_*` e o `pronto_para_pr`, o PR esperando merge), a maior espera e as voltas de
+  correção. Os terminais param o relógio. Nada novo é coletado.
+- **`telemetria.py por-spec`.** Os tokens de cada sessão somados por SPEC. A chave comum é o
+  branch, como na fábrica da aula, que usa o ID da issue no nome do branch.
+  - O hook grava o branch no início e em cada `Stop`, lendo o `.git` sem rodar git, porque o
+    `/entregar` troca de branch no meio da sessão.
+  - Do prompt, o hook guarda só os ids de SPEC citados, nunca o texto.
+  - A SPEC sai do ciclo aberto naquele branch, do id no nome do branch ou do primeiro id
+    citado, nesta ordem. O resto fica em "sem SPEC" e continua medido: o hook mede e nunca
+    bloqueia o início da sessão.
+- **`/auditar` pela dimensão que limita.** O total 0–120 soma, e pontos altos numa dimensão
+  compensavam a fraqueza de outra. O relatório passa a nomear a dimensão de menor percentual e
+  três cruzamentos:
+  - autonomia acima dos guardrails;
+  - gatilho por evento sem fundação;
+  - pipeline sem medição.
+
+O `/relatar` ganha a regra "meça a linha, nunca as pessoas" e as linhas "Onde o trabalho
+esperou?" e "Quanto custou?", esta agora por SPEC.

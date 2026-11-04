@@ -2,6 +2,8 @@
 
 Este guia leva você de "acabei de ouvir falar de plugin" para "tenho a fábrica de 71 agentes rodando no meu projeto".
 
+> Não quer a fábrica inteira de uma vez? A [adoção por peça](adocao.md) diz o que cada peça resolve sozinha, como fazer o piloto num time e o que roda hoje no seu repositório sem instalar nada.
+
 ## Pré-requisitos
 
 - Claude Code instalado (`npm install -g @anthropic-ai/claude-code`)
@@ -34,7 +36,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver (lista de skills abreviada aqui):
 
 ```
-🔥 kairos-forge v0.42 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+🔥 kairos-forge v0.43 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -191,7 +193,7 @@ Helena (segurança) + Patrícia (QA) sempre rodam. Vinícius (performance), Marc
 
 Veredicto agregado: ✅ aprovado / ⚠️ ressalvas / ❌ bloqueado.
 
-Antes de publicar, cada revisor relê os próprios achados contra o diff — o código citado existe nessa linha? o problema acontece de fato nesse caminho? — e o que não sobrevive sai (ADR-0039). Achado que você decide não acatar não é apagado: ganha `· descartado: <motivo>` na própria linha, e `telemetria.py ruido` mede o ruído por revisor, número que o `/auditar` reporta.
+Antes de publicar, cada revisor relê os próprios achados contra o diff — o código citado existe nessa linha? o problema acontece de fato nesse caminho? — e o que não sobrevive sai (ADR-0039). Achado que você decide não acatar não é apagado: ganha `· descartado: <motivo>` na própria linha, e `telemetria.py ruido` mede o ruído por revisor, número que o `/auditar` reporta. Na revisão do gatilho de CI, que vira comentário no PR, a marca vai na linha do comentário, e o `ruido --github` a lê.
 
 O relatório abre com a **faixa de raio de explosão** (ADR-0031), porque ela é que decide o rigor — e a pergunta não é "quão confiante estou?", é **"quanto custa desfazer se estiver errado?"**:
 
@@ -253,6 +255,7 @@ O `codigo.jsonl` é regenerável a qualquer momento e nunca se edita à mão. O 
 
 - `/kairos-forge:otimizar` — ciclo de catraca contra uma métrica que um comando mede: uma mudança por rodada, medir, manter ou reverter via git (ADR-0012).
 - `/kairos-forge:migrar` — modernização de legado por estrangulamento, com Ivan: testes de caracterização, rota de corte com rollback, manter-ou-reverter por fatia (ADR-0018).
+- `/kairos-forge:relatar` — o que entregamos, por que decidimos e quanto custou em tokens, com a Talita: cada número com o comando de onde saiu, "não medido" onde não há hook, o período ao lado do anterior (`telemetria.py periodo`) e o status em `decisoes/gestao/` quando pedido (ADR-0050).
 
 ## Passo 4 — ritmo semanal
 

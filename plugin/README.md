@@ -53,7 +53,7 @@ Acionar:
 /kairos-forge:rodar apoio-revisao-arquitetural
 ```
 
-## As 18 skills
+## As 19 skills
 
 | Skill | Quando usar | Disponível em |
 |---|---|---|
@@ -75,6 +75,7 @@ Acionar:
 | `/kairos-forge:lancar` | Do merge à produção: checklist pré-deploy, aprovação explícita, health check em 3 camadas, rollback anotado | Todos os CLIs |
 | `/kairos-forge:auditar` | Semanal. Pontuação 0–120 em 6 dimensões (Fundação, Pipeline, Guardrails, Conhecimento, Estrutura, **Autonomia**) | Todos os CLIs |
 | `/kairos-forge:evoluir` | Semanal pós-auditoria: lê a trajetória (`telemetria.py resumo`), dá veredicto à evolução anterior e escolhe UMA capacidade nova | Todos os CLIs |
+| `/kairos-forge:relatar [dias\|SPEC]` | O que entregamos, por que decidimos e quanto custou em tokens, com a Talita: cada número com o comando de onde saiu, "não medido" onde não há hook, decisão citada por arquivo e linha, e o status do período em `decisoes/gestao/` quando pedido (ADR-0050) | Todos os CLIs (tokens e trajetória só onde há hook) |
 
 Ordem natural: `onboardar` → `mapear-arquitetura` (brownfield) → `diagnosticar` (sistema existente) → `especificar` → `analisar-ameacas` (features sensíveis) → `desenhar` (features com UI) → `mobilizar`/`rodar` → `validar` → `revisar` → `lancar` → `mapear-conhecimento` (quando docs acumulam) → `auditar` → `evoluir`.
 
@@ -470,7 +471,7 @@ python3 kairos-forge/scripts/sync-multi-cli.py instalar --cli cursor [--escopo g
 
 `mobilizar` roda no Cursor: o agente principal orquestra os subagents de `.cursor/agents/` em paralelo enquanto o `quadro.py` guarda dependências, posse e contagem — sem canal para falar com worker em voo; se faltar contexto, relance com o contexto completo.
 
-O que chega: 71 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 18 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, os dez scripts de suporte em `.cursor/scripts/` (`grafo`, `telemetria`, `execucao`, `guardrail`, `diagnostico`, `ciclo`, `contrato`, `painel`, `quadro`, `prova`), `templates/` e o `hooks.json` que liga telemetria e guardrail aos eventos do Cursor (ADR-0042). Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
+O que chega: 71 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 19 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, os dez scripts de suporte em `.cursor/scripts/` (`grafo`, `telemetria`, `execucao`, `guardrail`, `diagnostico`, `ciclo`, `contrato`, `painel`, `quadro`, `prova`), `templates/` e o `hooks.json` que liga telemetria e guardrail aos eventos do Cursor (ADR-0042). Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
 
 ### Hermes Agent (bot 24/7 — ponte)
 
@@ -648,6 +649,7 @@ Mudou o prompt da Laura, a `description` de um agente ou o roteamento → rode o
 ## Documentação
 
 - [Início rápido](docs/inicio-rapido.md)
+- [Adoção por peça](docs/adocao.md) — o piloto num time, o que cada peça resolve sozinha e o que roda sem instalar nada
 - [ADR-0001](docs/adr/0001-plugin-em-vez-de-runtime.md) — plugin não runtime
 - [ADR-0002](docs/adr/0002-relacao-com-kairos-ai.md) — Forge vs kairos-ai
 - [ADR-0003](docs/adr/0003-portagem-squads-apoio.md) — squads de apoio

@@ -57,6 +57,12 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ciclo.py registrar <res> # o que aconteceu
 (sem ela o `/validar` não corrobora evidência — ADR-0021). Faltando qualquer uma, diga o que falta e
 pare; o que fazer em cada caso: `references/maquina-de-estados.md`.
 
+**Construa fora do checkout principal (ADR-0024).** Entre os gates, ninguém olha cada escrita. Abra o arco
+num worktree (`git worktree add .worktrees/SPEC-NNN -b forge/SPEC-NNN`, com `.worktrees/` no `.gitignore`) e
+rode tudo de lá: desfazer a entrega é remover a pasta, e o checkout principal fica livre para a pessoa. O
+estado do ciclo e do quadro continua no checkout principal, onde a caixa e o painel o leem. Construindo no
+checkout principal, o guardrail avisa uma vez por sessão (classe `checkout`).
+
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ciclo.py abrir SPEC-NNN \
   --orcamento-criticar 2 --orcamento-validar 2 --orcamento-revisar 2
@@ -175,13 +181,15 @@ o `limpo` é recusado (ADR-0048).
 
 O `/revisar` classifica o diff em faixa de raio de explosão. **Faixa 1**: gates verdes. **Faixa 2**: gates
 verdes **e** trajetória limpa (`telemetria.py`). **Faixa 3**: para e pergunta — `ciclo.py escalar --motivo
-"faixa 3: <o que é irreversível>"`, mesma fronteira do ADR-0024. Diga a faixa no corpo do PR.
+"faixa 3: <o que é irreversível>"`, mesma fronteira do ADR-0024. A faixa sai no topo do corpo do PR.
 
 ### 8. `pronto_para_pr` — abrir o PR
 
-Só com P1 sem bloqueio e revisão sem 🔴. Título `<tipo>(<escopo>): <o que muda>` em PT-BR; corpo com
-evidência, ressalvas, follow-ups e rodadas consumidas (`ciclo.py estado`). **Nunca** faça merge — `gh pr merge`
-fica bloqueado durante ciclo aberto. Depois: `ciclo.py registrar pr_aberto`.
+Só com P1 sem bloqueio e revisão sem 🔴. Título `<tipo>(<escopo>): <o que muda>` em PT-BR. O corpo sai de
+`painel.py --pr SPEC-NNN > corpo.md`: em cima, numa tela, a SPEC apontada, a origem, a faixa e o que a pessoa
+decide; embaixo, recolhida, a evidência tirada dos arquivos. Você completa só o que pede julgamento e abre
+com `gh pr create --body-file corpo.md` — formato em `references/relatorio-de-entrega.md`. **Nunca** faça
+merge — `gh pr merge` fica bloqueado durante ciclo aberto. Depois: `ciclo.py registrar pr_aberto`.
 
 ### 9. Encerrar e registrar
 

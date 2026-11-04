@@ -108,7 +108,7 @@ python3 evals/tarefas-fabrica/rodar.py comparar base v1-verificacao-isolada
 A ordem vem da lista de trabalho de `docs/loop-unico/AUDITORIA.md`. Cada variante muda uma
 coisa em relação à última que ficou:
 
-1. `base` — a fábrica como está (v0.42.0).
+1. `base` — a fábrica como está (v0.43.0).
 2. `v1-verificacao-isolada` — crítica e revisão em subagente de contexto limpo, com o bloco de
    contrato como resultado. Mede-se em `t04` e `t05`.
 3. `v2-apoio-juntado` — os squads de apoio sem papel juntados dentro do squad. Mede-se pelo

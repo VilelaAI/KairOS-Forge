@@ -30,6 +30,11 @@ Conflito deixa de ser violação de disciplina e vira **impossibilidade física*
 é real (setup por teammate, merges sequenciais, `.worktrees/` no `.gitignore`) e por
 isso o default não é worktree: pague quando a supervisão humana sair do caminho.
 
+O quadro, o ciclo e a trajetória moram no checkout principal mesmo quando o script roda
+num worktree ligado: o teammate roda o `quadro.py vincular` de dentro do worktree dele e
+acha o quadro que a líder abriu, e o guardrail confere os caminhos sagrados também pelo
+checkout principal (emenda ao ADR-0024).
+
 ## Passo 6.2 — Reversibilidade declarada por tarefa
 
 Toda task carrega **como se desfaz**, no `--reverter`, anotado **antes** de executar:

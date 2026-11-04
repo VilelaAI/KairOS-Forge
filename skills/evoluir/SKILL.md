@@ -46,6 +46,7 @@ Leia os números como perguntas, não como diagnóstico:
 | Gate verde de primeira baixo | O gate está pegando erro real ou está mal calibrado? |
 | Muitas rodadas de correção | Qual agente patina? Falta contexto ou falta critério? |
 | Recusas de guardrail por classe | Regra apertada demais, ou hábito que precisa mudar? |
+| Fontes que faltaram (`falta-fonte`) | Você buscou esse dado à mão para a fábrica? É sempre a mesma ferramenta? |
 
 Sem hooks no CLI, `.agents/execucoes/` fica vazio e o resumo vem zerado. Isso é
 comportamento honesto, não bug: **diga que não há trajetória** e siga para a entrevista
@@ -136,6 +137,7 @@ Se houver: candidato a virar background task, scheduled job ou hook proativo.
    - Maior alavancagem (impacto x frequência)
    - Menor esforço de implementação
    - Empate? O que está há mais tempo sendo dor
+   - **Fonte que faltou em 2+ sessões é candidata pronta.** O modo de falha é conhecido (a fábrica pergunta o que uma ferramenta responderia), a capacidade que o endereça é ligar a fonte (MCP, script de leitura, acesso só de leitura) e a linha de base já existe: as perguntas daquela fonte no `resumo`. O veredicto da semana seguinte lê o mesmo número. Ligar uma fonte é dar acesso: confirme com o usuário o escopo (leitura, qual ambiente) antes de propor, e a credencial é da fábrica, nunca a de uma pessoa (`docs/identidade-do-agente.md`).
    - **Padrão contra modo de falha compreendido** (ADR-0012): só recomende capacidade nova se o modo de falha atual é claro e a capacidade o endereça diretamente — o padrão mais barato que resolve é o certo. Se o modo de falha ainda é incerto, a evolução da semana é **medir** (criar a métrica, o log ou o gate que vai revelá-lo), não construir. E se a dor é "temos métrica mas ela não melhora", a resposta pode não ser capacidade nova: rode `/kairos-forge:otimizar` sobre ela.
 
 3. **Especificar o item escolhido** com este formato, salvando em `decisoes/evolucoes/EVOL-YYYY-MM-DD.md`:

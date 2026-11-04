@@ -133,3 +133,78 @@ tradução.
 | `DESIGN.md` gerado pelo `/onboardar` | Extrair sistema de design de código é trabalho de Pablo com julgamento; gerar esqueleto vazio é placeholder, que o Pare e Pergunte proíbe |
 | Tarefas do plano maiores (a "task" da aula) | Confunde as escalas: a tarefa de ≤ 1 dia é a unidade de posse do quadro; o tamanho da aula é o apetite da SPEC, e o teto entra lá |
 | Campo `origem` na fence `kairos-critica`/`kairos-validacao` | Muda o contrato assinado (ADR-0034) por metadado que o cabeçalho da SPEC carrega igual |
+
+## Emenda (v0.42.5): pergunta por falta de fonte vira proposta de ligar a fonte
+
+Esta ADR mandou consultar os MCPs de dados do projeto antes de perguntar ao humano. Faltava o
+outro lado: quando a fonte não está ligada e a pergunta acontece mesmo assim, nada registrava
+isso. Na aula 5 do Tech Leads Club, o agente vai apagar rotas antigas e pede ao professor os
+acessos de cada uma no PostHog, que não está conectado. O professor tira a lição: buscar o dado
+à mão toda vez não escala; o certo é ligar o PostHog, e o agente nunca mais pergunta. *"É uma
+melhoria constante até que ele fique autônomo."*
+
+Três peças:
+
+- **A convenção.** A pergunta que existe porque a resposta está numa ferramenta sem acesso
+  (métricas, banco, tracker, logs, design) traz uma linha `falta-fonte: <fonte>`, com o nome do
+  serviço numa palavra. A regra está no `CLAUDE.md.template` do projeto, no bloco de bloqueio
+  do anti-drift (o teammate pergunta à Laura, e a linha segue se ela levar a pergunta à pessoa),
+  no `/especificar` e na escalação do `/entregar`.
+- **A contagem é do hook, não do agente.** O `Stop` já relê o transcript para somar os tokens
+  (ADR-0048). Na mesma passada, conta as respostas do modelo que declaram cada fonte e grava em
+  `sessao_fim` só o nome e a contagem, nunca o texto. Texto de usuário e de ferramenta não
+  conta, e a mesma resposta em várias linhas conta uma vez. Um filtro de substring antes da
+  regex mantém o `Stop` no tempo de antes: 0,2 s num transcript real de 24 MB.
+- **O consumo.** O `telemetria.py resumo` traz "Fontes que faltaram", com perguntas e sessões
+  por fonte, somadas pela última leitura de cada sessão. Para o `/evoluir`, uma fonte que
+  faltou em 2+ sessões é candidata pronta: o modo de falha é conhecido, a capacidade que o
+  resolve é ligar a fonte, e a linha de base já existe. O veredicto da semana seguinte lê o
+  mesmo número (ADR-0043). O `/auditar` reporta a contagem e não pontua, e o `/relatar` a mostra
+  em "Como foi o processo?".
+
+### Limites
+
+- **É auto-declarado.** A linha depende do agente escrevê-la, e um esquecimento subconta. O que
+  a protege é não ter incentivo para mentir: nada pontua, e o número só serve para propor uma
+  ligação que a pessoa aprova.
+- **Só onde o Stop lê o transcript.** No Claude Code, sim. No Codex, no OpenCode e no Tucano,
+  "não medidas", como os tokens. No Cursor, o formato do transcript não foi conferido.
+- **Ligar a fonte é dar acesso.** O `/evoluir` propõe e confirma o escopo (só leitura, qual
+  ambiente); quem liga é a pessoa. A fábrica não se dá acesso sozinha.
+
+## Emenda (v0.42.6): a faixa de raio no parecer da triagem
+
+Na aula 5 do Tech Leads Club, a triagem do professor dá um grau de impacto já na entrada. A
+regra da skill é: com impacto baixo ou médio, o agente segue; com impacto alto, chama uma pessoa
+para validar. *"A primeira coisa: ele tem que dizer qual é o impacto daquilo ali."* O Forge tem a
+mesma régua desde o ADR-0031, as faixas de raio de explosão, mas ela só aparecia no `/revisar` e
+no `/entregar`, quando o código já existia. Na triagem, quem decidia mover `forge:construir`
+via rótulo e tamanho, e tamanho não é impacto: um diff de 20 linhas pode apagar dados.
+
+Três peças:
+
+- **A triagem estima a faixa**, pela mesma pergunta do ADR-0031: *quanto custa desfazer se
+  estiver errado?* A segunda linha do parecer é `FAIXA: <1|2|3> — <por quê>`. O workflow tira
+  a faixa por regex, aplica `forge:faixa-N` (filtrável no board, como o rótulo) e abre o
+  comentário com ela ao lado do rótulo. Parecer sem faixa legível sai "faixa não estimada",
+  sem rótulo de faixa. Na re-triagem, a faixa anterior sai.
+- **Faixa 3 nunca fica `forge:pronto`.** Quando o parecer pede `pronto` para uma mudança
+  difícil de reverter, o shell troca por `forge:precisa-spec` e diz no comentário que trocou.
+  A mudança passa por SPEC e pela aprovação humana (`aguardando_aprovacao`) antes de qualquer
+  código. A regra é do workflow, não do modelo, pelo mesmo motivo que o `forge:construir` nunca
+  sai por regex.
+- **A faixa segue o trabalho.** O `/especificar` registra a faixa na Origem da SPEC, e faixa 3
+  é o irreversível do ADR-0019: sem default da feature Pequena e com o caminho de volta nos
+  Riscos. O `/revisar` compara a faixa do diff com a estimada. Entrega numa faixa acima vai no
+  topo do relatório, porque quem aprovou a construção olhou um raio menor.
+
+### Limites
+
+- **É estimativa de quem ainda não viu o código.** O `/revisar` classifica de novo pelo diff,
+  e é essa classificação que decide o rigor da revisão. A da triagem decide o caminho de
+  entrada.
+- **"Na dúvida, a maior" infla a faixa 3**, e mais issues passam pela SPEC. É o erro barato:
+  uma SPEC a mais custa uma aprovação, e um `pronto` errado na faixa 3 custa um revert que não
+  existe.
+- **Rótulo de faixa que falta no repositório não derruba a triagem.** O comentário sai e o log
+  avisa. Instalação antiga sem os rótulos novos continua funcionando.

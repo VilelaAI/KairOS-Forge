@@ -147,3 +147,28 @@ agente. Corrigido — os três gates agora usam a mesma tabela.
 | Deixar a crítica sem contrato, registrada na palavra do agente | Seria o único dos três gates fora da regra do ADR-0029. Um gate que se auto-declara limpo não é gate |
 | Adotar `pick` (o harness escolhe a próxima feature) | Cruza a fronteira de aprovação: escolher o próximo trabalho é decisão do usuário, não do arco |
 | Teto de onda configurável desde já | Número sem uso não tem base para ser ajustado. Fixa em 6, mede, depois abre se doer |
+
+## Emenda (v0.42.1): desenho do programa, reuso declarado e varredura
+
+Três lacunas que o material da aula 5 do Tech Leads Club (Fábricas Agênticas) e a comparação
+com o kairos-ai deixaram à mostra, todas na SPEC escrita antes da crítica:
+
+- **O `/validar` cobrava reuso que a SPEC não declarava.** O gate de duplicação (ADR-0045)
+  bloqueia "a função nova que duplica uma existente que o plano mandava reutilizar", mas o
+  modelo da SPEC não tinha onde o plano dissesse isso. O plano ganha a coluna **Reusa**
+  (`arquivo:função`), que sai do `grafo.py contexto` dos arquivos tocados (ADR-0041).
+- **O formato da mudança era decidido construindo.** A SPEC Pequena+ que mexe em interface
+  ganha a seção **Desenho do programa**: tipos e assinaturas públicas, o caminho de chamada
+  da T1 e as portas de mão única com o formato literal (schema gravado, API pública,
+  migração). É a recomendação de Dex Horthy (*Why Software Factories Fail*): alinhar o
+  desenho antes custa menos que discutir no review.
+- **A crítica só cobrava segurança entre as dimensões transversais.** A SPEC Média+ ganha a
+  **Varredura** das nove dimensões (validação, modos de falha, idempotência, autorização,
+  concorrência, ciclo de vida do dado, falha de dependência, transições de estado e
+  observabilidade), adaptada da skill tlc-spec-lean (Tech Leads Club, CC-BY-4.0). Cada uma
+  termina num requisito, numa proteção existente ou em `n/a` com motivo; a que pede resposta
+  de produto vira pergunta aberta (ADR-0015).
+
+Os críticos de requisito e de arquitetura passam a cobrar as três seções. O contrato da
+crítica e o `ciclo.py` não mudam; as seções entram no digest selado na aprovação porque são
+texto da SPEC.

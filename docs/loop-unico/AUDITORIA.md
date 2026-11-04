@@ -21,6 +21,8 @@ Não contam como motivo:
 foi feita. O inventário completo, uma linha por persona com evidência e confiança, está em
 [`inventario.tsv`](inventario.tsv).
 
+**Depois da auditoria (v0.43.0).** O `/relatar` (ADR-0050) entrou depois desta auditoria, com a Talita falando no contexto principal, no mesmo padrão das outras: hoje são 18 das 19 skills sem subagente. A linha da Talita no inventário passa a citar a skill; o veredicto dela não foi reavaliado.
+
 ## Como a fábrica delega hoje
 
 O retrato é diferente do organograma de 71 personas:

@@ -101,3 +101,63 @@ pra matar"). O que era regra de duas skills vira critério de admissão da auton
 | Container por teammate | Fora do alcance de um plugin — exigiria runtime, imagem e orquestração. É decisão do ambiente do usuário, não do plugin (ADR-0001) |
 | Enforçar ownership no hook `PreToolUse` | Sem atribuição de teammate no payload, só geraria falso positivo em série — e falso positivo desliga guardrail (ADR-0022) |
 | Lista fixa de ações proibidas em vez do critério de reversibilidade | Lista fixa envelhece e sempre tem buraco. "Você consegue escrever o revert?" cobre o caso que ninguém previu |
+
+## Emenda (v0.42.10): construir fora do checkout principal
+
+Na aula 5 do Tech Leads Club, o professor cita um hook que não deixa implementar nada no clone
+principal: o agente constrói num worktree, e quem está no checkout principal segue trabalhando.
+Esta ADR já pedia worktree quando a supervisão sai do caminho, mas só para o teammate do
+`/mobilizar`. O arco do `/entregar`, que também constrói sem ninguém olhar cada escrita entre
+os gates, rodava no checkout principal. E a conferência achou o que impedia levá-lo para um
+worktree.
+
+**O estado morava no diretório de onde o script rodava.** O `ciclo.py` e o `quadro.py`
+gravavam em `.agents/ciclo/` e `.agents/quadro/` relativos ao diretório atual. Daí três
+consequências:
+
+- **O ciclo aberto num worktree sumia.** A caixa, o painel, a telemetria e o guardrail do
+  `gh pr create`, rodando do checkout principal, não o enxergavam.
+- **O `vincular` falhava no modo worktree.** O teammate em worktree que rodava o
+  `quadro.py vincular` pedido pelo ADR-0048 recebia "quadro não existe", e os tokens dele
+  ficavam sem tarefa. É um defeito que já estava na `main`, justamente no modo worktree.
+- **A telemetria rodada num worktree lia uma pasta vazia.** O hook grava a trajetória no
+  checkout principal desde o ADR-0048.
+
+Agora o estado mora onde a trajetória já morava:
+
+- **O `ciclo.py` e o `quadro.py` resolvem a pasta no checkout principal.** O
+  `execucao.raiz_do_projeto`, que lê o `.git` sem rodar git, faz isso também quando o script
+  roda num worktree ligado. A SPEC continua lida do diretório atual: o digest é o do branch em
+  construção.
+- **Os leitores usam a mesma resolução:**
+  - guardrail;
+  - painel;
+  - telemetria, inclusive a trajetória;
+  - `prova.py decisoes`.
+
+  Fora de worktree, nada muda.
+- **Os caminhos sagrados valem também pelo checkout principal.** O guardrail conferia
+  `.agents/execucoes/**`, `.agents/ciclo/**` e `.agents/quadro/**` só pelo caminho relativo ao
+  diretório da sessão. De dentro de um worktree, uma escrita por caminho absoluto na trajetória
+  do principal passava, um buraco aberto desde o ADR-0048. Agora o caminho conta também
+  relativo ao checkout principal.
+- **Classe nova `checkout`, em `aviso`.** Avisa quando há escrita de código de produção num
+  checkout principal enquanto um ciclo aberto constrói no branch dele:
+  - os estados que contam são `construindo`, `corrigindo_*`, `provando` e
+    `atacando_premissa_*` da validação e da revisão;
+  - o aviso sai uma vez por sessão;
+  - o rastro fica na trajetória sempre;
+  - worktree ligado, teste, documentação e ciclo construindo noutro branch não contam;
+  - `"checkout_principal": "sempre"` no `guardrails.json` estende a regra a toda escrita de
+    produção ali, que é o hook da aula;
+  - `{"modos": {"checkout": "bloqueio"}}` a torna dura.
+- **O Passo 0 do `/entregar`** recomenda abrir o arco num worktree.
+
+### Limites
+
+- **A recomendação não cria o worktree.** O `/entregar` diz o comando; criar a pasta, instalar
+  as dependências nela e removê-la depois do merge continuam com quem roda o arco.
+- **Rodar o script de uma subpasta do checkout principal** continua gravando o estado ali,
+  como antes. Só o worktree ligado foi resolvido.
+- **Escrita pelo shell não passa por esta conferência.** A classe `checkout` e os sagrados olham
+  as ferramentas de escrita; um `echo >` no terminal é da classe de comando.

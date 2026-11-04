@@ -76,6 +76,10 @@ EXT_PRODUCAO = re.compile(
 )
 EH_TESTE = re.compile(r"(^|/)(tests?|specs?|__tests__|e2e|playwright)/|\.(test|spec)\.")
 
+
+def eh_producao(arquivo: str) -> bool:
+    return bool(EXT_PRODUCAO.search(arquivo)) and not EH_TESTE.search(arquivo)
+
 SKILLS = re.compile(
     r"/(?:kairos-forge:)?(onboardar|mapear-arquitetura|especificar|analisar-ameacas"
     r"|desenhar|mobilizar|rodar|validar|revisar|lancar|entregar|avaliar"
@@ -91,14 +95,38 @@ def redigir(texto: str) -> str:
     return texto
 
 
+def _relativo(caminho: str, base) -> str | None:
+    """`caminho` relativo a `base`; None quando fica fora dela (ou não dá para resolver)."""
+    try:
+        return str(Path(caminho).resolve().relative_to(Path(base or ".").resolve()))
+    except Exception:
+        return None
+
+
 def relativizar(caminho: str, cwd: str | None) -> str:
     """Caminho relativo à raiz do projeto — mais legível e sem expor a árvore da máquina."""
     if not caminho:
         return ""
+    rel = _relativo(caminho, cwd)
+    return caminho[-LIMITE_ARQ:] if rel is None else rel
+
+
+def raiz_do_checkout(cwd: str | None) -> Path:
+    """A pasta mais próxima com `.git`, de `cwd` para cima; sem nenhuma, o próprio `cwd`."""
     try:
-        return str(Path(caminho).resolve().relative_to(Path(cwd or ".").resolve()))
-    except Exception:
-        return caminho[-LIMITE_ARQ:]
+        inicio = Path(cwd or ".").resolve()
+        return next((p for p in (inicio, *inicio.parents) if (p / ".git").exists()), inicio)
+    except (OSError, RuntimeError):
+        return Path(cwd or ".")
+
+
+def no_projeto(caminho: str, cwd: str | None) -> bool:
+    """Escrita fora do checkout (o scratchpad do Claude Code, `/tmp`) não é do projeto.
+
+    O gate de parada contava o script de medição do scratchpad como produção sem gate
+    verde depois — falso positivo numa sessão que não tinha tocado o código do projeto.
+    """
+    return bool(caminho) and _relativo(caminho, raiz_do_checkout(cwd)) is not None
 
 
 def classificar_gate(cmd: str) -> str | None:
@@ -157,6 +185,20 @@ def raiz_do_projeto(cwd: Path) -> Path:
         return cwd
 
 
+def estado_no_principal(relativa: Path) -> Path:
+    """`relativa` no checkout principal quando o diretório atual é um worktree ligado; fora
+    de worktree, ela mesma, relativa como sempre (emenda ao ADR-0024)."""
+    aqui = Path.cwd()
+    principal = raiz_do_projeto(aqui)
+    return relativa if principal == aqui else principal / relativa
+
+
+def pasta_do_projeto(raiz, nome: str) -> Path:
+    """`.agents/<nome>` do checkout principal: a trajetória, o ciclo e o quadro moram lá
+    mesmo quando a sessão roda num worktree ligado (ADR-0048; emenda ao ADR-0024)."""
+    return raiz_do_projeto(Path(raiz).resolve()) / ".agents" / nome
+
+
 def destino(payload: dict) -> Path:
     raiz = raiz_do_projeto(Path(payload.get("cwd") or ".").resolve())
     pasta = raiz / ".agents" / "execucoes"
@@ -177,17 +219,46 @@ def anexar(payload: dict, evento: dict) -> None:
 # --- um construtor de evento por ponto do ciclo de vida ----------------------------
 
 def ev_inicio(p: dict) -> dict:
-    return {"tipo": "sessao_inicio", "origem": p.get("source") or "?"}
+    return {"tipo": "sessao_inicio", "origem": p.get("source") or "?", **_com_branch(p)}
+
+
+# --- a chave entre sessão e SPEC (aula 5 do Tech Leads Club) -------------------------
+# Cada CLI agrupa o trabalho pela própria sessão e nenhuma sabe a qual SPEC ele pertence.
+# O branch é a chave comum: o `ciclo.py` grava o branch de cada ciclo, e o `telemetria.py
+# por-spec` cruza os dois. Lido do `.git` sem rodar git (hook roda em toda ferramenta), e
+# gravado no início e em cada `Stop`, porque o `/entregar` troca de branch no meio da sessão.
+SPEC_CITADA = re.compile(r"\bSPEC-\d+\b", re.I)
+
+
+def branch_atual(cwd: str | None) -> str | None:
+    """O branch do checkout de `cwd`, lendo `HEAD`; None em HEAD destacado ou sem git."""
+    try:
+        marca = raiz_do_checkout(cwd) / ".git"
+        if marca.is_file():
+            m = re.match(r"gitdir:\s*(.+)", marca.read_text(encoding="utf-8").strip())
+            marca = (marca.parent / m.group(1).strip()) if m else marca
+        head = (marca / "HEAD").read_text(encoding="utf-8").strip()
+    except (OSError, ValueError, AttributeError):
+        return None
+    return head[len("ref: refs/heads/"):] if head.startswith("ref: refs/heads/") else None
+
+
+def _com_branch(p: dict) -> dict:
+    """Sem `cwd` no payload, não adivinha: o diretório do processo pode ser outro repositório."""
+    b = branch_atual(p["cwd"]) if p.get("cwd") else None
+    return {"branch": b[:LIMITE_ARQ]} if b else {}
 
 
 def ev_prompt(p: dict) -> dict:
     """O contador de autonomia: quantas vezes o humano precisou digitar."""
     texto = p.get("prompt") or ""
     achadas = SKILLS.findall(texto)
+    specs = sorted({s.upper() for s in SPEC_CITADA.findall(texto)})
     return {
         "tipo": "prompt",
         "skill": achadas[0] if achadas else None,
         "chars": len(texto),
+        **({"specs": specs[:5]} if specs else {}),   # só o id sai do prompt, nunca o texto
     }
 
 
@@ -206,14 +277,12 @@ def ev_ferramenta(p: dict) -> dict | None:
         }
 
     if nome in ("Write", "Edit", "NotebookEdit", "MultiEdit"):
-        arquivo = relativizar(
-            str(entrada.get("file_path") or entrada.get("notebook_path") or ""),
-            p.get("cwd"),
-        )
+        bruto = str(entrada.get("file_path") or entrada.get("notebook_path") or "")
+        arquivo = relativizar(bruto, p.get("cwd"))
         return {
             "tipo": "escrita",
             "arquivo": arquivo,
-            "producao": bool(EXT_PRODUCAO.search(arquivo)) and not bool(EH_TESTE.search(arquivo)),
+            "producao": eh_producao(arquivo) and no_projeto(bruto, p.get("cwd")),
             "ferramenta": nome,
         }
 
@@ -262,23 +331,15 @@ def _acumular(atual: dict[str, int], uso: dict) -> None:
             atual[nosso] = max(atual[nosso], valor)
 
 
-def tokens_do_transcript(caminho: str) -> dict | None:
-    """O uso acumulado da sessão: a soma de cada resposta do modelo, contada uma vez.
+def _anotar_uso(linha: str, por_resposta: dict, modelos: set) -> None:
+    lida = _uso_da_linha(linha)
+    if lida is not None:
+        chave, uso, modelo = lida
+        _acumular(por_resposta.setdefault(chave, {n: 0 for n, _ in CAMPOS_USO}), uso)
+        modelos.add(modelo)
 
-    Uma resposta vira várias linhas no transcript (uma por bloco de conteúdo), todas com
-    o mesmo `message.id` e o mesmo uso. Somar linha a linha conta a mesma resposta duas,
-    três vezes — num transcript real, 955 linhas eram 387 respostas. Conta-se cada id
-    uma vez, com o maior valor visto em cada campo.
-    """
-    if not caminho or not Path(caminho).is_file():
-        return None
-    por_resposta: dict[str, dict[str, int]] = {}
-    modelos: set[str] = set()
-    with Path(caminho).open(encoding="utf-8", errors="replace") as fh:
-        for lida in filter(None, map(_uso_da_linha, fh)):
-            chave, uso, modelo = lida
-            _acumular(por_resposta.setdefault(chave, {n: 0 for n, _ in CAMPOS_USO}), uso)
-            modelos.add(modelo)
+
+def _total(por_resposta: dict, modelos: set) -> dict | None:
     if not por_resposta:
         return None
     total: dict = {n: sum(r[n] for r in por_resposta.values()) for n, _ in CAMPOS_USO}
@@ -287,10 +348,69 @@ def tokens_do_transcript(caminho: str) -> dict | None:
     return total
 
 
+# --- perguntas por falta de fonte (aula 5 do Tech Leads Club) -----------------------
+# "Antes de apagar vale olhar no PostHog, só que ele não está conectado." Quando o agente
+# pergunta à pessoa o que uma ferramenta responderia, a pergunta traz uma linha
+# `falta-fonte: <fonte>`. O Stop conta, na mesma leitura do transcript, as respostas do
+# modelo que declaram cada fonte, e grava só o nome dela, nunca o texto. É a matéria do
+# `/evoluir`: a fonte que mais faltou é a próxima a ligar.
+MARCAS_FALTA = ("alta-fonte", "ALTA-FONTE")   # filtro barato: o Stop lê o transcript inteiro
+FALTA_FONTE = re.compile(r"(?im)^[\s>*_`-]*falta-fonte:\s*`?([a-z0-9][\w.\-/]{1,39})")
+
+
+def _textos(msg: dict) -> list[str]:
+    conteudo = msg.get("content")
+    blocos = conteudo if isinstance(conteudo, list) else [{"type": "text", "text": conteudo}]
+    return [str(b.get("text") or "") for b in blocos
+            if isinstance(b, dict) and b.get("type") == "text"]
+
+
+def _anotar_falta(linha: str, por_resposta: dict) -> None:
+    """Fontes que uma resposta do modelo declarou faltar; texto de usuário e de ferramenta
+    não conta, e a mesma resposta em várias linhas conta uma vez."""
+    lida = _resposta(linha) if any(m in linha for m in MARCAS_FALTA) else None
+    if lida is None:
+        return
+    msg = lida[1]
+    fontes = {f.lower().rstrip(".") for t in _textos(msg) for f in FALTA_FONTE.findall(t)}
+    if fontes:   # sem `message.id`, cada linha é uma resposta
+        por_resposta.setdefault(str(msg.get("id") or linha), set()).update(fontes)
+
+
+def ler_transcript(caminho: str) -> tuple[dict | None, dict[str, int]]:
+    """Uma passada só: o uso de cada resposta e as fontes que ela declarou faltar.
+
+    Uma resposta vira várias linhas no transcript (uma por bloco de conteúdo), todas com
+    o mesmo `message.id` e o mesmo uso. Somar linha a linha conta a mesma resposta duas,
+    três vezes — num transcript real, 955 linhas eram 387 respostas. Conta-se cada id
+    uma vez, com o maior valor visto em cada campo.
+    """
+    if not caminho or not Path(caminho).is_file():
+        return None, {}
+    por_resposta: dict[str, dict[str, int]] = {}
+    modelos: set[str] = set()
+    faltas: dict[str, set[str]] = {}
+    with Path(caminho).open(encoding="utf-8", errors="replace") as fh:
+        for linha in fh:
+            _anotar_uso(linha, por_resposta, modelos)
+            _anotar_falta(linha, faltas)
+    contagem: dict[str, int] = {}
+    for fontes in faltas.values():
+        for fonte in fontes:
+            contagem[fonte] = contagem.get(fonte, 0) + 1
+    return _total(por_resposta, modelos), dict(sorted(contagem.items()))
+
+
+def tokens_do_transcript(caminho: str) -> dict | None:
+    """O uso acumulado da sessão: a soma de cada resposta do modelo, contada uma vez."""
+    return ler_transcript(caminho)[0]
+
+
 def ev_fim(p: dict) -> dict:
     """O `Stop` roda a cada turno: grava o acumulado da sessão até ali, não o do turno."""
-    tokens = tokens_do_transcript(str(p.get("transcript_path") or ""))
-    return {"tipo": "sessao_fim", **({"tokens": tokens} if tokens else {})}
+    tokens, faltas = ler_transcript(str(p.get("transcript_path") or ""))
+    return {"tipo": "sessao_fim", **({"tokens": tokens} if tokens else {}),
+            **({"faltas_de_fonte": faltas} if faltas else {}), **_com_branch(p)}
 
 
 CONSTRUTORES = {

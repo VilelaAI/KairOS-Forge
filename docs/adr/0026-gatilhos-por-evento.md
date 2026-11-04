@@ -115,3 +115,93 @@ time a ignorar o vermelho.
 | Instalar o plugin via marketplace no CI | O comando é TUI e não roda headless. Copiar `plugin/skills` e `plugin/agents` para `.claude/` é o caminho portátil documentado |
 | Rodar `entregar` (arco completo) por gatilho | Arco completo dispara o gate de aprovação da SPEC, que precisa de humano. Gatilho por evento serve para o que fecha sem decisão de escopo: revisar, corrigir, auditar |
 | Não entregar templates e deixar o usuário montar | Era o estado até a v0.18, e o resultado observado é que ninguém monta. Fábrica que não entrega a esteira entrega bancada |
+
+## Emenda (v0.41.3): fronteira de confiança
+
+Os templates passavam texto de fora ao `claude -p` sem marcá-lo como dado e sem declarar
+ferramentas, e o `corrigir` interpolava o nome do branch no script com `${{ }}`. A
+leitura de dois artigos sobre fábricas de agentes levou à conferência: o *How to Build
+an Agent Factory* trata saída de ferramenta como dado não confiável. A conferência achou
+três caminhos:
+
+- **CI de fork no `corrigir`.** O `workflow_run` roda no contexto da base, com o segredo e
+  token de escrita. Um branch de fork com o mesmo nome de um branch da base passava pelo
+  checkout e entregava ao agente um log escrito por quem abriu o PR.
+- **Nome de branch no script.** `git checkout -b "forge/corrige-${{ ...head_branch }}"`
+  executa `$(...)` contido no nome. O checkout de antes bloqueava o caso de fork por
+  acaso, não por desenho.
+- **Ferramentas e hooks do branch.** Sem ferramentas na linha de comando, quem decidia
+  era o `.claude/settings.json` do branch. E o `claude -p` roda os hooks e os servidores
+  MCP do projeto mesmo numa pasta nunca confiada.
+
+Decisão: a regra 6 do `templates/ci/README.md`. Nada de `${{ }}` de texto do evento em
+`run:`; cada `claude -p` declara as ferramentas (`--allowedTools`, `--disallowedTools`),
+desliga hooks e MCP do projeto e diz no prompt que o texto de fora é dado; o `corrigir`
+filtra fork e só roda o comando de teste declarado em `GATE`.
+
+Efeito colateral: nas versões recentes do Claude Code, `claude -p` sem regra de allow
+nega edição e Bash, e o allow do `.claude/settings.json` não vale numa pasta nunca
+confiada, como a do runner. O `corrigir` provavelmente não conseguia editar; não foi
+conferido num runner. Agora ele edita por `--permission-mode acceptEdits` e roda só o
+`GATE`.
+
+O `scripts/tests/test_ci.py` lê os YAML e roda cada `claude -p` contra uma CLI falsa.
+
+## Emenda (v0.42.8): a fábrica com identidade própria
+
+Na aula 5 do Tech Leads Club, o bot do professor tem conta própria no GitHub: *"porque a
+gente consegue dar permissões específicas para ele e ver o que ele está fazendo"*. Ele também
+alerta contra o atalho comum: *"não usem o mesmo acesso de uma pessoa para um agente; a pessoa
+precisa de mais acesso às vezes, e aí tu dá um monte de escrita para o agente"*. Se algo der
+errado, o agente se bane, se bloqueia e se revoga sem tirar acesso de ninguém.
+
+Os gatilhos já agiam com o token do workflow, que não é uma pessoa. A conferência achou dois
+defeitos e uma lacuna:
+
+- **O PR do `corrigir` nunca disparava o CI.** O GitHub não dispara workflows a partir de
+  ações feitas com o token do workflow, e o corpo do PR dizia "se o CI daqui também ficar
+  vermelho" sobre um CI que não ia rodar.
+- **O `corrigir` não lia o log.** O `permissions:` declarava `contents` e `pull-requests`, e
+  declarar zera o resto. Sem `actions: read`, o `gh run view --log-failed` falhava calado, e o
+  agente corrigia com "log indisponível" no lugar do erro.
+- **Nada impedia um token pessoal.** Trocar o `github.token` por um `secrets.GH_PAT` "para o CI
+  disparar" era o conserto óbvio, e é exatamente o que a aula manda não fazer.
+
+As três correções:
+
+- **App da fábrica, opcional, nos quatro gatilhos.** O passo "Identidade da fábrica" gera o
+  token do GitHub App (`actions/create-github-app-token`) quando a variável `FORGE_APP_ID`
+  existe. Todo `GH_TOKEN` e o checkout do `corrigir` usam esse token, com o token do workflow
+  como reserva. Com o app:
+  - tudo sai em nome dele;
+  - as permissões são as da instalação;
+  - revogar é suspender o app;
+  - o PR do `corrigir` dispara o CI.
+
+  Chave ausente ou inválida não derruba o job (`continue-on-error`), e sem o app o `corrigir`
+  avisa no PR que o CI precisa ser disparado à mão.
+- **`actions: read` no `corrigir`.** É a permissão que faltava para o log.
+- **`check-agent-security.py` acusa token de pessoa.** Workflow que cita `kairos-forge` e usa
+  `secrets.GH_TOKEN`, `secrets.GITHUB_PAT` ou qualquer `secrets.*PAT*` vira achado `MEDIA`.
+  Apontado para o `.claude` de um projeto, o checker olha os workflows dele, e o `/auditar`
+  já o roda.
+
+O guia `docs/identidade-do-agente.md` traz:
+- as permissões mínimas por gatilho;
+- a branch protegida com o app fora da lista de quem contorna a proteção (o merge continua
+  humano);
+- como revogar;
+- e a conta da fábrica no tracker e nas fontes ligadas por MCP.
+
+A sessão assistida no terminal continua com a identidade de quem está ali aprovando, separada
+pelo trailer (ADR-0044).
+
+### Limites
+
+- **O app é configuração do usuário.** O plugin não cria conta nem app; ele usa um quando
+  existe e acusa o atalho que não deve existir.
+- **O detector olha o nome do segredo, não o conteúdo.** Um token pessoal guardado como
+  `secrets.CHAVE_DO_BOT` passa. O nome é o que a revisão do workflow enxerga, e o guia diz qual
+  usar.
+- **`actions/create-github-app-token@v1` é dependência externa.** Fica pinada na versão
+  principal, como o `actions/checkout@v4` dos mesmos arquivos.

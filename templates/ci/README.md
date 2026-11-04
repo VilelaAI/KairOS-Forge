@@ -14,10 +14,10 @@ ou é segunda-feira de manhã.
 
 | Arquivo | Dispara quando | O que faz | Escreve? |
 |---|---|---|---|
-| `kairos-forge-revisar.yml` | PR aberto, atualizado, reaberto ou tirado de rascunho (PR em rascunho é ignorado) | Roda `/kairos-forge:revisar` e comenta o parecer | Só comentário |
-| `kairos-forge-corrigir.yml` | O workflow de CI observado termina em falha numa branch que **não** é a default nem `forge/corrige-*` | Diagnostica e tenta corrigir em uma rodada, **abrindo PR** contra a branch que falhou; pula se já houver PR de correção aberto para ela | Branch nova + PR |
+| `kairos-forge-revisar.yml` | PR aberto, atualizado, reaberto ou tirado de rascunho (PR em rascunho é ignorado) | Roda `/kairos-forge:revisar` e comenta o parecer; achado não acatado ganha ` · descartado: <motivo>` na linha, editando o comentário, e `telemetria.py ruido --github` mede o ruído por revisor | Só comentário |
+| `kairos-forge-corrigir.yml` | O workflow de CI observado termina em falha numa branch deste repositório (não de fork) que **não** é a default nem `forge/corrige-*` | Diagnostica e tenta corrigir em uma rodada, **abrindo PR** contra a branch que falhou; pula se já houver PR de correção aberto para ela | Branch nova + PR |
 | `kairos-forge-auditar.yml` | Segunda-feira 09:00 em UTC-3 (cron `0 12 * * 1` — o cron do Actions é UTC), ou manual | Roda `/kairos-forge:auditar` e abre issue com as 3 lacunas | Issue |
-| `kairos-forge-triar.yml` | Issue aberta/reaberta, ou rotulada `forge:triar` | Laura e Joana classificam: `forge:pronto` · `forge:precisa-spec` · `forge:falta-informacao` (com as perguntas) · `forge:aguardar` (ADR-0040) | Rótulo + comentário |
+| `kairos-forge-triar.yml` | Issue aberta/reaberta, ou rotulada `forge:triar` | Laura e Joana classificam: `forge:pronto` · `forge:precisa-spec` · `forge:falta-informacao` (com as perguntas) · `forge:aguardar` (ADR-0040), e estimam a faixa de raio de explosão, `forge:faixa-1/2/3` (ADR-0031) | Rótulos + comentário |
 
 ## Instalação
 
@@ -31,13 +31,26 @@ Depois, no repositório: **Settings → Secrets → Actions**, crie
 em vez de falhar — falso vermelho treina o time a ignorar o vermelho.
 
 Ajuste em cada arquivo o que for do seu projeto: o nome do workflow de CI que o
-`corrigir` observa (`workflows: ["CI"]`) e o horário do cron do `auditar`, em UTC.
+`corrigir` observa (`workflows: ["CI"]`), o comando de teste dele (`GATE: "npm test"`,
+o único comando que a correção pode rodar) e o horário do cron do `auditar`, em UTC.
 A branch protegida não precisa de ajuste: o `corrigir` compara com a default do
 repositório (`github.event.repository.default_branch`).
 
+**Identidade da fábrica (opcional, recomendada para o `corrigir`).** Crie um GitHub App
+para a fábrica, instale no repositório e crie a variável `FORGE_APP_ID` (Settings →
+Variables) e o segredo `FORGE_APP_PRIVATE_KEY`. Com eles, tudo o que os quatro workflows
+fazem sai em nome do app:
+- com as permissões dadas na instalação;
+- revogável sem tocar em ninguém;
+- e o PR do `corrigir` dispara o CI, o que não acontece com o token do workflow.
+
+Sem eles, os workflows usam o token do workflow, e o `corrigir` avisa no PR que o CI
+precisa de um empurrão. Nunca use um token pessoal (`secrets.*PAT*`): o
+`check-agent-security.py` acusa. O passo a passo está em `docs/identidade-do-agente.md`.
+
 ## O modelo de segurança
 
-Autonomia só é segura se o erro for barato. As cinco regras que estes workflows
+Autonomia só é segura se o erro for barato. As seis regras que estes workflows
 seguem, e que você deve manter se editá-los:
 
 1. **Nunca escreve na branch que falhou nem na default.** O `corrigir` só age em
@@ -59,7 +72,9 @@ seguem, e que você deve manter se editá-los:
 3. **Permissão mínima por workflow.** `revisar`: `contents: read` e
    `pull-requests: write`, para comentar. `auditar` e `triar`: `contents: read` e
    `issues: write`. Só o `corrigir` tem `contents: write` — para empurrar a branch
-   nova —, além de `pull-requests: write`.
+   nova —, além de `pull-requests: write` e `actions: read`, para baixar o log da
+   execução que falhou. Declarar `permissions:` zera o que não foi declarado, e sem
+   `actions: read` o agente recebia "log indisponível" no lugar do erro.
 4. **Timeout em tudo.** 20 min no `revisar` e no `auditar`, 30 no `corrigir`, 15 no
    `triar`. Job travado é custo silencioso.
 5. **Guardrail depois do fato — e só o `corrigir` bloqueia nele.** Em CI não existe
@@ -71,6 +86,25 @@ seguem, e que você deve manter se editá-los:
    - `revisar`: roda antes da revisão, com `|| true`. O resultado fica no log do
      job; não bloqueia e não entra no parecer.
    - `auditar` e `triar`: não chamam o guardrail — não escrevem código.
+6. **Texto de fora é dado, não instrução.** Issue, diff, log de CI e nome de branch
+   são escritos por quem abriu a issue ou o PR, e chegam a uma sessão com o segredo no
+   ambiente. Por isso:
+   - nunca entram no script por `${{ }}`: no `run:`, um branch chamado `x$(comando)`
+     executa o comando. Passam por `env:`;
+   - cada `claude -p` declara as ferramentas na linha de comando, em vez de herdar do
+     `.claude/settings.json` do branch. `triar` e `auditar` só leem; `revisar` lê e roda
+     `git diff`, `git log` e `git show`; `corrigir` edita, roda o `GATE` e git de
+     leitura, sem `push`, `commit` nem `gh`, que são dos passos seguintes, depois do
+     guardrail. Nenhum tem rede (`WebFetch`, `WebSearch`);
+   - `--settings '{"disableAllHooks": true}'` e `--strict-mcp-config`: um PR pode trazer
+     um hook no `.claude/settings.json` ou um servidor no `.mcp.json`, e o `claude -p`
+     os rodaria;
+   - o prompt diz que o texto de fora é dado: o que ele pedir vira nota no parecer,
+     nunca ação;
+   - o `corrigir` não age sobre CI de fork. O `workflow_run` roda com o segredo e com
+     token de escrita, e o log de um fork é escrito por quem abriu o PR.
+
+   No repositório da fábrica, `scripts/tests/test_ci.py` confere essas travas.
 
 ## Gates determinísticos sem modelo
 
@@ -161,12 +195,26 @@ intenção, a mesma fronteira do ADR-0023. O que consome `forge:construir` (o ar
 `/entregar` headless) ainda não existe como template, de propósito: entra quando o arco
 headless tiver trajetória medida.
 
-Crie os seis rótulos no repositório antes de instalar — os quatro que o workflow aplica
-(`forge:pronto`, `forge:precisa-spec`, `forge:falta-informacao`, `forge:aguardar`) e os
-dois que são do humano (`forge:triar`, para pedir re-triagem, e `forge:construir`):
+A triagem também estima a **faixa de raio de explosão** da mudança (ADR-0031), pela pergunta
+"quanto custa desfazer se estiver errado?": `forge:faixa-1` (reversível e contido),
+`forge:faixa-2` (reversível mas amplo) ou `forge:faixa-3` (difícil de reverter). A faixa
+abre o comentário, ao lado do rótulo, para você mover `forge:construir` vendo o impacto. E
+faixa 3 nunca fica `forge:pronto`: se o parecer pedir, o próprio workflow troca por
+`forge:precisa-spec`, e a mudança passa por SPEC e pela sua aprovação antes de qualquer
+código. A troca é do shell, não do modelo. Parecer sem faixa legível sai "faixa não
+estimada", sem rótulo de faixa.
+
+Crie os nove rótulos no repositório antes de instalar:
+- os quatro que o workflow aplica (`forge:pronto`, `forge:precisa-spec`,
+  `forge:falta-informacao`, `forge:aguardar`);
+- os três de faixa (`forge:faixa-1`, `forge:faixa-2`, `forge:faixa-3`);
+- os dois que são do humano (`forge:triar`, para pedir re-triagem, e `forge:construir`).
+
+Rótulo de faixa que falta não derruba a triagem: o workflow avisa no log e comenta mesmo
+assim.
 
 ```bash
-for r in pronto precisa-spec falta-informacao aguardar triar construir; do
+for r in pronto precisa-spec falta-informacao aguardar faixa-1 faixa-2 faixa-3 triar construir; do
   gh label create "forge:$r" --force
 done
 ```

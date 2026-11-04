@@ -43,7 +43,7 @@ verificam lendo os caminhos citados na rubrica. Detalhe de cada coleta em `refer
 **Guardrails — segurança do setup** (critério de 4 pts; audita a config de agentes/hooks, não o código do produto):
 
 ```bash
-python3 <plugin>/scripts/check-agent-security.py .claude   # varre .claude/agents/, hooks e segredos
+python3 <plugin>/scripts/check-agent-security.py .claude   # varre .claude/agents/, hooks, segredos e workflows da fábrica
 ```
 
 Exit 0 = pontue cheio (4). Achados ALTA (allow-list ausente/curinga, segredo hardcoded) = 0 e liste
@@ -76,8 +76,11 @@ Acoplamento e duplicação: amostragem manual. Marque como hipótese se não hou
 
 ```bash
 python3 <plugin>/scripts/telemetria.py resumo --dias 30
-python3 <plugin>/scripts/telemetria.py ruido --dias 90    # achados de revisão descartados, por revisor (ADR-0039)
+python3 <plugin>/scripts/telemetria.py ruido --dias 90    # achados de revisão descartados, por revisor (ADR-0039);
+                                                          # --github soma a revisão do gatilho no PR
 python3 <plugin>/scripts/telemetria.py prs --dias 30      # PRs da fábrica mesclados sem commit humano (ADR-0044)
+python3 <plugin>/scripts/telemetria.py comparar --dias 90 # o que a fábrica entrega volta mais que o das pessoas?
+python3 <plugin>/scripts/telemetria.py espera --dias 30   # quanto do tempo de ciclo foi esperando uma pessoa (não pontua)
 python3 <plugin>/scripts/painel.py --dias 30      # o mesmo estado com as SPECs ao lado
 ```
 
@@ -95,6 +98,15 @@ existe mesmo sem hook: ela não pontua, mas entra no relatório (`references/rub
 - `falhas_do_guardrail` acima de zero não pontua, mas entra no relatório e é candidata ao top 3:
   naquelas chamadas o guardrail falhou aberto e não guardou nada (ADR-0046).
 - Critério não verificável = 0 e "não foi possível verificar" no relatório.
+- **O total soma; a fábrica é do tamanho da dimensão mais baixa.** Além do NN/120, diga qual
+  dimensão tem o menor percentual: é ela que limita, e pontos altos em outra não a compensam
+  (a régua pelo piso do AMM da Factory.ai, como a aula 5 do Tech Leads Club a aplica). E cruze
+  as dimensões; cada cruzamento verdadeiro entra no relatório e é candidato ao top 3:
+  - **Autonomia acima de Guardrails:** velocidade sem freio.
+  - **Gatilho por evento instalado** (`templates/ci/`) **com Fundação abaixo de 50%:** o agente
+    trabalha sem testes e instruções que lhe permitam conferir o próprio trabalho.
+  - **Pipeline acima de 50% com Autonomia não medida:** a fábrica produz sem saber quanto custa
+    nem quanto espera.
 
 ### Como devolver as 3 lacunas
 
@@ -111,13 +123,16 @@ Responsáveis sugeridos: Renata (Autonomia), Marcos (gatilhos de CI), Olívia (g
 Template completo em `references/relatorio.md`. Seções, nesta ordem:
 
 1. `# Auditoria — <projeto> — YYYY-MM-DD` e **Pontuação total: NN/120 (NN%)**.
-2. Tabela por dimensão (`NN/20` e `%`).
+2. Tabela por dimensão (`NN/20` e `%`), com a **dimensão que limita** marcada e os cruzamentos
+   verdadeiros logo abaixo.
 3. **Autonomia medida (últimos 30 dias)**: ciclos registrados, ciclos sem intervenção, intervenções
    por ciclo (mediana), gates verdes de primeira, rodadas de correção, produção escrita sem gate,
-   falhas do guardrail; e
+   falhas do guardrail, tempo de ciclo esperando pessoa (`telemetria.py espera`); e
    **Nível estimado: L<N>** com justificativa ancorada nos números. Sem telemetria: "não medida" em
    todas as linhas — nunca preencher por estimativa. Mais a **autonomia de PR** (taxa, N e fonte
-   `gh`/`git`), ou "não medida" se nenhum PR mesclado tem commit da fábrica.
+   `gh`/`git`), ou "não medida" se nenhum PR mesclado tem commit da fábrica, e a **entrega da
+   fábrica × humana** (`telemetria.py comparar`: quanto de cada grupo voltou, revertido ou
+   corrigido), ou "não comparável" com o N de cada grupo.
 4. **Top 3 lacunas**: para cada uma, dimensão, esforço (pequeno/médio/grande), por que esta
    primeiro e como fechar em 1-3 bullets.
 5. **Histórico** com as auditorias anteriores de `decisoes/auditorias/` (anteriores à v0.17 têm

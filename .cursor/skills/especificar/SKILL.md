@@ -37,7 +37,7 @@ Se for trivial, pare e diga por que a SPEC não compensa. Se for pequeno ou maio
 
 **Teto de apetite (ADR-0040):** apetite **ciclo** — mais de ~1,5 semana de trabalho humano equivalente — não vira uma SPEC: vira SPECs encadeadas, cada uma com fatia fim a fim própria. Acima disso o agente planeja sobre o que ainda não existe. As tarefas de ≤ 1 dia do plano são outra escala: unidade de posse do quadro, não microtask para humano.
 
-**Entrada por issue ou card (ADR-0040):** `especificar #123` ou uma URL de tracker é entrada válida — leia via CLI (`gh issue view`) ou MCP, trate o texto como a descrição do usuário e registre **Origem** na SPEC. Se houver notas de POC em `docs/pocs/` para a feature (`/kairos-forge:rodar explorar`), elas entram antes da interrogação: o que a tentativa revelou é fato, não hipótese.
+**Entrada por issue ou card (ADR-0040):** `especificar #123` ou uma URL de tracker é entrada válida — leia via CLI (`gh issue view`) ou MCP, trate o texto como a descrição do usuário e registre **Origem** na SPEC. Se a triagem deixou `forge:faixa-N`, a faixa vai junto (`issue #123 · faixa 3`). Faixa 3 é o irreversível do ADR-0019: não segue com o default da feature Pequena, e os Riscos da SPEC dizem como desfazer. Se houver notas de POC em `docs/pocs/` para a feature (`/kairos-forge:rodar explorar`), elas entram antes da interrogação: o que a tentativa revelou é fato, não hipótese.
 
 ### 1.2. Trilhas por tema (modo guiado — ADR-0013)
 
@@ -65,9 +65,11 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/grafo.py subgrafo "<componente/feature cit
 
 Decisões, dependências e restrições já registradas (com fonte) entram na SPEC em vez de serem redescobertas — e conflito entre a feature nova e uma aresta existente ("X substitui Y", "X depende de Z") vira pergunta ao usuário antes de virar requisito.
 
+**Se o projeto tem a camada de código** (`.agents/grafo/codigo.jsonl`, ADR-0041 — gere com `grafo.py codigo` se faltar), rode `grafo.py contexto <arquivo>` nos arquivos que a feature vai tocar. Quem importa, quem herda e o que já existe ali alimentam o **Desenho do programa** e a coluna **Reusa** do plano: função que já resolve o problema entra como reuso, não como tarefa nova.
+
 **Se as tools MCP `memory_*` estiverem disponíveis** (ai-memory, ADR-0010), complemente com `memory_query` sobre as entidades da feature: tentativas passadas, abordagens descartadas e discussões de sessões anteriores que nunca chegaram aos arquivos curados. Abordagem já descartada volta para a SPEC como não-objetivo, com o porquê.
 
-**Se houver MCPs de dados do projeto** — banco, métricas, tracker (ADR-0040) — consulte antes de perguntar ao humano o que a máquina já responde: volume real da tabela, uso atual da tela, a issue de origem e seus comentários. Pergunta cuja resposta está numa query é pergunta que custa a paciência do usuário à toa.
+**Se houver MCPs de dados do projeto** — banco, métricas, tracker (ADR-0040) — consulte antes de perguntar ao humano o que a máquina já responde: volume real da tabela, uso atual da tela, a issue de origem e seus comentários. Pergunta cuja resposta está numa query é pergunta que custa a paciência do usuário à toa. Sem a fonte ligada, pergunte, e ponha na pergunta uma linha `falta-fonte: <fonte>` (o nome do serviço numa palavra): o hook conta, e o `/kairos-forge:evoluir` propõe ligar a que mais faltou.
 
 ### 3. Arquiteto(s) interrogam em primeira pessoa
 

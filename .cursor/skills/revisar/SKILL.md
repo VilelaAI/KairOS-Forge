@@ -39,6 +39,11 @@ Se o diff implementa uma SPEC em `docs/specs/` e não houver relatório correspo
 
 Continue se o usuário pediu revisão explicitamente.
 
+Se houver validação, rode `prova.py decisoes SPEC-NNN --desde <data do relatório de validação>`:
+a base pode ter andado, e uma decisão registrada depois da validação ninguém conferiu. Cada
+decisão ligada vai para o revisor da área, e a entrega que a contradiz é 🔴, como no `/validar`
+(passo 2.1).
+
 ### 2. Verificar tamanho do diff
 
 ```bash
@@ -76,6 +81,10 @@ evidência. Mesmo critério, momentos diferentes.
 
 Declare a faixa no topo do relatório. Um diff de 20 linhas na faixa 3 recebe mais escrutínio
 que um de 400 na faixa 1 — e o revisor precisa saber disso antes de começar a ler.
+
+Se a entrega veio de uma issue triada, compare com a faixa estimada lá (`forge:faixa-N`, ou a
+Origem da SPEC). Diff numa faixa acima da estimada vai no topo do relatório, com as duas: quem
+moveu `forge:construir` decidiu olhando um raio menor que o entregue.
 
 **O histórico entra aqui, não a impressão.** Se o projeto tem `diagnostico.py`, a taxa de
 reversão da área tocada é evidência: área que já voltou atrás três vezes neste trimestre
@@ -116,11 +125,24 @@ o achado fica, com ` · incerto` na linha, conta em `criticos` e bloqueia até a
 com evidência. A assimetria é deliberada: o falso positivo custa uma rodada de correção; o
 falso negativo vai para produção. Em 🟠, 🟡 e 🔵 vale a regra de cima: não sobreviveu, sai.
 
+**Afirmação sobre o que está fora do repositório leva fonte.** Comportamento de biblioteca,
+API, framework, versão, depreciação ou vulnerabilidade só vira achado com a documentação
+oficial, o changelog ou o aviso de segurança consultado **nesta revisão** (pelo MCP de
+documentação, como o Context7, ou pela web), e a URL vai na linha do achado. Sem fonte, o
+achado vira pergunta ou sai: o que o modelo lembra de uma biblioteca é boato; o changelog é
+fonte. Regra da skill the-judge (Felipe Rodrigues, CC-BY-4.0).
+
 Patrícia, na passada dela, roda o que é determinístico antes de opinar:
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prova.py testes-alterados   # asserção removida, caso pulado, teste apagado
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prova.py atalhos            # TLS desligado, erro engolido, `as any`, HTML sem escape, sleep como sincronia
 ```
+
+Cada linha do `atalhos` é candidata, não achado: atalho com justificativa e link para a issue
+fica; atalho sem justificativa vira achado de quem é a dimensão (TLS e HTML sem escape são da
+Helena; erro engolido e `sleep` em teste, da Patrícia). O detector nunca bloqueia, para que
+o que uma regex acha não custe um token de modelo e o julgamento continue com o revisor.
 
 e confere, import a import do diff, se o módulo ou símbolo existe no repositório ou no lockfile.
 Import fantasma e API inventada são o erro que a IA ingênua mais comete e o mais barato de checar.
@@ -162,6 +184,10 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
 - 🔴 + 🟠: invocar Lucas (backend) e Marina (frontend) pra corrigir
 - 🟡 cobertura: invocar Ricardo (test-automation)
 
+## Promover a regra determinística
+- [Helena] lib/http.ts — `rejectUnauthorized: false` em cliente novo → regra no linter do projeto proibindo a opção fora de `tests/`
+(ou "nenhum")
+
 ```kairos-revisao
 {
   "veredicto": "aprovado | aprovado_com_ressalvas | bloqueado",
@@ -181,7 +207,9 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
 a rodada de correção contesta e o humano concorda — recebe ` · descartado: <motivo>` **na própria
 linha** e fica no relatório. É essa marca que `telemetria.py ruido` lê para medir, por revisor,
 quantos achados foram ruído: o número que calibra a persona e que o `/auditar` reporta. Achado
-apagado é ruído que ninguém mediu.
+apagado é ruído que ninguém mediu. No gatilho de CI (`kairos-forge-revisar.yml`), o relatório é o
+comentário no PR: a marca vai na mesma linha, editando o comentário da revisão mais recente, e
+`telemetria.py ruido --github` a lê.
 
 Antes da v0.24 a revisão só aparecia na tela: o `/kairos-forge:entregar` registrava
 `limpo` ou `critico` na palavra do agente, enquanto a validação já vinha de artefato.
@@ -201,6 +229,20 @@ no lugar é `nao_resolvido`, e `nao_resolvido` mantém o veredicto `bloqueado`. 
 `limpo` enquanto algum pendente não estiver marcado como `resolvido`: revisão limpa que
 esquece um 🔴 da rodada anterior é ausência de busca.
 
+**E a re-revisão não abre frente nova.** Da segunda rodada em diante, a revisão faz duas
+coisas: marca os anteriores e procura 🔴 que a **própria correção** introduziu. 🟠, 🟡 e 🔵
+novos em código que já estava no diff da primeira rodada não entram — o revisor que não viu
+paga a falha. A exceção é 🔴 de verdade achado tarde (segurança explorável, perda de dado,
+dinheiro), que sempre entra, marcado ` · perdido na rodada 1`. Por isso a primeira rodada é a
+revisão inteira: tudo o que estava visível sai nela, de uma vez. É o contrato de convergência
+da skill the-judge (CC-BY-4.0): sem ele, cada rodada descobre uma frente e a revisão vira
+pingue-pongue.
+
+**A seção "Promover a regra determinística"** lista os achados que uma regex, o linter do
+projeto ou o `guardrail.py` pegariam. Cada um vem com a regra em uma linha. É o insumo do
+`/kairos-forge:evoluir`: o achado que vira regra sai da próxima revisão, e cada revisão fica
+mais barata que a anterior.
+
 ### 6. Regras de bloqueio
 
 - **Qualquer 🔴** de qualquer revisor → veredicto agregado é ❌ bloqueado.
@@ -219,6 +261,8 @@ esquece um 🔴 da rodada anterior é ausência de busca.
 - **Não sugira workaround pra 🔴.** Sugira correção. Workaround vira dívida.
 - **Não publique achado que não releu.** Falso positivo custa a atenção que o 🔴 verdadeiro
   precisa (ADR-0039); o ruído por revisor é medido e aparece na auditoria.
+- **Não afirme de memória o que está fora do repositório.** Achado sobre biblioteca, API ou
+  versão leva a URL da fonte oficial consultada nesta revisão; sem ela, é pergunta.
 
 ## Quando NÃO usar esta skill
 

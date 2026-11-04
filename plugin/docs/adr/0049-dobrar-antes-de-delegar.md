@@ -3,7 +3,7 @@
 - **Status:** proposto. Os critérios, o eval e a auditoria valem já; as mudanças de comportamento
   esperam a linha de base do eval e a sua concordância com os veredictos.
 - **Data:** 2026-11-03
-- **Versão:** v0.42.0
+- **Versão:** v0.43.0
 
 ## Contexto
 
@@ -114,3 +114,7 @@ tarefa concluída não piorar. Toda rodada paga pede ok, com tamanho e estimativ
   regra de uma mudança por vez; o código é próprio.
 - **Juiz-LLM para a qualidade da crítica e da revisão.** Adiado. Defeito plantado e regex pegam o
   essencial sem juiz. O juiz entra pela higiene do `/avaliar` quando o eval crescer.
+
+## Nota (v0.43.0): o que mudou depois da auditoria
+
+O `/relatar` (ADR-0050) entrou depois desta auditoria, com a Talita falando no contexto principal, no mesmo padrão das outras: hoje são 18 das 19 skills sem subagente. A linha da Talita no inventário passa a citar a skill; o veredicto dela não foi reavaliado.

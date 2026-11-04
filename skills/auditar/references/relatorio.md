@@ -18,6 +18,12 @@ Material de apoio da skill `auditar`. Leia ao salvar o resultado em `decisoes/au
 | Estrutura | NN/20 | NN% |
 | Autonomia | NN/20 | NN% |
 
+**Dimensão que limita:** <a de menor %> — NN%. <uma linha: o que ela impede>
+
+**Cruzamentos:** <os verdadeiros, um por linha — "Autonomia acima de Guardrails: velocidade sem
+freio" · "gatilho por evento com Fundação abaixo de 50%" · "Pipeline acima de 50% com Autonomia
+não medida" — ou "nenhum">
+
 ## Autonomia medida (últimos 30 dias)
 
 | Indicador | Valor |
@@ -28,6 +34,9 @@ Material de apoio da skill `auditar`. Leia ao salvar o resultado em `decisoes/au
 | Gates verdes de primeira | NN% |
 | Rodadas de correção | NN |
 | Produção escrita sem gate | NN sessão(ões) |
+| Tempo de ciclo esperando pessoa | NN% (`telemetria.py espera`; maior espera: <estado>) |
+| Perguntas por falta de fonte | NN, por fonte (`telemetria.py resumo`), ou "não medidas" |
+| Entrega da fábrica × humana (90 dias) | voltaram NN% × NN% (N = NN × NN), ou "não comparável" com os N (`telemetria.py comparar`) |
 
 **Nível estimado:** L<N> — <justificativa em uma linha, ancorada nos números acima>
 

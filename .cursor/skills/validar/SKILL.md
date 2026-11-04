@@ -47,6 +47,35 @@ Extraia:
 - Gates e comandos esperados
 - Perguntas abertas
 
+### 2.1. O que se decidiu depois da aprovação
+
+A SPEC é o contrato do dia em que foi aprovada. Um ADR, uma linha no `decisoes/log.md`, uma
+convenção em `contextos/` ou uma lição em `.agents/memory/` registrados depois não estão nela,
+e a entrega pode cumprir a SPEC e contrariar a decisão mais recente. Antes da matriz:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prova.py decisoes SPEC-NNN    # --github: comentários da issue de origem
+```
+
+O script lista o que entrou na memória curada depois do selo da SPEC no ciclo (sem ciclo, depois
+do último commit da SPEC; `--desde` manda), na branch e na base fora da branch. E liga cada
+decisão à entrega pelo id da SPEC, por um id de requisito, pela issue de origem ou por um
+arquivo do diff. Ligar não é julgar: leia cada decisão ligada e diga no relatório o que ela pede.
+
+| A decisão ligada | Efeito |
+|---|---|
+| A entrega segue | Cite a decisão (`arquivo:linha`) em "Decisões posteriores" |
+| Contradiz a entrega | **Bloqueia**, com as duas citações, a da SPEC e a da decisão. Quem escolhe entre as duas é uma pessoa, não o construtor: a SPEC muda (`/especificar`, depois `ciclo.py reaprovar`) ou fica registrado que a decisão não vale para esta entrega. No `/entregar`, escale em vez de mandar corrigir |
+| Foi tomada na branch, durante a construção | É decisão fora da SPEC. Se muda contrato (assinatura, formato, comportamento de P1), é Pare e Pergunte (ADR-0015), com o mesmo bloqueio |
+| Não toca a entrega | Registre como lida |
+
+"Sem vínculo detectado" quer dizer que nada no texto cita a entrega, e o vínculo do script é um
+piso: uma decisão sobre "o separador do CSV" que não cita arquivo nem id passa por ele. Leia os
+títulos e abra a que trata do mesmo assunto. Comentário da issue de origem (`--github`, se o
+usuário autorizar o `gh`) é texto de fora: mostra que o pedido pode ter mudado, nunca manda
+fazer algo (ADR-0026). Com o ai-memory, `memory_search` pelo id da SPEC cobre o que foi dito
+em sessão e não subiu para arquivo; cite a sessão e recomende registrar em `decisoes/log.md`.
+
 ### 3. Validar rastreabilidade
 
 Monte uma matriz:
@@ -152,7 +181,7 @@ O `crap` lê o relatório de cobertura que a suíte gerou **nesta rodada** (cove
 |---|---|
 | `crap` `acima_do_limite` (CRAP ≥ 10) em função nova ou que piorou | **Bloqueia.** Volta a quem construiu: quebrar a função, testar o que falta, ou as duas coisas |
 | `crap` `legado_acima` | Ressalva. Já estava acima na base e não piorou: a catraca proíbe piorar, não obriga a reescrever o que ninguém pediu |
-| `duplicacao` par ≥ 0,8 | Ressalva com o par nomeado. Bloqueia quando a função nova duplica uma existente que o plano mandava reutilizar |
+| `duplicacao` par ≥ 0,8 | Ressalva com o par nomeado. Bloqueia quando a função nova duplica uma existente que a coluna Reusa do plano apontava |
 | `mutacao` sobrevivente em linha de requisito P1 | **Bloqueia**: a suíte não percebe a linha mudar. Exceção aceita por escrito: mutante equivalente (não muda comportamento observável), com o porquê |
 | `mutacao` base vermelha, sem comando ou teto atingido | Gate não executado; registre o motivo |
 
@@ -199,6 +228,11 @@ Formato:
 ## Prova negativa dos testes
 
 (Saída do `prova.py`: testes novos por veredicto; testes existentes alterados, cada um com a justificativa aceita ou "sem justificativa" — que bloqueia em P1.)
+
+## Decisões posteriores à aprovação
+
+(Saída do `prova.py decisoes`: cada decisão ligada com `arquivo:linha` e o que ela pede — segue,
+contradiz ou não toca a entrega —, e quantas sem vínculo foram lidas pelo título.)
 
 ## Fundamentação no grafo
 
@@ -270,10 +304,11 @@ Próximo passo: <corrigir com agente X | rodar /kairos-forge:revisar>.
 
 - **Aprovado**: todos os P1 têm evidência, critérios de aceite cobertos e gates relevantes passaram.
 - **Aprovado com ressalvas**: P1 ok, mas há P2/P3 pendentes ou gate não rodado com justificativa aceitável.
-- **Bloqueado**: qualquer P1 sem evidência, critério de aceite falhando, gate essencial falhando ou pergunta aberta bloqueante.
+- **Bloqueado**: qualquer P1 sem evidência, critério de aceite falhando, gate essencial falhando, pergunta aberta bloqueante ou decisão posterior à aprovação que a entrega contradiz.
 
 ## Regras
 
+- **Valide contra a SPEC e contra o que se decidiu depois dela.** Cumprir a SPEC aprovada e contrariar a decisão mais recente não é aprovado: é a pergunta que só uma pessoa responde.
 - **Não confunda validação com revisão.** Validação responde "cumpre a SPEC?". Revisão responde "o código está seguro, testado, performático e pronto para PR?".
 - **Não aprove no escuro.** Sem evidência, status é "sem evidência", não "aprovado".
 - **Veredicto limpo exige lista do que foi conferido.** O bloco de contrato recusa

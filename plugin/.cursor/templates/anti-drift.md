@@ -165,7 +165,12 @@ Tarefa: <ID e título no quadro>
 Bloqueio: <descrição clara e curta do problema>
 Tentei: <o que você já tentou>
 Decisão necessária: <pergunta específica pra Laura>
+falta-fonte: <fonte>   ← só se a resposta está numa ferramenta que você não alcança
 ```
+
+A linha `falta-fonte:` leva o nome do serviço numa palavra (`posthog`, `postgres-prod`,
+`linear`). Se a Laura também não alcança a fonte e leva a pergunta à pessoa, a linha vai junto:
+o hook conta as perguntas por fonte, e o `/evoluir` propõe ligar a que mais faltou.
 
 O canal depende do CLI. No Claude Code, mande esse bloco por `SendMessage` para a Laura
 e espere a resposta. Nos outros, encerre com ele como relatório: a Laura responde

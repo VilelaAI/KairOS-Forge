@@ -114,15 +114,27 @@ O limiar é a régua de regressão, o número abaixo do qual a mudança **volta*
 **antes** de ver o resultado que você quer aprovar; escolher depois é torcer o alvo.
 Exemplo: `≥ 90% de sucesso, 0 alucinações no subconjunto crítico`.
 
+Comparando versões, declare junto o **teto de custo**: quanto a candidata pode gastar a
+mais que a baseline, em tokens novos por caso (ex.: `+20%`). Uma skill que empata no
+benchmark gastando o dobro não melhorou.
+
 ### 5. Rodar
 
 Onde o comportamento vive:
 
 - Feature do produto → o harness de teste do próprio projeto.
-- Comportamento de agente/CLI → headless, um caso por invocação:
+- Comportamento de agente/CLI → headless, um caso por invocação, uma subpasta por versão:
   ```bash
-  claude -p "<entrada do caso>"    # a saída é comparada ao esperado
+  claude -p "<entrada do caso>" --output-format json > evals/<slug>/execucoes/<versão>/<caso>.json
   ```
+  O juiz lê só o campo `result`, pelo mapa cego. O custo sai do mesmo arquivo, sem passar
+  pelo juiz nem pelo modelo:
+  ```bash
+  python3 ${CLAUDE_PLUGIN_ROOT}/scripts/telemetria.py custo-eval evals/<slug>/execucoes --teto 20
+  ```
+  A saída dá, por versão, a mediana por caso de tokens novos, cache lido, turnos e duração,
+  e a variação contra a `baseline`. Sai 1 se uma versão passar do teto. Caso sem `usage`
+  conta como "não medido", nunca 0.
 
 Registre **todos** os casos, não só o percentual: o valor está nos casos que falharam.
 
@@ -145,10 +157,13 @@ O eval só vale se rodar sozinho quando alguém mexer no que ele protege:
   prompt, skill, persona, `contextos/`, teste ou doc, ou repetido no visível, sai 1.
   Achou? Tire de lá e rotacione o caso: o resultado selado anterior não aprova mais.
 - **Abaixo do limiar → a mudança volta.** Sem exceção por pressa.
+- **Acima do teto de custo → a mudança volta**, mesmo melhor no benchmark. A exceção é
+  escrita no relatório, com o ganho que paga o custo, e decidida pelo usuário.
 
 ### 8. Registrar
 
-`evals/<slug>/RELATORIO-YYYY-MM-DD.md`, com veredicto, limiar, baseline → atual,
+`evals/<slug>/RELATORIO-YYYY-MM-DD.md`, com veredicto, limiar e teto de custo, baseline → atual,
+o custo por versão (a saída do `custo-eval`),
 visível/selado/divergência, N do gold set e versão, digest do artefato, juiz (versão
 pinada), família do gerador, painel sim/não, juiz cego sim/não, resultado do
 `prova.py selado`, eixos avaliados e descartados. Modelo
@@ -158,6 +173,10 @@ Falha nova em produção **vira caso no gold set** antes de ser corrigida.
 ## Regras
 
 - **Sem gold set versionado e limiar declarado, não é eval** — é impressão.
+- **Qualidade decide, custo tem teto.** Comparando versões, o relatório traz as duas
+  colunas. Custo em tokens, nunca em dinheiro (ADR-0044/0048), e medido pelo script, não
+  estimado. Skill que lança subagente em segundo plano pode ter o `usage` do `claude -p`
+  abaixo do gasto real: compare versões do mesmo desenho e diga isso no relatório.
 - **Sem rubrica escrita, o número não significa nada.**
 - **Reporte os eixos separados** e diga o N. Métrica única mente; amostra pequena mente mais.
 - **Juiz de família diferente da que gerou** — ou a limitação declarada no relatório.

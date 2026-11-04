@@ -25,8 +25,8 @@ Sete casos com a mesma causa são **um** problema, não sete. Corrigir caso a ca
 ```markdown
 # Eval — <comportamento> — YYYY-MM-DD
 
-**Veredicto:** acima / abaixo do limiar
-**Limiar:** <número + o que ele protege>
+**Veredicto:** acima / abaixo do limiar · dentro / acima do teto de custo
+**Limiar:** <número + o que ele protege> · **Teto de custo:** <+N% de tokens novos por caso>
 **Baseline → atual:** <n>% → <n>%
 **Visível:** <n>% (<N> casos) · **Selado:** <n>% (<N> casos) · **Divergência:** <n> pts
 **Gold set:** <N> casos (versão/commit) · **Digest do artefato:** `<sha256 curto>`
@@ -36,6 +36,13 @@ Sete casos com a mesma causa são **um** problema, não sete. Corrigir caso a ca
 **Eixos avaliados:** <quais> · **descartados:** <quais e por quê>
 
 ## Resultado por eixo
+## Custo por versão
+
+(A saída do `telemetria.py custo-eval evals/<slug>/execucoes --teto N`: mediana por caso de
+tokens novos, cache lido, turnos e duração de cada versão, e a variação contra a baseline.
+Caso sem `usage` é "não medido". Acima do teto, o porquê de o ganho pagar o custo, ou a
+mudança volta.)
+
 ## Falhas agrupadas por causa raiz
 ## Ações recomendadas (e para quem)
 ## Casos de fronteira em discussão

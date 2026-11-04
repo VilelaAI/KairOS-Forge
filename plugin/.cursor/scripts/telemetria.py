@@ -28,6 +28,10 @@ Uso:
                                                   # chave do branch (ADR-0050, emenda)
     telemetria.py espera [--dias 30] [--json]     # tempo por estado de cada ciclo: quanto
                                                   # foi trabalho e quanto esperou alguém
+    telemetria.py custo-eval <pasta> [--baseline NOME] [--teto PCT] [--json]
+                                                  # custo por versão no /avaliar: uma
+                                                  # subpasta por versão, um `claude -p
+                                                  # --output-format json` por caso
 
 Definições (explícitas de propósito — métrica sem definição é chute com casa decimal):
 
@@ -1088,6 +1092,169 @@ def _cmd_comparar(raiz: Path, dias: int | None, fonte, extras, como_json: bool) 
 SOBRE_PRS = {"prs": _cmd_prs, "comparar": _cmd_comparar}
 
 
+# --- custo por versão no /avaliar (aula 5 do Tech Leads Club) -----------------------
+# "Fiz uma skill e quero ver se ela está boa ou pior que a versão anterior: faço o
+# benchmark e olho quantas chamadas de ferramenta ela fez, quanto tempo levou." O /avaliar
+# media a qualidade; o custo de cada versão ficava de fora, e uma candidata que empata no
+# benchmark gastando o dobro passava. Cada caso roda com `claude -p --output-format json`,
+# uma subpasta por versão; aqui sai a mediana por caso de cada versão e a diferença para a
+# baseline. Em tokens, nunca em dinheiro (ADR-0044/0048/0050).
+
+def _json_ou_nada(texto: str):
+    try:
+        return json.loads(texto)
+    except ValueError:
+        return None
+
+
+def _objetos(texto: str):
+    """O JSON inteiro (`--output-format json`) ou cada linha, da última para a primeira
+    (`stream-json`, em que o `result` é o último evento)."""
+    inteiro = _json_ou_nada(texto)
+    if inteiro is not None:
+        yield inteiro
+        return
+    for linha in reversed(texto.splitlines()):
+        objeto = _json_ou_nada(linha)
+        if objeto is not None:
+            yield objeto
+
+
+def _resultado(arq: Path) -> dict | None:
+    """O evento `result` do arquivo do caso, só se trouxer `usage`."""
+    try:
+        texto = arq.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    r = next((o for o in _objetos(texto) if isinstance(o, dict) and o.get("type") == "result"), None)
+    return r if r and isinstance(r.get("usage"), dict) else None
+
+
+def _inteiro(d: dict, chave: str) -> int:
+    v = d.get(chave)
+    return v if isinstance(v, int) and not isinstance(v, bool) else 0
+
+
+def custo_do_caso(arq: Path) -> dict | None:
+    """Tokens, turnos e duração do evento `result`; None sem `usage` (não medido)."""
+    r = _resultado(arq)
+    if r is None:
+        return None
+    uso, ms = r["usage"], r.get("duration_ms")
+    return {"novos": sum(_inteiro(uso, k) for k in ("input_tokens", "cache_creation_input_tokens",
+                                                     "output_tokens")),
+            "cache_lido": _inteiro(uso, "cache_read_input_tokens"),
+            "turnos": r.get("num_turns") if isinstance(r.get("num_turns"), int) else None,
+            "duracao_s": round(ms / 1000, 1) if isinstance(ms, (int, float)) else None,
+            "erro": bool(r.get("is_error")) or r.get("subtype", "success") != "success"}
+
+
+def _mediana_de(casos: list[dict], campo: str) -> float | None:
+    valores = sorted(c[campo] for c in casos if c[campo] is not None)
+    if not valores:
+        return None
+    meio = len(valores) // 2
+    return float(valores[meio]) if len(valores) % 2 else (valores[meio - 1] + valores[meio]) / 2
+
+
+def custo_da_versao(pasta: Path) -> dict:
+    arquivos = sorted(a for a in pasta.iterdir() if a.suffix in (".json", ".jsonl"))
+    casos = [c for c in map(custo_do_caso, arquivos) if c is not None]
+    return {"casos": len(arquivos), "medidos": len(casos),
+            "com_erro": sum(c["erro"] for c in casos),
+            **{campo: _mediana_de(casos, campo)
+               for campo in ("novos", "cache_lido", "turnos", "duracao_s")}}
+
+
+def _delta_pct(v: float | None, base: float | None) -> float | None:
+    return round(100 * (v - base) / base, 1) if v is not None and base else None
+
+
+def custo_por_versao(pasta: Path, baseline: str | None = None) -> dict:
+    nomes = sorted(d.name for d in pasta.iterdir() if d.is_dir()) if pasta.is_dir() else []
+    if not nomes:
+        return {"erro": f"{pasta}: nenhuma subpasta de versão (ex.: {pasta}/baseline/<caso>.json)"}
+    base = baseline or ("baseline" if "baseline" in nomes else nomes[0])
+    if base not in nomes:
+        return {"erro": f"baseline '{base}' não está em {pasta} ({', '.join(nomes)})"}
+    versoes = {n: custo_da_versao(pasta / n) for n in nomes}
+    for n in nomes:
+        if n != base:                                      # a baseline não varia contra si
+            versoes[n].update(variacao_contra(versoes[n], versoes[base]))
+    return {"pasta": str(pasta), "baseline": base, "versoes": versoes}
+
+
+def variacao_contra(v: dict, b: dict) -> dict:
+    turnos = (v["turnos"] - b["turnos"]) if None not in (v["turnos"], b["turnos"]) else None
+    return {"delta_novos_pct": _delta_pct(v["novos"], b["novos"]),
+            "delta_duracao_pct": _delta_pct(v["duracao_s"], b["duracao_s"]),
+            "delta_turnos": turnos}
+
+
+def acima_do_teto(r: dict, teto: float | None) -> list[str]:
+    """Versões que gastam mais tokens novos por caso que a baseline + teto (em %)."""
+    if teto is None or r.get("erro"):
+        return []
+    return [n for n, v in r["versoes"].items() if (v.get("delta_novos_pct") or 0) > teto]
+
+
+def _num(x: float | None, sufixo: str = "") -> str:
+    return "não medido" if x is None else f"{formatar(int(x))}{sufixo}"
+
+
+def _variacao(x: float | None, sufixo: str = "%") -> str:
+    return "" if x is None else f" ({x:+g}{sufixo})"
+
+
+def imprimir_custo_eval(r: dict, teto: float | None) -> None:
+    print(f"💰 Custo por versão — {r['pasta']} (baseline: {r['baseline']}; mediana por caso)\n")
+    for nome, v in r["versoes"].items():
+        print(f"   {nome:<14} {v['medidos']}/{v['casos']} caso(s) medidos"
+              + (f", {v['com_erro']} com erro" if v["com_erro"] else ""))
+        print(f"      tokens novos {_num(v['novos'])}{_variacao(v.get('delta_novos_pct'))} · "
+              f"cache lido {_num(v['cache_lido'])} · turnos {_num(v['turnos'])}"
+              f"{_variacao(v.get('delta_turnos'), '')} · duração {_num(v['duracao_s'], ' s')}"
+              f"{_variacao(v.get('delta_duracao_pct'))}")
+    for nome in acima_do_teto(r, teto):
+        print(f"\n   ⚠️  {nome} gasta mais que a baseline + {teto:g}% de tokens novos por caso")
+
+
+def _cmd_custo_eval(comando: str, raiz: Path, dias, args: list[str], como_json: bool) -> int:
+    alvo = next((a for a in args[1:] if not a.startswith("--")), None)
+    baseline, teto = _valor_de(args, "--baseline"), _valor_de(args, "--teto")
+    try:
+        teto_pct = float(teto) if teto is not None else None
+    except ValueError:
+        print("erro: --teto é um percentual, ex.: --teto 20", file=sys.stderr)
+        return 1
+    r = custo_por_versao(raiz / alvo if alvo else raiz / "?", baseline)
+    if r.get("erro"):
+        print(f"erro: {r['erro']}", file=sys.stderr)
+        return 1
+    r["pasta"] = alvo                                       # como foi pedido, sem o caminho da máquina
+    r["acima_do_teto"] = acima_do_teto(r, teto_pct)
+    print(json.dumps(r, ensure_ascii=False, indent=2)) if como_json else imprimir_custo_eval(r, teto_pct)
+    return 1 if r["acima_do_teto"] else 0
+
+
+def _valor_de(args: list[str], nome: str) -> str | None:
+    i = args.index(nome) if nome in args else -1
+    return args[i + 1] if 0 <= i < len(args) - 1 else None
+
+
+def _rodar_sobre_prs(comando: str, raiz: Path, dias, args: list[str], como_json: bool) -> int:
+    opcoes = _opcoes_de_pr(args)
+    if isinstance(opcoes, str):
+        print(opcoes, file=sys.stderr)
+        return 1
+    return SOBRE_PRS[comando](raiz, dias, *opcoes, como_json)
+
+
+# Comandos que não leem a trajetória: (comando, raiz, dias, args, json) → exit code.
+SEM_TRAJETORIA = {"prs": _rodar_sobre_prs, "comparar": _rodar_sobre_prs,
+                  "custo-eval": _cmd_custo_eval}
+
+
 # --- apresentação ------------------------------------------------------------------
 
 def alertas(m: dict) -> list[str]:
@@ -1170,12 +1337,8 @@ def main() -> int:
     raiz = Path.cwd()
     comando = args[0]
 
-    if comando in SOBRE_PRS:
-        opcoes = _opcoes_de_pr(args)
-        if isinstance(opcoes, str):
-            print(opcoes, file=sys.stderr)
-            return 1
-        return SOBRE_PRS[comando](raiz, dias, *opcoes, como_json)
+    if comando in SEM_TRAJETORIA:
+        return SEM_TRAJETORIA[comando](comando, raiz, dias, args, como_json)
 
     eventos = carregar(raiz, dias)
 

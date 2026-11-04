@@ -152,6 +152,129 @@ class FalhasDoGuardrail(unittest.TestCase):
                                              "sessoes_com_producao_sem_gate": 0}), [])
 
 
+
+def resultado(entrada: int, saida: int, turnos: int, ms: int, erro: bool = False) -> dict:
+    return {"type": "result", "subtype": "error_during_execution" if erro else "success",
+            "is_error": erro, "duration_ms": ms, "num_turns": turnos, "result": "ok",
+            "total_cost_usd": 9.99,
+            "usage": {"input_tokens": entrada, "cache_creation_input_tokens": 100,
+                      "cache_read_input_tokens": 5000, "output_tokens": saida}}
+
+
+class CustoPorVersao(unittest.TestCase):
+    """`telemetria.py custo-eval`: o custo de cada versão no /avaliar, em tokens."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="kairos-forge-custo-")
+        self.raiz = Path(self._tmp.name)
+        self.pasta = self.raiz / "evals" / "x" / "execucoes"
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def caso(self, versao: str, nome: str, texto: str) -> None:
+        p = self.pasta / versao / nome
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(texto, encoding="utf-8")
+
+    def montar(self) -> None:
+        self.caso("baseline", "c1.json", json.dumps(resultado(1000, 500, 4, 30000)))
+        self.caso("baseline", "c2.json", json.dumps(resultado(1200, 600, 6, 40000), indent=2))
+        self.caso("candidata", "c1.jsonl", "\n".join([
+            json.dumps({"type": "system", "subtype": "init"}),
+            json.dumps({"type": "assistant", "message": {"usage": {"input_tokens": 1}}}),
+            json.dumps(resultado(2000, 500, 7, 45000))]))
+        self.caso("candidata", "c2.json", json.dumps(resultado(2400, 600, 9, 60000, erro=True)))
+        self.caso("candidata", "c3.json", json.dumps({"type": "result", "result": "sem usage"}))
+        self.caso("candidata", "c4.json", "não é json")
+        self.caso("candidata", "notas.txt", "ignorado")
+
+    def test_mediana_por_caso_variacao_contra_a_baseline_e_o_que_nao_e_medido(self) -> None:
+        self.montar()
+        r = telemetria.custo_por_versao(self.pasta)
+        b, c = r["versoes"]["baseline"], r["versoes"]["candidata"]
+        self.assertEqual(r["baseline"], "baseline")
+        self.assertEqual((b["casos"], b["medidos"], b["novos"], b["turnos"], b["duracao_s"]),
+                         (2, 2, 1750.0, 5.0, 35.0))           # mediana de 1600 e 1900
+        self.assertNotIn("delta_novos_pct", b)
+        self.assertEqual((c["casos"], c["medidos"], c["com_erro"]), (4, 2, 1))
+        self.assertEqual((c["novos"], c["delta_novos_pct"], c["delta_turnos"], c["delta_duracao_pct"]),
+                         (2850.0, 62.9, 3.0, 50.0))         # o caso com erro também gastou
+        self.assertEqual(c["cache_lido"], 5000.0)           # à parte, como no resto da fábrica
+        self.assertEqual(telemetria.acima_do_teto(r, 50), ["candidata"])
+        self.assertEqual(telemetria.acima_do_teto(r, 70), [])
+        self.assertEqual(telemetria.acima_do_teto(r, 62.9), [])        # no teto ainda passa
+        self.assertEqual(telemetria.acima_do_teto(r, None), [])
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            telemetria.imprimir_custo_eval({**r, "pasta": "evals/x/execucoes"}, 50)
+        texto = out.getvalue()
+        self.assertIn("baseline: baseline; mediana por caso", texto)
+        self.assertIn("2/4 caso(s) medidos, 1 com erro", texto)
+        self.assertIn("tokens novos 2.850 (+62.9%) · cache lido 5.000 · turnos 8 (+3) · duração 52 s (+50%)", texto)
+        self.assertIn("⚠️  candidata gasta mais que a baseline + 50%", texto)
+        self.assertNotIn("dólar", texto.lower())
+        self.assertNotIn("9.99", json.dumps(r))             # custo em tokens, nunca em dinheiro
+
+    def test_baseline_escolhida_versao_sem_caso_medido_e_erros(self) -> None:
+        self.montar()
+        self.caso("vazia", "c1.json", "{}")
+        self.caso("vazia", "c2.json", json.dumps({"type": "assistant", "usage": {"input_tokens": 5}}))
+        self.caso("vazia", "c3.json", json.dumps({"type": "result", "usage": "texto"}))
+        limite = {**resultado(10, 10, 99, 1000), "subtype": "error_max_turns"}   # erro só no subtype
+        self.caso("no-limite", "c1.json", json.dumps(limite))
+        estranho = {**resultado(0, 0, 1, 1000),
+                    "usage": {"input_tokens": "muito", "output_tokens": True,
+                              "cache_creation_input_tokens": 3}}            # só inteiro conta
+        self.caso("estranha", "c1.json", json.dumps(estranho))
+        r = telemetria.custo_por_versao(self.pasta, "candidata")
+        self.assertEqual(r["baseline"], "candidata")
+        self.assertEqual(r["versoes"]["baseline"]["delta_novos_pct"], -38.6)
+        self.assertEqual(r["versoes"]["vazia"]["novos"], None)
+        self.assertIsNone(r["versoes"]["vazia"]["delta_novos_pct"])
+        self.assertEqual((r["versoes"]["vazia"]["casos"], r["versoes"]["vazia"]["medidos"]), (3, 0))
+        self.assertEqual(r["versoes"]["no-limite"]["com_erro"], 1)
+        self.assertEqual(r["versoes"]["estranha"]["novos"], 3.0)
+        self.assertEqual(telemetria._valor_de(["--teto", "5"], "--teto"), "5")
+        self.assertIn("não medido", telemetria._num(None))
+        self.assertIn("nenhuma subpasta", telemetria.custo_por_versao(self.raiz / "nada")["erro"])
+        self.assertIn("não está", telemetria.custo_por_versao(self.pasta, "outra")["erro"])
+        so_arquivos = self.raiz / "plana"
+        so_arquivos.mkdir()
+        (so_arquivos / "c.json").write_text("{}", encoding="utf-8")
+        self.assertIn("nenhuma subpasta", telemetria.custo_por_versao(so_arquivos)["erro"])
+        primeira = telemetria.custo_por_versao(self.raiz / "evals" / "x" / "execucoes", None)
+        self.assertEqual(primeira["baseline"], "baseline")
+        (self.pasta / "baseline").rename(self.pasta / "a-antiga")
+        self.assertEqual(telemetria.custo_por_versao(self.pasta)["baseline"], "a-antiga")
+
+    def test_cli_sai_1_acima_do_teto_e_com_erro(self) -> None:
+        self.montar()
+        antes, argv = os.getcwd(), sys.argv
+        os.chdir(self.raiz)
+        try:
+            for args, esperado in ((["custo-eval", "evals/x/execucoes"], 0),
+                                   (["custo-eval", "evals/x/execucoes", "--teto", "80", "--json"], 0),
+                                   (["custo-eval", "evals/x/execucoes", "--teto"], 0),   # sem valor: sem teto
+                                   (["custo-eval", "evals/x/execucoes", "--teto", "20"], 1),
+                                   (["custo-eval", "evals/x/execucoes", "--teto", "muito"], 1),
+                                   (["custo-eval", "evals/x/execucoes", "--baseline", "outra"], 1),
+                                   (["custo-eval"], 1)):
+                sys.argv = ["telemetria.py", *args]
+                with contextlib.redirect_stdout(io.StringIO()) as out, \
+                        contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(telemetria.main(), esperado, args)
+            (self.raiz / "evals" / "x" / "execucoes").rename(self.raiz / "evals" / "x" / "execuções")
+            sys.argv = ["telemetria.py", "custo-eval", "evals/x/execuções", "--json"]
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                telemetria.main()
+            self.assertIn('"pasta": "evals/x/execuções"', out.getvalue())   # sem \\u escapado
+            dados = json.loads(out.getvalue())
+            self.assertEqual(dados["acima_do_teto"], [])
+        finally:
+            os.chdir(antes)
+            sys.argv = argv
+
+
 if __name__ == "__main__":
     unittest.main()
 

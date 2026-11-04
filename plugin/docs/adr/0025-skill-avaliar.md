@@ -119,3 +119,38 @@ o eval custa tokens, e a skill que prega orçamento declarado precisa respeitar 
 | Embutir o eval dentro do `/validar` | Validar responde "cumpre a SPEC?" com gates determinísticos. Misturar as duas coisas confunde o que é teste e o que é eval — exatamente a distinção que o paper diz ser o divisor de águas |
 | Rodar o eval de roteamento em todo PR | Caro e lento para um repo cujo PR médio mexe em prosa. Regra de regressão declarada entrega o mesmo com uma fração do custo |
 | Falhar o CI quando não há `ANTHROPIC_API_KEY` | Todo fork e todo PR externo ficaria vermelho por falta de credencial. Vermelho que não significa nada é pior que ausência de check |
+
+## Emenda (v0.42.9): o custo de cada versão
+
+Na aula 5 do Tech Leads Club, o professor avalia uma skill nova contra a anterior pelo
+benchmark e também pelo que ela gasta: *"quantas chamadas de ferramenta ela fez, o que ela
+fez, quanto tempo levou"*. O `/avaliar` media só a qualidade. Uma candidata que empatava no
+benchmark gastando o dobro de tokens passava pelo limiar sem ninguém ver o custo.
+
+**`telemetria.py custo-eval <pasta> [--baseline NOME] [--teto PCT]`.** Cada caso roda com
+`claude -p --output-format json`, numa subpasta por versão (`execucoes/baseline/`,
+`execucoes/candidata/`). O script lê o evento `result` de cada arquivo (JSON único, formatado
+ou `stream-json`) e dá, por versão:
+- a mediana por caso de tokens novos, cache lido, turnos e duração;
+- a variação contra a baseline.
+
+A mediana resiste ao caso que explode. O caso com erro conta, porque também gastou. Caso sem
+`usage` é "não medido", nunca 0. O `total_cost_usd` do `claude -p` fica de fora: custo em
+tokens, nunca em dinheiro (ADR-0044/0048). Com `--teto`, sai 1 quando uma versão gasta mais
+que a baseline mais o teto, e serve de gate no CI, ao lado do limiar.
+
+O `/avaliar` declara o teto junto do limiar, antes de rodar, pela mesma razão do limiar:
+escolhido depois, ele vira torcida. Acima do teto, a mudança volta mesmo melhor no benchmark,
+a menos que o relatório diga que ganho paga o custo e o usuário aceite. O juiz continua cego:
+lê só o `result` pelo mapa embaralhado, e o custo vem do script, sem passar por ele.
+
+### Limites
+
+- **Turno não é chamada de ferramenta.** O `num_turns` conta as idas e voltas do laço; é o
+  número que a saída do `claude -p` dá sem depender do formato de cada ferramenta.
+- **Subagente em segundo plano pode ficar fora do `usage`.** O resultado do `claude -p` pode
+  fechar antes do subagente, e o eval de tarefas (ADR-0049) mostrou essa subcontagem. Compare
+  versões do mesmo desenho e diga isso no relatório.
+- **A mediana esconde a cauda.** Uma versão que explode em 1 de 10 casos aparece nos casos com
+  erro e na leitura caso a caso, não na mediana. O relatório lista os casos, como o passo 5 já
+  pede.

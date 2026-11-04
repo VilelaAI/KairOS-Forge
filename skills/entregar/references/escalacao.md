@@ -18,6 +18,8 @@ manualmente (`ciclo.py escalar --motivo "..."`) quando:
 - **Orçamento esgotado** em qualquer loop.
 - **Achado exige decisão fora da SPEC** — trade-off arquitetural, mudança de
   escopo, requisito que se revelou impossível.
+- **Decisão registrada depois da aprovação contradiz a entrega** (`prova.py decisoes`, no
+  `/validar`). O construtor não escolhe entre a SPEC e a decisão.
 - **Qualquer gate da fronteira de aprovação** foi tocado.
 - **Pare e Pergunte disparou** durante a construção.
 

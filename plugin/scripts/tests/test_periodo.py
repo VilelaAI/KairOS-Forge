@@ -174,7 +174,15 @@ class EstePeriodoEOAnterior(ComRepositorio):
         self.assertRegex(saida, r"sessões com produção sem gate\s+0\s+1\s+−1")
         self.assertRegex(saida, r"PRs mesclados\s+2\s+1\s+\+1")
         self.assertRegex(saida, r"autonomia de PR\s+50,0% \(1/2\)\s+—\s+—")
-        self.assertEqual(json.loads(self.rodar("--fonte", "git", "--json"))["dias"], 7)
+        bruto = self.rodar("--fonte", "git", "--json")
+        self.assertEqual(json.loads(bruto)["dias"], 7)
+        self.assertIn('"sessões"', bruto)                        # JSON legível, com acento
+
+    def test_as_datas_das_duas_janelas(self) -> None:
+        r = telemetria.comparar_periodos(self.raiz, 7, "git")
+        hoje = datetime.now(timezone.utc).date()
+        self.assertEqual((r["agora_de"], r["agora_ate"], r["antes_de"], r["antes_ate"]),
+                         tuple(str(hoje - timedelta(days=d)) for d in (7, 0, 14, 7)))
 
 
 class SemTrajetoria(ComRepositorio):
@@ -190,6 +198,18 @@ class SemTrajetoria(ComRepositorio):
         saida = self.rodar("--fonte", "git")
         self.assertRegex(saida, r"sessões\s+não medido\s+não medido\s+—")
         self.assertRegex(saida, r"tokens novos\s+não medido\s+não medido\s+—")
+        self.assertRegex(saida, r"com código da fábrica\s+0\s+0\s+0\n")   # zero sem sinal
+
+    def test_trajetoria_sem_leitura_de_tokens_mede_o_processo_e_nao_o_custo(self) -> None:
+        pasta = self.raiz / ".agents" / "execucoes"
+        pasta.mkdir(parents=True)
+        sem_tokens = [e for e in TRAJETORIA if e["tipo"] != "sessao_fim"]   # como no Codex
+        (pasta / "t.jsonl").write_text("".join(json.dumps(e) + "\n" for e in sem_tokens),
+                                       encoding="utf-8")
+        l = self.linhas(telemetria.comparar_periodos(self.raiz, 7, "git"))
+        self.assertTrue(l["sessões"]["medido"])
+        self.assertEqual(l["sessões"]["agora"], 2)
+        self.assertFalse(l["tokens novos"]["medido"])
 
 
 class ImpressaoDosPrs(unittest.TestCase):
@@ -224,6 +244,18 @@ class ImpressaoDosPrs(unittest.TestCase):
         self.assertNotIn("oito", saida)
         self.assertIn("·  b9", saida)
         self.assertIn("·  merge", saida)
+
+
+class AmostraPequena(unittest.TestCase):
+    def test_cinco_ja_nao_e_amostra_pequena(self) -> None:
+        def lado(n: int) -> dict:
+            return {"ciclos_autonomos": 1, "ciclos": n, "sessoes_totais": n}
+        def linha(agora: int, antes: int) -> dict:
+            return telemetria._linha_do_periodo("Processo", "autonomia de ciclo", "ciclos_autonomos",
+                                                "ciclos", {"agora": lado(agora), "antes": lado(antes)})
+        self.assertFalse(linha(5, 7)["amostra_pequena"])
+        self.assertTrue(linha(4, 7)["amostra_pequena"])
+        self.assertTrue(linha(9, 4)["amostra_pequena"])
 
 
 class Fronteira(unittest.TestCase):

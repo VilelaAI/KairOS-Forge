@@ -2,6 +2,8 @@
 
 Este guia leva você de "acabei de ouvir falar de plugin" para "tenho a fábrica de 71 agentes rodando no meu projeto".
 
+> Não quer a fábrica inteira de uma vez? A [adoção por peça](adocao.md) diz o que cada peça resolve sozinha, como fazer o piloto num time e o que roda hoje no seu repositório sem instalar nada.
+
 ## Pré-requisitos
 
 - Claude Code instalado (`npm install -g @anthropic-ai/claude-code`)

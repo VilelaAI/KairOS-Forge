@@ -649,6 +649,7 @@ Mudou o prompt da Laura, a `description` de um agente ou o roteamento → rode o
 ## Documentação
 
 - [Início rápido](docs/inicio-rapido.md)
+- [Adoção por peça](docs/adocao.md) — o piloto num time, o que cada peça resolve sozinha e o que roda sem instalar nada
 - [ADR-0001](docs/adr/0001-plugin-em-vez-de-runtime.md) — plugin não runtime
 - [ADR-0002](docs/adr/0002-relacao-com-kairos-ai.md) — Forge vs kairos-ai
 - [ADR-0003](docs/adr/0003-portagem-squads-apoio.md) — squads de apoio

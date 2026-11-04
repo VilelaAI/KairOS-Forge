@@ -156,6 +156,8 @@ Onde não há hook, a dimensão Autonomia do `/auditar` fica em 0 e o `/validar`
 
 ## Primeiros passos
 
+Para adotar uma peça por vez, num time piloto, e ver o que roda no seu repositório sem instalar nada, comece pela [adoção por peça](docs/adocao.md).
+
 Após instalar:
 
 ```

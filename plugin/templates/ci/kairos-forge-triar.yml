@@ -11,6 +11,12 @@
 #                           Pergunte, ADR-0015) — o comentário lista as perguntas
 #   forge:aguardar          depende de outra issue, decisão ou janela
 #
+# E estimam a FAIXA de raio de explosão (ADR-0031) pela pergunta "quanto custa desfazer
+# se estiver errado?", que vira o rótulo forge:faixa-1/2/3 e aparece no topo do
+# comentário: quem move forge:construir decide vendo o impacto. Faixa 3 (difícil de
+# reverter) nunca fica forge:pronto: o workflow troca por forge:precisa-spec, e a SPEC
+# passa pela aprovação humana antes de qualquer código. A regra é do shell, não do modelo.
+#
 # O rótulo é fila, lock e ponto de pausa humano ao mesmo tempo:
 #   · fila — quem consome o backlog filtra por rótulo
 #   · lock — issue que já tem rótulo forge:* não é triada de novo (dois agentes
@@ -26,7 +32,7 @@
 # linha de comando, sem hooks nem MCP do projeto). O rótulo sai por regex, nunca
 # forge:construir.
 #
-# Instale em .github/workflows/, crie os cinco rótulos forge:* no repositório e o
+# Instale em .github/workflows/, crie os rótulos forge:* do README no repositório e o
 # secret ANTHROPIC_API_KEY.
 
 name: kairos-forge — triar issue
@@ -136,8 +142,15 @@ jobs:
             recomendado quando a escolha for reversível — ADR-0019), \
             forge:aguardar (depende de outra issue, decisão ou janela — diga qual). \
             NUNCA use forge:construir: esse rótulo é do humano. \
+            Estime também a FAIXA de raio de explosão da mudança que a issue pede, pela \
+            pergunta: quanto custa desfazer se estiver errado? (ADR-0031). Faixa 1: \
+            reversível e contido (texto, teste, função isolada). Faixa 2: reversível mas \
+            amplo (utilitário compartilhado, schema novo, contrato interno, muitos \
+            chamadores). Faixa 3: difícil de reverter (migration destrutiva, apaga dados, \
+            escreve em produção, dinheiro, credencial). Na dúvida, a maior. \
             Não implemente nada, não abra PR, não invente escopo. \
             Responda em PT-BR. PRIMEIRA LINHA, sozinha: ROTULO: <o rótulo>. \
+            SEGUNDA LINHA, sozinha: FAIXA: <1, 2 ou 3> — <por quê, em uma linha>. \
             Depois, o parecer em até 15 linhas: tamanho estimado (Trivial/Pequeno/Médio/\
             Grande/Complexo), quem da fábrica entraria, e o que falta ou o próximo comando." \
             --settings '{"disableAllHooks": true}' --strict-mcp-config \
@@ -167,9 +180,20 @@ jobs:
             gh issue comment "$NUMERO" --body-file comentario.md
             exit 0
           fi
+          # A faixa sai por regex, como o rótulo. Faixa 3 não vai direto para construção:
+          # forge:pronto pedido para mudança difícil de reverter vira forge:precisa-spec.
+          FAIXA=$(grep -m1 -oE '^FAIXA:\s*[123]' triagem.md | sed -E 's/[^123]//g')
+          NA_FAIXA="faixa não estimada"
+          if [ -n "$FAIXA" ]; then NA_FAIXA="faixa $FAIXA"; fi
+          NOTA=""
+          if [ "$FAIXA" = "3" ] && [ "$ROTULO" = "forge:pronto" ]; then
+            ROTULO="forge:precisa-spec"
+            NOTA="> Faixa 3 não vai direto para construção: o parecer pediu \`forge:pronto\` e o rótulo virou \`forge:precisa-spec\`. A SPEC passa pela sua aprovação antes de qualquer código (ADR-0031)."
+          fi
           {
-            echo "## 🔎 Triagem da fábrica — \`$ROTULO\`"
+            echo "## 🔎 Triagem da fábrica — \`$ROTULO\` · $NA_FAIXA"
             echo
+            if [ -n "$NOTA" ]; then echo "$NOTA"; echo; fi
             tail -n +2 triagem.md
             echo
             echo "---"
@@ -177,4 +201,13 @@ jobs:
           } > comentario.md
           gh issue edit "$NUMERO" --add-label "$ROTULO" --remove-label "forge:triar" 2>/dev/null \
             || gh issue edit "$NUMERO" --add-label "$ROTULO"
+          # Re-triagem troca a faixa: a anterior sai. Rótulo de faixa que não existe no
+          # repositório não derruba a triagem, só avisa.
+          for f in 1 2 3; do
+            if [ "$f" != "$FAIXA" ]; then gh issue edit "$NUMERO" --remove-label "forge:faixa-$f" 2>/dev/null || true; fi
+          done
+          if [ -n "$FAIXA" ]; then
+            gh issue edit "$NUMERO" --add-label "forge:faixa-$FAIXA" \
+              || echo "⚠️  rótulo forge:faixa-$FAIXA não existe no repositório — crie os rótulos do README."
+          fi
           gh issue comment "$NUMERO" --body-file comentario.md

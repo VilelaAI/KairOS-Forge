@@ -194,5 +194,67 @@ class ArgumentosQueOShellEntrega(unittest.TestCase):
         self.assertIn("aaa111 e bbb222", self.argv("revisar")[1])
 
 
+
+class FaixaNaTriagem(unittest.TestCase):
+    """O passo que aplica o rótulo, rodado de verdade: `bash -e` (o shell padrão do Actions)
+    e um `gh` falso que grava cada chamada. Faixa 3 nunca fica `forge:pronto` (ADR-0031)."""
+
+    GH = ('#!/usr/bin/env python3\nimport json, os, sys\nargv = sys.argv[1:]\n'
+          'corpo = open(argv[argv.index("--body-file") + 1]).read() if "--body-file" in argv else None\n'
+          'open("gh.log", "a").write(json.dumps({"argv": argv, "corpo": corpo}) + "\\n")\n'
+          'falha = os.environ.get("FALHAR_FAIXA") and any(a.startswith("forge:faixa-") for a in argv) '
+          'and "--add-label" in argv\nsys.exit(1 if falha else 0)\n')
+
+    def aplicar(self, parecer: str, falhar_faixa: bool = False) -> tuple[list[list[str]], str]:
+        (script,) = [s for _, s in blocos_run(ler("triar")) if "ROTULO=$(grep" in s]
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "gh").write_text(self.GH, encoding="utf-8")
+            (Path(tmp) / "gh").chmod(0o755)
+            (Path(tmp) / "triagem.md").write_text(parecer, encoding="utf-8")
+            env = {**os.environ, "PATH": f"{tmp}{os.pathsep}{os.environ.get('PATH', '')}",
+                   "NUMERO": "7", **({"FALHAR_FAIXA": "1"} if falhar_faixa else {})}
+            subprocess.run(["bash", "-e", "-c", script], cwd=tmp, env=env, check=True,
+                           capture_output=True, text=True)
+            chamadas = [json.loads(l) for l in (Path(tmp) / "gh.log").read_text().splitlines()]
+        corpo = next(c["corpo"] for c in chamadas if c["corpo"] is not None)
+        return [c["argv"] for c in chamadas], corpo
+
+    def rotulos(self, chamadas: list[list[str]]) -> list[str]:
+        return [a[a.index("--add-label") + 1] for a in chamadas if "--add-label" in a]
+
+    def test_faixa_3_pedida_como_pronto_vira_precisa_spec(self) -> None:
+        chamadas, corpo = self.aplicar("ROTULO: forge:pronto\nFAIXA: 3 — apaga os pedidos antigos\nparecer\n")
+        self.assertEqual(self.rotulos(chamadas), ["forge:precisa-spec", "forge:faixa-3"])
+        self.assertIn("## 🔎 Triagem da fábrica — `forge:precisa-spec` · faixa 3", corpo)
+        self.assertIn("o parecer pediu `forge:pronto`", corpo)
+        self.assertIn("FAIXA: 3 — apaga os pedidos antigos", corpo)
+        removidos = [a[a.index("--remove-label") + 1] for a in chamadas
+                     if "--remove-label" in a and "--add-label" not in a]
+        self.assertEqual(removidos, ["forge:faixa-1", "forge:faixa-2"])   # re-triagem troca a faixa
+
+    def test_faixa_baixa_e_faixa_3_que_ja_pede_spec_ficam_como_estao(self) -> None:
+        chamadas, corpo = self.aplicar("ROTULO: forge:pronto\nFAIXA: 1 — só o texto do botão\n")
+        self.assertEqual(self.rotulos(chamadas), ["forge:pronto", "forge:faixa-1"])
+        self.assertNotIn("não vai direto", corpo)
+        chamadas, _ = self.aplicar("ROTULO: forge:precisa-spec\nFAIXA: 3 — migration\n")
+        self.assertEqual(self.rotulos(chamadas), ["forge:precisa-spec", "forge:faixa-3"])
+
+    def test_sem_faixa_rotulo_inexistente_e_parecer_inconclusivo(self) -> None:
+        chamadas, corpo = self.aplicar("ROTULO: forge:aguardar\nFAIXA: alta\ndepende da #3\n")
+        self.assertEqual(self.rotulos(chamadas), ["forge:aguardar"])
+        self.assertIn("· faixa não estimada", corpo)
+        chamadas, corpo = self.aplicar("ROTULO: forge:pronto\nFAIXA: 2 — utilitário\n", falhar_faixa=True)
+        self.assertEqual(self.rotulos(chamadas), ["forge:pronto", "forge:faixa-2"])
+        self.assertTrue(any(a[:2] == ["issue", "comment"] for a in chamadas))   # o comentário sai mesmo assim
+        chamadas, corpo = self.aplicar("não consegui decidir\nFAIXA: 3\n")
+        self.assertEqual(self.rotulos(chamadas), [])
+        self.assertIn("inconclusiva", corpo)
+
+    def test_o_prompt_pede_a_faixa_na_segunda_linha(self) -> None:
+        (cmd,) = comandos_claude(ler("triar"))
+        self.assertIn("SEGUNDA LINHA, sozinha: FAIXA:", cmd)
+        self.assertIn("quanto custa desfazer se estiver errado?", cmd)
+
+
 if __name__ == "__main__":
     unittest.main()

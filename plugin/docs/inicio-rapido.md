@@ -255,7 +255,7 @@ O `codigo.jsonl` é regenerável a qualquer momento e nunca se edita à mão. O 
 
 - `/kairos-forge:otimizar` — ciclo de catraca contra uma métrica que um comando mede: uma mudança por rodada, medir, manter ou reverter via git (ADR-0012).
 - `/kairos-forge:migrar` — modernização de legado por estrangulamento, com Ivan: testes de caracterização, rota de corte com rollback, manter-ou-reverter por fatia (ADR-0018).
-- `/kairos-forge:relatar` — o que entregamos, por que decidimos e quanto custou em tokens, com a Talita: cada número com o comando de onde saiu, "não medido" onde não há hook, e o status do período em `decisoes/gestao/` quando pedido (ADR-0050).
+- `/kairos-forge:relatar` — o que entregamos, por que decidimos e quanto custou em tokens, com a Talita: cada número com o comando de onde saiu, "não medido" onde não há hook, o período ao lado do anterior (`telemetria.py periodo`) e o status em `decisoes/gestao/` quando pedido (ADR-0050).
 
 ## Passo 4 — ritmo semanal
 

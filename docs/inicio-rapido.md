@@ -34,7 +34,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver (lista de skills abreviada aqui):
 
 ```
-🔥 kairos-forge v0.41 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+🔥 kairos-forge v0.42 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -253,6 +253,7 @@ O `codigo.jsonl` é regenerável a qualquer momento e nunca se edita à mão. O 
 
 - `/kairos-forge:otimizar` — ciclo de catraca contra uma métrica que um comando mede: uma mudança por rodada, medir, manter ou reverter via git (ADR-0012).
 - `/kairos-forge:migrar` — modernização de legado por estrangulamento, com Ivan: testes de caracterização, rota de corte com rollback, manter-ou-reverter por fatia (ADR-0018).
+- `/kairos-forge:relatar` — o que entregamos, por que decidimos e quanto custou em tokens, com a Talita: cada número com o comando de onde saiu, "não medido" onde não há hook, e o status do período em `decisoes/gestao/` quando pedido (ADR-0050).
 
 ## Passo 4 — ritmo semanal
 

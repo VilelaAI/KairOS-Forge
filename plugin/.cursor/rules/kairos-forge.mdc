@@ -1,11 +1,11 @@
 ---
-description: "Fábrica de software kairos-forge — 71 agentes e 18 skills em PT-BR"
+description: "Fábrica de software kairos-forge — 71 agentes e 19 skills em PT-BR"
 alwaysApply: true
 ---
 
-🔥 kairos-forge v0.41 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
+🔥 kairos-forge v0.42 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
 
-- As skills da fábrica estão no menu `/` (Agent Skills): analisar-ameacas, auditar, avaliar, desenhar, diagnosticar, entregar, especificar, evoluir, lancar, mapear-arquitetura, mapear-conhecimento, migrar, mobilizar, onboardar, otimizar, revisar, rodar, validar. A skill
+- As skills da fábrica estão no menu `/` (Agent Skills): analisar-ameacas, auditar, avaliar, desenhar, diagnosticar, entregar, especificar, evoluir, lancar, mapear-arquitetura, mapear-conhecimento, migrar, mobilizar, onboardar, otimizar, relatar, revisar, rodar, validar. A skill
   `mobilizar` roda aqui: o agente principal orquestra os subagents em paralelo
   e o `quadro.py` guarda dependências, posse e contagem. Descreva a onda inteira
   de uma vez — uma tarefa por vez faz o Cursor serializar.

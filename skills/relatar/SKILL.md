@@ -15,7 +15,8 @@ Esta skill **lê e relata**. Não roda gate, não muda SPEC, ciclo nem quadro. A
 ## Regras
 
 1. **Número sem fonte não entra.** Todo número vem de um comando abaixo ou de um arquivo, e
-   leva a fonte ao lado. O modelo escreve a prosa; os números são dos scripts.
+   leva a fonte ao lado. O modelo escreve a prosa; os números são dos scripts, inclusive a
+   variação entre períodos: não subtraia à mão.
 2. **Sem dado, escreva "não medido".** Nunca 0 e nunca estimativa. Tokens e trajetória só
    existem onde há hook (no Claude Code completo; no Codex e no OpenCode, não). PRs saem do
    git em qualquer CLI.
@@ -43,6 +44,7 @@ raiz do projeto.
 |---|---|---|
 | O que entregamos? | `telemetria.py prs --dias N` | PRs mesclados, quantos têm código da fábrica e quantos não tiveram nenhum commit humano. Com `--fonte git`, só merges com commit de merge (squash não aparece) |
 | O que entregamos aguenta? | `telemetria.py comparar --dias N` | PRs revertidos ou corrigidos em até 14 dias, da fábrica e das pessoas lado a lado. Só compara com 5+ PRs de janela fechada em cada grupo; abaixo disso, diga "não comparável" e dê os N |
+| Melhorou ou piorou? | `telemetria.py periodo --dias N` | Este período ao lado dos N dias anteriores: PRs, autonomia de PR e de ciclo, gates verdes de primeira, rodadas de correção, recusas, produção sem gate e tokens, com a variação calculada. Taxa vem com a conta ao lado; o script marca "amostra pequena" abaixo de 5, e aí diga isso em vez de tirar conclusão. A sessão conta inteira no período em que começou, então o lado de agora pode diferir do `resumo` |
 | Em que pé estão as SPECs? | `painel.py --json --dias N [SPEC]` | Progresso por SPEC, P1 abertos, `sem_prova`, último veredicto de crítica, validação e revisão, estado de cada ciclo |
 | O que espera por alguém? | `painel.py --caixa` (com `--github` se o usuário autorizar o `gh`) | Gate humano, SPEC alterada depois de aprovada, ciclo escalado, tarefa bloqueada ou vencida |
 | Quanto custou? | `telemetria.py por-spec --dias N`; por sessão, `telemetria.py tokens`; por tarefa, `quadro.py ledger <slug>` | Tokens novos e cache lido por SPEC (a chave é o branch do ciclo, o id no nome do branch ou o id citado; o resto fica em "sem SPEC"); no ledger, por tarefa concluída, desfeita e em aberto |
@@ -85,6 +87,10 @@ voltou (revertido ou corrigido) e a comparação com a entrega humana, se compar
 
 ## Custo em tokens
 <por SPEC, novos e cache lido; "não medido" onde não há hook>
+
+## Em relação aos N dias anteriores
+<do `periodo`: o que subiu e o que caiu, com a variação do script; "amostra pequena" dita como
+tal; "não medido" dos dois lados não é empate>
 
 ## Riscos e próximos passos
 <RAID do Breno, se existir em decisoes/gestao/; follow-ups com dono e data>

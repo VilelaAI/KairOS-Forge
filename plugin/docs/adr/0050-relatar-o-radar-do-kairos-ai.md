@@ -102,3 +102,40 @@ esperou, nem quanto custou cada SPEC. Três peças, todas só leitura:
 
 O `/relatar` ganha a regra "meça a linha, nunca as pessoas" e as linhas "Onde o trabalho
 esperou?" e "Quanto custou?", esta agora por SPEC.
+
+## Emenda (v0.42.13): este período ao lado do anterior
+
+O status dizia o que aconteceu no período, mas não se o período foi melhor ou pior que o
+anterior. A ideia veio da página do Synapse (Maitha), um relatório de entrega que põe cada
+número ao lado do período anterior; é a única peça dela que cabe num plugin.
+
+`telemetria.py periodo --dias N` põe os últimos N dias ao lado dos N anteriores, com a
+variação calculada pelo script. O modelo não subtrai: a regra 1 do `/relatar` passa a dizer
+isso. São doze linhas em três grupos, cada uma pela função do comando de origem:
+
+- **Entregue** (`prs`): PRs mesclados, com código da fábrica, sem commit humano e a autonomia
+  de PR.
+- **Processo** (`resumo`): sessões, autonomia de ciclo, gates verdes de primeira, rodadas de
+  correção, recusas do guardrail e sessões com produção sem gate.
+- **Custo** (`tokens`): tokens novos e cache lido.
+
+Regras da conta:
+
+- **Uma carga, duas metades.** O script carrega 2N dias uma vez e reparte. O PR conta no
+  período em que foi mesclado, como no `prs --dias N`.
+- **A sessão conta inteira no período em que começou.** Os dois lados somam os 2N dias sem
+  contar duas vezes o mesmo token. O custo é que o lado de agora pode diferir do `resumo --dias
+  N`, que corta por evento, pelas sessões que começaram antes da fronteira; a saída diz isso.
+- **Taxa vem com a conta ao lado** (`50,0% (1/2)`), e a variação em pontos percentuais. Com
+  menos de 5 no denominador, o script marca "amostra pequena", o mesmo mínimo do `comparar`.
+- **"Não medido" dos dois lados.** Sem trajetória nos 2N dias, processo e custo saem "não
+  medido", nunca 0; os PRs saem do git em qualquer CLI.
+
+### Limites
+
+- **Reversões e correções (`comparar`) ficam de fora.** Um PR só entra nelas 14 dias depois de
+  mesclado, e um período de 7 dias ainda não fechou essa janela.
+- **Espera e ruído também.** A espera é por ciclo, e um ciclo aberto atravessa os dois
+  períodos; o ruído é por relatório de revisão. Os dois seguem no próprio comando, com
+  `--dias`.
+- **Com a fonte `git`, squash e rebase não aparecem**, como no `prs`. A saída repete o aviso.

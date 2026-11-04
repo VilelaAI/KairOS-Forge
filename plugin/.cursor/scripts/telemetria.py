@@ -24,6 +24,10 @@ Uso:
     telemetria.py comparar [--dias 90] [--fonte gh|git] [--marca REGEX]... [--json]
                                                   # a entrega da fábrica × a humana:
                                                   # PRs revertidos e corrigidos depois
+    telemetria.py periodo [--dias 7] [--fonte gh|git] [--marca REGEX]... [--json]
+                                                  # este período × o anterior, de mesma
+                                                  # duração: PRs, processo e tokens, com a
+                                                  # variação calculada aqui (o /relatar)
     telemetria.py tokens [--dias 7] [--json]      # tokens por sessão, como o transcript
                                                   # registrou (ADR-0048)
     telemetria.py por-spec [--dias 7] [--json]    # os mesmos tokens somados por SPEC, pela
@@ -924,12 +928,15 @@ def autonomia_de_prs(prs: list[dict], extras: tuple = ()) -> dict:
     }
 
 
+AVISO_FONTE_GIT = ("   Fonte git: só merges com commit de merge; squash e rebase não aparecem.\n"
+                   "   Com o `gh` autenticado, a contagem cobre os três.\n")
+
+
 def imprimir_prs(r: dict, dias: int | None) -> None:
     janela = f"últimos {dias} dias" if dias else "todo o histórico"
     print(f"🔀 Autonomia de PR — {janela} (fonte: {r['fonte']})\n")
     if r["fonte"] == "git":
-        print("   Fonte git: só merges com commit de merge; squash e rebase não aparecem.\n"
-              "   Com o `gh` autenticado, a contagem cobre os três.\n")
+        print(AVISO_FONTE_GIT)
     if not r["da_fabrica"]:
         print(f"   {r['mesclados']} PR(s) mesclado(s), nenhum com commit da fábrica — "
               "autonomia de PR não medida.")
@@ -1164,8 +1171,156 @@ def _cmd_comparar(raiz: Path, dias: int | None, fonte, extras, como_json: bool) 
     return 0
 
 
+# --- este período × o anterior (emenda ao ADR-0050) ---------------------------------
+# O /relatar põe o período ao lado do anterior, de mesma duração. A conta é do script, não
+# do modelo: carrega 2N dias uma vez e reparte, com as mesmas funções do `prs`, do `resumo`
+# e do `tokens`. O PR conta no período em que foi mesclado, como no `prs --dias N`. A sessão
+# conta inteira no período em que começou: os dois lados somam os 2N dias sem contar duas
+# vezes o mesmo token. Por isso o lado de agora pode diferir do `resumo --dias N`, que corta
+# por evento, pelas sessões que começaram antes da fronteira. O `comparar` fica de fora: um
+# PR só entra nele 14 dias depois de mesclado, e o período curto ainda não fechou a janela.
+PERIODO_PADRAO_DIAS = 7
+
+# (grupo, rótulo, valor, denominador): com denominador, a linha é uma taxa, mostrada com a
+# conta ao lado; sem, é uma contagem. O grupo diz de que comando o número vem.
+LINHAS_DO_PERIODO = (
+    ("Entregue", "PRs mesclados", "prs.mesclados", None),
+    ("Entregue", "com código da fábrica", "prs.da_fabrica", None),
+    ("Entregue", "sem commit humano", "prs.autonomos", None),
+    ("Entregue", "autonomia de PR", "prs.autonomos", "prs.da_fabrica"),
+    ("Processo", "sessões", "sessoes_totais", None),
+    ("Processo", "autonomia de ciclo", "ciclos_autonomos", "ciclos"),
+    ("Processo", "gates verdes de primeira", "verdes_de_primeira", "gates_distintos"),
+    ("Processo", "rodadas de correção", "rodadas_de_correcao", None),
+    ("Processo", "recusas do guardrail", "recusas_total", None),
+    ("Processo", "sessões com produção sem gate", "sessoes_com_producao_sem_gate", None),
+    ("Custo", "tokens novos", "tokens_novos", None),
+    ("Custo", "cache lido", "tokens_cache_lido", None),
+)
+FONTE_DO_GRUPO = {"Entregue": "telemetria.py prs", "Processo": "telemetria.py resumo",
+                  "Custo": "telemetria.py tokens"}
+AMOSTRA_MINIMA = 5   # o mesmo mínimo do `comparar`: taxa sobre menos que isso é ruído
+
+
+def _no_periodo(quando: str | None, meio: datetime) -> bool | None:
+    """True no período atual, False no anterior, None sem data legível com fuso."""
+    d = _data(quando)
+    return None if d is None or d.tzinfo is None else d >= meio
+
+
+def _pegar(lado: dict, caminho: str):
+    for parte in caminho.split("."):
+        lado = lado[parte]
+    return lado
+
+
+def _lado_do_periodo(sessoes: dict, eventos: list[dict], prs: list[dict], extras: tuple) -> dict:
+    proprios = [e for e in eventos if e.get("sessao", "?") in sessoes]
+    return {**metricas(sessoes), **resumo_de_tokens(proprios),
+            "prs": autonomia_de_prs(prs, extras)}
+
+
+def _medido(grupo: str, lados: dict) -> bool:
+    """PRs saem do git e sempre existem. Processo, só com trajetória nos 2N dias; custo, só
+    com o Stop tendo lido o transcript em alguma sessão: sem isso, "não medido", nunca 0."""
+    if grupo == "Entregue":
+        return True
+    chave = "sessoes_totais" if grupo == "Processo" else "sessoes_com_tokens"
+    return any(lado[chave] for lado in lados.values())
+
+
+def _medir_lado(lado: dict, valor: str, base: str | None) -> tuple:
+    """(valor, conta, denominador) de um lado: a contagem, ou a taxa com a conta ao lado."""
+    num = _pegar(lado, valor)
+    if base is None:
+        return num, None, None
+    den = _pegar(lado, base)
+    return (round(100 * num / den, 1) if den else None), f"{num}/{den}", den
+
+
+def _linha_do_periodo(grupo: str, rotulo: str, valor: str, base: str | None,
+                      lados: dict) -> dict:
+    linha = {"grupo": grupo, "rotulo": rotulo, "fonte": FONTE_DO_GRUPO[grupo],
+             "medido": _medido(grupo, lados), "taxa": base is not None}
+    for nome, lado in lados.items():
+        linha[nome], linha[f"{nome}_conta"], linha[f"{nome}_base"] = _medir_lado(lado, valor, base)
+    ambos = linha["medido"] and linha["agora"] is not None and linha["antes"] is not None
+    linha["variacao"] = round(linha["agora"] - linha["antes"], 1) if ambos else None
+    linha["amostra_pequena"] = (base is not None
+                                and min(linha["agora_base"], linha["antes_base"]) < AMOSTRA_MINIMA)
+    return linha
+
+
+def comparar_periodos(raiz: Path, dias: int, fonte: str | None = None,
+                      extras: tuple = ()) -> dict:
+    agora = datetime.now(timezone.utc)
+    meio, inicio = agora - timedelta(days=dias), agora - timedelta(days=2 * dias)
+    eventos = carregar(raiz, 2 * dias)
+    sessoes = por_sessao(eventos)
+    origem, prs = prs_mesclados(raiz, 2 * dias, fonte)
+    lados = {}
+    for nome, atual in (("agora", True), ("antes", False)):
+        das_sessoes = {k: v for k, v in sessoes.items() if _no_periodo(v["inicio"], meio) is atual}
+        dos_prs = [p for p in prs if _no_periodo(p.get("mesclado_em"), meio) is atual]
+        lados[nome] = _lado_do_periodo(das_sessoes, eventos, dos_prs, extras)
+    return {"dias": dias, "fonte_prs": origem,
+            "agora_de": meio.date().isoformat(), "agora_ate": agora.date().isoformat(),
+            "antes_de": inicio.date().isoformat(), "antes_ate": meio.date().isoformat(),
+            "linhas": [_linha_do_periodo(*l, lados) for l in LINHAS_DO_PERIODO]}
+
+
+def _valor_do_periodo(linha: dict, lado: str) -> str:
+    v = linha[lado]
+    if not linha["medido"]:
+        return "não medido"
+    if v is None:
+        return "—"
+    if linha["taxa"]:
+        return f"{v:.1f}% ({linha[f'{lado}_conta']})".replace(".", ",", 1)
+    return formatar(v) if linha["grupo"] == "Custo" else str(v)
+
+
+def _variacao_do_periodo(linha: dict) -> str:
+    v = linha["variacao"]
+    if v is None:
+        return "—"
+    sinal = "+" if v > 0 else ("−" if v < 0 else "")
+    if linha["taxa"]:
+        texto = f"{sinal}{abs(v):.1f} p.p.".replace(".", ",", 1)
+        return texto + (" · amostra pequena" if linha["amostra_pequena"] else "")
+    return sinal + (formatar(abs(v)) if linha["grupo"] == "Custo" else str(abs(v)))
+
+
+def imprimir_periodos(r: dict) -> None:
+    print(f"📅 Este período × o anterior — {r['dias']} dias")
+    print(f"   agora: {r['agora_de']} → {r['agora_ate']} · antes: {r['antes_de']} → "
+          f"{r['antes_ate']}\n")
+    if r["fonte_prs"] == "git":
+        print(AVISO_FONTE_GIT)
+    print(f"   {'':<32} {'agora':>16} {'antes':>16}   variação")
+    grupo = None
+    for linha in r["linhas"]:
+        if linha["grupo"] != grupo:
+            grupo = linha["grupo"]
+            extra = f", fonte {r['fonte_prs']}" if grupo == "Entregue" else ""
+            print(f"   {grupo} — {linha['fonte']}{extra}")
+        print(f"     {linha['rotulo']:<30} {_valor_do_periodo(linha, 'agora'):>16} "
+              f"{_valor_do_periodo(linha, 'antes'):>16}   {_variacao_do_periodo(linha)}")
+    print("\n   A sessão conta inteira no período em que começou; o PR, no período em que foi\n"
+          "   mesclado. Por isso o lado de agora pode diferir do `resumo --dias N`.\n"
+          f"   Taxa sobre menos de {AMOSTRA_MINIMA} é amostra pequena: a variação não diz muito.\n"
+          "   Reversões e correções (`comparar`) ficam de fora: um PR só conta 14 dias depois\n"
+          "   de mesclado.")
+
+
+def _cmd_periodo(raiz: Path, dias: int | None, fonte, extras, como_json: bool) -> int:
+    r = comparar_periodos(raiz, dias or PERIODO_PADRAO_DIAS, fonte, tuple(extras))
+    print(json.dumps(r, ensure_ascii=False, indent=2)) if como_json else imprimir_periodos(r)
+    return 0
+
+
 # Comandos sobre os PRs mesclados: (raiz, dias, fonte, marcas, json) → exit code.
-SOBRE_PRS = {"prs": _cmd_prs, "comparar": _cmd_comparar}
+SOBRE_PRS = {"prs": _cmd_prs, "comparar": _cmd_comparar, "periodo": _cmd_periodo}
 
 
 # --- custo por versão no /avaliar (aula 5 do Tech Leads Club) -----------------------
@@ -1328,6 +1483,7 @@ def _rodar_sobre_prs(comando: str, raiz: Path, dias, args: list[str], como_json:
 
 # Comandos que não leem a trajetória: (comando, raiz, dias, args, json) → exit code.
 SEM_TRAJETORIA = {"prs": _rodar_sobre_prs, "comparar": _rodar_sobre_prs,
+                  "periodo": _rodar_sobre_prs,
                   "custo-eval": _cmd_custo_eval, "ruido": _cmd_ruido}
 
 

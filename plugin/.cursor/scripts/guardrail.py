@@ -8,7 +8,7 @@ sugeria lembrar do Ricardo e não impedia nada. As regras duras da fábrica mora
 todas em prosa que o modelo pode driftar — a inversão exata do que o paper
 recomenda.
 
-Este script é a parte que **bloqueia**. Oito classes de risco:
+Este script é a parte que **bloqueia**. Dez classes de risco:
 
   1. Comando destrutivo      — apagar a raiz, force-push em branch protegida,
                                DROP/TRUNCATE fora de migration, curl|sh, chmod 777;
@@ -40,6 +40,11 @@ Este script é a parte que **bloqueia**. Oito classes de risco:
                                inline nova em produção (`# noqa`, `@ts-ignore`,
                                `# pragma: no cover`): baixar a régua em vez de
                                consertar o código (ADR-0046). Default `aviso`
+ 10. Checkout principal     — código de produção escrito no checkout principal
+                               enquanto um ciclo aberto constrói no branch dele: a
+                               construção autônoma roda em worktree (emenda ao
+                               ADR-0024). Default `aviso`, uma vez por sessão;
+                               `"checkout_principal": "sempre"` vale fora do ciclo
 
 Mais três regras de comando no piso (ADR-0042), inspiradas no harness-toolkit do
 Tech Leads Club: destruição fora do projeto (`rm -rf` em caminho absoluto que não é
@@ -106,8 +111,8 @@ que o arquivo mudou — o que um sync legítimo também faz. Por isso ali o defa
     }                                              // bloqueio (default) | aviso
 
 Classes de regra, para o campo `modos`: `comando`, `protegido`, `gerado`, `spec`,
-`contrato`, `teste`, `parada`, `regua`. Todas nascem em `bloqueio`, menos `teste`,
-`parada` e `regua`, que nascem em `aviso` (refactor legítimo também edita teste,
+`contrato`, `teste`, `parada`, `regua`, `checkout`. Todas nascem em `bloqueio`, menos
+`teste`, `parada`, `regua` e `checkout`, que nascem em `aviso` (refactor legítimo também edita teste,
 sessão de leitura também termina sem gate, e migração de versão também mexe na config
 do linter — a regra existe para deixar rastro; promova a `bloqueio` quando a taxa de
 aviso cair).
@@ -375,7 +380,8 @@ def carregar_config(raiz: Path) -> dict:
 MODO_PADRAO = "bloqueio"
 # Classe que nasce em observação (ADR-0039): editar teste existente é legítimo com
 # frequência demais para bloquear por default — o valor está no rastro.
-MODO_PADRAO_POR_CLASSE = {"teste": "aviso", "parada": "aviso", "regua": "aviso"}
+MODO_PADRAO_POR_CLASSE = {"teste": "aviso", "parada": "aviso", "regua": "aviso",
+                          "checkout": "aviso"}
 
 
 def modo_de(cfg: dict, classe: str) -> str:
@@ -384,14 +390,24 @@ def modo_de(cfg: dict, classe: str) -> str:
     return modo if modo in ("bloqueio", "aviso") else padrao
 
 
-def pasta_da_trajetoria(raiz: Path) -> Path:
-    """A mesma pasta em que o execucao.py grava: a do checkout principal, num worktree
-    ligado (ADR-0048). Gate de parada que lesse outra pasta não veria a escrita."""
+def raiz_principal(raiz: Path) -> Path:
+    """O checkout principal quando `raiz` é um worktree ligado; senão, a própria `raiz`."""
     try:
         from execucao import raiz_do_projeto
-        return raiz_do_projeto(raiz.resolve()) / ".agents" / "execucoes"
+        return raiz_do_projeto(raiz.resolve())
     except Exception:
-        return raiz.resolve() / ".agents" / "execucoes"
+        return raiz.resolve()
+
+
+def pasta_do_estado(raiz: Path, nome: str) -> Path:
+    """`.agents/<nome>` do checkout principal, onde o execucao.py, o ciclo.py e o quadro.py
+    gravam mesmo num worktree ligado (ADR-0048; emenda ao ADR-0024)."""
+    return raiz_principal(raiz) / ".agents" / nome
+
+
+def pasta_da_trajetoria(raiz: Path) -> Path:
+    """Gate de parada que lesse outra pasta que não a do execucao.py não veria a escrita."""
+    return pasta_do_estado(raiz, "execucoes")
 
 
 def registrar_evento(raiz: Path, evento: dict) -> None:
@@ -450,7 +466,7 @@ def casa(rel: str, padrao: str) -> bool:
 
 def ciclos_abertos(raiz: Path) -> list[dict]:
     """Os ciclos do /entregar em andamento, em ordem de nome. Vazio sem máquina rodando."""
-    pasta = raiz / ".agents" / "ciclo"
+    pasta = pasta_do_estado(raiz, "ciclo")
     if not pasta.is_dir():
         return []
     abertos = []
@@ -586,11 +602,15 @@ def checar_escrita(payload: dict) -> int:
     rel = relativo(caminho, raiz)
     cfg = carregar_config(raiz)
     liberados = cfg.get("liberados", [])
+    # Num worktree ligado, o medidor e o estado moram no checkout principal (ADR-0048,
+    # emenda ao ADR-0024): o caminho conta também relativo a ele, ou uma escrita por
+    # caminho absoluto, de dentro do worktree, passaria.
+    alvos = {rel, relativo(caminho, raiz_principal(raiz))}
 
     # Sagrados NUNCA degradam para aviso: são o medidor e a regra. Guardrail que só
     # avisa sobre escrita no próprio medidor não é guardrail (ADR-0022).
     for padrao, motivo in SAGRADOS:
-        if casa(rel, padrao):
+        if any(casa(alvo, padrao) for alvo in alvos):
             registrar_recusa(raiz, "sagrado", motivo, rel, "bloqueio")
             return bloquear(
                 f"escrita bloqueada em `{rel}` — {motivo}",
@@ -636,7 +656,7 @@ def checar_escrita(payload: dict) -> int:
 
     # O que bloqueia vem antes do que só avisa: teste existente num caminho protegido
     # pelo projeto é protegido, não "edição em teste" (ADR-0046).
-    for checagem in (checar_protegido, checar_teste, checar_regua):
+    for checagem in (checar_protegido, checar_teste, checar_regua, checar_checkout):
         r = checagem(payload, raiz, rel, entrada, cfg)
         if r is not None:
             return r
@@ -709,6 +729,83 @@ def checar_regua(payload: dict, raiz: Path, rel: str, entrada: dict, cfg: dict) 
         modo_r,
     )
 
+
+# --- 2d. construção no checkout principal (aula 5 do Tech Leads Club) -----------------
+# "O Rodrigo tem um hook que não deixa implementar nada no clone principal." Com o arco
+# construindo, ninguém olha cada escrita em voo, e o ADR-0024 pede worktree quando a
+# supervisão sai do caminho: a entrega se desfaz removendo a pasta, e o checkout principal
+# fica livre para a pessoa seguir trabalhando. A regra olha a escrita de código de
+# produção num checkout principal (não num worktree ligado) enquanto um ciclo aberto
+# constrói no branch dele. Nasce em `aviso`, uma vez por sessão. `"checkout_principal":
+# "sempre"` no guardrails.json estende a regra a toda escrita de produção ali, ciclo ou
+# não, que é o hook da aula; `{"modos": {"checkout": "bloqueio"}}` a torna dura.
+CONSTRUINDO = {"construindo", "corrigindo_validacao", "corrigindo_revisao", "provando",
+               "atacando_premissa_validacao", "atacando_premissa_revisao"}
+
+
+def checkout_principal(arquivo: Path) -> Path | None:
+    """A raiz do checkout principal que contém `arquivo`; None num worktree ligado, num
+    submódulo ou fora de git — onde `.git` é arquivo, ou não existe."""
+    try:
+        from execucao import raiz_do_checkout
+    except Exception:
+        return None
+    raiz = raiz_do_checkout(str(arquivo.parent))
+    return raiz if (raiz / ".git").is_dir() else None
+
+
+def ciclo_construindo_em(raiz: Path) -> str | None:
+    """A SPEC do ciclo aberto que constrói no branch hoje no checkout `raiz`."""
+    try:
+        from execucao import branch_atual
+    except Exception:
+        return None
+    branch = branch_atual(str(raiz))
+    for c in ciclos_abertos(raiz):
+        if branch and c.get("estado") in CONSTRUINDO and c.get("branch") == branch:
+            return str(c.get("spec") or "?")
+    return None
+
+
+def _eh_producao(rel: str) -> bool:
+    try:
+        from execucao import eh_producao
+    except Exception:
+        return False
+    return eh_producao(rel)
+
+
+def motivo_do_checkout(principal: Path | None, cfg: dict) -> str | None:
+    """Por que avisar: o ciclo que constrói aqui, ou a regra `sempre` do projeto."""
+    spec = ciclo_construindo_em(principal) if principal else None
+    if spec:
+        return f"o ciclo {spec} está construindo aqui"
+    sempre = principal is not None and cfg.get("checkout_principal") == "sempre"
+    return "a regra do projeto pede worktree" if sempre else None
+
+
+def checar_checkout(payload: dict, raiz: Path, rel: str, entrada: dict, cfg: dict) -> int | None:
+    if liberado(cfg, rel) or not _eh_producao(rel):
+        return None
+    quem = motivo_do_checkout(checkout_principal((raiz / rel).resolve()), cfg)
+    if quem is None:
+        return None
+    modo = modo_de(cfg, "checkout")
+    registrar_recusa(raiz, "checkout", "produção escrita no checkout principal", rel, modo)
+    if modo != "bloqueio" and not primeira_vez_na_sessao(payload, "checkout-principal"):
+        return None  # já avisou nesta sessão: o rastro ficou, o aviso não se repete
+    return bloquear(
+        f"código de produção escrito no checkout principal (`{rel}`): {quem}",
+        "Com o arco construindo, ninguém olha cada escrita em voo (ADR-0024). Num worktree, a "
+        "entrega inteira se desfaz removendo a pasta, e o checkout principal fica livre para "
+        "a pessoa seguir trabalhando enquanto a fábrica implementa.",
+        "Nas próximas entregas, abra o arco num worktree (Passo 0 do /kairos-forge:entregar): "
+        "`git worktree add .worktrees/<SPEC> -b forge/<SPEC>`. O estado do ciclo e do quadro "
+        "continua no checkout principal. Para a regra valer sempre, `\"checkout_principal\": "
+        "\"sempre\"` em `.agents/guardrails.json`; para bloquear, "
+        "`{\"modos\": {\"checkout\": \"bloqueio\"}}`.",
+        modo,
+    )
 
 def liberado(cfg: dict, rel: str) -> bool:
     return any(casa(rel, lib) for lib in cfg.get("liberados", []))

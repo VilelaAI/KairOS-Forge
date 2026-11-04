@@ -112,6 +112,13 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+try:
+    from execucao import pasta_do_projeto
+except Exception:                     # cópia avulsa do script, sem o execucao.py ao lado
+    def pasta_do_projeto(raiz, nome: str) -> Path:
+        return Path(raiz) / ".agents" / nome
+
 
 # --- o que é arquivo de teste ------------------------------------------------------
 # Mesma família de padrões do lembrete de DoD do hooks.json e do `execucao.py`, mais
@@ -531,7 +538,7 @@ def momento_da_aprovacao(raiz: Path, spec: str, arquivo: Path | None) -> tuple[s
     """(instante, fonte). O selo do `ciclo.py` é a aprovação; sem ciclo, o último commit da
     SPEC, porque o contrato que a entrega seguiu é o que estava escrito ali."""
     try:
-        d = json.loads((raiz / ".agents" / "ciclo" / f"{spec}.json").read_text(encoding="utf-8"))
+        d = json.loads((pasta_do_projeto(raiz, "ciclo") / f"{spec}.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         d = {}
     if isinstance(d, dict) and d.get("spec_selada_em"):

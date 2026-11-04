@@ -66,6 +66,11 @@ try:
     from telemetria import commit_de_agente
 except Exception:
     commit_de_agente = None  # type: ignore[assignment]
+try:
+    from execucao import pasta_do_projeto
+except Exception:                     # cópia avulsa do script, sem o execucao.py ao lado
+    def pasta_do_projeto(raiz, nome: str) -> Path:
+        return Path(raiz) / ".agents" / nome
 
 DIAS_PADRAO = 14
 LINHA_TABELA = re.compile(r"^\s*\|(?!\s*-)(.+)\|\s*$")
@@ -152,7 +157,7 @@ def coluna_de(r: dict) -> str:
 
 
 def ler_ciclos(raiz: Path) -> list[dict]:
-    pasta = raiz / ".agents" / "ciclo"
+    pasta = pasta_do_projeto(raiz, "ciclo")
     if not pasta.is_dir():
         return []
     saida = []
@@ -170,7 +175,7 @@ def ler_quadros(raiz: Path) -> list[dict]:
     Pela vista pública, não pelo JSON cru: `completo` e `pode_encerrar` são derivados,
     e recalcular aqui é exatamente como as duas contas divergem na primeira regra nova.
     """
-    pasta = raiz / ".agents" / "quadro"
+    pasta = pasta_do_projeto(raiz, "quadro")
     if not pasta.is_dir() or vista_publica is None:
         return []
     saida = []

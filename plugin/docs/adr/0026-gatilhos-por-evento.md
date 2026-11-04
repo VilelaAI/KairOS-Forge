@@ -146,3 +146,62 @@ conferido num runner. Agora ele edita por `--permission-mode acceptEdits` e roda
 `GATE`.
 
 O `scripts/tests/test_ci.py` lê os YAML e roda cada `claude -p` contra uma CLI falsa.
+
+## Emenda (v0.42.8): a fábrica com identidade própria
+
+Na aula 5 do Tech Leads Club, o bot do professor tem conta própria no GitHub: *"porque a
+gente consegue dar permissões específicas para ele e ver o que ele está fazendo"*. Ele também
+alerta contra o atalho comum: *"não usem o mesmo acesso de uma pessoa para um agente; a pessoa
+precisa de mais acesso às vezes, e aí tu dá um monte de escrita para o agente"*. Se algo der
+errado, o agente se bane, se bloqueia e se revoga sem tirar acesso de ninguém.
+
+Os gatilhos já agiam com o token do workflow, que não é uma pessoa. A conferência achou dois
+defeitos e uma lacuna:
+
+- **O PR do `corrigir` nunca disparava o CI.** O GitHub não dispara workflows a partir de
+  ações feitas com o token do workflow, e o corpo do PR dizia "se o CI daqui também ficar
+  vermelho" sobre um CI que não ia rodar.
+- **O `corrigir` não lia o log.** O `permissions:` declarava `contents` e `pull-requests`, e
+  declarar zera o resto. Sem `actions: read`, o `gh run view --log-failed` falhava calado, e o
+  agente corrigia com "log indisponível" no lugar do erro.
+- **Nada impedia um token pessoal.** Trocar o `github.token` por um `secrets.GH_PAT` "para o CI
+  disparar" era o conserto óbvio, e é exatamente o que a aula manda não fazer.
+
+As três correções:
+
+- **App da fábrica, opcional, nos quatro gatilhos.** O passo "Identidade da fábrica" gera o
+  token do GitHub App (`actions/create-github-app-token`) quando a variável `FORGE_APP_ID`
+  existe. Todo `GH_TOKEN` e o checkout do `corrigir` usam esse token, com o token do workflow
+  como reserva. Com o app:
+  - tudo sai em nome dele;
+  - as permissões são as da instalação;
+  - revogar é suspender o app;
+  - o PR do `corrigir` dispara o CI.
+
+  Chave ausente ou inválida não derruba o job (`continue-on-error`), e sem o app o `corrigir`
+  avisa no PR que o CI precisa ser disparado à mão.
+- **`actions: read` no `corrigir`.** É a permissão que faltava para o log.
+- **`check-agent-security.py` acusa token de pessoa.** Workflow que cita `kairos-forge` e usa
+  `secrets.GH_TOKEN`, `secrets.GITHUB_PAT` ou qualquer `secrets.*PAT*` vira achado `MEDIA`.
+  Apontado para o `.claude` de um projeto, o checker olha os workflows dele, e o `/auditar`
+  já o roda.
+
+O guia `docs/identidade-do-agente.md` traz:
+- as permissões mínimas por gatilho;
+- a branch protegida com o app fora da lista de quem contorna a proteção (o merge continua
+  humano);
+- como revogar;
+- e a conta da fábrica no tracker e nas fontes ligadas por MCP.
+
+A sessão assistida no terminal continua com a identidade de quem está ali aprovando, separada
+pelo trailer (ADR-0044).
+
+### Limites
+
+- **O app é configuração do usuário.** O plugin não cria conta nem app; ele usa um quando
+  existe e acusa o atalho que não deve existir.
+- **O detector olha o nome do segredo, não o conteúdo.** Um token pessoal guardado como
+  `secrets.CHAVE_DO_BOT` passa. O nome é o que a revisão do workflow enxerga, e o guia diz qual
+  usar.
+- **`actions/create-github-app-token@v1` é dependência externa.** Fica pinada na versão
+  principal, como o `actions/checkout@v4` dos mesmos arquivos.

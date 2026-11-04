@@ -30,7 +30,7 @@ Olívia é a responsável sugerida por lacunas deste critério.
 
 O kairos-forge embarca `scripts/check-agent-security.py`, que audita a *configuração de agentes/hooks* — não o código do produto. Para o critério de setup customizado, rode-o apontando para a config do projeto:
 
-- `python3 <plugin>/scripts/check-agent-security.py .claude` — varre `.claude/agents/`, hooks e segredos.
+- `python3 <plugin>/scripts/check-agent-security.py .claude` — varre `.claude/agents/`, hooks, segredos e os workflows da fábrica em `.github/workflows/` (token de pessoa é achado).
 - Exit 0 = pontue cheio (4). Achados ALTA (allow-list ausente/curinga, segredo hardcoded) = pontue 0 e liste no relatório.
 - Projeto sem agentes/hooks customizados em `.claude/` = pontue cheio (não há superfície de risco a auditar).
 

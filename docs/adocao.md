@@ -139,6 +139,7 @@ entrada é a issue.
 |---|---|---|---|
 | `/especificar` | Código que começa antes de alguém entender o pedido | O plugin | SPECs em `docs/specs/` com as críticas em `docs/specs/criticas/` |
 | `/entregar` | Você encadeando especificar, construir, validar e revisar à mão | `/especificar`, `/validar` e `/revisar` mantidos no piloto; branch própria num worktree | `telemetria.py espera` (quanto do ciclo esperou alguém), `telemetria.py prs` e `painel.py --caixa` |
+| Painel do arco (`/forge-painel`, só no Claude Code com mods) | Gate humano que passa batido no fim de uma resposta longa; arco que você só vê perguntando | O plugin; nada a configurar (ADR-0051) | `telemetria.py espera`: a espera nos gates `aguardando_*` cai depois do piloto |
 | `/mobilizar` | Feature grande demais para um agente só | `/entregar` mantido; no Claude Code, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` | `quadro.py ledger <slug>`: tokens por tarefa concluída, desfeita e em aberto (só no Claude Code) |
 
 ### Execução: onde o trabalho roda

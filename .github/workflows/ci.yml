@@ -68,6 +68,30 @@ jobs:
           python3 evals/tarefas-fabrica/rodar.py validar
           python3 -m unittest discover -s evals/tarefas-fabrica -p 'test_*.py' -v
 
+  mod-painel:
+    name: Mod do painel do arco
+    # O mod (hooks/painel.tsx, ADR-0051) só roda no Claude Code, então é o próprio
+    # Claude Code que o valida e roda os testes dele (tests/*.test.tsx): sem chave de
+    # API e sem modelo. Versão pinada: a API de mods ainda muda entre versões, e o
+    # vermelho por uma versão nova tem de ser uma decisão, não uma surpresa.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Instalar Claude Code
+        run: npm install -g @anthropic-ai/claude-code@2.1.318
+
+      - name: Validar o plugin e rodar os testes do mod
+        run: |
+          claude plugin validate .
+          claude plugin validate plugin
+          claude plugin test .
+
   eval-roteamento:
     name: Eval de roteamento da Laura
     runs-on: ubuntu-latest

@@ -84,4 +84,12 @@ O `/revisar` classificou o diff em faixa de raio de explosão. A faixa decide o 
   <o que é irreversível>"`. Não existe pontuação que abra essa faixa; é a mesma fronteira
   do ADR-0024.
 
+A faixa 3 também vale na hora de executar (ADR-0052). No Claude Code, o mod da fábrica faz
+a chamada irreversível parar por uma pessoa enquanto o ciclo está aberto, mesmo em modo
+automático ou com a ferramenta liberada. O cartão da pausa diz o efeito e o `ciclo.py
+escalar` com o motivo. Recusada (ou sem ninguém para perguntar, como no `-p`), a chamada
+não roda, e o caminho é esse `escalar`, nunca um comando parecido, um script que embrulhe
+a ação ou uma permissão mais larga: o embrulho é exatamente o que a classificação não vê.
+Nos outros CLIs não há pausa; a regra é a mesma, cumprida por você.
+
 A faixa sai no topo do corpo do PR (`painel.py --pr`). Quem revisa precisa saber onde olhar antes de abrir o diff.

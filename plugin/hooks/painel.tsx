@@ -99,7 +99,7 @@ async function avisar($: $, l: Leitura) {
 
 // Uma leitura por vez; um pedido que chega durante uma leitura faz mais uma depois dela.
 let emVoo: Promise<void> | null = null
-let deNovo = false
+let deNovo = false // reescrito no começo de cada volta do laço
 
 function atualizar($: $): Promise<void> {
   if (emVoo) {

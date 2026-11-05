@@ -16,7 +16,6 @@ export type ItemCaixa = {
 
 export type Caixa = {
   itens: ItemCaixa[]
-  github: { estado: string }
 }
 
 export type Relatorio = {

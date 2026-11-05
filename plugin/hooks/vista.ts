@@ -19,8 +19,8 @@ type Bruto = Record<string, unknown>
 
 const objeto = (x: unknown): Bruto =>
   x !== null && typeof x === 'object' && !Array.isArray(x) ? (x as Bruto) : {}
-const texto = (x: unknown): string => (typeof x === 'string' ? x : x == null ? '' : String(x))
-const numero = (x: unknown): number => (typeof x === 'number' && Number.isFinite(x) ? x : 0)
+const texto = (x: unknown): string => (x == null ? '' : String(x))
+const numero = (x: unknown): number => (Number.isFinite(x) ? (x as number) : 0)
 const lista = (x: unknown): unknown[] => (Array.isArray(x) ? x : [])
 const textos = (x: unknown): string[] => lista(x).map(texto)
 
@@ -156,7 +156,7 @@ export function resumirCaixa(bruto: unknown): Caixa {
       ...(i.url ? { url: texto(i.url) } : {}),
     }
   })
-  return { itens, github: { estado: texto(objeto(d.github).estado) || 'nao_consultado' } }
+  return { itens }
 }
 
 export type Parada = { nome: string; rotulo: string; marca: '✓' | '●' | '·' }

@@ -1,0 +1,1 @@
+O CSV não diz a moeda de cada cliente nem de onde vem a cotação. Qual a moeda de cada cliente e qual fonte de câmbio devo usar?

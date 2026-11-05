@@ -1,0 +1,1 @@
+"""Relatório de vendas."""

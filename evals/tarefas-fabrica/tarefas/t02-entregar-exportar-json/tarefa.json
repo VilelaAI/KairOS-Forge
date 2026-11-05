@@ -1,0 +1,34 @@
+{
+  "id": "t02-entregar-exportar-json",
+  "tipo": "construir",
+  "titulo": "Exportar o relatório em JSON pelo arco do /entregar",
+  "prompt": "/kairos-forge:entregar Exportar o relatório em JSON: `python3 -m vendas.relatorio dados/vendas.csv --json saida.json` grava uma lista de objetos {data, regiao, produto, valor} só com as linhas válidas, `valor` como número, em ordem de data; sem `--json`, o comportamento atual não muda.\n\nExecução sem humano (eval): nos gates humanos, siga a opção recomendada e registre a decisão. Não abra PR: pare em `pronto_para_pr`.",
+  "oraculo": true,
+  "checagens": [
+    {
+      "tipo": "arquivo",
+      "glob": "docs/specs/SPEC-*.md",
+      "regex": [
+        "json"
+      ]
+    },
+    {
+      "tipo": "ciclo",
+      "estados": [
+        "pronto_para_pr",
+        "encerrado"
+      ]
+    },
+    {
+      "tipo": "contrato",
+      "glob": "docs/specs/validacoes/VALIDACAO-*.md",
+      "leitor": "validar"
+    },
+    {
+      "tipo": "contrato",
+      "glob": "docs/specs/revisoes/REVISAO-*.md",
+      "leitor": "revisar"
+    }
+  ],
+  "tempo_limite_s": 2700
+}

@@ -1,0 +1,9 @@
+{
+  "id": "t03-media-por-regiao",
+  "tipo": "corrigir",
+  "titulo": "Média por região com linha inválida",
+  "prompt": "A média por região (`media_por_regiao` em `vendas/regiao.py`) dá erro quando alguma linha tem valor vazio ou texto. Linhas inválidas não contam na média, e uma região que só tem linhas inválidas não aparece no resultado.",
+  "oraculo": true,
+  "checagens": [],
+  "tempo_limite_s": 900
+}

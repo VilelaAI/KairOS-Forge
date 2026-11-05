@@ -190,6 +190,14 @@ chaves vão nas configurações gerenciadas
 ([Manage plugins for your organization](https://code.claude.com/docs/en/plugins/org)).
 No Codex, no OpenCode e no Cursor, a instalação está no [README](../README.md).
 
+**Mods de terceiros convivem mal com o piso.** Um mod instalado por uma pessoa fica no mesmo
+nível da fábrica e pode responder no lugar dos hooks dela ou aprovar uma chamada que o
+guardrail recusou. Onde o time depende do piso, instale a fábrica pelas configurações
+gerenciadas com `prependPlugins` e ligue `allowManagedModsOnly`
+([Manage mods for your organization](https://code.claude.com/docs/en/plugins/mods/admin)).
+Sem isso, o guardrail ainda impede o agente de mexer na fiação, mas não impede uma pessoa de
+instalar um mod que a contorne.
+
 **As mesmas peças, na mesma ordem.** O time novo começa pelas peças que o primeiro
 manteve, com a linha de base dele, e não pela fábrica inteira. A proposta leva o
 veredicto de cada peça e o comando que mediu.

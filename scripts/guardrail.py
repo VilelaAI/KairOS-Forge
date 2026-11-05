@@ -31,10 +31,12 @@ Este script é a parte que **bloqueia**. Dez classes de risco:
                                (ADR-0042). `grep`, `ls`, `stat`, `test` passam: o
                                caminho legítimo parecido não é negado. Piso: sem
                                `modos`, sem `liberados`
-  8. Fiação dos hooks        — escrita que mexe no bloco `hooks` de
-                               `.claude/settings*.json`, ou em `.cursor/hooks.json`
-                               e `.codex/hooks.json`: silenciaria o guardrail inteiro
-                               de uma vez (ADR-0042). Piso, como os sagrados
+  8. Fiação dos hooks        — escrita que muda o que o Claude Code roda fora das
+                               ferramentas em qualquer `.claude/settings*.json`
+                               (`hooks`, `disableAllHooks`, plugins, marketplaces e
+                               comandos de status), ou em `.cursor/hooks.json` e
+                               `.codex/hooks.json`, pela tool ou pelo shell: silenciaria
+                               o guardrail inteiro de uma vez (ADR-0042 e emenda). Piso
   9. Régua                   — edição em config existente de lint, formatter,
                                typecheck, cobertura ou hooks do git, e supressão
                                inline nova em produção (`# noqa`, `@ts-ignore`,
@@ -274,32 +276,102 @@ SAGRADOS = [
     (".agents/quadro/**", "o quadro de tarefas do /kairos-forge:mobilizar (ADR-0035)"),
     # Fiação dos hooks (ADR-0042): o arquivo em que o editor registra os hooks é o que
     # silenciaria este guardrail inteiro de uma vez. Para o Claude Code a proteção é
-    # condicional (só o bloco `hooks` de settings*.json — ver `mexe_na_fiacao`).
+    # condicional (só as `CHAVES_FIACAO` de settings*.json — ver `mexe_na_fiacao`).
     (".cursor/hooks.json", "a fiação dos hooks do Cursor — apagar isto silencia o guardrail (ADR-0042)"),
     (".codex/hooks.json", "a fiação dos hooks do Codex — apagar isto silencia o guardrail (ADR-0042)"),
 ]
-FIACAO_CLAUDE = [".claude/settings.json", ".claude/settings.local.json"]
+FIACAO_CLAUDE = ("settings.json", "settings.local.json")   # dentro de uma pasta `.claude/`
+
+# O que, num settings do Claude Code, decide o que ele roda fora das ferramentas — e por
+# isso fora deste guardrail (emenda ao ADR-0042). `disableAllHooks` desliga os hooks de
+# plugin, este guardrail incluído; `enabledPlugins` e os marketplaces ligam ou desligam
+# plugins, e um plugin com mod pode responder no lugar de um hook; `statusLine`,
+# `subagentStatusLine` e `fileSuggestion` são comandos que o Claude Code roda sozinho.
+CHAVES_FIACAO = ("hooks", "disableAllHooks", "enabledPlugins", "extraKnownMarketplaces",
+                 "additionalMarketplaces", "statusLine", "subagentStatusLine",
+                 "fileSuggestion", "syncClaudeAiPlugins")
+TRECHO_FIACAO = re.compile(r"hooks|plugins|marketplaces|statusline|filesuggestion|guardrail"
+                           r"|execucao\.py|kairos-forge", re.I)
 
 
-def mexe_na_fiacao(entrada: dict, alvo: Path) -> bool:
-    """Escrita em settings*.json do Claude Code que altera o bloco `hooks`.
+def eh_settings_do_claude(rel: str) -> bool:
+    """`.claude/settings*.json` do projeto, do usuário ou de qualquer pasta."""
+    partes = Path(rel).parts
+    return len(partes) >= 2 and partes[-2] == ".claude" and partes[-1] in FIACAO_CLAUDE
 
-    O agente edita settings.json por motivos legítimos (permissões, env). O que não
-    pode é mexer na fiação. Write: compara o `hooks` atual com o novo. Edit: se a
-    string trocada toca `hooks`, `guardrail` ou `kairos-forge`, é fiação.
-    """
+
+def _fiacao(cfg: dict) -> dict:
+    """As chaves de fiação com valor: ausente, vazio e `false` contam igual."""
+    return {k: cfg[k] for k in CHAVES_FIACAO if cfg.get(k)}
+
+
+def _como_objeto(texto: str | None) -> dict | None:
     try:
-        atual = json.loads(alvo.read_text(encoding="utf-8")) if alvo.is_file() else {}
-    except Exception:
-        atual = {}
-    if "content" in entrada:  # Write
-        try:
-            novo = json.loads(str(entrada.get("content") or ""))
-        except Exception:
-            return bool(atual.get("hooks"))  # conteúdo ilegível sobre um arquivo com hooks
-        return (atual.get("hooks") or {}) != (novo.get("hooks") or {})
+        dado = json.loads(texto) if texto is not None else None
+    except ValueError:
+        return None
+    return dado if isinstance(dado, dict) else None
+
+
+def _depois_do_edit(texto: str, entrada: dict) -> str | None:
+    """O arquivo como fica depois do Edit; None quando o trecho não está nele."""
+    velho, novo = str(entrada.get("old_string") or ""), str(entrada.get("new_string") or "")
+    if not velho or velho not in texto:
+        return None
+    return texto.replace(velho, novo, -1 if entrada.get("replace_all") else 1)
+
+
+def _texto_do_alvo(alvo: Path) -> str:
+    try:
+        return alvo.read_text(encoding="utf-8") if alvo.is_file() else "{}"
+    except (OSError, ValueError):   # sem acesso ou não é UTF-8: lido como vazio, sem quebrar
+        return "{}"
+
+
+def _chaves_mudadas(antes: dict, depois: dict) -> list[str]:
+    return sorted(k for k in set(antes) | set(depois) if antes.get(k) != depois.get(k))
+
+
+def _trecho_na_fiacao(entrada: dict) -> list[str]:
+    """Edit que não dá para aplicar e comparar: decide pelo texto trocado."""
     trecho = str(entrada.get("old_string") or "") + str(entrada.get("new_string") or "")
-    return bool(re.search(r"hooks|guardrail|execucao\.py|kairos-forge", trecho))
+    return ["trecho"] if TRECHO_FIACAO.search(trecho) else []
+
+
+def mexe_na_fiacao(entrada: dict, alvo: Path) -> list[str]:
+    """As chaves de fiação que a escrita em settings*.json do Claude Code mudaria.
+
+    O agente edita settings.json por motivos legítimos (permissões, env). O que não pode é
+    mudar o que o Claude Code roda fora das ferramentas. Write e Edit são comparados pelo
+    arquivo que resultaria; Write ilegível conta como fiação se o arquivo tinha alguma, e
+    Edit que não se aplica ou deixa o JSON ilegível cai na busca pelo trecho trocado.
+    """
+    texto = _texto_do_alvo(alvo)
+    antes = _fiacao(_como_objeto(texto) or {})
+    eh_write = "content" in entrada
+    novo = _como_objeto(str(entrada["content"]) if eh_write else _depois_do_edit(texto, entrada))
+    if novo is not None:
+        return _chaves_mudadas(antes, _fiacao(novo))
+    return sorted(antes) if eh_write else _trecho_na_fiacao(entrada)
+
+
+# Pelo shell, a mesma fiação: escrita nos arquivos dela por redirecionamento, `tee`,
+# `sed -i`, `cp`/`mv` como destino, `rm` ou um interpretador. Ler (`cat`, `jq .`, `grep`)
+# e copiar para fora passam.
+ARQUIVO_FIACAO = r"[^\s;&|]*(\.claude/settings(\.local)?\.json|\.cursor/hooks\.json|\.codex/hooks\.json)"
+ESCRITA_NA_FIACAO = [
+    re.compile(rf">\|?\s*[\"']?{ARQUIVO_FIACAO}"),
+    re.compile(rf"\b(tee|truncate|rm|dd)\b[^;&|]*{ARQUIVO_FIACAO}"),
+    re.compile(rf"\b(sed|perl)\b[^;&|]*\s(-[a-zA-Z]*i\S*|--in-place\S*)[^;&|]*{ARQUIVO_FIACAO}"),
+    re.compile(rf"\b(cp|mv|ln|install|rsync)\b[^;&|]*\s[\"']?{ARQUIVO_FIACAO}[\"']?\s*($|[;&|])"),
+    re.compile(rf"\b(python3?|node|ruby)\b.*{ARQUIVO_FIACAO}"),   # o `;` do código não corta
+]
+
+
+def escreve_na_fiacao(cmd: str) -> str | None:
+    if any(r.search(cmd) for r in ESCRITA_NA_FIACAO):
+        return "escrita pelo shell num arquivo de fiação dos hooks (settings do Claude Code, hooks do Cursor ou do Codex)"
+    return None
 
 # --- 2b. artefato gerado (ADR-0037) -------------------------------------------------
 # Os mirrors por CLI, as skills espelhadas e o manifesto de ativos são GERADOS por
@@ -588,6 +660,11 @@ PISO = [
      "próprio medidor (ADR-0046). Conserte o que o hook acusa e rode de novo; se o hook "
      "estiver quebrado, peça ao usuário."),
     (lambda cmd, _cwd: piso_por_padrao(cmd), "comando", IRREVERSIVEL),
+    (lambda cmd, _cwd: escreve_na_fiacao(cmd), "sagrado",
+     "A fiação decide o que o Claude Code roda fora das ferramentas, este guardrail "
+     "incluído: um `disableAllHooks` ou um plugin ligado ali o desliga sem ninguém ver "
+     "(emenda ao ADR-0042). Quem edita esses arquivos é o humano. Explique o que precisa "
+     "mudar e por quê."),
 ]
 
 
@@ -620,15 +697,18 @@ def checar_escrita(payload: dict) -> int:
                 "Quem edita este arquivo é o humano. Explique o que precisa mudar e por quê.",
             )
 
-    # Fiação dos hooks do Claude Code (ADR-0042): só quando a escrita mexe em `hooks`.
-    if rel in FIACAO_CLAUDE and mexe_na_fiacao(entrada, raiz / rel):
+    # Fiação do Claude Code (ADR-0042, emenda): só quando a escrita muda uma das
+    # `CHAVES_FIACAO`, em qualquer `.claude/settings*.json`, do projeto ou do usuário.
+    mudadas = mexe_na_fiacao(entrada, raiz / rel) if eh_settings_do_claude(rel) else []
+    if mudadas:
         registrar_recusa(raiz, "sagrado", "fiação dos hooks", rel, "bloqueio")
         return bloquear(
-            f"escrita bloqueada em `{rel}` — mexe no bloco `hooks`",
-            "É o arquivo em que o editor registra os hooks: alterar aqui silencia o "
-            "guardrail e a telemetria de uma vez, sem que ninguém veja.",
-            "Permissões e variáveis nesse arquivo continuam livres; o bloco `hooks` é do "
-            "humano. Explique o que precisa mudar e por quê.",
+            f"escrita bloqueada em `{rel}` — muda a fiação ({', '.join(f'`{k}`' for k in mudadas)})",
+            "É o arquivo que decide o que o Claude Code roda fora das ferramentas: os hooks, "
+            "os plugins e os comandos de status. `disableAllHooks` ou um plugin ligado aqui "
+            "silencia o guardrail e a telemetria de uma vez, sem que ninguém veja.",
+            "Permissões e variáveis nesse arquivo continuam livres; a fiação é do humano. "
+            "Explique o que precisa mudar e por quê.",
         )
 
     # Artefato gerado (ADR-0037), por dois sinais: a marca dentro do arquivo (o que o

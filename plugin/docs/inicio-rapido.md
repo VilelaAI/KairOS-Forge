@@ -316,8 +316,9 @@ CLI: dos PRs mesclados com commit da fábrica (trailer `Fabrica: kairos-forge` o
 
 - ler segredo — `cat .env`, chave SSH, `*.pem` —, pelo shell ou pela tool `Read`
   (`grep NOME .env` passa: procurar o nome não é ler o valor);
-- mexer na fiação dos hooks (`.cursor/hooks.json`, `.codex/hooks.json`, o bloco
-  `hooks` de `.claude/settings*.json`);
+- mexer na fiação dos hooks: `.cursor/hooks.json`, `.codex/hooks.json` e, em qualquer
+  `.claude/settings*.json`, o bloco `hooks`, o `disableAllHooks`, os plugins, os
+  marketplaces e os comandos de status, pela tool ou pelo shell;
 - `rm -rf` com alvo em variável ou fora do projeto, e `shutdown`/`reboot`;
 - editar artefato gerado pelo sync em vez do canônico;
 - relatório de crítica, validação ou revisão com contrato malformado, ou "limpo"

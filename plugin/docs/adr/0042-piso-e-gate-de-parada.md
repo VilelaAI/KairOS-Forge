@@ -134,3 +134,60 @@ Claude Code, o gate de parada nos dois modos e o adaptador do Cursor.
 | Gate de parada em `bloqueio` por default | Sessão de refactor sem gate declarado viraria laço de reclamação; `aviso` primeiro, promoção por taxa (ADR-0030) |
 | Comment gate, duplication gate, supply-chain gate | São rails, não piso, e a Patrícia no `/revisar` e o `grafo.py codigo` (ADR-0041) cobrem parte disso por leitura; entram por ADR próprio se a trajetória pedir |
 | Varredura proibindo os nomes `cursor`/`claude` nos scripts, como o `check-boundaries` deles | Os scripts do forge são o adaptador e o core ao mesmo tempo, e conhecem os caminhos dos mirrors por desenho (ADR-0037); a regra não se aplica sem separar camadas, que é outro ADR |
+
+## Emenda (v0.43.1): a fiação é mais que o bloco `hooks`
+
+A regra protegia, em `.claude/settings*.json`, só a escrita que mudava o bloco `hooks`. O
+estudo dos mods do Claude Code mostrou que outras chaves do mesmo arquivo decidem o que roda
+fora das ferramentas, e por isso fora deste guardrail. Um teste com o Claude Code 2.1.318,
+isolado e com a API apontada para uma porta morta (nenhuma chamada saiu da máquina), provou
+as duas pontas:
+
+- **O guardrail deixava passar.** Rodado contra cada escrita, ele bloqueou os três controles
+  (acrescentar um hook, remover um hook, Edit que toca `hooks`) e deixou passar
+  `disableAllHooks` por Write e por Edit (o H maiúsculo escapava da busca), desligar o
+  plugin da fábrica em `enabledPlugins`, ligar um marketplace local com um plugin de mod e
+  `disableAllHooks` no `settings.local.json`.
+- **O Claude Code obedece.** Com a fábrica carregada, os hooks de início gravaram a
+  trajetória; com `"disableAllHooks": true` no `.claude/settings.json` do projeto, o plugin
+  continuou listado, mas nenhum hook disparou: sem trajetória e sem guardrail, sem aviso. E
+  numa pasta confiável, `extraKnownMarketplaces` com uma fonte `directory` dentro do próprio
+  repositório mais `enabledPlugins` carregaram uma sonda (um mod que só grava um
+  marcador) e rodaram o código dela, sem instalação nem pergunta. Numa pasta sem confiança,
+  nada carregou.
+
+O próprio Claude Code trata `.claude/` como caminho protegido: pergunta nos modos `default`
+e `acceptEdits`, manda ao classificador no `auto`, recusa no `dontAsk`. Libera no
+`bypassPermissions`, o modo de rodar sem supervisão, que é onde este piso é o único.
+
+A fiação passa a ser um conjunto de chaves (`CHAVES_FIACAO`): `hooks`, `disableAllHooks`,
+`enabledPlugins`, `extraKnownMarketplaces` e o apelido `additionalMarketplaces`,
+`statusLine`, `subagentStatusLine`, `fileSuggestion` e `syncClaudeAiPlugins`. Os três
+últimos de status são comandos que o Claude Code roda sozinho; um mod é código que roda no
+processo dele e pode responder no lugar de um hook.
+
+- **Write e Edit comparados pelo arquivo que resultaria**, chave a chave. Ausente, vazio e
+  `false` contam igual. Edit que não se aplica ou deixa o JSON ilegível cai na busca pelo
+  trecho, agora sem diferenciar maiúscula.
+- **Qualquer `.claude/settings*.json`**: do projeto, local e do usuário. O
+  `~/.claude/settings.json` desliga os hooks de plugin do mesmo jeito.
+- **Pelo shell, a mesma fiação** entra no piso: redirecionamento, `tee`, `sed -i`/`perl -i`,
+  `cp`/`mv`/`ln` com o arquivo como destino, `rm`, `truncate`, `dd` e interpretador que
+  cita o arquivo. Ler e copiar para fora passam.
+
+A alternativa recusada no texto original continua recusada: o arquivo inteiro não vira
+sagrado, e permissões e variáveis seguem livres. O que muda é o que conta como fiação.
+
+### Limites
+
+- **Mod de terceiro instalado pela pessoa** fica no mesmo nível da fábrica e pode responder
+  no lugar dos hooks dela (`classic.PreToolUse`) ou aprovar uma chamada (`tool.check`). Só a
+  configuração gerenciada protege: a fábrica em `prependPlugins` e `allowManagedModsOnly`
+  ligado (`docs/adocao.md`).
+- **O shell não confere os caminhos sagrados.** Um `echo > .agents/execucoes/x.jsonl` passa
+  pelo modo `comando`; o piso do shell cobre a fiação, não o medidor. Fica registrado como
+  lacuna própria.
+- **Não medi se `disableAllHooks` vale na mesma sessão** em que é escrito ou só na seguinte:
+  isso pede turnos de modelo. A regra bloqueia antes, nos dois casos.
+- **A busca do shell é heurística**: `python3 x.py; cat .claude/settings.json` bloqueia por
+  engano, e uma escrita por um caminho montado em variável escapa.

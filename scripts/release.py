@@ -10,12 +10,16 @@ Uso:
                                                 # dois syncs e espelha em plugin/
   python3 scripts/release.py assinar-contratos  # reassina os contratos de integração
                                                 # depois de mudar a forma (ADR-0034)
+  python3 scripts/release.py tags [--publicar]  # tag vX.Y.Z no commit da linha principal
+                                                # em que cada versão entrou (emenda ao
+                                                # ADR-0057); sem --publicar, só mostra
 
 Só stdlib — sem dependências, igual ao grafo.py.
 """
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -219,6 +223,12 @@ def padroes(n, versao):
             (r"\d+ agentes \(\d+ core \+ \d+ apoio em \d+ squads\)", contagem_parens),
             (r"As \d+ skills do ciclo", f"As {sk} skills do ciclo"),
         ]),
+        # O FORGE_REF padrão dos gatilhos de CI é a tag desta versão (emenda ao
+        # ADR-0057): quem copia o template recebe a fábrica da versão que copiou.
+        *[(f"templates/ci/kairos-forge-{gatilho}.yml", [
+            (r"FORGE_REF: \$\{\{ vars\.FORGE_REF \|\| 'v\d+\.\d+\.\d+' \}\}",
+             f"FORGE_REF: ${{{{ vars.FORGE_REF || 'v{versao}' }}}}"),
+        ]) for gatilho in ("auditar", "corrigir", "revisar", "triar")],
         # Landing page do GitHub Pages: cada número citado leva um data-n.
         ("site/index.html", [
             (r'data-n="agentes">\d+<', f'data-n="agentes">{t}<'),
@@ -594,6 +604,108 @@ def bump(versao):
     checar()
 
 
+# Tags de versão (emenda ao ADR-0057). Cada versão ganha a tag vX.Y.Z no commit da
+# linha principal em que o `version` do manifesto passou a valer, e é essa tag que o
+# FORGE_REF dos gatilhos de CI busca por padrão. Quem publica é o workflow
+# `.github/workflows/tags.yml`, a cada versão que entra na main. Nunca move nem apaga
+# tag: a que já existe em outro commit fica como está e o comando sai 1.
+MANIFESTO = ".claude-plugin/plugin.json"
+
+
+def git(*args: str, env: dict | None = None) -> str:
+    r = subprocess.run(["git", "-C", str(RAIZ), *args], capture_output=True, text=True, env=env)
+    if r.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args[:2])}: {r.stderr.strip()}")
+    return r.stdout
+
+
+def versao_em(commit: str) -> str | None:
+    try:
+        versao = json.loads(git("show", f"{commit}:{MANIFESTO}")).get("version")
+    except (RuntimeError, ValueError, AttributeError):
+        return None
+    return versao if isinstance(versao, str) and re.fullmatch(r"\d+\.\d+\.\d+", versao) else None
+
+
+def versoes_da_linha_principal() -> list[tuple[str, str]]:
+    """(versão, commit) na ordem em que entraram: o primeiro commit da linha principal
+    (first-parent) com aquela versão no manifesto. Versão que entrou junto com outra num
+    único commit não tem commit próprio, e fica sem tag em vez de ganhar um alheio."""
+    commits = git("log", "--first-parent", "--reverse", "--format=%H", "HEAD", "--", MANIFESTO).split()
+    vistas: dict[str, str] = {}
+    for commit in commits:
+        versao = versao_em(commit)
+        if versao:
+            vistas.setdefault(versao, commit)
+    return list(vistas.items())
+
+
+def tags_locais() -> dict[str, str]:
+    """Tag v* deste clone → o commit para onde aponta (a anotada, pelo objeto que marca)."""
+    saida = git("for-each-ref", "--format=%(refname:short) %(*objectname) %(objectname)", "refs/tags/v*")
+    return {nome: alvos[0] for nome, *alvos in (linha.split() for linha in saida.splitlines())}
+
+
+def tags_publicadas() -> dict[str, str]:
+    """Tag v* do origin → commit. A anotada aparece duas vezes, e a linha `^{}` diz o commit."""
+    tags: dict[str, str] = {}
+    for linha in git("ls-remote", "--tags", "origin", "refs/tags/v*").splitlines():
+        sha, ref = linha.split("\t")
+        nome = ref.removeprefix("refs/tags/")
+        if nome.endswith("^{}"):
+            tags[nome[:-3]] = sha
+        else:
+            tags.setdefault(nome, sha)
+    return tags
+
+
+def plano_de_tags(existentes: dict[str, str]) -> list[tuple[str, str, str]]:
+    """(tag, commit, situação): `criar`, `existe` (já aponta para o commit) ou `divergente`."""
+    plano = []
+    for versao, commit in versoes_da_linha_principal():
+        tag = f"v{versao}"
+        atual = existentes.get(tag)
+        situacao = "criar" if atual is None else "existe" if atual == commit else "divergente"
+        plano.append((tag, commit, situacao))
+    return plano
+
+
+def criar_tag(tag: str, commit: str, locais: dict[str, str]) -> None:
+    """Tag anotada com a data do commit: ela diz quando a versão entrou, não quando foi
+    marcada. A que já existe só neste clone, no mesmo commit, segue como está."""
+    if locais.get(tag) == commit:
+        return
+    if tag in locais:
+        raise RuntimeError(f"{tag} existe neste clone em outro commit; apague-a antes")
+    data, assunto = git("log", "-1", "--format=%cI%n%s", commit).split("\n", 1)
+    git("tag", "-a", tag, commit, "-m", f"kairos-forge {tag}\n\n{assunto.strip()}",
+        env={**os.environ, "GIT_COMMITTER_DATE": data})
+
+
+def tags(publicar: bool) -> int:
+    """Sem --publicar, compara com as tags deste clone e não cria nada. Com --publicar,
+    compara com as do origin, cria as que faltam e as publica num push só, sem --force."""
+    locais = tags_locais()
+    plano = plano_de_tags(tags_publicadas() if publicar else locais)
+    for tag, commit, situacao in plano:
+        print(f"  {situacao:10} {tag:9} {commit[:9]}")
+    novas = [(tag, commit) for tag, commit, situacao in plano if situacao == "criar"]
+    divergentes = [tag for tag, _, situacao in plano if situacao == "divergente"]
+    onde = "no origin" if publicar else "neste clone"
+    print(f"🏷️  {len(plano)} versões na linha principal, comparadas {onde}: {len(novas)} a criar, "
+          f"{len(plano) - len(novas) - len(divergentes)} já existem, {len(divergentes)} divergentes")
+    if publicar and novas:
+        for tag, commit in novas:
+            criar_tag(tag, commit, locais)
+        git("push", "origin", *(f"refs/tags/{tag}" for tag, _ in novas))
+        print(f"  publicadas: {', '.join(tag for tag, _ in novas)}")
+    elif novas:
+        print("  ensaio: nada foi criado (--publicar cria e publica)")
+    for tag in divergentes:
+        print(f"  ✗ {tag} já existe em outro commit: tag não se move, confira à mão", file=sys.stderr)
+    return 1 if divergentes else 0
+
+
 def main():
     args = sys.argv[1:]
     if args == ["check"]:
@@ -602,6 +714,11 @@ def main():
         assinar_contratos()
     elif len(args) == 2 and args[0] == "bump":
         bump(args[1])
+    elif args[:1] == ["tags"] and set(args[1:]) <= {"--publicar"}:
+        try:
+            sys.exit(tags("--publicar" in args))
+        except RuntimeError as erro:
+            sys.exit(f"erro: {erro}")
     else:
         sys.exit(__doc__.strip())
 

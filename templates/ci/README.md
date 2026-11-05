@@ -50,9 +50,10 @@ precisa de um empurrão. Nunca use um token pessoal (`secrets.*PAT*`): o
 
 **Três variáveis opcionais (Settings → Variables), todas sobre o que roda com o seu
 segredo (ADR-0057):**
-- `FORGE_REF`: o commit da fábrica que o job busca. Sem ela, vem a `main` do
-  kairos-forge, e uma mudança lá chega ao seu CI no mesmo dia. Fixe num commit que
-  você revisou.
+- `FORGE_REF`: a versão da fábrica que o job busca (tag, commit ou branch). Sem ela,
+  vem a tag da versão de onde você copiou os arquivos (`vX.Y.Z`, publicada a cada
+  versão). Subir de versão é copiar os templates de novo ou mudar a variável. Para
+  fixar num commit que você revisou, ponha o hash aqui.
 - `CLAUDE_CODE_VERSAO`: a versão do Claude Code. O padrão é a `2.1.318`, a versão em
   que as travas foram provadas. Suba de propósito, depois de conferir o `--restricted`
   na versão nova.

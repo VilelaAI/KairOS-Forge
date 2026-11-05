@@ -155,3 +155,53 @@ Actions.
 - **Harden-runner em `block` por padrão.** Recusado pelo custo em repositório privado.
 - **Proibir o `Read` de `.git/config` por regra.** Recusado como defesa principal. O
   token nem precisa estar no disco: `persist-credentials: false` resolve na origem.
+
+## Emenda (v0.50.1): tags de versão
+
+O `FORGE_REF` padrão era a `main`, porque o kairos-forge não publicava tags. Agora:
+
+- **Cada versão ganha a tag `vX.Y.Z`**, no commit da linha principal (first-parent) em
+  que o `version` do `.claude-plugin/plugin.json` passou a valer. É uma tag anotada, com
+  a data e o assunto desse commit.
+  - A versão que entrou junto com outra num único commit (um squash de várias versões)
+    não tem commit próprio e fica sem tag, em vez de ganhar um commit alheio. No
+    histórico até a v0.50.0, isso dá 55 tags.
+  - Tag não se move nem se apaga. A que já existe em outro commit fica como está, e o
+    comando sai 1.
+- **Quem decide é o `release.py tags`.** Sem `--publicar`, mostra o plano contra as tags
+  do clone e não cria nada. Com `--publicar`, compara com as do `origin`, cria as que
+  faltam e publica num push só, sem `--force`.
+- **Quem publica é o GitHub**, no workflow `.github/workflows/tags.yml`. Ele roda na
+  `main` quando o manifesto muda, ou à mão. O checkout é fixado por commit, sem
+  credencial no disco, e só o passo que publica recebe o token, com `contents: write`.
+  No primeiro run, marca também as versões anteriores.
+- **O template sabe a própria versão.** O `release.py bump` reescreve o padrão como
+  `FORGE_REF: ${{ vars.FORGE_REF || 'vX.Y.Z' }}`, e o `check` cobra que ele bata com o
+  manifesto. Quem copia um template recebe a fábrica da versão que copiou. A troca de
+  versão passa a ser uma decisão de quem instala, e não um efeito da `main` do dia.
+
+Isso revê a alternativa recusada "fixar a fábrica num commit escrito no template". O
+template não sabe o commit em que vai ser mesclado, mas sabe a versão. A tag liga as duas
+coisas depois do merge.
+
+**Por que um workflow, e não a tag criada por quem faz o merge.** A sessão que preparou
+esta mudança só conseguia fazer push em branch: a criação da tag voltou com HTTP 403. E
+uma tag que depende de alguém lembrar de criá-la falha justo na versão em que ninguém
+lembrou.
+
+**Prova.** O `test_tags.py` roda o comando num git de verdade, com um remoto local:
+- o ensaio não cria nada;
+- cada versão sai no commit em que entrou;
+- a versão mesclada junto com outra e o manifesto ilegível ficam sem tag;
+- a tag é anotada, com a data e o assunto do commit;
+- a segunda rodada não publica nada, e a versão nova ganha só a dela;
+- a tag divergente no `origin` não se move, e as outras saem;
+- a tag que só existe no clone é publicada, e a tag do clone em outro commit para tudo;
+- sem `origin`, o erro é uma linha.
+
+O mesmo arquivo cobra o workflow: o gatilho, a permissão, o checkout e nada que mova ou
+apague tag. O `test_ci.py` cobra o padrão dos quatro templates contra a versão do
+manifesto.
+
+O workflow em si não rodou aqui: o ambiente não roda GitHub Actions. O primeiro run é o
+merge desta emenda.

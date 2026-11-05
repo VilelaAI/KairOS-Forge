@@ -27,6 +27,7 @@ from pathlib import Path
 
 CI = Path(__file__).resolve().parent.parent.parent / "templates" / "ci"
 TEMPLATES = sorted(CI.glob("*.yml"))
+VERSAO = json.loads((CI.parent.parent / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
 NUMERO_SEGURO = re.compile(r"^github\.event\.[a-z_.]+\.(id|number)$")
 
 
@@ -392,7 +393,8 @@ class Endurecimento(unittest.TestCase):
                 self.assertIn("CLAUDE_CODE_VERSAO: ${{ vars.CLAUDE_CODE_VERSAO || '2.1.318' }}", texto)
                 self.assertIn('npm install -g "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSAO"', texto)
                 self.assertNotRegex(texto, r"npm install -g @anthropic-ai/claude-code\s")
-                self.assertIn("FORGE_REF: ${{ vars.FORGE_REF || 'main' }}", texto)
+                # A tag da versão de onde o template foi copiado (emenda ao ADR-0057).
+                self.assertIn(f"FORGE_REF: ${{{{ vars.FORGE_REF || 'v{VERSAO}' }}}}", texto)
                 self.assertIn('fetch -q --depth 1 https://github.com/VilelaAI/kairos-forge "$FORGE_REF"', texto)
                 self.assertNotIn("git clone", texto)
                 self.assertNotIn("cp -R /tmp/forge", texto)          # a fábrica entra por --plugin-dir

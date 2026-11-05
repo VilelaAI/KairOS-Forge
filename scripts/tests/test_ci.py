@@ -1,12 +1,14 @@
 """Testes dos gatilhos de CI (`templates/ci/`): a fronteira de confiança (ADR-0026, emenda).
 
-Só stdlib: o YAML é lido como texto. Três coisas que o template não pode perder:
+Só stdlib: o YAML é lido como texto. Quatro coisas que o template não pode perder:
 
 1. Texto de fora (issue, diff, log de CI, nome de branch) nunca entra no script por
    `${{ }}` — no `run:` ele vira código. Só número passa (`.id`, `.number`).
 2. Cada `claude -p` declara as ferramentas na linha de comando, sem rede, sem hooks nem
    MCP do projeto, e diz no prompt que o texto de fora é dado, não instrução.
 3. O `corrigir` não age sobre CI de fork, que roda com segredo e token de escrita.
+4. O endurecimento (ADR-0057): actions e versões fixadas, `--restricted` com `dontAsk`,
+   token fora do disco, e segredo fora do que entra no agente e do que sai publicado.
 
 O último bloco roda cada `claude -p` contra uma CLI falsa e confere o que o shell entrega:
 aspas e curingas que quebram em silêncio só aparecem executando.
@@ -116,6 +118,14 @@ class FerramentasDeclaradas(unittest.TestCase):
                 self.assertIn("""--settings '{"disableAllHooks": true}'""", cmd)
                 self.assertNotIn("bypassPermissions", cmd)
                 self.assertNotIn("--dangerously-skip-permissions", cmd)
+                # ADR-0057: nenhum settings de arquivo, só as ferramentas nomeadas, e o que
+                # não estiver liberado é recusado sem perguntar a ninguém.
+                self.assertIn("--restricted --plugin-dir /tmp/forge/plugin", cmd)
+                self.assertIn("--permission-mode dontAsk", cmd)
+                self.assertNotIn("acceptEdits", cmd)
+                self.assertIn("Skill", ferramentas(cmd, "--tools"))
+                self.assertLessEqual({f.split("(")[0] for f in ferramentas(cmd, "--allowedTools")},
+                                     ferramentas(cmd, "--tools"))
 
     def test_todo_prompt_diz_que_o_texto_de_fora_e_dado(self) -> None:
         for nome, (cmd,) in self.comandos().items():
@@ -124,20 +134,26 @@ class FerramentasDeclaradas(unittest.TestCase):
     def test_triar_e_auditar_so_leem(self) -> None:
         for nome in ("triar", "auditar"):
             (cmd,) = self.comandos()[nome]
-            self.assertEqual(ferramentas(cmd, "--allowedTools"), {"Read", "Grep", "Glob"}, nome)
+            self.assertEqual(ferramentas(cmd, "--allowedTools"), {"Skill", "Read", "Grep", "Glob"}, nome)
+            self.assertEqual(ferramentas(cmd, "--tools"), {"Skill", "Read", "Grep", "Glob"}, nome)
             self.assertLessEqual({"Bash", "Edit", "Write", "NotebookEdit"}, ferramentas(cmd, "--disallowedTools"))
-            self.assertNotIn("--permission-mode", cmd)
+            self.assertIn("--permission-mode dontAsk", cmd)
 
     def test_revisar_le_arquivos_e_git_de_leitura(self) -> None:
         (cmd,) = self.comandos()["revisar"]
         bash = {f for f in ferramentas(cmd, "--allowedTools") if f.startswith("Bash")}
         self.assertEqual(bash, {"Bash(git diff *)", "Bash(git log *)", "Bash(git show *)"})
         self.assertLessEqual({"Edit", "Write", "NotebookEdit"}, ferramentas(cmd, "--disallowedTools"))
-        self.assertNotIn("--permission-mode", cmd)
+        self.assertEqual(ferramentas(cmd, "--tools"), {"Skill", "Read", "Grep", "Glob", "Bash"})
+        self.assertIn("--permission-mode dontAsk", cmd)
 
     def test_corrigir_edita_e_roda_so_o_gate(self) -> None:
         (cmd,) = self.comandos()["corrigir"]
-        self.assertIn("--permission-mode acceptEdits", cmd)
+        self.assertIn("--permission-mode dontAsk", cmd)
+        # A correção não mexe no próprio CI nem nas travas (ADR-0057).
+        self.assertLessEqual({f"{verbo}(./{pasta}/**)" for verbo in ("Edit", "Write")
+                              for pasta in (".github", ".claude", ".agents")},
+                             ferramentas(cmd, "--disallowedTools"))
         bash = {f for f in ferramentas(cmd, "--allowedTools") if f.startswith("Bash")}
         self.assertEqual(bash, {"Bash($GATE *)", "Bash(git diff *)", "Bash(git log *)",
                                 "Bash(git show *)", "Bash(git status *)"})
@@ -300,7 +316,8 @@ class CorpoDoPRDaCorrecao(unittest.TestCase):
             (raiz / "diagnostico.md").write_text("Causa: x valia 1.\nEvidência: pytest passa.\n", encoding="utf-8")
             (raiz / ".claude/skills").mkdir(parents=True)
             (raiz / ".claude/skills/a.md").write_text("fábrica\n", encoding="utf-8")
-            (Path(tmp) / "gh").write_text('#!/bin/sh\nwhile [ "$1" != "--body-file" ]; do shift; done\n'
+            (Path(tmp) / "gh").write_text('#!/bin/sh\nif [ "$1" = auth ]; then echo "$*" >> ../gh-auth; exit 0; fi\n'
+                                          'while [ "$1" != "--body-file" ]; do shift; done\n'
                                           'cp "$2" ../corpo-do-pr.md\n', encoding="utf-8")
             (Path(tmp) / "gh").chmod(0o755)
             env = {**os.environ, "PATH": f"{tmp}{os.pathsep}{os.environ.get('PATH', '')}",
@@ -324,7 +341,7 @@ class IdentidadeDaFabrica(unittest.TestCase):
                 texto = arq.read_text(encoding="utf-8")
                 passo = texto[texto.index("- name: Identidade da fábrica"):]
                 passo = passo[:passo.index("\n\n")]
-                self.assertIn("uses: actions/create-github-app-token@v1", passo)
+                self.assertRegex(passo, r"uses: actions/create-github-app-token@[0-9a-f]{40} # v1\.")
                 self.assertIn("vars.FORGE_APP_ID != ''", passo)
                 self.assertIn("continue-on-error: true", passo)      # chave ausente não derruba o job
                 self.assertIn("secrets.FORGE_APP_PRIVATE_KEY", passo)
@@ -336,12 +353,99 @@ class IdentidadeDaFabrica(unittest.TestCase):
 
     def test_corrigir_empurra_com_a_mesma_identidade_e_le_o_log(self) -> None:
         texto = ler("corrigir")
-        self.assertLess(texto.index("- name: Identidade da fábrica"), texto.index("actions/checkout@v4"))
-        checkout = texto[texto.index("actions/checkout@v4"):][:300]
+        self.assertLess(texto.index("- name: Identidade da fábrica"), texto.index("actions/checkout@"))
+        checkout = texto[texto.index("actions/checkout@"):][:400]
         self.assertIn("token: " + self.TOKEN, checkout)
         permissoes = texto[texto.index("permissions:"):texto.index("concurrency:")]
         self.assertIn("actions: read", permissoes)          # sem ele, `gh run view --log-failed` falha
         self.assertIn("IDENTIDADE: ${{ steps.app.outputs.token && 'app' || 'workflow' }}", texto)
+
+
+ACAO_FIXADA = re.compile(r"uses: ([\w.-]+/[\w.-]+)@([0-9a-f]{40}) # v\d+\.\d+\.\d+$")
+
+
+class Endurecimento(unittest.TestCase):
+    """ADR-0057: o que roda com o segredo do projeto vem fixado, a credencial não fica ao
+    alcance do agente, e nada que ele escreveu sai publicado com um segredo dentro."""
+
+    def test_toda_action_fixada_por_commit_com_a_versao_ao_lado(self) -> None:
+        for arq in TEMPLATES:
+            with self.subTest(arq.name):
+                usos = [l.strip() for l in arq.read_text(encoding="utf-8").splitlines()
+                        if l.strip().startswith("uses:")]
+                self.assertTrue(usos)
+                for uso in usos:
+                    self.assertRegex(uso, ACAO_FIXADA)
+
+    def test_checkout_nao_deixa_o_token_no_disco(self) -> None:
+        for arq in TEMPLATES:
+            with self.subTest(arq.name):
+                texto = arq.read_text(encoding="utf-8")
+                passo = texto[texto.index("uses: actions/checkout@"):]
+                passo = passo[:passo.index("\n\n")]
+                self.assertIn("persist-credentials: false", passo)
+
+    def test_claude_code_e_fabrica_vem_da_versao_fixada(self) -> None:
+        for arq in TEMPLATES:
+            with self.subTest(arq.name):
+                texto = arq.read_text(encoding="utf-8")
+                self.assertIn("CLAUDE_CODE_VERSAO: ${{ vars.CLAUDE_CODE_VERSAO || '2.1.318' }}", texto)
+                self.assertIn('npm install -g "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSAO"', texto)
+                self.assertNotRegex(texto, r"npm install -g @anthropic-ai/claude-code\s")
+                self.assertIn("FORGE_REF: ${{ vars.FORGE_REF || 'main' }}", texto)
+                self.assertIn('fetch -q --depth 1 https://github.com/VilelaAI/kairos-forge "$FORGE_REF"', texto)
+                self.assertNotIn("git clone", texto)
+                self.assertNotIn("cp -R /tmp/forge", texto)          # a fábrica entra por --plugin-dir
+
+    def test_rede_de_saida_e_o_primeiro_passo_e_opcional(self) -> None:
+        for arq in TEMPLATES:
+            with self.subTest(arq.name):
+                passos = arq.read_text(encoding="utf-8").split("    steps:\n", 1)[1]
+                primeiro = passos[:passos.index("\n\n")]
+                self.assertIn("uses: step-security/harden-runner@", primeiro)
+                self.assertIn("if: vars.FORGE_SAIDA == 'audit' || vars.FORGE_SAIDA == 'block'", primeiro)
+                self.assertIn("egress-policy: ${{ vars.FORGE_SAIDA }}", primeiro)
+                self.assertIn("api.anthropic.com:443", primeiro)
+
+    def test_o_que_sai_publicado_passa_pela_ocultacao_antes(self) -> None:
+        for nome, arquivo, publica in (("revisar", "revisao.md", "gh pr comment"),
+                                       ("triar", "triagem.md", "gh issue comment"),
+                                       ("auditar", "auditoria.md", "gh issue create"),
+                                       ("corrigir", "diagnostico.md", "gh pr create")):
+            with self.subTest(nome):
+                texto = ler(nome)
+                ocultar = texto.index(f"guardrail.py ocultar {arquivo}")
+                self.assertLess(texto.index(f"> {arquivo}"), ocultar)
+                self.assertLess(ocultar, texto.index(publica))
+
+    def test_o_texto_de_fora_entra_sem_segredo(self) -> None:
+        for nome, arquivo in (("triar", "issue.md"), ("corrigir", "falha.log")):
+            with self.subTest(nome):
+                texto = ler(nome)
+                self.assertLess(texto.index(f"guardrail.py ocultar {arquivo}"), texto.index("claude -p"))
+
+    def test_o_token_so_entra_depois_do_agente(self) -> None:
+        texto = ler("corrigir")
+        self.assertLess(texto.index("claude -p"), texto.index("gh auth setup-git"))
+        self.assertLess(texto.index("gh auth setup-git"), texto.index("git push -u origin HEAD"))
+
+    def test_o_parecer_sai_oculto_rodando_o_passo_de_verdade(self) -> None:
+        (script,) = [s for _, s in blocos_run(ler("revisar")) if "claude -p" in s]
+        scripts = Path(__file__).resolve().parent.parent
+        script = script.replace("/tmp/forge/scripts", str(scripts))
+        token = "ghp_" + "b" * 36
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "claude").write_text(f'#!/bin/sh\necho "achado: GITHUB_TOKEN={token}"\n',
+                                              encoding="utf-8")
+            (Path(tmp) / "claude").chmod(0o755)
+            env = {**os.environ, "PATH": f"{tmp}{os.pathsep}{os.environ.get('PATH', '')}",
+                   "BASE": "a", "HEAD": "b"}
+            r = subprocess.run(["bash", "-e", "-c", script], cwd=tmp, env=env, capture_output=True,
+                               text=True, check=True)
+            revisao = (Path(tmp) / "revisao.md").read_text(encoding="utf-8")
+        self.assertNotIn(token, revisao)
+        self.assertIn("«segredo ocultado pelo kairos-forge: token GitHub»", revisao)
+        self.assertIn("1 segredo(s) ocultado(s) antes de publicar", r.stderr)
 
 
 if __name__ == "__main__":

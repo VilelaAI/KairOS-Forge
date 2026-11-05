@@ -228,6 +228,18 @@ os rótulos `forge:*` no repositório antes de instalar.
 > é autonomia — é pipeline sem supervisão. O `/auditar` recomenda as lacunas
 > nessa ordem de propósito.
 
+O que roda com o seu segredo vem fixado e preso (ADR-0057):
+- **Versões.** Cada action é citada pelo commit. O Claude Code vem da versão em que as
+  travas foram provadas, trocável em `vars.CLAUDE_CODE_VERSAO`. A fábrica vem do commit
+  em `vars.FORGE_REF`: fixe um que você revisou.
+- **Sessão do agente.** Ela roda com `--restricted`: nenhum settings de arquivo, nem o
+  do branch, e ferramentas de arquivo presas ao projeto. Também roda com `--tools` e
+  `dontAsk`.
+- **Credencial.** O token do workflow não fica em `.git/config`.
+- **`corrigir`.** Não edita `.github/`, `.claude/` nem `.agents/`.
+- **Segredo.** Sai da issue e do log antes de o agente ler, e de tudo o que é publicado.
+- **Rede.** O controle de saída é opcional, por `vars.FORGE_SAIDA` (`audit` ou `block`).
+
 ### 4. Máquina de estados do arco — o próximo passo é decidido por código (ADR-0029/0033)
 
 O `/kairos-forge:entregar` executa e registra; quem decide transição, orçamento e

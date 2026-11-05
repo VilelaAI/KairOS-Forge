@@ -48,9 +48,23 @@ Sem eles, os workflows usam o token do workflow, e o `corrigir` avisa no PR que 
 precisa de um empurrão. Nunca use um token pessoal (`secrets.*PAT*`): o
 `check-agent-security.py` acusa. O passo a passo está em `docs/identidade-do-agente.md`.
 
+**Três variáveis opcionais (Settings → Variables), todas sobre o que roda com o seu
+segredo (ADR-0057):**
+- `FORGE_REF`: o commit da fábrica que o job busca. Sem ela, vem a `main` do
+  kairos-forge, e uma mudança lá chega ao seu CI no mesmo dia. Fixe num commit que
+  você revisou.
+- `CLAUDE_CODE_VERSAO`: a versão do Claude Code. O padrão é a `2.1.318`, a versão em
+  que as travas foram provadas. Suba de propósito, depois de conferir o `--restricted`
+  na versão nova.
+- `FORGE_SAIDA`: `audit` registra para onde o job vai na rede; `block` só deixa
+  alcançar a API do modelo, o GitHub e o registro do npm (o `step-security/harden-runner`,
+  primeiro passo de cada job). O `block` é gratuito em repositório público; em
+  privado, pede o plano da StepSecurity. Sem a variável, o passo nem roda. No
+  `corrigir`, acrescente à lista os hosts que o seu `GATE` usa.
+
 ## O modelo de segurança
 
-Autonomia só é segura se o erro for barato. As seis regras que estes workflows
+Autonomia só é segura se o erro for barato. As sete regras que estes workflows
 seguem, e que você deve manter se editá-los:
 
 1. **Nunca escreve na branch que falhou nem na default.** O `corrigir` só age em
@@ -103,6 +117,28 @@ seguem, e que você deve manter se editá-los:
      nunca ação;
    - o `corrigir` não age sobre CI de fork. O `workflow_run` roda com o segredo e com
      token de escrita, e o log de um fork é escrito por quem abriu o PR.
+
+7. **O que roda com o segredo vem fixado, e nada o carrega para fora (ADR-0057).**
+   - Cada action é citada pelo commit, com a versão num comentário: a tag de uma
+     action pode ser movida para outro código. O Claude Code e a fábrica vêm da versão
+     fixada nas variáveis acima, e a fábrica entra como plugin da sessão
+     (`--plugin-dir`), não copiada para o `.claude/` do projeto.
+   - O `checkout` usa `persist-credentials: false`. Sem isso, o token do workflow fica
+     em `.git/config`, que o `Read` do agente alcança e que pode acabar num
+     comentário público. O `corrigir` só entrega o token ao git (`gh auth setup-git`)
+     no passo do push, depois que o agente terminou.
+   - Cada `claude -p` roda com `--restricted`: não lê settings de arquivo nenhum (nem
+     o `.claude/settings.json` do branch), prende as ferramentas de arquivo ao projeto
+     e recusa `bypassPermissions`. O `--tools` diz quais ferramentas existem na sessão
+     (o `triar` e o `auditar` nem têm Bash), e o `--permission-mode dontAsk` recusa o
+     que não estiver liberado, sem perguntar a ninguém.
+   - O `corrigir` não edita `.github/`, `.claude/` nem `.agents/`: a correção não
+     mexe no próprio CI nem nas travas.
+   - O texto de fora entra no agente já sem segredo (`guardrail.py ocultar` na issue e
+     no log), porque o que o agente lê vai à API do modelo. O texto que sai publicado
+     (o parecer, a triagem, a auditoria, o diagnóstico) passa pela mesma ocultação
+     antes do comentário ou do PR: o agente pode repetir um segredo que leu no
+     repositório.
 
    No repositório da fábrica, `scripts/tests/test_ci.py` confere essas travas.
 

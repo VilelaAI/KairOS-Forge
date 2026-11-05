@@ -90,6 +90,10 @@ automático ou com a ferramenta liberada. O cartão da pausa diz o efeito e o `c
 escalar` com o motivo. Recusada (ou sem ninguém para perguntar, como no `-p`), a chamada
 não roda, e o caminho é esse `escalar`, nunca um comando parecido, um script que embrulhe
 a ação ou uma permissão mais larga: o embrulho é exatamente o que a classificação não vê.
-Nos outros CLIs não há pausa; a regra é a mesma, cumprida por você.
+No Cursor, a mesma regra chega como recusa com o cartão (ADR-0055): a pergunta de um hook
+não chega a uma pessoa no Auto-review, então a chamada já vem recusada. Registre o
+`escalar`, mostre o comando à pessoa e espere. Quem roda é ela, no terminal dela, ou ela
+liga a pergunta em `.agents/guardrails.json`. Nos outros CLIs não há pausa; a regra é a
+mesma, cumprida por você.
 
 A faixa sai no topo do corpo do PR (`painel.py --pr`). Quem revisa precisa saber onde olhar antes de abrir o diff.

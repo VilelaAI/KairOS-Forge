@@ -8,6 +8,7 @@ Code); aqui fica a regra:
 1. Precisão: o que um revert não desfaz para; ensaio, leitura e banco local passam.
 2. Contexto: só com ciclo ou quadro aberto, ou com `"faixa_3": "sempre"` no projeto.
 3. Saída: JSON com o cartão que a pessoa lê, evento na trajetória, sempre exit 0.
+4. No Cursor (ADR-0055): a resposta no esquema dele, recusa com o cartão por padrão.
 
 Rode: python3 -m unittest discover -s scripts/tests -t scripts -v
 """
@@ -96,12 +97,8 @@ class Precisao(unittest.TestCase):
                 self.assertIsNone(guardrail.efeito_da_ferramenta(nome, entrada))
 
 
-class Contexto(Sandbox):
-    def faixa3(self, comando: str = "terraform apply", ferramenta: str = "Bash") -> tuple[int, dict]:
-        entrada = {"command": comando} if ferramenta == "Bash" else {"pull_number": 51}
-        codigo, out, _ = hook("faixa3", {"cwd": str(self.raiz), "tool_name": ferramenta,
-                                         "tool_input": entrada})
-        return codigo, json.loads(out)
+class ComEstado(Sandbox):
+    """Ciclo, quadro e trajetória num projeto de verdade; sem testes próprios."""
 
     def estado(self, pasta: str, nome: str, dados: dict) -> None:
         alvo = self.raiz / ".agents" / pasta / f"{nome}.json"
@@ -112,6 +109,14 @@ class Contexto(Sandbox):
         pasta = self.raiz / ".agents" / "execucoes"
         return [json.loads(l) for p in sorted(pasta.glob("*.jsonl"))
                 for l in p.read_text(encoding="utf-8").splitlines()] if pasta.is_dir() else []
+
+
+class Contexto(ComEstado):
+    def faixa3(self, comando: str = "terraform apply", ferramenta: str = "Bash") -> tuple[int, dict]:
+        entrada = {"command": comando} if ferramenta == "Bash" else {"pull_number": 51}
+        codigo, out, _ = hook("faixa3", {"cwd": str(self.raiz), "tool_name": ferramenta,
+                                         "tool_input": entrada})
+        return codigo, json.loads(out)
 
     def test_sem_arco_nao_pausa(self) -> None:
         self.assertEqual(self.faixa3(), (0, {"pausa": False}))
@@ -186,6 +191,137 @@ class Contexto(Sandbox):
             self.assertEqual(guardrail.main(), 0)
         self.assertEqual(out.getvalue(), "")              # sem JSON, o mod segue sem pausa
         self.assertIn("falhou e deixou passar", err.getvalue())
+
+
+    def test_numa_subpasta_do_projeto_tambem_pausa(self) -> None:
+        # `cd infra && terraform apply` deixa o `cwd` na subpasta; o ciclo mora na raiz.
+        self.estado("ciclo", "SPEC-007", {"spec": "SPEC-007", "estado": "construindo"})
+        (self.raiz / "infra").mkdir()
+        codigo, out, _ = hook("faixa3", {"cwd": str(self.raiz / "infra"), "tool_name": "Bash",
+                                         "tool_input": {"command": "terraform apply"}})
+        self.assertTrue(json.loads(out)["pausa"])
+        self.assertEqual(self.eventos()[0]["spec"], "SPEC-007")
+
+
+    def test_sem_o_execucao_ao_lado_a_raiz_e_o_proprio_cwd(self) -> None:
+        # Cópia avulsa do guardrail, sem o `execucao.py`: o `cwd` vale como está.
+        with mock.patch.dict(sys.modules, {"execucao": None}):
+            self.assertEqual(guardrail.raiz_da_chamada({"cwd": str(self.raiz / "infra")}),
+                             self.raiz / "infra")
+            self.assertEqual(guardrail.raiz_da_chamada({}), guardrail.Path("."))
+
+
+class NoCursor(ComEstado):
+    """No Cursor (ADR-0055), o `ask` de um hook não chega a uma pessoa no Auto-review: a
+    pausa nasce como recusa com o cartão, e a resposta sai sempre no esquema dele."""
+
+    def cursor(self, evento: str = "beforeShellExecution", **campos) -> tuple[int, dict]:
+        payload = {"conversation_id": "c1", "generation_id": "g1", "hook_event_name": evento,
+                   "workspace_roots": [str(self.raiz)], **campos}
+        codigo, out, _ = hook("faixa3", payload)
+        return codigo, json.loads(out)
+
+    def mcp(self, servidor: str, ferramenta: str, entrada: str = '{"pull_number": 51}',
+            **extra) -> tuple[int, dict]:
+        return self.cursor("beforeMCPExecution", tool_name=ferramenta, tool_input=entrada,
+                           mcp_server_name=servidor, **extra)
+
+    def no_arco(self) -> None:
+        self.estado("ciclo", "SPEC-007", {"spec": "SPEC-007", "estado": "construindo"})
+
+    def test_fora_do_arco_responde_allow_no_esquema_do_cursor(self) -> None:
+        # Resposta fora do esquema bloqueia a ação no Cursor: `{"pausa": false}` travaria tudo.
+        self.assertEqual(self.cursor(command="terraform apply", cwd=str(self.raiz)),
+                         (0, {"permission": "allow"}))
+        self.assertEqual(self.eventos(), [])
+
+    def test_no_arco_o_irreversivel_e_recusado_com_o_cartao(self) -> None:
+        self.no_arco()
+        codigo, r = self.cursor(command="npm publish", cwd=str(self.raiz))
+        self.assertEqual((codigo, r["permission"]), (0, "deny"))
+        self.assertEqual(r["user_message"], "kairos-forge recusou (faixa 3): publica um pacote")
+        for trecho in ("publica um pacote", "o ciclo SPEC-007 está em `construindo`", "ADR-0055",
+                       "no Auto-review, o classificador a libera", "Não contorne",
+                       'ciclo.py escalar SPEC-007 --motivo "faixa 3: publica um pacote"',
+                       '"faixa_3_cursor": "perguntar"'):
+            self.assertIn(trecho, r["agent_message"])
+        self.assertNotIn("Permita só se", r["agent_message"])
+        [evento] = self.eventos()
+        self.assertEqual((evento["decisao"], evento["cli"], evento["alvo"]),
+                         ("deny", "cursor", "npm publish"))
+
+    def test_perguntar_no_guardrails_json_vira_ask_para_a_pessoa(self) -> None:
+        self.no_arco()
+        (self.raiz / ".agents" / "guardrails.json").write_text('{"faixa_3_cursor": "perguntar"}',
+                                                               encoding="utf-8")
+        _, r = self.cursor(command="terraform apply", cwd=str(self.raiz))
+        self.assertEqual(r["permission"], "ask")
+        self.assertIn("Permita só se você conferiu o alvo", r["user_message"])
+        self.assertEqual(r["user_message"], r["agent_message"])
+        self.assertEqual(self.eventos()[0]["decisao"], "ask")
+
+    def test_o_que_passa_no_arco_responde_allow(self) -> None:
+        self.no_arco()
+        self.assertEqual(self.cursor(command="terraform plan", cwd=str(self.raiz))[1],
+                         {"permission": "allow"})
+
+    def test_mcp_pelo_nome_com_tool_input_em_texto(self) -> None:
+        self.no_arco()
+        _, r = self.mcp("github", "merge_pull_request")
+        self.assertEqual(r["permission"], "deny")
+        self.assertIn("chama `merge_pull_request` num serviço de fora", r["agent_message"])
+        self.assertEqual(self.eventos()[0]["alvo"], "mcp__github__merge_pull_request")
+        self.assertEqual(self.mcp("github", "get_pull_request")[1], {"permission": "allow"})
+
+    def test_a_linha_que_lanca_o_servidor_mcp_nao_e_o_comando(self) -> None:
+        # Servidor stdio manda `command` com a linha que o lança: não é shell do agente.
+        self.no_arco()
+        _, r = self.mcp("deploys", "list_items", command="npx -y deploy-mcp --prod")
+        self.assertEqual(r, {"permission": "allow"})
+
+    def test_tool_input_ilegivel_ou_que_nao_e_objeto_vira_vazio(self) -> None:
+        for entrada in ("{ não é json", "[1, 2]", "null"):
+            with self.subTest(entrada):
+                p = guardrail.normalizar_payload({"conversation_id": "c1", "tool_input": entrada,
+                                                  "tool_name": "execute_sql",
+                                                  "mcp_server_name": "supabase"})
+                self.assertEqual((p["tool_input"], p["tool_name"]),
+                                 ({}, "mcp__supabase__execute_sql"))
+
+    def test_mcp_sem_servidor_ainda_e_julgado_pelo_nome(self) -> None:
+        p = guardrail.normalizar_payload({"conversation_id": "c1", "tool_input": "{}",
+                                          "tool_name": "deploy"})
+        self.assertEqual(p["tool_name"], "mcp__desconhecido__deploy")
+
+    def test_payload_do_claude_code_nao_e_tocado(self) -> None:
+        payload = {"session_id": "s1", "cwd": "/x", "tool_name": "Bash",
+                   "tool_input": {"command": "ls"}}
+        self.assertIs(guardrail.normalizar_payload(payload), payload)
+        com_conversa = {"conversation_id": "c1", "tool_input": {"command": "ls"}}
+        self.assertIs(guardrail.normalizar_payload(com_conversa), com_conversa)
+
+    def test_shell_do_cursor_vira_bash(self) -> None:
+        p = guardrail.normalizar_payload({"conversation_id": "c1", "command": "ls",
+                                          "workspace_roots": ["/w"]})
+        self.assertEqual((p["tool_name"], p["tool_input"], p["cwd"]),
+                         ("Bash", {"command": "ls"}, "/w"))
+        leitura = guardrail.normalizar_payload({"conversation_id": "c1", "file_path": "/w/a"})
+        self.assertEqual(leitura["tool_name"], "")
+
+    def test_numa_subpasta_o_cwd_do_cursor_acha_o_ciclo(self) -> None:
+        self.no_arco()
+        (self.raiz / "infra").mkdir()
+        _, r = self.cursor(command="terraform apply", cwd=str(self.raiz / "infra"))
+        self.assertEqual(r["permission"], "deny")
+
+    def test_o_sync_liga_a_pausa_no_shell_e_no_mcp(self) -> None:
+        from tests.test_sync import carregar_sync
+        hooks = carregar_sync().montar_hooks_cursor()["hooks"]
+        faixa3 = {"command": "python3 .cursor/scripts/guardrail.py faixa3"}
+        self.assertEqual(hooks["beforeShellExecution"][0],
+                         {"command": "python3 .cursor/scripts/guardrail.py comando"})
+        self.assertIn(faixa3, hooks["beforeShellExecution"])
+        self.assertEqual(hooks["beforeMCPExecution"], [faixa3])
 
 
 class NaTrajetoria(unittest.TestCase):

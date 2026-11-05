@@ -91,15 +91,37 @@ o teste daquele requisito.
 
 - **Nenhum contrato muda.** O `kairos-validacao` já tinha `sem_evidencia`, e a fachada
   entra nele. O `ciclo.py` já tinha `provando`.
-- **Testes.** `test_criterios.py` tem 29 testes:
+- **Testes.** `test_criterios.py` tem 30 testes:
   - a leitura da matriz: a coluna pelo cabeçalho, o manual, as várias linhas, o texto fora
     das crases;
-  - o motor contra uma suíte falsa: o rodízio, a segunda passada, a fachada só depois de
-    todos, o teto, a base vermelha, o sítio que não confere, o piso do tempo por mutante;
+  - o motor contra uma suíte falsa: o rodízio e a direção dele, a segunda passada, a
+    fachada só depois de todos, o teto, a base vermelha, o sítio que não confere, o piso
+    do tempo por mutante;
   - o caminho inteiro num git de verdade: os seis veredictos numa SPEC, o comando dividido,
     o comportamento sem critério, o arquivo original intocado e o worktree removido;
   - os erros: SPEC que não existe, SPEC sem requisito, id fora da SPEC, worktree que não
     monta.
+
+  O `test_qualidade.py` ganha o sítio que não confere, com o `julgar` real.
+- **O `criterios` rodado sobre o próprio diff.** Uma SPEC desta entrega com cinco
+  requisitos, cada um apontando para a classe de teste que o prova.
+  - Na primeira rodada, o critério "a mutação de antes segue igual" saiu **de fachada**.
+    Os mutantes do código que o refactor tocou (`mutante_aplicado`, `julgar`) estavam no
+    caminho do sítio que não confere, e a `MutacaoNoDiff` não percorria esse caminho. A
+    suíte inteira também não. Virou teste.
+  - Na segunda rodada, os 5 critérios percebem. O único mutante sem critério é o `>` →
+    `>=` do teto, uma comparação de tempo em ponto flutuante, que é equivalente.
+- **Mutação.** A mutação do `qualidade.py` sobre o diff deixou 6 de 60 mutantes vivos na
+  primeira rodada:
+  - os 2 do sítio que não confere, os mesmos que o teste em casa apontou, viraram teste;
+  - 2 equivalentes saíram do código: o preenchimento da linha curta da matriz sem conta, e
+    o `percebe` devolvendo o próprio booleano;
+  - o `+` → `-` do rodízio, que com dois critérios dá a mesma ordem, virou um teste com
+    três.
+
+  A rodada final mata 59 de 60, e o que sobra é o equivalente do teto. Cada teste novo
+  falha com o seu mutante plantado à mão, rodado com `python3 -B`, porque um `cp` que
+  restaura um arquivo do mesmo tamanho no mesmo segundo deixa o bytecode velho valendo.
 - **Custo.** No pior caso, cada mutante roda o comando de cada critério: *critérios ×
   mutantes* execuções de um teste só. No caso comum, o rodízio para no primeiro que
   percebe. `--max` e `--teto` limitam a rodada, como na `mutacao`.

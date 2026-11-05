@@ -106,6 +106,10 @@ garante está em Não prometido? O eixo Requisito ganha o mapa e os dois sentido
   - os sinais no corpo do PR;
   - a classe `intencao`: SPEC nova, mapa parcial, SPEC antiga, modo `bloqueio`, a ordem
     com a checagem de "Concluído sem verificado" e o documento que não é SPEC.
+
+  A mutação do `qualidade.py` deixou 6 de 42 mutantes vivos na primeira rodada. Os que
+  eram lacuna viraram teste. A rodada final mata 40 de 41, e o que sobra é equivalente: o
+  `[]` devolvido quando o import falha, que o chamador lê como `None`.
 - **SPECs antigas.** Seguem sem mapa até alguém editá-lo. O corpo do PR delas passa a dizer
   "A SPEC não tem mapa de intenção", o que é verdade e é para a pessoa ver.
 - **Requisito da varredura** tem origem própria (`varredura: <dimensão>`). Ele não veio de

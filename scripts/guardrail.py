@@ -85,6 +85,12 @@ Hook (payload do hook em stdin, exit 2 = bloqueia e o motivo vai para o modelo):
     guardrail.py contrato   # PostToolUse matcher Write|Edit
     guardrail.py parada     # Stop                               (ADR-0042)
 
+E um modo que não bloqueia: `faixa3` (ADR-0052) recebe o mesmo payload e responde em
+JSON se a chamada para por uma pessoa — efeito que um revert não desfaz, com o arco
+ligado. Quem pergunta é o mod do Claude Code (`hooks/pausa.ts`); o modo sai sempre 0.
+
+    guardrail.py faixa3     # chamado pelo mod em tool.check
+
 Os mesmos modos servem ao Cursor (ADR-0042): `.cursor/hooks.json`, gerado pelo sync,
 chama este script nos eventos `beforeShellExecution`, `beforeReadFile`, `afterFileEdit`
 e `stop`. O payload do Cursor é reconhecido pela forma (`conversation_id` sem
@@ -109,8 +115,10 @@ que o arquivo mudou — o que um sync legítimo também faz. Por isso ali o defa
       "protegidos":      ["infra/terraform/**"],   // além dos defaults
       "comandos_extra":  ["kubectl delete"],       // regex, além dos defaults
       "liberados":       [".github/workflows/**"], // abre mão de um default
-      "modos":           {"contrato": "aviso"}     // por classe (ADR-0030):
-    }                                              // bloqueio (default) | aviso
+      "modos":           {"contrato": "aviso"},    // por classe (ADR-0030):
+                                                   // bloqueio (default) | aviso
+      "faixa_3":         "sempre"                  // pausa da faixa 3 fora do arco
+    }                                              // também (ADR-0052)
 
 Classes de regra, para o campo `modos`: `comando`, `protegido`, `gerado`, `spec`,
 `contrato`, `teste`, `parada`, `regua`, `checkout`. Todas nascem em `bloqueio`, menos
@@ -1477,8 +1485,219 @@ def verificar(alvo: Path) -> int:
     return 0
 
 
+# --- faixa 3 na execução (ADR-0052) --------------------------------------------------
+# A faixa 3 do ADR-0031 é "difícil de reverter: humano decide, sempre". Até aqui ela era
+# decidida na revisão e no PR, depois do fato: o agente do arco, em modo automático, podia
+# aplicar infraestrutura, publicar um pacote ou migrar um banco de verdade na fase
+# `construindo`, e a revisão só via o código. Este modo diz, para uma chamada de
+# ferramenta, se o efeito dela sai do repositório de um jeito que um revert não desfaz.
+# Quem pergunta à pessoa é o mod do Claude Code (`hooks/pausa.ts`): o `ask` de um mod é
+# sempre de uma pessoa, nenhum classificador o aprova, e onde ninguém pode ser perguntado
+# ele vira recusa. Aqui só a regra, que nunca bloqueia sozinha: sai JSON, exit 0.
+#
+# Precisão importa mais que cobertura, como nos comandos destrutivos: pausa que pergunta
+# toda hora é pausa que a pessoa aprende a aprovar sem ler. Ensaio (`--dry-run`,
+# `terraform plan`, `--check`) passa, migration em banco local passa, leitura passa.
+
+IRREVERSIVEIS = [
+    (r"\b(terraform|tofu|terragrunt)\b.*\b(apply|destroy|import|state\s+(rm|mv|push))\b",
+     "aplica ou destrói infraestrutura"),
+    (r"\bpulumi\b.*\b(up|update|destroy|import|state\s+delete)\b", "aplica ou destrói infraestrutura"),
+    (r"\b(cdk|sam|serverless|sls)\b.*\b(deploy|destroy|remove)\b", "faz deploy ou remove uma stack"),
+    (r"\bkubectl\b.*\b(apply|create|delete|replace|patch|scale|drain|edit|rollout\s+(restart|undo)"
+     r"|set\s+image)\b", "muda um cluster Kubernetes"),
+    (r"\bhelm\b.*\b(install|upgrade|uninstall|delete|rollback)\b", "muda um release do Helm"),
+    (r"\bargocd\b.*\bapp\s+(sync|delete|rollback)\b", "sincroniza ou apaga uma aplicação no Argo CD"),
+    (r"\bansible-playbook\b", "roda um playbook do Ansible contra máquinas"),
+    (r"\b(fly|flyctl)\s+(deploy|destroy|apps\s+destroy|scale|secrets\s+(set|unset))\b",
+     "faz deploy ou muda o app no Fly"),
+    (r"\bvercel\b.*(--prod\b|\b(promote|remove|rm|rollback)\b|\benv\s+(add|rm)\b)",
+     "publica em produção na Vercel"),
+    (r"\bnetlify\b.*\bdeploy\b.*--prod\b", "publica em produção na Netlify"),
+    (r"\bheroku\b.*\b(releases:rollback|ps:scale|pg:reset|apps:destroy|config:(set|unset))\b",
+     "muda o app no Heroku"),
+    (r"\bgit\s+push\b.*\b(heroku|dokku)\b", "faz deploy por git push"),
+    (r"\b(firebase|railway|eb)\b.*\b(deploy|up|down|terminate)\b", "faz deploy ou derruba um ambiente"),
+    (r"\b(docker|podman)(\s+compose)?\s+(image\s+)?push\b", "publica uma imagem num registry"),
+    (r"\b(npm|pnpm|yarn|bun)\b.*\b(publish|unpublish|deprecate)\b", "publica um pacote"),
+    (r"\bcargo\s+(publish|yank|owner)\b", "publica um pacote"),
+    (r"\b(twine|flit)\s+(upload|publish)\b|\b(poetry|uv|hatch|pdm)\s+publish\b", "publica um pacote"),
+    (r"\bgem\s+(push|yank)\b|\bdotnet\s+nuget\s+(push|delete)\b|\bmvn\b.*\bdeploy\b",
+     "publica um pacote"),
+    (r"\bgh\s+release\s+(create|delete|edit|upload)\b", "publica ou muda um release"),
+    (r"\bgit\s+push\b.*(--tags\b|\brefs/tags/)", "publica tags"),
+    (r"\bgit\s+push\b.*[\s:](main|master|production|prod)(\s|$)",
+     "empurra direto para a branch principal, sem o PR que fecha o arco"),
+    (r"\bgh\s+(secret|variable)\s+(set|delete|remove)\b", "muda segredo ou variável do repositório"),
+    (r"\bvault\b.*\b(write|delete|destroy|kv\s+(put|patch|delete|destroy)|token\s+revoke)\b",
+     "muda segredo no Vault"),
+    (r"\bdoppler\s+secrets\s+(set|delete)\b|\bop\s+item\s+(create|edit|delete)\b",
+     "muda segredo num cofre"),
+    (r"\baws\s+(?!configure\b)\S+\s+(create|delete|put|update|modify|terminate|run|start|stop|reboot|attach|detach"
+     r"|associate|disassociate|authorize|revoke|deregister|register|rotate|restore|reset|cancel"
+     r"|invoke|publish|send|set|import|replace|enable|disable|apply)-?\S*", "muda recursos na AWS"),
+    (r"\baws\s+s3\s+(rm|rb|mv)\b|\baws\s+s3\s+(sync|cp)\b.*\s(s3://\S+)\s*$|\baws\s+s3\s+sync\b.*--delete",
+     "escreve ou apaga num bucket S3"),
+    (r"\bgcloud\s+(?!components\b|config\b|auth\b)\S.*\b(create|delete|deploy|update|patch|import|restore|reset|set-iam-policy"
+     r"|add-iam-policy-binding|remove-iam-policy-binding)\b", "muda recursos no Google Cloud"),
+    (r"\bgsutil\s+(rm|rb|mv)\b|\bgsutil\b.*\brsync\b.*\s-d\b", "escreve ou apaga num bucket"),
+    (r"\baz\s+(?!account\b|login\b|config\b|extension\b)\S.*\b(create|delete|update|deploy|purge|restart"
+     r"|stop)\b", "muda recursos no Azure"),
+    (r"\bdoctl\b.*\b(create|delete|deploy|update)\b", "muda recursos na DigitalOcean"),
+    (r"\b(sk|rk)_live_\w+", "usa uma chave de produção de pagamento"),
+    (r"\bstripe\b.*(--live\b|\b(refunds|payouts|transfers|charges|payment_intents|subscriptions)"
+     r"\s+(create|cancel|update|capture|confirm|delete)\b)", "movimenta dinheiro no Stripe"),
+    (r"\bprisma\s+migrate\s+deploy\b", "aplica migrations no banco de destino"),
+    (r"\bsupabase\s+db\s+push\b(?!.*--local)|\bsupabase\s+db\s+reset\b.*--linked",
+     "aplica migrations no projeto remoto do Supabase"),
+    (r"(^|[\s/])(make|just|task|rake|mage|cap|invoke)\s+(\S+\s+)*?(deploy\S*|publish\S*|release"
+     r"|rollout|promote|ship|production|prod)(\s|$)", "roda um alvo de deploy ou release"),
+    (r"\b(npm|pnpm|yarn|bun)\s+(run\s+)?(deploy\S*|publish\S*|release|promote|ship)(\s|$)",
+     "roda um script de deploy ou release"),
+    (r"^((\w+=\S*|sudo|bash|sh|zsh|python3?|node|ruby|bun|npx|tsx)\s+)*(\S*/)?(deploy|release|publish)\w*"
+     r"(\.(sh|py|rb|ts|js|mjs))?(\s|$)", "roda um script de deploy ou release"),
+]
+IRREVERSIVEIS = [(re.compile(p, re.I), efeito) for p, efeito in IRREVERSIVEIS]
+
+# Ensaio não muda nada: o mesmo comando com um destes passa.
+ENSAIO = re.compile(r"(?<![\w-])(--dry-run(=\S+)?|--check|--what-if|--preview|--diff|--help)(?![\w-])")
+TRECHOS = re.compile(r"\s*(?:&&|\|\||;|\||\n)\s*")
+
+# Migration em banco local é trabalho de `construindo`; em produção ou banco remoto, não.
+MIGRACAO = re.compile(
+    r"\balembic\s+(upgrade|downgrade|stamp)\b|\b(rails|rake|bin/rails)\s+db:(migrate|rollback|drop"
+    r"|reset|schema:load|seed|setup)\b|\bmanage\.py\s+(migrate|flush|loaddata)\b|\bknex\s+migrate:"
+    r"|\bsequelize(-cli)?\s+db:|\btypeorm\b.*\b(migration:(run|revert)|schema:(drop|sync))\b"
+    r"|\b(goose|dbmate)\s+(up|down|reset|drop|migrate|rollback)\b|\batlas\s+(migrate|schema)\s+apply\b"
+    r"|\bflyway\s+(migrate|clean|undo|repair)\b|\bliquibase\s+(update|rollback|drop-all)\b"
+    r"|\bprisma\s+(migrate\s+(dev|reset|resolve)|db\s+(push|execute|seed))\b"
+    r"|\bmix\s+ecto\.(migrate|rollback|drop|reset)\b|\b(diesel|sqlx)\b.*\b(run|revert|redo|drop|reset)\b"
+    r"|\bdrizzle-kit\s+(push|migrate|drop)\b", re.I)
+PRODUCAO = re.compile(
+    r"\b(RAILS_ENV|RACK_ENV|NODE_ENV|APP_ENV|MIX_ENV|FLASK_ENV|ENVIRONMENT|STAGE|ENV)=['\"]?"
+    r"(prod|production)\b|--(env|environment|stage|profile)[= ](prod|production)\b"
+    r"|(?<![\w-])-e\s+(prod|production)\b|\b(settings|config)[./_-]prod(uction)?\b", re.I)
+CLIENTE_DE_BANCO = re.compile(r"(^|[\s/])(psql|pg_restore|mysql|mariadb|mongosh|mongo|redis-cli"
+                              r"|sqlcmd|cqlsh|clickhouse-client)(\s|$)")
+HOST = re.compile(r"(?:^|\s)(?:-h\s*|--host[= ])([^\s'\";]+)"
+                  r"|\b[a-z][a-z0-9+.-]*://(?:[^@/\s'\"]*@)?(\[[^\]]+\]|[^/:\s?'\"]+)", re.I)
+HOSTS_LOCAIS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]", "host.docker.internal",
+                "db", "database", "postgres", "postgresql", "mysql", "mariadb", "mongo",
+                "mongodb", "redis"}
+
+
+def _host_remoto(trecho: str) -> str | None:
+    for m in HOST.finditer(trecho):
+        host = (m.group(1) or m.group(2) or "").lower()
+        if host and host not in HOSTS_LOCAIS and not host.endswith((".local", ".localhost")):
+            return host
+    return None
+
+
+def _efeito_de_banco(trecho: str, cmd: str) -> str | None:
+    """Migration com marca de produção ou banco remoto, e cliente de banco fora da máquina.
+    O `cmd` inteiro vale para a marca de produção, que costuma vir num `export` antes do `&&`."""
+    remoto = _host_remoto(trecho)
+    if MIGRACAO.search(trecho) and (PRODUCAO.search(cmd) or remoto):
+        return "aplica migration num banco de produção ou remoto"
+    if CLIENTE_DE_BANCO.search(trecho) and remoto:
+        return f"conecta a um banco fora da máquina ({remoto})"
+    return None
+
+
+def _efeito_do_trecho(trecho: str, cmd: str) -> str | None:
+    if not trecho.strip() or ENSAIO.search(trecho):
+        return None
+    return (next((e for padrao, e in IRREVERSIVEIS if padrao.search(trecho)), None)
+            or _efeito_de_banco(trecho, cmd))
+
+
+def efeito_irreversivel(cmd: str) -> str | None:
+    """O efeito fora do repositório que um revert não desfaz, ou None. Trecho a trecho:
+    `npm publish --dry-run && npm publish` pausa pelo segundo."""
+    return next((e for t in TRECHOS.split(cmd) if (e := _efeito_do_trecho(t, cmd))), None)
+
+
+# Ferramenta de MCP pelo nome: o servidor é de fora, e o `isReadOnly` que ele declara não
+# prova nada. Só os verbos que um revert não desfaz.
+MCP_IRREVERSIVEL = re.compile(
+    r"deploy|apply_migration|execute_sql|run_sql|execute_query|delete|drop|destroy|purge|truncate"
+    r"|publish|release|promote|rollback|merge|transfer|refund|payout|charge|capture|send_(email|message|sms)"
+    r"|post_message|secret|credential|rotate|revoke", re.I)
+
+
+def efeito_da_ferramenta(ferramenta: str, entrada: dict) -> str | None:
+    if ferramenta == "Bash":
+        return efeito_irreversivel(str(entrada.get("command") or ""))
+    if ferramenta.startswith("mcp__"):
+        nome = ferramenta.split("__", 2)[-1]
+        if MCP_IRREVERSIVEL.search(nome):
+            return f"chama `{nome}` num serviço de fora"
+    return None
+
+
+def quadros_abertos(raiz: Path) -> list[str]:
+    pasta = pasta_do_estado(raiz, "quadro")
+    if not pasta.is_dir():
+        return []
+    abertos = []
+    for p in sorted(pasta.glob("*.json")):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not d.get("encerrado_em"):
+            abertos.append(str(d.get("slug") or p.stem))
+    return abertos
+
+
+def contexto_da_pausa(raiz: Path, cfg: dict) -> tuple[str, str | None] | None:
+    """Por que a autonomia está ligada aqui, e a SPEC do ciclo (para o `escalar`), ou None.
+
+    Fora do arco a pessoa já está no circuito pelas permissões de sempre; a pausa existe
+    para quando ela saiu dele. `"faixa_3": "sempre"` em `.agents/guardrails.json` estende
+    a pausa para fora do arco — o arquivo que só o humano escreve.
+    """
+    ciclos = ciclos_abertos(raiz)
+    if ciclos:
+        c = ciclos[0]
+        return (f"o ciclo {c.get('spec')} está em `{c.get('estado')}`", c.get("spec"))
+    quadros = quadros_abertos(raiz)
+    if quadros:
+        return (f"a mobilização `{quadros[0]}` está em andamento", None)
+    if cfg.get("faixa_3") == "sempre":
+        return ("o projeto pediu a pausa da faixa 3 sempre (`.agents/guardrails.json`)", None)
+    return None
+
+
+def checar_faixa3(payload: dict) -> int:
+    """Modo `faixa3`: diz ao mod se a chamada para por uma pessoa. Sempre exit 0."""
+    raiz = Path(payload.get("cwd") or ".")
+    ferramenta = str(payload.get("tool_name") or "")
+    entrada = payload.get("tool_input") or {}
+    efeito = efeito_da_ferramenta(ferramenta, entrada)
+    contexto = contexto_da_pausa(raiz, carregar_config(raiz)) if efeito else None
+    if not efeito or not contexto:
+        print(json.dumps({"pausa": False}))
+        return 0
+    porque, spec = contexto
+    alvo = str(entrada.get("command") or ferramenta)
+    escalar = (f"`ciclo.py escalar {spec} --motivo \"faixa 3: {efeito}\"`" if spec
+               else "o quadro bloqueado com o motivo")
+    razao = (f"⏸️ kairos-forge, pausa da faixa 3: esta chamada {efeito}, e um revert no código "
+             f"não desfaz isso. Ela para por uma pessoa porque {porque}: a autonomia da fábrica "
+             f"não cobre ação irreversível (ADR-0024, ADR-0031). Permita só se você conferiu o "
+             f"alvo. Recusada, a fábrica não contorna: registra {escalar} e espera.")
+    registrar_evento(raiz, {"tipo": "pausa", "classe": "faixa3", "regra": efeito,
+                            "alvo": alvo[:200], "spec": spec})
+    print(json.dumps({"pausa": True, "efeito": efeito, "contexto": porque, "spec": spec,
+                      "razao": razao}, ensure_ascii=False))
+    return 0
+
+
 MODOS = {"comando": checar_comando, "escrita": checar_escrita, "spec": checar_spec,
-         "contrato": checar_contrato, "leitura": checar_leitura, "parada": checar_parada}
+         "contrato": checar_contrato, "leitura": checar_leitura, "parada": checar_parada,
+         "faixa3": checar_faixa3}
 
 
 def main() -> int:

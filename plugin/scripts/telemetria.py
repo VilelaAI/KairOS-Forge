@@ -121,6 +121,11 @@ except Exception:                     # cópia avulsa do script, sem o execucao.
         return Path(raiz) / ".agents" / nome
 
 CONTADORES = {"delegacao": "delegacoes", "guardrail_erro": "erros_guardrail"}
+# Evento que entra numa lista da sessão: tipo → (campo, o que guardar dele).
+ANOTACOES = {
+    "recusa": ("recusas", lambda ev: (ev.get("classe", "?"), ev.get("modo", "?"))),
+    "pausa": ("pausas", lambda ev: ev.get("regra", "?")),   # faixa 3 parada (ADR-0052)
+}
 
 
 def por_sessao(eventos: list[dict]) -> dict[str, dict]:
@@ -128,7 +133,7 @@ def por_sessao(eventos: list[dict]) -> dict[str, dict]:
         lambda: {
             "prompts": 0, "skills": [], "gates": [], "escritas": 0,
             "producao": 0, "delegacoes": 0, "recusas": [], "inicio": None, "fim": None,
-            "erros_guardrail": 0,
+            "erros_guardrail": 0, "pausas": [],
         }
     )
     for ev in eventos:
@@ -151,8 +156,9 @@ def por_sessao(eventos: list[dict]) -> dict[str, dict]:
                 d["producao"] += 1
         elif tipo in CONTADORES:
             d[CONTADORES[tipo]] += 1
-        elif tipo == "recusa":
-            d["recusas"].append((ev.get("classe", "?"), ev.get("modo", "?")))
+        elif tipo in ANOTACOES:
+            campo, valor = ANOTACOES[tipo]
+            d[campo].append(valor(ev))
     return dict(s)
 
 
@@ -303,6 +309,14 @@ def linha_de_faltas_do_resumo(m: dict) -> str:
     partes = ", ".join(f"{f} ({v['perguntas']} pergunta(s) em {v['sessoes']} sessão(ões))"
                        for f, v in list(m["faltas_de_fonte"].items())[:5])
     return f"  Fontes que faltaram:  {partes}"
+
+
+def linha_de_pausas_do_resumo(m: dict) -> str:
+    """As pausas da faixa 3 por efeito (ADR-0052), com a quebra de linha; nada sem pausa."""
+    if not m.get("pausas_faixa3"):
+        return ""
+    efeitos = ", ".join(f"{k} ({v})" for k, v in m["pausas_por_efeito"].items())
+    return f"  Pausas da faixa 3:    {m['pausas_faixa3']} — {efeitos}\n"
 
 
 def linha_de_tokens_do_resumo(m: dict) -> str:
@@ -571,6 +585,8 @@ def metricas(sessoes: dict[str, dict]) -> dict:
         "recusas_em_modo_aviso": em_aviso,
         "sessoes_com_recusa": sum(1 for v in sessoes.values() if v["recusas"]),
         "falhas_do_guardrail": sum(v["erros_guardrail"] for v in sessoes.values()),
+        "pausas_faixa3": sum(len(v.get("pausas", [])) for v in sessoes.values()),
+        "pausas_por_efeito": contar([p for v in sessoes.values() for p in v.get("pausas", [])]),
         "ciclos": len(ciclos),
         "ciclos_autonomos": len(autonomos),
         "autonomia_pct": pct(len(autonomos), len(ciclos)),
@@ -597,12 +613,16 @@ def mediana(valores: list[int]) -> float | None:
     return float(v[meio]) if len(v) % 2 else (v[meio - 1] + v[meio]) / 2
 
 
-def contar_skills(sessoes: dict[str, dict]) -> dict[str, int]:
+def contar(itens: list[str]) -> dict[str, int]:
+    """Quantas vezes cada item aparece, do mais frequente ao menos."""
     c: dict[str, int] = defaultdict(int)
-    for v in sessoes.values():
-        for s in v["skills"]:
-            c[s] += 1
+    for item in itens:
+        c[item] += 1
     return dict(sorted(c.items(), key=lambda kv: -kv[1]))
+
+
+def contar_skills(sessoes: dict[str, dict]) -> dict[str, int]:
+    return contar([s for v in sessoes.values() for s in v["skills"]])
 
 
 def normalizar(cmd: str) -> str:
@@ -1527,6 +1547,7 @@ def imprimir_resumo(m: dict, dias: int | None) -> None:
         if m["recusas_em_modo_aviso"]:
             print(f"     {m['recusas_em_modo_aviso']} em modo aviso. Taxa baixa e estável "
                   "é o sinal de que a regra pode virar bloqueio.")
+    print(linha_de_pausas_do_resumo(m), end="")
     print(linha_de_tokens_do_resumo(m))
     print(linha_de_faltas_do_resumo(m))
     for alerta in alertas(m):

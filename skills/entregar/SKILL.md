@@ -182,6 +182,10 @@ o `limpo` é recusado (ADR-0048).
 O `/revisar` classifica o diff em faixa de raio de explosão. **Faixa 1**: gates verdes. **Faixa 2**: gates
 verdes **e** trajetória limpa (`telemetria.py`). **Faixa 3**: para e pergunta — `ciclo.py escalar --motivo
 "faixa 3: <o que é irreversível>"`, mesma fronteira do ADR-0024. A faixa sai no topo do corpo do PR.
+Na execução também (ADR-0052): no Claude Code, a chamada que um revert não desfaz (`terraform apply`, deploy,
+`npm publish`, migration em banco remoto, merge pelo MCP) para por uma pessoa enquanto o ciclo está aberto.
+Parada ou recusada, **não contorne**: nada de outro comando, script que a embrulhe ou permissão escalada.
+Registre o `ciclo.py escalar` que o cartão traz e espere.
 
 ### 8. `pronto_para_pr` — abrir o PR
 

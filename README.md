@@ -12,7 +12,7 @@ A partir da v0.17 o harness se instrumenta e se contém: **telemetria de execuç
 
 E a partir da v0.23 o gate decide pela variável certa: a **faixa de raio de explosão** do `/kairos-forge:revisar` pergunta *quanto custa desfazer*, não *quão confiante estou* — confiança é a variável fraca, e é justamente a que o modelo controla. Mudança contida fecha com gate verde; mudança difícil de reverter é do humano, sempre.
 
-Da v0.28 à v0.44 o que era prosa virou código:
+Da v0.28 à v0.45 o que era prosa virou código:
 - O `/kairos-forge:mobilizar` roda nos quatro CLIs. O quadro de tarefas virou arquivo (`quadro.py`), com tempo limite e compensação em ordem inversa (ADR-0035/0036).
 - Teste novo que passa sem a mudança é acusado (`prova.py`, ADR-0039).
 - O grafo ganha uma camada de código extraída por AST (ADR-0041).
@@ -25,6 +25,7 @@ Da v0.28 à v0.44 o que era prosa virou código:
 - O quadro confere no git o que cada tarefa mudou e recusa o que saiu da posse; validação bloqueada por falta de prova vai provar antes de corrigir; a re-revisão diz o que foi feito de cada 🔴 da rodada anterior; e o ledger mostra os tokens que o transcript registrou, por tarefa (ADR-0048).
 - Um eval de ponta a ponta mede se a tarefa ficou pronta, e uma auditoria das 71 personas diz quais ganham contexto próprio: a primeira mudança proposta é dar à crítica e à revisão o contexto independente que hoje só têm no nome (ADR-0049).
 - No Claude Code, o arco fica à vista sem gastar turno: `/forge-painel` abre ao lado da conversa o trilho especificar → construir → validar → revisar → PR, com a fase marcada; uma faixa acima do prompt chama você quando um gate espera; `/forge-caixa` responde na hora. É o primeiro mod da fábrica, e só lê (ADR-0051).
+- A faixa 3 também vale na execução: no arco, a chamada que um revert não desfaz (`terraform apply`, deploy, `npm publish`, migration em banco remoto) para por uma pessoa antes de rodar, mesmo em modo automático ou com a ferramenta liberada. O mod pergunta; a regra é do `guardrail.py faixa3` (ADR-0052).
 
 Para projetos em **domínios regulados brasileiros** (LGPD, NRs, OAB, etc.), use [kairos-ai](https://github.com/VilelaAI/kairos-ai) em vez deste — adiciona squads negociais, guardrails legais, assertions binárias e advisor regulatório.
 

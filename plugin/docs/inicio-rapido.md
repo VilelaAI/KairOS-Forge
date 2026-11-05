@@ -36,7 +36,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver (lista de skills abreviada aqui):
 
 ```
-🔥 kairos-forge v0.44 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+🔥 kairos-forge v0.45 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -204,6 +204,8 @@ O relatório abre com a **faixa de raio de explosão** (ADR-0031), porque ela é
 | 3 — difícil de reverter | Migration destrutiva, deleção, produção, dinheiro | **Humano decide, sempre** |
 
 Um diff de 20 linhas na faixa 3 recebe mais escrutínio que um de 400 na faixa 1. Se o projeto tem histórico git, a taxa de reversão da área tocada (`diagnostico.py`) é evidência para subir de faixa — é o sinal que o modelo não consegue influenciar.
+
+A faixa 3 também vale na hora de executar (ADR-0052). No Claude Code, enquanto um ciclo do `/entregar` ou uma mobilização está aberta, a chamada que um revert não desfaz para por você antes de rodar, mesmo em modo automático ou com a ferramenta liberada. São exemplos `terraform apply`, deploy, `npm publish`, push direto na `main`, migration em banco remoto e merge pelo MCP. A pergunta vem com um cartão: o que a chamada faz, por que parou e o que a fábrica faz se você recusar. Ensaio (`--dry-run`, `terraform plan`) e migration em banco local passam. Para valer fora do arco também, ponha `"faixa_3": "sempre"` em `.agents/guardrails.json`.
 
 O relatório é salvo em `docs/specs/revisoes/` com um bloco de contrato (ADR-0032) que o `/kairos-forge:entregar` lê do disco. Duas regras nele valem saber: **zero 🔴 exige a lista do que foi lido** — "não achei nada" sem dizer onde procurou é ausência de busca, não ausência de defeito; e a fence é própria da revisão, nunca a mesma da validação.
 

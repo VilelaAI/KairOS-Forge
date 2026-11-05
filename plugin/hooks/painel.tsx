@@ -14,7 +14,7 @@
 // vêm do `scripts/painel.py`, como em qualquer CLI sem mod.
 
 import { atom, read, update } from 'claude-code'
-import type { Elements, EngineInterface, Register } from 'claude-code'
+import type { Elements, EngineInterface, On } from 'claude-code'
 
 import type { Caixa, CicloDoPainel, Leitura, QuadroDoPainel, Relatorio, SpecDoPainel } from '../types'
 import {
@@ -296,7 +296,7 @@ function desenharFaixa($: $, { Box, Button, Text }: Tabela, f: Faixa) {
 
 // --- ganchos ---------------------------------------------------------------------------
 
-export const register: Register = on => {
+export function registrarPainel(on: On) {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'forge-painel',

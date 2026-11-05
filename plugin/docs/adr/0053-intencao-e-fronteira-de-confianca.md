@@ -101,7 +101,7 @@ garante está em Não prometido? O eixo Requisito ganha o mapa e os dois sentido
   `kairos-revisao` e o `ciclo.py estado --json` ficam como estão. Muda o texto do gate 3/3,
   que não faz parte da assinatura. O `painel.py --json` ganha `intencao`, `confiado` e
   `nao_prometido` por SPEC.
-- **Testes.** `test_intencao.py` tem 14 testes, dos quais 11 falham contra a `main`. Cobrem:
+- **Testes.** `test_intencao.py` tem 17 testes, dos quais 14 falham contra a `main`. Cobrem:
   - a leitura das três seções;
   - os sinais no corpo do PR;
   - a classe `intencao`: SPEC nova, mapa parcial, SPEC antiga, modo `bloqueio`, a ordem

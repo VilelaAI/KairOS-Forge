@@ -80,6 +80,20 @@ class Leitura(unittest.TestCase):
         self.assertEqual(i["sem_origem"], ["LOG-03"])
         self.assertEqual(i["inferidos"], ["LOG-02"])
 
+    def test_tabela_de_cinco_colunas_e_linha_do_mapa_sem_fonte(self) -> None:
+        texto = ("""| ID | Requisito | Prioridade | Status | Verificação |
+|---|---|---|---|---|
+| A-01 | x | P1 | Pendente | — |
+
+## Mapa de intenção
+
+| Requisito | De onde veio |
+|---|---|
+| A-01 |
+""")
+        i = painel.intencao_da_spec(texto)
+        self.assertEqual((i["ids"], i["sem_origem"]), (["A-01"], ["A-01"]))
+
     def test_spec_sem_mapa(self) -> None:
         i = painel.intencao_da_spec(REQUISITOS)
         self.assertFalse(i["tem_mapa"])
@@ -218,6 +232,26 @@ class NoGuardrail(Sandbox):
         codigo, err = self.escrever(sem_prova)
         self.assertEqual(codigo, 2)
         self.assertIn("'Concluído' sem célula `verificado:`", err)
+
+    def test_lista_longa_corta_em_oito_e_diz_quantos_faltam(self) -> None:
+        def spec(n: int) -> str:
+            linhas = "".join(f"| R-{k:02d} | x | P2 | x | Pendente | — |\n" for k in range(1, n + 1))
+            return "| ID | Req | P | Critério | Status | Verificação |\n|---|---|---|---|---|---|\n" + linhas
+        codigo, err = self.escrever(spec(9), nome="SPEC-030-a.md")
+        self.assertIn("R-01, R-02, R-03, R-04, R-05, R-06, R-07, R-08 e mais 1", err)
+        codigo, err = self.escrever(spec(8), nome="SPEC-031-b.md")
+        self.assertIn("R-07, R-08\n", err)                  # os oito, e a linha acaba ali
+        self.assertNotIn("e mais", err)
+
+    def test_vale_o_cwd_do_payload_nao_o_do_processo(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as outro:
+            os.chdir(outro)
+            try:
+                self.assertEqual(self.escrever(REQUISITOS)[0], 1)
+            finally:
+                os.chdir(self.raiz)
+        self.assertEqual(self.recusas()[0]["alvo"], "docs/specs/SPEC-020-login.md")
 
     def test_documento_sem_requisitos_nao_e_spec(self) -> None:
         self.assertEqual(self.escrever("# Notas\n\nnada aqui\n", nome="notas.md")[0], 0)

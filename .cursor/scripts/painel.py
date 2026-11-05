@@ -218,7 +218,7 @@ def confiado_da_spec(texto: str) -> list[dict]:
     """As peças que a entrega assume sem provar: o que, quem aceitou, o teste que cobre."""
     saida = []
     for linha in _linhas_da_tabela(_secao(texto, "Confiado") or ""):
-        linha = linha + [""] * (3 - len(linha))
+        linha = linha + ["", ""]          # aceito por e teste podem faltar na linha
         saida.append({"assume": linha[0], "aceito_por": linha[1], "teste": linha[2],
                       "testado": linha[2].lower().startswith("verificado:")})
     return [p for p in saida if p["assume"] not in SEM_VALOR]

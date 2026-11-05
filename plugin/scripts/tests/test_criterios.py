@@ -209,6 +209,14 @@ class Motor(unittest.TestCase):
                          {"a": "descarta", "b": "descarta"})
         self.assertEqual(len([c for c in self.chamadas if c[1] is not None]), 4)
 
+    def test_o_rodizio_anda_para_a_frente(self) -> None:
+        # O mutante 1 começa no critério 1 (`b`, que não o percebe) e segue para o 2 (`c`),
+        # não volta para o 0 (`a`): com três critérios, a direção decide quem leva o crédito.
+        # Depois, na segunda passada, `a` (que ainda não percebeu nada) tenta o mesmo mutante.
+        _, mutantes = self.rodar({"a": {1}, "b": set(), "c": {1}}, 2)
+        self.assertEqual(mutantes[1]["pego_por"], ["C"])
+        self.assertEqual([c for c, m in self.chamadas if m == 1], ["b", "c", "a"])
+
     def test_quem_o_rodizio_nao_serviu_ainda_tenta_os_outros_mutantes(self) -> None:
         # `a` pega tudo e chega primeiro em 0 e 2; `b` só percebe o 2 — e o rodízio deu o
         # 2 para `a`. Sem a segunda passada, `b` sairia de fachada sem ter visto o 2.

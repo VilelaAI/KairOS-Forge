@@ -90,10 +90,14 @@ class ComandosSemInstalarNada(unittest.TestCase):
 class ReferenciasDoGuia(unittest.TestCase):
     def test_skill_citada_existe(self) -> None:
         nomes = set(re.findall(r"`/([a-z][a-z-]+)[ `]", texto())) - NATIVOS
+        # Os comandos que o mod do painel registra (ADR-0051) também são comandos da fábrica.
+        do_mod = set(re.findall(r"name: '([a-z-]+)'",
+                                (RAIZ / "hooks" / "painel.tsx").read_text(encoding="utf-8")))
         self.assertIn("entregar", nomes)
+        self.assertIn("forge-painel", nomes & do_mod)
         for nome in sorted(nomes):
             with self.subTest(nome):
-                self.assertTrue((RAIZ / "skills" / nome / "SKILL.md").is_file())
+                self.assertTrue((RAIZ / "skills" / nome / "SKILL.md").is_file() or nome in do_mod)
 
     def test_template_script_e_doc_citados_existem(self) -> None:
         caminhos = set(re.findall(r"(?:templates/ci|docs)/[\w.-]+\.(?:yml|md)", texto()))

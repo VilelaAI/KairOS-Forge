@@ -76,6 +76,7 @@ Acionar:
 | `/kairos-forge:auditar` | Semanal. Pontuação 0–120 em 6 dimensões (Fundação, Pipeline, Guardrails, Conhecimento, Estrutura, **Autonomia**) | Todos os CLIs |
 | `/kairos-forge:evoluir` | Semanal pós-auditoria: lê a trajetória (`telemetria.py resumo`), dá veredicto à evolução anterior e escolhe UMA capacidade nova | Todos os CLIs |
 | `/kairos-forge:relatar [dias\|SPEC]` | O que entregamos, por que decidimos e quanto custou em tokens, com a Talita: cada número com o comando de onde saiu, "não medido" onde não há hook, decisão citada por arquivo e linha, e o status do período em `decisoes/gestao/` quando pedido (ADR-0050) | Todos os CLIs (tokens e trajetória só onde há hook) |
+| `/forge-painel` · `/forge-caixa [--github]` | O arco ao lado da conversa, sem gastar turno do modelo: o trilho especificar → construir → validar → revisar → PR com a fase marcada, fichas, veredictos e mobilizações; uma faixa acima do prompt quando algo espera por você, com toast no gate humano novo; a caixa como texto, na hora. Só lê, do `painel.py` (ADR-0051) | Só Claude Code (mod); nos outros, `painel.py` no terminal |
 
 Ordem natural: `onboardar` → `mapear-arquitetura` (brownfield) → `diagnosticar` (sistema existente) → `especificar` → `analisar-ameacas` (features sensíveis) → `desenhar` (features com UI) → `mobilizar`/`rodar` → `validar` → `revisar` → `lancar` → `mapear-conhecimento` (quando docs acumulam) → `auditar` → `evoluir`.
 
@@ -326,6 +327,11 @@ paralela que o ADR-0013 recusou; se o número está errado, o bug está na fonte
 **"Concluído" sem `verificado:` não conta como pronto** — cai para "Em progresso"
 e vira aviso. Um quadro que somasse a palavra mostraria progresso que a própria
 `/validar` recusaria.
+
+No Claude Code o mesmo quadro fica ao lado da conversa, como mod do plugin (ADR-0051):
+`/forge-painel` abre o painel, a faixa acima do prompt chama você quando um gate espera, e
+`/forge-caixa` devolve a caixa na hora, até com um turno rodando. Nada disso gasta turno do
+modelo, e o mod só lê: não aprova nem recusa chamada e não escreve arquivo.
 
 ### O que a autonomia **não** inclui
 

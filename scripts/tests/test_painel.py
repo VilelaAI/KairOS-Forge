@@ -120,6 +120,57 @@ class Caixa(unittest.TestCase):
             self.assertEqual(avulso.caixa_github(Path.cwd()), ({"estado": "falhou"}, []))
 
 
+class FaseEColunas(unittest.TestCase):
+    """O que o `--json` dá pronto para o mod do painel desenhar (ADR-0051)."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="kairos-forge-fase-")
+        self._cwd = os.getcwd()
+        os.chdir(self._tmp.name)
+        Path("docs/specs").mkdir(parents=True)
+        Path("docs/specs/SPEC-012-exportar.md").write_text(SPEC_012, encoding="utf-8")
+        Path("docs/specs/SPEC-001-x.md").write_text(SPEC.format(n=1), encoding="utf-8")
+
+    def tearDown(self) -> None:
+        os.chdir(self._cwd)
+        self._tmp.cleanup()
+
+    def json_do_painel(self) -> dict:
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            sys.argv, antigo = ["painel.py", "--json"], sys.argv
+            try:
+                painel.main()
+            finally:
+                sys.argv = antigo
+        return json.loads(out.getvalue())
+
+    def test_todo_estado_do_ciclo_tem_fase_e_so_das_conhecidas(self) -> None:
+        # Estado novo no ciclo.py sem fase aqui falha: cair calado num trecho errado do
+        # trilho é pior que não desenhar.
+        self.assertEqual(set(ciclo.ESTADOS) - {"escalado"}, set(painel.FASE_DO_ESTADO))
+        self.assertLessEqual(set(painel.FASE_DO_ESTADO.values()), {*painel.FASES, "encerrado"})
+        self.assertEqual(painel.FASE_DO_ESTADO["atacando_premissa_validacao"], "validar")
+        self.assertIsNone(painel.fase_do_ciclo({"estado": "lancando"}))
+
+    def test_fase_no_json_e_o_escalado_fica_onde_parou(self) -> None:
+        chamar(ciclo, "abrir", "SPEC-012", "--spec-aprovada")          # construindo
+        chamar(ciclo, "registrar", "pronto", "SPEC-012")               # validando
+        chamar(ciclo, "escalar", "SPEC-012", "--motivo", "orçamento de validar esgotado")
+        chamar(ciclo, "abrir", "SPEC-001")                             # enquadrando
+        fases = {c["spec"]: (c["estado"], c["fase"]) for c in self.json_do_painel()["ciclos"]}
+        self.assertEqual(fases, {"SPEC-012": ("escalado", "validar"),
+                                 "SPEC-001": ("enquadrando", "especificar")})
+
+    def test_colunas_com_a_regra_do_verificado(self) -> None:
+        specs = {s["id"]: s for s in self.json_do_painel()["specs"]}
+        # EXP-02 está "Concluído" sem `verificado:`: fica em progresso, como no terminal.
+        self.assertEqual(specs["SPEC-012"]["colunas"], {"A fazer": ["EXP-03"],
+                                                        "Em progresso": ["EXP-02"],
+                                                        "Pronto": ["EXP-01"]})
+        self.assertEqual(specs["SPEC-001"]["colunas"],
+                         {"A fazer": ["EX-01"], "Em progresso": [], "Pronto": []})
+
+
 
 SPEC_012 = """# SPEC-012 — Exportar CSV
 

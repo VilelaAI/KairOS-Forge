@@ -30,6 +30,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 DIRS_ESPELHADOS = [
     "agents", "skills", "templates", "hooks", ".codex", ".codex-plugin",
     "scripts", "docs", "hermes", "contratos",
+    "types",   # contrato de estado do mod do painel (ADR-0051); os testes do mod, em tests/, não vão
 ]
 ARQUIVOS_ESPELHADOS = ["CLAUDE.md", "AGENTS.md", ".claude-plugin/plugin.json"]
 # Diferem por desenho entre root e plugin/ — nunca copiar nem comparar.

@@ -36,7 +36,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver (lista de skills abreviada aqui):
 
 ```
-🔥 kairos-forge v0.43 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+🔥 kairos-forge v0.44 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -231,6 +231,14 @@ Sai o quadro vivo: requisitos por coluna (A fazer / Em progresso / Pronto), prog
 A `--caixa` é a caixa de entrada (ADR-0044): o gate do planejamento que espera sua resposta, a SPEC que mudou depois de aprovada, o ciclo escalado com o motivo, a tarefa bloqueada ou vencida no quadro — cada item com o comando que resolve. Com `--caixa --github` entram também as issues `forge:falta-informacao` da triagem e os PRs abertos pela fábrica; sem o `--github`, nada sai da máquina.
 
 Duas coisas que ele **não** faz, de propósito: não escreve nada (é renderização do estado canônico, nunca planilha paralela — ADR-0013), e não conta como "Pronto" requisito marcado `Concluído` sem `verificado:` — esse cai para "Em progresso" e aparece no aviso. Um quadro que somasse a palavra mostraria progresso que a própria `/validar` recusaria.
+
+No Claude Code, o mesmo painel fica ao lado da conversa, sem gastar turno do modelo (ADR-0051):
+
+- `/forge-painel` abre o painel com o trilho do arco (especificar → construir → validar → revisar → PR) e a fase marcada, as fichas, os veredictos, as mobilizações e a caixa em cima.
+- Quando algo espera por você, aparece uma faixa acima do prompt; um gate humano novo também avisa com um toast. A linha de status diz o ciclo em curso.
+- `/forge-caixa` devolve a caixa como texto, na hora, até com um turno rodando.
+
+O mod só lê: os números são os mesmos do `painel.py`. No `-p` e na nuvem nada é desenhado, e o `/forge-painel` devolve o quadro como texto.
 
 ### 3i. Alimentar a memória da fábrica
 

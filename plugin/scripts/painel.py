@@ -83,6 +83,34 @@ PESO = {"concluído": 1.0, "concluido": 1.0, "em progresso": 0.5, "pendente": 0.
 
 ICONE_ESTADO = {"escalado": "⏸️", "encerrado": "✅", "pronto_para_pr": "🎯"}
 
+# Em que trecho do arco cada estado do `ciclo.py` está, para quem desenha o trilho
+# especificar → construir → validar → revisar → PR (o mod do painel, ADR-0051). A lista é
+# fechada de propósito: estado novo sem fase aqui falha o teste, em vez de cair calado
+# num trecho errado. `escalado` não tem fase própria: vale a do estado de onde escalou.
+FASES = ("especificar", "construir", "validar", "revisar", "pr")
+FASE_DO_ESTADO = {
+    **dict.fromkeys(("enquadrando", "aguardando_entendimento", "desenhando",
+                     "aguardando_abordagem", "especificando", "criticando", "corrigindo_spec",
+                     "atacando_premissa_spec", "aguardando_aprovacao"), "especificar"),
+    "construindo": "construir",
+    **dict.fromkeys(("validando", "corrigindo_validacao", "provando",
+                     "atacando_premissa_validacao"), "validar"),
+    **dict.fromkeys(("revisando", "corrigindo_revisao", "atacando_premissa_revisao"), "revisar"),
+    "pronto_para_pr": "pr",
+    "encerrado": "encerrado",
+}
+
+
+def fase_do_ciclo(c: dict) -> str | None:
+    """A fase do arco do ciclo; o escalado fica na fase de onde parou. None se o estado
+    não é conhecido (arquivo de uma versão mais nova do `ciclo.py`)."""
+    e = c.get("estado")
+    if e == "escalado":
+        de = next((h.get("de") for h in reversed(c.get("historico") or [])
+                   if h.get("para") == "escalado"), None)
+        return FASE_DO_ESTADO.get(de)
+    return FASE_DO_ESTADO.get(e)
+
 
 # --- leitura das fontes canônicas ----------------------------------------------------
 
@@ -158,6 +186,14 @@ def coluna_de(r: dict) -> str:
     return "Em progresso" if r["estado"] == "em progresso" else "A fazer"
 
 
+def colunas_da_spec(s: dict) -> dict[str, list[str]]:
+    """Os ids de requisito por coluna, já com a regra do `verificado:` aplicada."""
+    colunas: dict[str, list[str]] = {"A fazer": [], "Em progresso": [], "Pronto": []}
+    for r in s["requisitos"]:
+        colunas[coluna_de(r)].append(r["id"])
+    return colunas
+
+
 def ler_ciclos(raiz: Path) -> list[dict]:
     pasta = pasta_do_projeto(raiz, "ciclo")
     if not pasta.is_dir():
@@ -220,9 +256,10 @@ def coletar(raiz: Path, alvo: str | None, dias: int) -> dict:
             s = ler_spec(p)
             if s and (alvo is None or alvo.lower() in s["id"].lower()):
                 s["relatorios"] = ler_relatorios(raiz, s["id"])
+                s["colunas"] = colunas_da_spec(s)
                 specs.append(s)
 
-    ciclos = [c for c in ler_ciclos(raiz)
+    ciclos = [{**c, "fase": fase_do_ciclo(c)} for c in ler_ciclos(raiz)
               if alvo is None or alvo.lower() in str(c.get("spec", "")).lower()]
 
     quadros = [q for q in ler_quadros(raiz)

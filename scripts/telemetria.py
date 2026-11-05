@@ -125,6 +125,7 @@ CONTADORES = {"delegacao": "delegacoes", "guardrail_erro": "erros_guardrail"}
 ANOTACOES = {
     "recusa": ("recusas", lambda ev: (ev.get("classe", "?"), ev.get("modo", "?"))),
     "pausa": ("pausas", lambda ev: ev.get("regra", "?")),   # faixa 3 parada (ADR-0052)
+    "segredo_na_saida": ("segredos", lambda ev: ev.get("regra", "?")),   # ADR-0056
 }
 
 
@@ -133,7 +134,7 @@ def por_sessao(eventos: list[dict]) -> dict[str, dict]:
         lambda: {
             "prompts": 0, "skills": [], "gates": [], "escritas": 0,
             "producao": 0, "delegacoes": 0, "recusas": [], "inicio": None, "fim": None,
-            "erros_guardrail": 0, "pausas": [],
+            "erros_guardrail": 0, "pausas": [], "segredos": [],
         }
     )
     for ev in eventos:
@@ -311,12 +312,22 @@ def linha_de_faltas_do_resumo(m: dict) -> str:
     return f"  Fontes que faltaram:  {partes}"
 
 
-def linha_de_pausas_do_resumo(m: dict) -> str:
-    """As pausas da faixa 3 por efeito (ADR-0052), com a quebra de linha; nada sem pausa."""
-    if not m.get("pausas_faixa3"):
+def _linha_contada(rotulo: str, total: int, por_item: dict[str, int]) -> str:
+    """`rotulo: total — item (n), ...` com a quebra de linha; nada quando o total é zero."""
+    if not total:
         return ""
-    efeitos = ", ".join(f"{k} ({v})" for k, v in m["pausas_por_efeito"].items())
-    return f"  Pausas da faixa 3:    {m['pausas_faixa3']} — {efeitos}\n"
+    itens = ", ".join(f"{k} ({v})" for k, v in por_item.items())
+    return f"  {rotulo:<21} {total} — {itens}\n"
+
+
+def linha_de_pausas_do_resumo(m: dict) -> str:
+    """As pausas da faixa 3 por efeito (ADR-0052); nada sem pausa."""
+    return _linha_contada("Pausas da faixa 3:", m.get("pausas_faixa3", 0), m.get("pausas_por_efeito", {}))
+
+
+def linha_de_segredos_do_resumo(m: dict) -> str:
+    """As saídas de ferramenta com segredo, por tipo (ADR-0056); nada sem achado."""
+    return _linha_contada("Segredos na saída:", m.get("segredos_na_saida", 0), m.get("segredos_por_tipo", {}))
 
 
 def linha_de_tokens_do_resumo(m: dict) -> str:
@@ -587,6 +598,9 @@ def metricas(sessoes: dict[str, dict]) -> dict:
         "falhas_do_guardrail": sum(v["erros_guardrail"] for v in sessoes.values()),
         "pausas_faixa3": sum(len(v.get("pausas", [])) for v in sessoes.values()),
         "pausas_por_efeito": contar([p for v in sessoes.values() for p in v.get("pausas", [])]),
+        "segredos_na_saida": sum(len(v.get("segredos", [])) for v in sessoes.values()),
+        "segredos_por_tipo": contar([t.strip() for v in sessoes.values()
+                                     for r in v.get("segredos", []) for t in r.split(",")]),
         "ciclos": len(ciclos),
         "ciclos_autonomos": len(autonomos),
         "autonomia_pct": pct(len(autonomos), len(ciclos)),
@@ -1548,6 +1562,7 @@ def imprimir_resumo(m: dict, dias: int | None) -> None:
             print(f"     {m['recusas_em_modo_aviso']} em modo aviso. Taxa baixa e estável "
                   "é o sinal de que a regra pode virar bloqueio.")
     print(linha_de_pausas_do_resumo(m), end="")
+    print(linha_de_segredos_do_resumo(m), end="")
     print(linha_de_tokens_do_resumo(m))
     print(linha_de_faltas_do_resumo(m))
     for alerta in alertas(m):

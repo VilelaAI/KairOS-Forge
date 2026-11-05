@@ -100,6 +100,14 @@ fora do esquema bloqueia a ação.
     guardrail.py faixa3     # chamado pelo mod em tool.check, e no Cursor em
                             # beforeShellExecution e beforeMCPExecution
 
+E o modo `saida` (ADR-0056), que também não bloqueia: recebe `textos` (o que uma
+ferramenta devolveu) e responde com eles já sem os segredos — token com prefixo próprio,
+chave privada, JWT, senha em URL, valor de variável secreta —, o aviso para o modelo e o
+achado gravado na trajetória sem o valor. Quem troca o resultado é o mod do Claude Code
+(`hooks/segredo.ts`), antes de o modelo ler; o modo sai sempre 0.
+
+    guardrail.py saida      # chamado pelo mod em tool.call, depois que a chamada roda
+
 Os mesmos modos servem ao Cursor (ADR-0042): `.cursor/hooks.json`, gerado pelo sync,
 chama este script nos eventos `beforeShellExecution`, `beforeMCPExecution`,
 `beforeReadFile`, `afterFileEdit` e `stop`. O payload do Cursor é reconhecido pela forma
@@ -134,7 +142,8 @@ que o arquivo mudou — o que um sync legítimo também faz. Por isso ali o defa
     }                                              // (ADR-0055; só fora do Auto-review)
 
 Classes de regra, para o campo `modos`: `comando`, `protegido`, `gerado`, `spec`,
-`contrato`, `teste`, `parada`, `regua`, `checkout`, `intencao`. Todas nascem em `bloqueio`, menos
+`contrato`, `teste`, `parada`, `regua`, `checkout`, `intencao`, `saida` (em `bloqueio`, o
+segredo da saída é ocultado; em `aviso`, fica e o modelo é avisado). Todas nascem em `bloqueio`, menos
 `teste`, `parada`, `regua`, `checkout` e `intencao`, que nascem em `aviso` (refactor legítimo também edita teste,
 sessão de leitura também termina sem gate, e migração de versão também mexe na config
 do linter — a regra existe para deixar rastro; promova a `bloqueio` quando a taxa de
@@ -1822,9 +1831,91 @@ def checar_faixa3(payload: dict) -> int:
     return _responder_pausa(pausa)
 
 
+# --- segredo na saída de ferramenta (ADR-0056) ----------------------------------------
+# A leitura de segredo pelo shell e pela `Read` é negada antes (ADR-0042). Mas o segredo
+# também chega pela saída: `env`, `docker inspect`, `kubectl get secret -o yaml`, o teste
+# que imprime a `DATABASE_URL`, o `git log -p` com uma chave antiga. O que entra no
+# contexto vai à API na resposta seguinte e fica no transcript. O mod `hooks/segredo.ts`
+# passa a saída do Bash e das ferramentas de MCP por aqui, e o valor vira uma marca antes
+# de o modelo ver. Só formatos de alta precisão: o falso positivo esconde um valor da
+# saída; o falso negativo manda o segredo para fora.
+
+MARCA_SEGREDO = "«segredo ocultado pelo kairos-forge: {tipo}»"
+# Valor de variável secreta: um token inteiro, terminado por espaço, aspas ou pontuação,
+# que não começa como referência (`$X`, `<seu-token>`, `{{ }}`, `***`). Assim
+# `api_key = os.environ["API_KEY"]` e `token = get_token()` não são valor.
+VALOR = r"(?![$<{%*])([A-Za-z0-9_\-+/=.:@!#^&~]{8,})(?=[\s'\",;}\]]|$)"
+SEGREDOS_NA_SAIDA: list[tuple[re.Pattern, str, int]] = [    # (padrão, tipo, grupo do valor)
+    (re.compile(r"-----BEGIN ([A-Z ]*)PRIVATE KEY-----[\s\S]*?(?:-----END \1PRIVATE KEY-----|\Z)"),
+     "chave privada", 0),
+    (re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), "chave de acesso AWS", 0),
+    (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36,}\b|\bgithub_pat_[A-Za-z0-9_]{22,}\b"), "token GitHub", 0),
+    (re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b"), "token GitLab", 0),
+    (re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}\b"), "token Slack", 0),
+    (re.compile(r"\b[rs]k_(?:live|test)_[A-Za-z0-9]{16,}\b"), "chave Stripe", 0),
+    (re.compile(r"\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}"), "chave de API de modelo", 0),
+    (re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"), "chave de API Google", 0),
+    (re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"), "JWT", 0),
+    (re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:/@]+:([^\s@/]{3,})@"), "senha em URL de conexão", 1),
+    (re.compile(r"\b[A-Z0-9_]*(?:PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|PRIVATE_KEY|ACCESS_KEY)"
+                r"[A-Z0-9_]*['\"]?\s*[=:]\s*['\"]?" + VALOR), "valor de variável secreta", 1),
+    (re.compile(r"\b(?:password|passwd|secret|token|api_?key|access_?key|private_?key"
+                r"|client_?secret|auth_?token)['\"]?\s*[=:]\s*['\"]?" + VALOR), "valor de chave secreta", 1),
+]
+
+
+def ocultar_segredos(texto: str) -> tuple[str, list[str]]:
+    """O texto com cada segredo trocado pela marca, e o tipo de cada um, em ordem."""
+    tipos: list[str] = []
+    for padrao, tipo, grupo in SEGREDOS_NA_SAIDA:
+        def trocar(m: re.Match, tipo: str = tipo, grupo: int = grupo) -> str:
+            tipos.append(tipo)
+            inteiro, base = m.group(0), m.start()
+            return (inteiro[:m.start(grupo) - base] + MARCA_SEGREDO.format(tipo=tipo)
+                    + inteiro[m.end(grupo) - base:])
+        texto = padrao.sub(trocar, texto)
+    return texto, tipos
+
+
+def aviso_de_segredo(ferramenta: str, tipos: list[str], ocultar: bool) -> str:
+    contagem = ", ".join(f"{t} ({tipos.count(t)})" for t in dict.fromkeys(tipos))
+    inicio = f"🔒 kairos-forge: a saída de `{ferramenta}` tinha {len(tipos)} segredo(s) — {contagem}"
+    if not ocultar:
+        return (f"{inicio}, deixados como estão (`\"modos\": {{\"saida\": \"aviso\"}}` em "
+                f"`.agents/guardrails.json`). Não copie o valor para arquivo, commit, PR ou "
+                f"mensagem, e avise a pessoa: ele pode ter de ser trocado (ADR-0056).")
+    return (f"{inicio}, ocultados antes de chegar a você (ADR-0056). Não tente recuperar o valor: "
+            f"não rode o comando de outro jeito nem leia o arquivo da saída. Se a tarefa precisa "
+            f"dele, peça à pessoa. E avise que ele apareceu no terminal: pode ter de ser trocado.")
+
+
+def checar_saida(payload: dict) -> int:
+    """Modo `saida`: oculta o segredo que apareceu na saída de uma ferramenta, antes de o
+    modelo ver, e grava o achado na trajetória sem o valor. Sempre exit 0."""
+    raiz = raiz_da_chamada(payload)
+    textos = payload.get("textos") if isinstance(payload.get("textos"), dict) else {}
+    ocultos, tipos = {}, []
+    for campo, texto in textos.items():
+        ocultos[campo], achados = ocultar_segredos(str(texto))
+        tipos += achados
+    if not tipos:
+        print(json.dumps({"achados": 0}))
+        return 0
+    ferramenta = str(payload.get("tool_name") or "")
+    ocultar = modo_de(carregar_config(raiz), "saida") == "bloqueio"
+    comando = ocultar_segredos(str((payload.get("tool_input") or {}).get("command") or ferramenta))[0]
+    registrar_evento(raiz, {"tipo": "segredo_na_saida", "classe": "saida",
+                            "regra": ", ".join(dict.fromkeys(tipos)), "quantos": len(tipos),
+                            "alvo": comando[:200], "modo": "bloqueio" if ocultar else "aviso"})
+    print(json.dumps({"achados": len(tipos), "ocultar": ocultar,
+                      "textos": ocultos if ocultar else textos,
+                      "aviso": aviso_de_segredo(ferramenta, tipos, ocultar)}))
+    return 0
+
+
 MODOS = {"comando": checar_comando, "escrita": checar_escrita, "spec": checar_spec,
          "contrato": checar_contrato, "leitura": checar_leitura, "parada": checar_parada,
-         "faixa3": checar_faixa3}
+         "faixa3": checar_faixa3, "saida": checar_saida}
 
 
 def main() -> int:

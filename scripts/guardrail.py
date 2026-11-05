@@ -92,13 +92,20 @@ Hook (payload do hook em stdin, exit 2 = bloqueia e o motivo vai para o modelo):
 E um modo que não bloqueia: `faixa3` (ADR-0052) recebe o mesmo payload e responde em
 JSON se a chamada para por uma pessoa — efeito que um revert não desfaz, com o arco
 ligado. Quem pergunta é o mod do Claude Code (`hooks/pausa.ts`); o modo sai sempre 0.
+No Cursor (ADR-0055), o mesmo modo responde direto no dialeto dele: `deny` com o cartão,
+porque o `ask` de um hook do Cursor não chega a uma pessoa no Auto-review; `ask` só com
+`"faixa_3_cursor": "perguntar"` no projeto; e `allow` quando não para, porque resposta
+fora do esquema bloqueia a ação.
 
-    guardrail.py faixa3     # chamado pelo mod em tool.check
+    guardrail.py faixa3     # chamado pelo mod em tool.check, e no Cursor em
+                            # beforeShellExecution e beforeMCPExecution
 
 Os mesmos modos servem ao Cursor (ADR-0042): `.cursor/hooks.json`, gerado pelo sync,
-chama este script nos eventos `beforeShellExecution`, `beforeReadFile`, `afterFileEdit`
-e `stop`. O payload do Cursor é reconhecido pela forma (`conversation_id` sem
-`tool_input`) e normalizado; a resposta sai no dialeto dele (`permission`,
+chama este script nos eventos `beforeShellExecution`, `beforeMCPExecution`,
+`beforeReadFile`, `afterFileEdit` e `stop`. O payload do Cursor é reconhecido pela forma
+(`conversation_id` sem `tool_input` em objeto: o `beforeMCPExecution` o manda em texto
+JSON) e normalizado, com a ferramenta no nome do Claude Code (`Bash`,
+`mcp__<servidor>__<ferramenta>`); a resposta sai no dialeto dele (`permission`,
 `additional_context`, `followup_message`) em vez de exit 2.
 
 CLI, sem hook — o caminho para Codex/OpenCode/Cursor e para CI/pre-commit,
@@ -121,8 +128,10 @@ que o arquivo mudou — o que um sync legítimo também faz. Por isso ali o defa
       "liberados":       [".github/workflows/**"], // abre mão de um default
       "modos":           {"contrato": "aviso"},    // por classe (ADR-0030):
                                                    // bloqueio (default) | aviso
-      "faixa_3":         "sempre"                  // pausa da faixa 3 fora do arco
-    }                                              // também (ADR-0052)
+      "faixa_3":         "sempre",                 // pausa da faixa 3 fora do arco
+                                                   // também (ADR-0052)
+      "faixa_3_cursor":  "perguntar"               // no Cursor, `ask` em vez de recusa
+    }                                              // (ADR-0055; só fora do Auto-review)
 
 Classes de regra, para o campo `modos`: `comando`, `protegido`, `gerado`, `spec`,
 `contrato`, `teste`, `parada`, `regua`, `checkout`, `intencao`. Todas nascem em `bloqueio`, menos
@@ -1351,15 +1360,36 @@ EVENTOS_PERMISSAO = {"beforeShellExecution", "beforeReadFile", "beforeMCPExecuti
 EVENTOS_AUDITORIA = {"afterFileEdit", "afterShellExecution", "postToolUse"}
 
 
+def _entrada_do_cursor(p: dict) -> dict:
+    """O `beforeMCPExecution` manda `tool_input` como texto JSON (e, em servidor stdio, a
+    linha que lança o servidor em `command`, que não é o que a ferramenta recebe); os
+    outros eventos mandam o que importa na raiz do payload."""
+    if isinstance(p.get("tool_input"), str):
+        try:
+            entrada = json.loads(p["tool_input"])
+        except ValueError:
+            entrada = {}
+        return entrada if isinstance(entrada, dict) else {}
+    return {k: p[k] for k in ("command", "file_path", "content", "edits") if k in p}
+
+
+def _ferramenta_do_cursor(p: dict) -> str:
+    """O nome no formato do Claude Code, para a mesma regra servir aos dois."""
+    if isinstance(p.get("tool_input"), str):
+        return f"mcp__{p.get('mcp_server_name') or 'desconhecido'}__{p.get('tool_name') or ''}"
+    return "Bash" if "command" in p else str(p.get("tool_name") or "")
+
+
 def normalizar_payload(payload: dict) -> dict:
-    if "tool_input" in payload or "conversation_id" not in payload:
+    if "conversation_id" not in payload or isinstance(payload.get("tool_input"), dict):
         return payload
     p = dict(payload)
     p["_cursor"] = True
     p["session_id"] = p.get("session_id") or p.get("conversation_id")
     raizes = p.get("workspace_roots") or []
     p["cwd"] = p.get("cwd") or (raizes[0] if raizes else ".")
-    p["tool_input"] = {k: p[k] for k in ("command", "file_path", "content", "edits") if k in p}
+    p["tool_name"] = _ferramenta_do_cursor(p)
+    p["tool_input"] = _entrada_do_cursor(p)
     _EDITOR["cursor"] = True
     _EDITOR["evento"] = str(p.get("hook_event_name") or "")
     return p
@@ -1714,29 +1744,82 @@ def contexto_da_pausa(raiz: Path, cfg: dict) -> tuple[str, str | None] | None:
     return None
 
 
-def checar_faixa3(payload: dict) -> int:
-    """Modo `faixa3`: diz ao mod se a chamada para por uma pessoa. Sempre exit 0."""
-    raiz = Path(payload.get("cwd") or ".")
-    ferramenta = str(payload.get("tool_name") or "")
-    entrada = payload.get("tool_input") or {}
-    efeito = efeito_da_ferramenta(ferramenta, entrada)
-    contexto = contexto_da_pausa(raiz, carregar_config(raiz)) if efeito else None
-    if not efeito or not contexto:
-        print(json.dumps({"pausa": False}))
-        return 0
+# No Cursor (ADR-0055), o `ask` de um hook não chega a uma pessoa em todo modo: no
+# Auto-review, quando o classificador do próprio Cursor acha o comando seguro, a pergunta
+# é ignorada e o comando roda (fórum do Cursor, 3.21.16, confirmado pela equipe). `deny`
+# vale em todos os modos. Pergunta que um classificador responde não é a pausa da faixa 3,
+# então ali ela nasce como recusa com o cartão; quem não usa o Auto-review e quer a
+# pergunta liga `"faixa_3_cursor": "perguntar"` em `.agents/guardrails.json`.
+
+def cartao(efeito: str, porque: str, escalar: str, recusa: bool) -> str:
+    inicio = (f"⏸️ kairos-forge, pausa da faixa 3: esta chamada {efeito}, e um revert no código "
+              f"não desfaz isso. Ela para por uma pessoa porque {porque}: a autonomia da fábrica "
+              f"não cobre ação irreversível (ADR-0024, ADR-0031).")
+    if not recusa:
+        return (f"{inicio} Permita só se você conferiu o alvo. Recusada, a fábrica não "
+                f"contorna: registra {escalar} e espera.")
+    return (f"{inicio} No Cursor, a pergunta de um hook não chega a uma pessoa em todo modo "
+            f"(no Auto-review, o classificador a libera), então a chamada foi recusada aqui "
+            f"(ADR-0055). Não contorne: não troque o comando, não o embrulhe num script. "
+            f"Registre {escalar}, mostre o comando à pessoa e espere: quem roda é ela, no "
+            f"terminal dela, ou ela liga `\"faixa_3_cursor\": \"perguntar\"` em "
+            f"`.agents/guardrails.json`.")
+
+
+def _responder_pausa(pausa: dict | None) -> int:
+    """No Claude Code, o JSON que o mod lê; no Cursor, a decisão no dialeto dele, que
+    recusa a ação inteira se a resposta não bate com o esquema."""
+    if not _EDITOR["cursor"]:
+        print(json.dumps(pausa or {"pausa": False}, ensure_ascii=False))
+    elif pausa is None:
+        print(json.dumps({"permission": "allow"}))
+    else:
+        print(json.dumps({"permission": pausa["decisao"],
+                          "user_message": (pausa["razao"] if pausa["decisao"] == "ask" else
+                                           f"kairos-forge recusou (faixa 3): {pausa['efeito']}"),
+                          "agent_message": pausa["razao"]}, ensure_ascii=False))
+    return 0
+
+
+def raiz_da_chamada(payload: dict) -> Path:
+    """A pasta com `.git` mais próxima do `cwd` do payload. O comando pode rodar numa
+    subpasta (`cd infra && terraform apply`, ou o `cwd` que o Cursor manda), e o ciclo
+    aberto mora na raiz: procurar só no `cwd` deixaria a pausa passar."""
+    cwd = str(payload.get("cwd") or ".")
+    try:
+        from execucao import raiz_do_checkout
+        return raiz_do_checkout(cwd)
+    except Exception:
+        return Path(cwd)
+
+
+def _decidir_pausa(efeito: str, contexto: tuple[str, str | None], cfg: dict) -> dict:
     porque, spec = contexto
-    alvo = str(entrada.get("command") or ferramenta)
     escalar = (f"`ciclo.py escalar {spec} --motivo \"faixa 3: {efeito}\"`" if spec
                else "o quadro bloqueado com o motivo")
-    razao = (f"⏸️ kairos-forge, pausa da faixa 3: esta chamada {efeito}, e um revert no código "
-             f"não desfaz isso. Ela para por uma pessoa porque {porque}: a autonomia da fábrica "
-             f"não cobre ação irreversível (ADR-0024, ADR-0031). Permita só se você conferiu o "
-             f"alvo. Recusada, a fábrica não contorna: registra {escalar} e espera.")
+    recusa = _EDITOR["cursor"] and cfg.get("faixa_3_cursor") != "perguntar"
+    return {"pausa": True, "efeito": efeito, "contexto": porque, "spec": spec,
+            "decisao": "deny" if recusa else "ask",
+            "razao": cartao(efeito, porque, escalar, recusa)}
+
+
+def checar_faixa3(payload: dict) -> int:
+    """Modo `faixa3`: diz se a chamada para por uma pessoa — ao mod do Claude Code ou, no
+    Cursor, direto como `deny` (ou `ask`, se o projeto pediu). Sempre exit 0."""
+    raiz = raiz_da_chamada(payload)
+    ferramenta = str(payload.get("tool_name") or "")
+    entrada = payload.get("tool_input") or {}
+    cfg = carregar_config(raiz)
+    efeito = efeito_da_ferramenta(ferramenta, entrada)
+    contexto = contexto_da_pausa(raiz, cfg) if efeito else None
+    if not efeito or not contexto:
+        return _responder_pausa(None)
+    pausa = _decidir_pausa(efeito, contexto, cfg)
     registrar_evento(raiz, {"tipo": "pausa", "classe": "faixa3", "regra": efeito,
-                            "alvo": alvo[:200], "spec": spec})
-    print(json.dumps({"pausa": True, "efeito": efeito, "contexto": porque, "spec": spec,
-                      "razao": razao}, ensure_ascii=False))
-    return 0
+                            "alvo": str(entrada.get("command") or ferramenta)[:200],
+                            "spec": pausa["spec"], "decisao": pausa["decisao"],
+                            "cli": "cursor" if _EDITOR["cursor"] else "claude"})
+    return _responder_pausa(pausa)
 
 
 MODOS = {"comando": checar_comando, "escrita": checar_escrita, "spec": checar_spec,

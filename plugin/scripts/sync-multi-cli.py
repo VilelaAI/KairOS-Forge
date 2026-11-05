@@ -111,7 +111,7 @@ description: "Fábrica de software kairos-forge — 71 agentes e 19 skills em PT
 alwaysApply: true
 ---
 
-🔥 kairos-forge v0.47 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
+🔥 kairos-forge v0.48 ativo (Cursor) — 71 agentes (40 core + 31 apoio em 10 squads).
 
 - As skills da fábrica estão no menu `/` (Agent Skills): {lista}. A skill
   `mobilizar` roda aqui: o agente principal orquestra os subagents em paralelo
@@ -125,8 +125,10 @@ alwaysApply: true
   `.cursor/` onde o kairos-forge foi instalado — ex.: `.cursor/scripts/grafo.py`
   no projeto, ou `~/.cursor/scripts/grafo.py` se a instalação foi global.
 - Telemetria e guardrails (ADR-0021/0022/0042): `.cursor/hooks.json` liga os
-  scripts de `.cursor/scripts/` aos eventos do Cursor (shell, leitura, edição,
-  parada). A trajetória vai para `.agents/execucoes/` como no Claude Code; o
+  scripts de `.cursor/scripts/` aos eventos do Cursor (shell, MCP, leitura,
+  edição, parada). No arco, a chamada que um revert não desfaz é recusada com o
+  cartão da faixa 3 (ADR-0055): não contorne, registre o `ciclo.py escalar` e
+  mostre o comando à pessoa. A trajetória vai para `.agents/execucoes/` como no Claude Code; o
   que o Cursor não expõe (hook ANTES de uma edição de arquivo) fica coberto
   pelo modo CLI `guardrail.py verificar` no CI do projeto (`templates/ci/`).
 - Idioma: PT-BR em tudo — mensagens, comentários de código, commits.
@@ -364,7 +366,10 @@ def montar_hooks_cursor() -> dict:
         "hooks": {
             "sessionStart":         [{"command": f"{ex} cursor"}],
             "beforeSubmitPrompt":   [{"command": f"{ex} cursor"}],
-            "beforeShellExecution": [{"command": f"{gr} comando"}],
+            # O Cursor junta as respostas dos hooks do mesmo evento: `deny` vence `ask`, que
+            # vence `allow`. A pausa da faixa 3 (ADR-0052/0055) fica ao lado do piso.
+            "beforeShellExecution": [{"command": f"{gr} comando"}, {"command": f"{gr} faixa3"}],
+            "beforeMCPExecution":   [{"command": f"{gr} faixa3"}],
             "beforeReadFile":       [{"command": f"{gr} leitura"}],
             "afterShellExecution":  [{"command": f"{ex} cursor"}, {"command": f"{ex} alerta"}],
             "afterFileEdit":        [{"command": f"{ex} cursor"}, {"command": f"{gr} spec"},

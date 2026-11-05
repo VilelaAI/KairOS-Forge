@@ -182,6 +182,35 @@ class Saida(Sandbox):
         self.assertIn("falhou e deixou passar", err.getvalue())
 
 
+class OcultarArquivo(unittest.TestCase):
+    """O modo CLI que os gatilhos de CI rodam no que vão publicar (ADR-0057)."""
+
+    def rodar(self, *arquivos) -> tuple[int, str]:
+        err = io.StringIO()
+        with mock.patch.object(sys, "argv", ["guardrail.py", "ocultar", *map(str, arquivos)]), \
+                contextlib.redirect_stderr(err):
+            return guardrail.main(), err.getvalue()
+
+    def test_troca_no_proprio_arquivo_e_diz_no_stderr(self) -> None:
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            parecer, limpo = Path(tmp) / "revisao.md", Path(tmp) / "limpo.md"
+            parecer.write_text(f"achado: {GH}\nfim\n", encoding="utf-8")
+            limpo.write_text("nada aqui\n", encoding="utf-8")
+            codigo, err = self.rodar(parecer, limpo, Path(tmp) / "sumiu.md")
+            self.assertEqual(codigo, 0)
+            self.assertEqual(parecer.read_text(encoding="utf-8"),
+                             "achado: «segredo ocultado pelo kairos-forge: token GitHub»\nfim\n")
+            self.assertEqual(limpo.read_text(encoding="utf-8"), "nada aqui\n")
+            self.assertIn("revisao.md: 1 segredo(s) ocultado(s) antes de publicar — token GitHub (1)", err)
+            self.assertNotIn("limpo.md", err)
+            self.assertIn("sumiu.md", err)
+
+    def test_sem_arquivo_nada_a_fazer(self) -> None:
+        self.assertEqual(self.rodar(), (0, ""))
+
+
 class NoResumo(unittest.TestCase):
     def test_o_resumo_conta_as_saidas_com_segredo_por_tipo(self) -> None:
         eventos = [{"sessao": "s1", "tipo": "segredo_na_saida", "regra": "token GitHub"},

@@ -62,6 +62,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Rede de saída da fábrica (opcional — ADR-0057)
+        # Com `vars.FORGE_SAIDA` = `audit`, o job registra para onde vai; com `block`, só
+        # alcança a lista abaixo. O modo `block` é gratuito em repositório público; em
+        # privado, pede o plano da StepSecurity. Sem a variável, este passo nem roda.
+        if: vars.FORGE_SAIDA == 'audit' || vars.FORGE_SAIDA == 'block'
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: ${{ vars.FORGE_SAIDA }}
+          allowed-endpoints: >
+            api.anthropic.com:443
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            objects.githubusercontent.com:443
+            registry.npmjs.org:443
+
       - name: Lock — já foi triada?
         id: lock
         env:
@@ -92,24 +108,34 @@ jobs:
             echo "ativo=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: steps.cred.outputs.ativo == 'true'
         with:
+          persist-credentials: false # o token não fica em .git/config, ao alcance do Read (ADR-0057)
           fetch-depth: 1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: steps.cred.outputs.ativo == 'true'
         with:
           node-version: "20"
 
       - name: Instalar Claude Code e a fábrica
         if: steps.cred.outputs.ativo == 'true'
+        env:
+          # A versão em que as travas deste arquivo foram provadas (ADR-0057). Suba de
+          # propósito, em `vars.CLAUDE_CODE_VERSAO`, depois de conferir o `--restricted` nela.
+          CLAUDE_CODE_VERSAO: ${{ vars.CLAUDE_CODE_VERSAO || '2.1.318' }}
+          # A fábrica roda com o seu segredo: fixe em `vars.FORGE_REF` um commit que você
+          # revisou. Sem a variável, vem a `main`.
+          FORGE_REF: ${{ vars.FORGE_REF || 'main' }}
         run: |
-          npm install -g @anthropic-ai/claude-code
-          git clone --depth 1 https://github.com/VilelaAI/kairos-forge /tmp/forge
-          mkdir -p .claude/skills .claude/agents   # o /. copia o conteúdo: não aninha se a pasta já existe
-          cp -R /tmp/forge/plugin/skills/. .claude/skills/
-          cp -R /tmp/forge/plugin/agents/. .claude/agents/
+          npm install -g "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSAO"
+          # A fábrica entra como plugin desta sessão (--plugin-dir), não copiada para o
+          # .claude/ do projeto: assim o projeto não precisa ser lido como fonte de settings.
+          git init -q /tmp/forge
+          git -C /tmp/forge fetch -q --depth 1 https://github.com/VilelaAI/kairos-forge "$FORGE_REF"
+          git -C /tmp/forge checkout -q FETCH_HEAD
+          echo "kairos-forge em $(git -C /tmp/forge rev-parse HEAD) ($FORGE_REF)"
 
       - name: Identidade da fábrica (GitHub App, opcional)
         # Com o app da fábrica configurado, tudo o que ela faz sai em nome dele: permissões
@@ -119,7 +145,7 @@ jobs:
         id: app
         if: steps.cred.outputs.ativo == 'true' && vars.FORGE_APP_ID != ''
         continue-on-error: true
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
         with:
           app-id: ${{ vars.FORGE_APP_ID }}
           private-key: ${{ secrets.FORGE_APP_PRIVATE_KEY }}
@@ -133,6 +159,8 @@ jobs:
           gh issue view "$NUMERO" --json title,body,labels,comments \
             --jq '"# " + .title + "\n\n" + (.body // "") + "\n\n## Comentários\n" + ([.comments[].body] | join("\n---\n"))' \
             > issue.md
+          # A issue vai ao modelo, e o que ele lê vai à API: segredo colado nela sai antes.
+          python3 /tmp/forge/scripts/guardrail.py ocultar issue.md
 
       - name: Triar — Laura roteia, Joana elicita
         if: steps.cred.outputs.ativo == 'true'
@@ -166,10 +194,13 @@ jobs:
             SEGUNDA LINHA, sozinha: FAIXA: <1, 2 ou 3> — <por quê, em uma linha>. \
             Depois, o parecer em até 15 linhas: tamanho estimado (Trivial/Pequeno/Médio/\
             Grande/Complexo), quem da fábrica entraria, e o que falta ou o próximo comando." \
+            --restricted --plugin-dir /tmp/forge/plugin \
             --settings '{"disableAllHooks": true}' --strict-mcp-config \
-            --allowedTools "Read,Grep,Glob" \
+            --permission-mode dontAsk --tools "Skill,Read,Grep,Glob" \
+            --allowedTools "Skill,Read,Grep,Glob" \
             --disallowedTools "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch" \
             > triagem.md || true
+          python3 /tmp/forge/scripts/guardrail.py ocultar triagem.md
           echo "--- parecer ---"; cat triagem.md
 
       - name: Aplicar rótulo e comentar (nunca forge:construir)

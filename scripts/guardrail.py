@@ -108,6 +108,11 @@ achado gravado na trajetória sem o valor. Quem troca o resultado é o mod do Cl
 
     guardrail.py saida      # chamado pelo mod em tool.call, depois que a chamada roda
 
+Os gatilhos de CI usam a mesma regra no texto que publicam (ADR-0057): `ocultar` troca o
+segredo pela marca no próprio arquivo, antes de o comentário ou o PR sair.
+
+    guardrail.py ocultar ARQUIVO...
+
 Os mesmos modos servem ao Cursor (ADR-0042): `.cursor/hooks.json`, gerado pelo sync,
 chama este script nos eventos `beforeShellExecution`, `beforeMCPExecution`,
 `beforeReadFile`, `afterFileEdit` e `stop`. O payload do Cursor é reconhecido pela forma
@@ -1913,6 +1918,29 @@ def checar_saida(payload: dict) -> int:
     return 0
 
 
+def ocultar_arquivos(arquivos: list[Path]) -> int:
+    """Modo CLI `ocultar` (ADR-0057): troca, no próprio arquivo, cada segredo pela marca.
+
+    Para o texto que um gatilho de CI vai publicar — o parecer da revisão, a triagem, a
+    auditoria, o diagnóstico da correção. O agente que leu um segredo no repositório
+    pode repeti-lo no relatório, e o comentário é público. Sai 0 sempre: publicar a
+    versão oculta é o que se quer; o achado vai para o stderr, que fica no log do job.
+    """
+    for arq in arquivos:
+        try:
+            texto = arq.read_text(encoding="utf-8")
+        except OSError as erro:
+            print(f"⚠️  kairos-forge: {arq}: {erro.strerror or erro}", file=sys.stderr)
+            continue
+        oculto, tipos = ocultar_segredos(texto)
+        if tipos:
+            arq.write_text(oculto, encoding="utf-8")
+            contagem = ", ".join(f"{t} ({tipos.count(t)})" for t in dict.fromkeys(tipos))
+            print(f"🔒 kairos-forge: {arq}: {len(tipos)} segredo(s) ocultado(s) antes de "
+                  f"publicar — {contagem}", file=sys.stderr)
+    return 0
+
+
 MODOS = {"comando": checar_comando, "escrita": checar_escrita, "spec": checar_spec,
          "contrato": checar_contrato, "leitura": checar_leitura, "parada": checar_parada,
          "faixa3": checar_faixa3, "saida": checar_saida}
@@ -1927,6 +1955,8 @@ def main() -> int:
     if args[0] == "verificar":
         alvo = Path(args[1]) if len(args) > 1 else Path.cwd()
         return verificar(alvo)
+    if args[0] == "ocultar":
+        return ocultar_arquivos([Path(a) for a in args[1:]])
 
     modo = MODOS.get(args[0])
     if modo is None:

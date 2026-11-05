@@ -192,7 +192,8 @@ lembrou.
 **Prova.** O `test_tags.py` roda o comando num git de verdade, com um remoto local:
 - o ensaio não cria nada;
 - cada versão sai no commit em que entrou;
-- a versão mesclada junto com outra e o manifesto ilegível ficam sem tag;
+- a versão mesclada junto com outra, o manifesto ilegível e a versão fora de X.Y.Z ficam
+  sem tag;
 - a tag é anotada, com a data e o assunto do commit;
 - a segunda rodada não publica nada, e a versão nova ganha só a dela;
 - a tag divergente no `origin` não se move, e as outras saem;
@@ -201,7 +202,13 @@ lembrou.
 
 O mesmo arquivo cobra o workflow: o gatilho, a permissão, o checkout e nada que mova ou
 apague tag. O `test_ci.py` cobra o padrão dos quatro templates contra a versão do
-manifesto.
+manifesto, e o `check` recusa o template que voltar para `'main'`. Nenhum dos testes
+novos passa contra a `main`.
+
+Na mutação do `qualidade.py` sobre o código do diff, a primeira rodada deixou dois
+mutantes vivos. Um aceitava `version: "dev"` como versão. O outro dizia "ensaio" num run
+que publicou. Os dois viraram teste, e a rodada final mata 21 de 21. O CRAP fica abaixo de
+10 nas 12 funções tocadas, com a cobertura medida nos subprocessos do teste.
 
 O workflow em si não rodou aqui: o ambiente não roda GitHub Actions. O primeiro run é o
 merge desta emenda.

@@ -682,28 +682,38 @@ def criar_tag(tag: str, commit: str, locais: dict[str, str]) -> None:
         env={**os.environ, "GIT_COMMITTER_DATE": data})
 
 
-def tags(publicar: bool) -> int:
-    """Sem --publicar, compara com as tags deste clone e não cria nada. Com --publicar,
-    compara com as do origin, cria as que faltam e as publica num push só, sem --force."""
-    locais = tags_locais()
-    plano = plano_de_tags(tags_publicadas() if publicar else locais)
+def relatar_plano(plano: list[tuple[str, str, str]], publicar: bool) -> None:
     for tag, commit, situacao in plano:
         print(f"  {situacao:10} {tag:9} {commit[:9]}")
-    novas = [(tag, commit) for tag, commit, situacao in plano if situacao == "criar"]
-    divergentes = [tag for tag, _, situacao in plano if situacao == "divergente"]
+    conta = Counter(situacao for *_, situacao in plano)
     onde = "no origin" if publicar else "neste clone"
-    print(f"🏷️  {len(plano)} versões na linha principal, comparadas {onde}: {len(novas)} a criar, "
-          f"{len(plano) - len(novas) - len(divergentes)} já existem, {len(divergentes)} divergentes")
-    if publicar and novas:
-        for tag, commit in novas:
-            criar_tag(tag, commit, locais)
-        git("push", "origin", *(f"refs/tags/{tag}" for tag, _ in novas))
-        print(f"  publicadas: {', '.join(tag for tag, _ in novas)}")
-    elif novas:
+    print(f"🏷️  {len(plano)} versões na linha principal, comparadas {onde}: {conta['criar']} a criar, "
+          f"{conta['existe']} já existem, {conta['divergente']} divergentes")
+    if conta["criar"] and not publicar:
         print("  ensaio: nada foi criado (--publicar cria e publica)")
-    for tag in divergentes:
-        print(f"  ✗ {tag} já existe em outro commit: tag não se move, confira à mão", file=sys.stderr)
-    return 1 if divergentes else 0
+    for tag, _, situacao in plano:
+        if situacao == "divergente":
+            print(f"  ✗ {tag} já existe em outro commit: tag não se move, confira à mão", file=sys.stderr)
+
+
+def publicar_tags(novas: list[tuple[str, str]], locais: dict[str, str]) -> None:
+    """Cria as que faltam e publica todas num push só, sem --force."""
+    for tag, commit in novas:
+        criar_tag(tag, commit, locais)
+    git("push", "origin", *(f"refs/tags/{tag}" for tag, _ in novas))
+    print(f"  publicadas: {', '.join(tag for tag, _ in novas)}")
+
+
+def tags(publicar: bool) -> int:
+    """Sem --publicar, compara com as tags deste clone e não cria nada. Com --publicar,
+    compara com as do origin, que é o que vale, e publica as que faltam."""
+    locais = tags_locais()
+    plano = plano_de_tags(tags_publicadas() if publicar else locais)
+    relatar_plano(plano, publicar)
+    novas = [(tag, commit) for tag, commit, situacao in plano if situacao == "criar"]
+    if publicar and novas:
+        publicar_tags(novas, locais)
+    return 1 if any(situacao == "divergente" for *_, situacao in plano) else 0
 
 
 def main():

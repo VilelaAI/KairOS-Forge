@@ -50,6 +50,7 @@ class TagsNumGitDeVerdade(unittest.TestCase):
         self.c4 = self.cabeca()
         self.commit("chore: manifesto ilegível", "2026-01-16T12:00:00+00:00",
                     {".claude-plugin/plugin.json": '{"version": '})
+        self.versao("dev", "chore: versão que não é X.Y.Z", "2026-01-16T13:00:00+00:00")
         self.git("push", "-q", "origin", "main")
 
     # --- o git de teste --------------------------------------------------------------
@@ -99,11 +100,14 @@ class TagsNumGitDeVerdade(unittest.TestCase):
         r = self.rodar("--publicar")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.no_origem(), {"v0.1.0": self.c1, "v0.2.0": self.c2, "v0.4.0": self.c4})
+        self.assertIn("publicadas: v0.1.0, v0.2.0, v0.4.0\n", r.stdout)
+        self.assertNotIn("ensaio", r.stdout)                  # publicou: não é ensaio
 
     def test_a_versao_que_entrou_junto_com_outra_fica_sem_tag(self) -> None:
         self.rodar("--publicar")
         self.assertNotIn("v0.3.0", self.no_origem())
-        # O manifesto ilegível do último commit também não vira tag nem derruba o comando.
+        # O manifesto ilegível e a versão fora de X.Y.Z também não viram tag nem derrubam o comando.
+        self.assertNotIn("vdev", self.no_origem())
         self.assertEqual(len(self.no_origem()), 3)
 
     def test_a_tag_e_anotada_com_a_data_e_o_assunto_do_commit(self) -> None:
@@ -122,6 +126,7 @@ class TagsNumGitDeVerdade(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("0 a criar, 3 já existem", r.stdout)
         self.assertNotIn("publicadas:", r.stdout)
+        self.assertNotIn("ensaio", r.stdout)
         self.assertEqual(self.no_origem(), antes)
 
     def test_a_versao_nova_ganha_so_a_tag_dela(self) -> None:

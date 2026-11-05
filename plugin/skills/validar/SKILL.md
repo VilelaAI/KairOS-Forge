@@ -166,15 +166,18 @@ Fontes dos comandos:
 
 Se um comando for destrutivo, exigir segredo, depender de serviço externo ou tiver custo alto, não rode; registre como "não executado" e explique.
 
-### 4.1. Deixar certo — CRAP, duplicação e mutação (ADR-0045)
+### 4.1. Deixar certo — CRAP, duplicação, mutação e critério (ADR-0045, ADR-0054)
 
-Gate verde prova que funciona; não prova que ficou certo. Com os gates do projeto verdes, rode os três do `qualidade.py`, do barato ao caro — todos olham só as funções que o diff tocou:
+Gate verde prova que funciona; não prova que ficou certo. Com os gates do projeto verdes, rode os quatro do `qualidade.py`, do barato ao caro — todos olham só as funções que o diff tocou:
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/qualidade.py duplicacao                          # estático, segundos
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/qualidade.py crap                                # lê a cobertura da suíte
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/qualidade.py mutacao --comando "<suíte do projeto>"  # caro: por último
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/qualidade.py mutacao --comando "<suíte do projeto>"  # caro
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/qualidade.py criterios SPEC-NNN                  # caro: por último
 ```
+
+O `criterios` pega os mesmos mutantes e os julga critério por critério. Cada requisito roda o comando que a `## Matriz de testes` lhe dá: o que está entre crases na coluna Comando/gate ou, sem linha lá, o que está entre crases no `verificado:`. O critério tem de perceber ao menos um mutante no código tocado. O que passa com todos é **de fachada**: o teste fica verde o que quer que esse código faça. A ideia é a do PDD Kit: a especificação que verifica mas não descarta bug nenhum não verifica nada.
 
 O `crap` lê o relatório de cobertura que a suíte gerou **nesta rodada** (coverage.py json/xml, LCOV, `go test -coverprofile`); relatório mais antigo que o código sai com aviso. Sem relatório, função com CC abaixo do limite sai `indeterminado` — registre, não estime.
 
@@ -185,14 +188,17 @@ O `crap` lê o relatório de cobertura que a suíte gerou **nesta rodada** (cove
 | `duplicacao` par ≥ 0,8 | Ressalva com o par nomeado. Bloqueia quando a função nova duplica uma existente que a coluna Reusa do plano apontava |
 | `mutacao` sobrevivente em linha de requisito P1 | **Bloqueia**: a suíte não percebe a linha mudar. Exceção aceita por escrito: mutante equivalente (não muda comportamento observável), com o porquê |
 | `mutacao` base vermelha, sem comando ou teto atingido | Gate não executado; registre o motivo |
+| `criterios` `fachada` | O requisito vira **"sem evidência"** na matriz e entra em `sem_evidencia`: o teste citado não prova o critério. Em P1, bloqueia, e o arco vai para `provando`: o Ricardo escreve o teste que perceba o comportamento do critério |
+| `criterios` mutante sem critério | Ressalva com o mutante nomeado: a entrega mudou um comportamento que nenhum critério de aceite segura. Quem decide se falta critério ou se é `## Não prometido` é a pessoa, no PR. Não invente o requisito (ADR-0015) |
+| `criterios` `vermelho`, `sem_comando` ou `nao_julgado` | Critério não julgado; registre o motivo. `vermelho` é o comando do próprio critério falhando sem mutante, e isso já é falha na matriz |
 
-Mutação custa uma rodada da suíte por mutante: `--max` (padrão 25) e `--teto` (padrão 900 s) limitam o custo. O placar é de uma amostra, não do diff: registre os sítios junto (ex.: `"qualidade.py mutacao (25 mortos de 25, 25 de 332 sítios)"`) e, com suíte rápida e diff grande, suba o `--max`. Mutante equivalente costuma apontar código redundante: apagar o redundante vale mais que escrever a exceção.
+Mutação custa uma rodada da suíte por mutante, e o `criterios`, uma rodada do comando de cada critério por mutante, até um perceber: `--max` (padrão 25) e `--teto` (padrão 900 s) limitam o custo. O placar é de uma amostra, não do diff: registre os sítios junto (ex.: `"qualidade.py mutacao (25 mortos de 25, 25 de 332 sítios)"`) e, com suíte rápida e diff grande, suba o `--max`. Mutante equivalente costuma apontar código redundante: apagar o redundante vale mais que escrever a exceção. Critérios que dividem o mesmo comando dividem o veredicto, e o relatório diz com quem: comando que roda a suíte inteira percebe tudo e não separa critério nenhum.
 
 ### 5. Acionar especialistas conceitualmente
 
 Produza parecer em primeira pessoa, sem criar código:
 
-- **Ricardo** valida cobertura, gates e o placar do `qualidade.py` (CRAP, duplicação, mutantes).
+- **Ricardo** valida cobertura, gates e o placar do `qualidade.py` (CRAP, duplicação, mutantes, critérios de fachada).
 - **Patrícia** valida critérios de aceite e regressões.
 - **Helena** entra se a SPEC tocar auth, PII, autorização, input externo ou segurança.
 - **Carlos** entra se houver migration, SQL, índice, RLS ou dados persistentes.
@@ -280,8 +286,8 @@ a contagem precisa ser honesta nos dois sentidos — inflar esconde progresso, e
 compra rodada que você não ganhou.
 
 **`sem_evidencia` separa falta de prova de falha (ADR-0048).** Dos `bloqueios`, quantos são
-requisito "sem evidência" na matriz — nenhum comando provou, `nao_corroborado` ou
-`passou_na_base` — e não falha mostrada. Nunca passa de `bloqueios`. Quando todos os
+requisito "sem evidência" na matriz — nenhum comando provou, `nao_corroborado`,
+`passou_na_base` ou critério de `fachada` — e não falha mostrada. Nunca passa de `bloqueios`. Quando todos os
 bloqueios são falta de prova, o `ciclo.py` não manda o construtor mexer no código: vai para
 `provando`, onde se roda a checagem que falta (ou o Ricardo escreve o teste) antes de
 qualquer correção. Se a prova falhar, a validação seguinte mostra a falha. Contar falha

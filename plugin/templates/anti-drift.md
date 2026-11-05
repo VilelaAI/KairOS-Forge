@@ -109,6 +109,9 @@ Código de produção passa por duas metades, nesta ordem.
   (ou, se ela já estava acima, sem piorar), nenhum par de `qualidade.py duplicacao` ≥ 0,8 que
   você criou e nenhum mutante vivo de `qualidade.py mutacao` nas linhas tocadas. Rode antes
   de reportar: o `/validar` roda de novo e bloqueia.
+- **O teste do critério percebe o código.** O comando que você pôs na Matriz de testes roda
+  só o teste daquele requisito, e `qualidade.py criterios SPEC-NNN` não o acusa de fachada
+  (ADR-0054). Critério que fica verde com qualquer mutante não está provado.
 - **Refatorar é fixar, mudar, provar.** Teste que fixa o comportamento atual, mudança de
   estrutura, a mesma suíte verde.
 - **Duas correções falharam no mesmo gate?** Não escreva a terceira no mesmo embalo: escreva a

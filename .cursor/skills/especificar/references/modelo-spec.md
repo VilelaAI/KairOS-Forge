@@ -132,6 +132,8 @@ Estados de Status × conteúdo obrigatório em Verificação:
 
 Tipo é a **camada** da escada de verificação (ADR-0039): `unit` roda antes de `integration`, que roda antes de `e2e` — o `/validar` sobe a escada do barato ao caro e para na primeira camada vermelha.
 
+O Comando/gate vai entre crases e roda **só o teste daquele requisito** (`pytest -k exportar_vazio`, `npm test -- exportar`), não a suíte inteira. O `/validar` roda esse comando contra mutantes plantados no código tocado (`qualidade.py criterios`, ADR-0054): critério que não percebe nenhum é de fachada. O mesmo comando para todos os requisitos percebe tudo e não separa critério nenhum. Texto fora das crases nunca roda.
+
 ## Confiado, não provado
 
 | O que se assume | Quem aceitou | Teste que cobre |

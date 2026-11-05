@@ -562,6 +562,17 @@ class MutacaoNoDiff(Repo):
         self.assertEqual((self.raiz / "pessoa.py").read_text(),
                          textwrap.dedent(self.CODIGO))  # o original nunca é tocado
 
+    def test_sitio_que_nao_confere_nao_roda_a_suite_nem_toca_o_arquivo(self) -> None:
+        # O `julgar` e o `criterios` plantam pelo mesmo `mutante_aplicado` (ADR-0054): o
+        # sítio que não confere sai `nao_executado` sem rodar nada.
+        self.escrever("pessoa.py", self.CODIGO)
+        sitio = {"arquivo": "pessoa.py", "linha": 2, "coluna": 4, "original": "while",
+                 "mutado": "if", "tipo": "operador"}
+        r = qualidade.julgar(sitio, self.raiz, "touch rodou", 30)
+        self.assertEqual((r["resultado"], r["motivo"]), ("nao_executado", qualidade.NAO_CONFERE))
+        self.assertFalse((self.raiz / "rodou").exists())
+        self.assertEqual((self.raiz / "pessoa.py").read_text(), textwrap.dedent(self.CODIGO))
+
     def test_base_vermelha_nao_julga_mutante(self) -> None:
         r = self.preparar('''\
             import unittest

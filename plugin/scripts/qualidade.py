@@ -33,7 +33,26 @@ funções que o diff tocou, nunca no legado que ninguém pediu para mexer:
      worktree descartável. Mutante que sobrevive é teste que não percebe o comportamento
      mudar: se a suíte passa com a função devolvendo nada, ela não testa a função.
 
-Nenhum dos três decide sozinho. Mutante equivalente existe, duplicação às vezes é
+E um quarto, que olha a SPEC em vez da suíte (ADR-0054, do PDD Kit):
+
+  4. `criterios` — os mesmos mutantes, julgados critério por critério. Cada requisito
+     roda o comando que a `## Matriz de testes` lhe dá (o que está entre crases na
+     coluna Comando/gate; sem linha lá, o comando entre crases do `verificado:`) e tem de
+     perceber ao menos um mutante no código tocado. O que passa com todos é critério de
+     fachada: fica verde o que quer que esse código faça. E o mutante que passa por todos
+     os critérios é comportamento que a entrega mudou sem critério de aceite que o segure
+     — listado, sem reprovar: a suíte inteira pode pegá-lo, mas nenhum critério pegou.
+
+     Cada mutante passa pelos critérios em rodízio até um perceber; o critério que ainda
+     não percebeu nada tenta os mutantes que o rodízio não lhe deu, até o primeiro. Só
+     sai fachada quem passou com todos. Critérios com o mesmo comando dividem o veredicto
+     (o comando roda uma vez), e o relatório diz com quem: comando que roda a suíte
+     inteira percebe tudo e não separa critério nenhum. Mutante que quebra tudo dá
+     crédito a qualquer critério, por isso o relatório mostra qual mutante cada critério
+     percebeu. Só texto entre crases vira comando; texto livre nunca roda no shell.
+     Requisito Pendente fica fora da rodada, a não ser que `--requisitos` o peça.
+
+Nenhum dos quatro decide sozinho. Mutante equivalente existe, duplicação às vezes é
 coincidência de forma, e cobertura velha mente. O script transforma o silêncio em
 achado com nome; quem julga a justificativa é o `/kairos-forge:validar`.
 
@@ -42,6 +61,8 @@ achado com nome; quem julga a justificativa é o `/kairos-forge:validar`.
     qualidade.py crap        [--base REF] [--cobertura ARQ] [--limite 10] [--json]
     qualidade.py duplicacao  [--base REF] [--limite 0.8] [--min-linhas 4] [--json]
     qualidade.py mutacao     [--base REF] [--comando "CMD"] [--max 25]
+                             [--tempo-limite S] [--teto S] [--json]
+    qualidade.py criterios   SPEC-NNN [--base REF] [--requisitos ID,ID] [--max 25]
                              [--tempo-limite S] [--teto S] [--json]
 
 `--base` funciona como no `prova.py`: o diff é medido contra o merge-base com a base
@@ -60,7 +81,7 @@ Sem ele: pytest (ou unittest) para Python, vitest/jest/`npm test` pelo
 mutação — base vermelha não julga mutante nenhum.
 
 Arquivo marcado `linguist-generated` ou `linguist-vendored` no `.gitattributes` fica
-de fora das três medidas: cópia espelhada e código de terceiro não se editam aqui.
+de fora das quatro medidas: cópia espelhada e código de terceiro não se editam aqui.
 
 ## Linguagens
 
@@ -75,15 +96,16 @@ Função aninhada não é unidade própria: as decisões dela contam para a que 
 
 ## Saída
 
-Exit 1 quando há achado (`acima_do_limite`, par duplicado, mutante sobrevivente) ou
-quando a medida não pôde ser feita (sem base, base vermelha, sem comando). 0 caso
-contrário. `--json` dá a forma estável para o `/validar` e para o CI.
+Exit 1 quando há achado (`acima_do_limite`, par duplicado, mutante sobrevivente,
+critério de fachada) ou quando a medida não pôde ser feita (sem base, base vermelha,
+sem comando, SPEC que não existe). 0 caso contrário. `--json` dá a forma estável para o `/validar` e para o CI.
 
 Só stdlib.
 """
 from __future__ import annotations
 
 import ast
+import contextlib
 import hashlib
 import json
 import os
@@ -98,6 +120,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import prova  # noqa: E402  — git, base, diff e worktree vivem num lugar só
+import painel  # as tabelas da SPEC se leem do mesmo jeito que o painel as lê
 
 LINGUAGEM_POR_SUFIXO = {
     ".py": "python",
@@ -958,20 +981,32 @@ def montar_worktree(raiz: Path, destino: Path) -> str | None:
     return None
 
 
-def julgar(sitio: dict, arvore: Path, comando: str, tempo: float) -> dict:
-    """Aplica UM mutante, roda a suíte, desfaz. Falhou ou estourou o tempo: morto."""
-    item = dict(sitio)
+NAO_CONFERE = "o texto do sítio não confere no worktree"
+
+
+@contextlib.contextmanager
+def mutante_aplicado(arvore: Path, sitio: dict):
+    """Planta UM mutante e o desfaz na saída. Rende False se o sítio não confere."""
     alvo = arvore / sitio["arquivo"]
     original = alvo.read_text(encoding="utf-8")
     mutado = aplicar_mutacao(original, sitio)
     if mutado is None:
-        return {**item, "resultado": "nao_executado",
-                "motivo": "o texto do sítio não confere no worktree"}
+        yield False
+        return
+    alvo.write_text(mutado, encoding="utf-8")
     try:
-        alvo.write_text(mutado, encoding="utf-8")
-        estado, _, _ = rodar(comando, arvore, tempo)
+        yield True
     finally:
         alvo.write_text(original, encoding="utf-8")
+
+
+def julgar(sitio: dict, arvore: Path, comando: str, tempo: float) -> dict:
+    """Aplica UM mutante, roda a suíte, desfaz. Falhou ou estourou o tempo: morto."""
+    item = dict(sitio)
+    with mutante_aplicado(arvore, sitio) as plantado:
+        if not plantado:
+            return {**item, "resultado": "nao_executado", "motivo": NAO_CONFERE}
+        estado, _, _ = rodar(comando, arvore, tempo)
     item["resultado"] = "sobreviveu" if estado == "passou" else "morto"
     if estado == "tempo":
         item["motivo"] = "estourou o tempo — conta como morto"
@@ -1033,19 +1068,297 @@ def analisar_mutacao(raiz: Path, base: str | None, comando: str | None, maximo: 
         r["erro"] = "não sei rodar a suíte deste projeto — passe --comando"
         return r
     funcoes = {rel: funcoes_de(raiz, rel) or [] for rel in alteradas}
+    no_worktree(raiz, r, lambda arvore: executar_mutantes(
+        r, escolhidos, arvore, funcoes, (tempo_limite, teto)))
+    r["placar"] = placar(r["mutantes"])
+    return r
+
+
+def no_worktree(raiz: Path, r: dict, trabalho) -> None:
+    """Roda `trabalho(arvore)` num worktree descartável com o código de agora; o erro de
+    montagem, ou o que o trabalho deixar em `r["erro"]`, fica em `r`."""
     tmp = Path(tempfile.mkdtemp(prefix="kairos-forge-mutacao-"))
     try:
         r["erro"] = montar_worktree(raiz, tmp / "arvore")
         if not r["erro"]:
-            executar_mutantes(r, escolhidos, tmp / "arvore", funcoes, (tempo_limite, teto))
+            trabalho(tmp / "arvore")
     finally:
         prova.git(raiz, "worktree", "remove", "--force", str(tmp / "arvore"), timeout=60)
         prova.git(raiz, "worktree", "prune")
         shutil.rmtree(tmp, ignore_errors=True)
     if not r["erro"]:
         del r["erro"]
-    r["placar"] = placar(r["mutantes"])
-    return r
+
+
+# --- critérios de aceite × mutantes (ADR-0054) -------------------------------------
+# Do PDD Kit (GitHub Next): a especificação que verifica mas não descarta bug nenhum é
+# verificação de fachada. Aqui a especificação é o critério de aceite, e quem o verifica
+# é o comando que a Matriz de testes da SPEC dá a ele. Cada critério tem de perceber ao
+# menos um mutante plantado no código que o diff tocou: o que passa com todos fica verde
+# o que quer que esse código faça. E o mutante que nenhum critério percebe é
+# comportamento que a entrega mudou sem critério de aceite que o segure.
+
+COMANDO_CITADO = re.compile(r"`([^`]+)`")
+SEM_COMANDO_DE_VERDADE = ("verificado:", "planejado:", "em progresso:", "a definir")
+
+
+def comandos_da_celula(celula: str) -> list[str]:
+    """Só o que está entre crases vira comando: texto livre nunca roda no shell."""
+    return [c.strip() for c in COMANDO_CITADO.findall(celula)
+            if c.strip() and not c.strip().lower().startswith(SEM_COMANDO_DE_VERDADE)]
+
+
+def _coluna(cabecalho: list[str], prefixo: str) -> int | None:
+    return next((i for i, c in enumerate(cabecalho) if c.lower().startswith(prefixo)), None)
+
+
+def _comandos_da_linha(cels: list[str], cols: tuple, saida: dict[str, list[str]]) -> None:
+    col, req, tipo = cols
+    if tipo is not None and cels[tipo].lower() == "manual":
+        return
+    for rid in filter(None, (i.strip() for i in re.split(r"[,·]", cels[req or 0]))):
+        atuais = saida.setdefault(rid, [])
+        atuais += [c for c in comandos_da_celula(cels[col]) if c not in atuais]
+
+
+def comandos_da_matriz(texto: str) -> dict[str, list[str]]:
+    """{requisito: comandos} da coluna Comando/gate da `## Matriz de testes`, pelas colunas
+    que o cabeçalho nomeia. Linha do tipo `manual` não tem comando; uma linha pode cobrir
+    vários ids (`LOG-01, LOG-02`)."""
+    corpo = painel._secao(texto, "Matriz de testes") or ""
+    linhas = [c for c in map(painel._celulas, corpo.splitlines()) if c] or [[]]
+    cols = tuple(_coluna(linhas[0], nome) for nome in ("comando", "requisito", "tipo"))
+    saida: dict[str, list[str]] = {}
+    for cels in linhas[1:] if cols[0] is not None else []:
+        _comandos_da_linha(cels + [""] * len(linhas[0]), cols, saida)  # linha curta
+    return saida
+
+
+def _criterio(req: dict, matriz: dict[str, list[str]], pedido: bool) -> dict:
+    da_matriz = matriz.get(req["id"])
+    comandos = da_matriz or comandos_da_celula(req["verificacao"])
+    c = {"id": req["id"], "prioridade": req["prioridade"],
+         "origem": "matriz" if da_matriz else "verificado" if comandos else None,
+         "comando": " && ".join(comandos)}
+    if req["estado"] == "pendente" and not pedido:
+        c["resultado"] = "pendente"
+    elif not comandos:
+        c["resultado"] = "sem_comando"
+    return c
+
+
+def criterios_da_spec(arquivo: Path, filtro: set[str] | None) -> list[dict]:
+    """Os critérios a julgar, cada um com o comando que o prova. Pela Matriz de testes; sem
+    linha lá, pelo comando entre crases do `verificado:`. Pendente só entra se pedido."""
+    spec = painel.ler_spec(arquivo) or {"requisitos": []}
+    matriz = comandos_da_matriz(arquivo.read_text(encoding="utf-8"))
+    return [_criterio(req, matriz, bool(filtro)) for req in spec["requisitos"]
+            if not filtro or req["id"] in filtro]
+
+
+def _gates(criterios: list[dict]) -> list[dict]:
+    """Um gate por comando: critérios que dividem o comando dividem o veredicto, e o
+    comando roda uma vez só."""
+    gates: dict[str, dict] = {}
+    for c in criterios:
+        if "resultado" not in c:
+            gates.setdefault(c["comando"], {"comando": c["comando"], "ids": []})["ids"].append(c["id"])
+    return list(gates.values())
+
+
+SEM_GATE_VERDE = "nenhum critério passa sem mutante — não há quem o julgue"
+
+
+class Rodada:
+    """O estado de uma rodada de critérios: o que já se tentou, o teto, a árvore."""
+
+    def __init__(self, arvore: Path, tempo_limite: int, teto: int):
+        self.arvore, self.tempo_limite, self.teto = arvore, tempo_limite, teto
+        self.inicio = time.monotonic()
+        self.tentados: set[tuple[int, int]] = set()
+
+    def estourou(self) -> bool:
+        return time.monotonic() - self.inicio > self.teto
+
+    def motivo_do_teto(self) -> str:
+        return f"teto de {self.teto}s da rodada atingido"
+
+    def percebe(self, g: int, gate: dict, m: int, mutante: dict) -> bool:
+        """Roda o gate com o mutante já plantado. Falhou ou estourou: percebeu."""
+        self.tentados.add((g, m))
+        percebeu = rodar(gate["comando"], self.arvore, gate["por_mutante"])[0] != "passou"
+        if percebeu:
+            gate.setdefault("percebeu", mutante)
+            mutante.setdefault("pego_por", gate["ids"])
+        return percebeu
+
+
+def _base_dos_gates(gates: list[dict], rodada: Rodada) -> list[dict]:
+    """Cada comando tem de passar sem mutante nenhum; o que não passa não julga nada."""
+    for gate in gates:
+        estado, duracao, ultimas = rodar(gate["comando"], rodada.arvore, rodada.tempo_limite)
+        gate["base_segundos"] = round(duracao, 1)
+        gate["por_mutante"] = min(rodada.tempo_limite, max(30.0, duracao * 3))
+        if estado != "passou":
+            gate.update(resultado="vermelho", ultimas_linhas=ultimas)
+    return [g for g in gates if "resultado" not in g]
+
+
+def _por_mutante(vivos: list[dict], mutantes: list[dict], rodada: Rodada) -> None:
+    """Cada mutante passa pelos gates em rodízio até um perceber: o rodízio espalha o
+    crédito, e o mutante que passa por todos é o que nenhum critério segura."""
+    for m, mutante in enumerate(mutantes):
+        ordem = [(m + k) % len(vivos) for k in range(len(vivos))]
+        with mutante_aplicado(rodada.arvore, mutante) as plantado:
+            if not plantado:
+                mutante["motivo"] = NAO_CONFERE
+                continue
+            for g in ordem:
+                if rodada.estourou() or rodada.percebe(g, vivos[g], m, mutante):
+                    break
+
+
+def _gates_sem_percepcao(vivos: list[dict], mutantes: list[dict], rodada: Rodada) -> None:
+    """O gate que ainda não percebeu nada tenta os mutantes que o rodízio não lhe deu,
+    até o primeiro que perceba: só sai fachada quem passou com todos."""
+    for g, gate in enumerate(vivos):
+        faltam = [m for m in range(len(mutantes))
+                  if (g, m) not in rodada.tentados and "motivo" not in mutantes[m]]
+        for m in [] if "percebeu" in gate else faltam:
+            if rodada.estourou():
+                break
+            with mutante_aplicado(rodada.arvore, mutantes[m]) as plantado:
+                if plantado and rodada.percebe(g, gate, m, mutantes[m]):
+                    break
+
+
+def _veredicto_do_gate(g: int, gate: dict, aplicados: set[int], rodada: Rodada) -> None:
+    todos = all((g, m) in rodada.tentados for m in aplicados)
+    gate["resultado"] = ("descarta" if "percebeu" in gate else
+                         "fachada" if todos and aplicados else "nao_julgado")
+    if gate["resultado"] == "nao_julgado":
+        gate["motivo"] = rodada.motivo_do_teto() if aplicados else "nenhum mutante pôde ser plantado"
+
+
+def _veredicto_do_mutante(m: int, mutante: dict, vivos: list[dict], aplicados: set[int],
+                          rodada: Rodada) -> None:
+    por_todos = bool(vivos) and all((g, m) in rodada.tentados for g in range(len(vivos)))
+    mutante["resultado"] = ("pego" if "pego_por" in mutante else
+                            "sem_criterio" if por_todos and m in aplicados else
+                            "nao_executado")
+    if mutante["resultado"] == "nao_executado":
+        mutante.setdefault("motivo", rodada.motivo_do_teto() if vivos else SEM_GATE_VERDE)
+
+
+def _veredictos(vivos: list[dict], mutantes: list[dict], rodada: Rodada) -> None:
+    aplicados = {m for m in range(len(mutantes)) if "motivo" not in mutantes[m]}
+    for g, gate in enumerate(vivos):
+        _veredicto_do_gate(g, gate, aplicados, rodada)
+    for m, mutante in enumerate(mutantes):
+        _veredicto_do_mutante(m, mutante, vivos, aplicados, rodada)
+
+
+def julgar_criterios(gates: list[dict], mutantes: list[dict], arvore: Path,
+                     limites: tuple[int, int]) -> None:
+    rodada = Rodada(arvore, *limites)
+    vivos = _base_dos_gates(gates, rodada)
+    if vivos:
+        _por_mutante(vivos, mutantes, rodada)
+        _gates_sem_percepcao(vivos, mutantes, rodada)
+    _veredictos(vivos, mutantes, rodada)
+
+
+def _resumo_do_mutante(m: dict) -> dict:
+    return {k: m[k] for k in ("arquivo", "linha", "funcao", "original", "mutado") if k in m}
+
+
+def _aplicar_gates(criterios: list[dict], gates: list[dict]) -> None:
+    por_comando = {g["comando"]: g for g in gates}
+    for c in criterios:
+        gate = por_comando.get(c["comando"]) if "resultado" not in c else None
+        if gate is None:
+            continue
+        c["resultado"] = gate.get("resultado", "nao_julgado")
+        c.update({k: gate[k] for k in ("base_segundos", "ultimas_linhas", "motivo") if k in gate})
+        if "percebeu" in gate:
+            c["percebeu"] = _resumo_do_mutante(gate["percebeu"])
+        if len(gate["ids"]) > 1:
+            c["compartilhado_com"] = [i for i in gate["ids"] if i != c["id"]]
+
+
+def placar_dos_criterios(criterios: list[dict], mutantes: list[dict]) -> dict:
+    p = {k: 0 for k in ("descarta", "fachada", "vermelho", "sem_comando", "pendente",
+                        "nao_julgado")}
+    for c in criterios:
+        p[c["resultado"]] += 1
+    p["sem_criterio"] = sum(m["resultado"] == "sem_criterio" for m in mutantes)
+    return p
+
+
+def mutantes_do_diff(raiz: Path, ponto: str, maximo: int) -> tuple[int, list[dict]]:
+    """(sítios, mutantes escolhidos com a função de cada um) — os mesmos da `mutacao`."""
+    alteradas = linhas_alteradas(raiz, ponto)
+    sitios = [s for rel in sorted(alteradas) for s in sitios_de_mutacao(raiz, rel, alteradas[rel])]
+    funcoes = {rel: funcoes_de(raiz, rel) or [] for rel in alteradas}
+    return len(sitios), [{**s, "funcao": _funcao_do_sitio(funcoes, s)}
+                         for s in escolher(sitios, maximo)]
+
+
+def _por_que_nao_julga(r: dict, gates: list[dict]) -> str | None:
+    """O aviso que dispensa a rodada, ou None quando há o que julgar."""
+    if not r["mutantes"]:
+        return "nenhum sítio de mutação nas linhas tocadas — nada a julgar"
+    if not gates:
+        return "nenhum critério com comando entre crases na Matriz de testes"
+    return None
+
+
+def _ler_criterios(raiz: Path, base: str | None, spec: str,
+                    filtro: set[str] | None) -> tuple[dict, str | None, Path | None, list]:
+    """(relatório, ponto, arquivo da SPEC, critérios); `erro` no relatório se não dá."""
+    r, ponto = preparar_diff(raiz, base)
+    arquivo = prova.arquivo_da_spec(raiz, spec) if ponto else None
+    criterios = criterios_da_spec(arquivo, filtro) if arquivo else []
+    r["erro"] = r.get("erro") or (_erro_dos_criterios(spec, criterios, filtro) if arquivo
+                                  else f"não achei {spec} em docs/specs/")
+    return r, ponto, arquivo, criterios
+
+
+def _rodar_ou_dispensar(raiz: Path, r: dict, gates: list[dict], limites: tuple[int, int]) -> None:
+    r["aviso"] = _por_que_nao_julga(r, gates)
+    if not r["aviso"]:
+        no_worktree(raiz, r, lambda arvore: julgar_criterios(gates, r["mutantes"], arvore,
+                                                             limites))
+    for gate in filter(lambda g: "resultado" not in g, gates):
+        gate.update(resultado="nao_julgado", motivo=r["aviso"] or r.get("erro"))
+
+
+def analisar_criterios(raiz: Path, base: str | None, spec: str, filtro: set[str] | None,
+                       maximo: int, limites: tuple[int, int]) -> dict:
+    r, ponto, arquivo, criterios = _ler_criterios(raiz, base, spec, filtro)
+    if r["erro"]:
+        return r
+    sitios, mutantes = mutantes_do_diff(raiz, ponto, maximo)
+    r.update({"spec": spec, "arquivo": arquivo.relative_to(raiz).as_posix(),
+              "sitios": sitios, "criterios": criterios, "mutantes": mutantes})
+    gates = _gates(criterios)
+    _rodar_ou_dispensar(raiz, r, gates, limites)
+    _aplicar_gates(criterios, gates)
+    for m in mutantes:
+        m.setdefault("resultado", "nao_executado")
+    r["placar"] = placar_dos_criterios(criterios, mutantes)
+    return {k: v for k, v in r.items() if k not in ("erro", "aviso") or v}
+
+
+def _erro_dos_criterios(spec: str, criterios: list[dict], filtro: set[str] | None) -> str | None:
+    """SPEC sem requisito, ou `--requisitos` com id que ela não tem: julgar nada e sair
+    verde seria o pior resultado possível."""
+    fora = sorted((filtro or set()) - {c["id"] for c in criterios})
+    if fora:
+        return f"{', '.join(fora)} não está na tabela de requisitos de {spec}"
+    if not criterios:
+        return f"{spec} não tem requisito na tabela de requisitos rastreáveis"
+    return None
 
 
 # --- impressão -------------------------------------------------------------------
@@ -1120,6 +1433,57 @@ def imprimir_mutacao(r: dict) -> None:
           f"({len(r['mutantes'])} de {r.get('sitios', 0)} sítios)")
 
 
+ICONES_CRITERIO = {"descarta": "✅", "fachada": "❌", "vermelho": "⚠️ ", "sem_comando": "⚠️ ",
+                   "pendente": "·", "nao_julgado": "⚠️ "}
+
+
+def _onde(m: dict) -> str:
+    return f"{m['arquivo']}:{m['linha']}" + (f" {m['funcao']}" if m.get("funcao") else "")
+
+
+def _texto_do_criterio(c: dict, julgados: int) -> str:
+    textos = {
+        "descarta": lambda: f"percebe `{c['percebeu']['original']}` → "
+                            f"`{c['percebeu']['mutado']}` em {_onde(c['percebeu'])}",
+        "fachada": lambda: f"fachada: passou com os {julgados} mutantes do código tocado",
+        "vermelho": lambda: "o comando falha sem mutante nenhum — não julga",
+        "sem_comando": lambda: "sem comando entre crases na Matriz de testes nem no "
+                               "`verificado:`",
+        "pendente": lambda: "pendente — fora da rodada",
+        "nao_julgado": lambda: f"não julgado: {c.get('motivo') or '—'}",
+    }
+    return textos[c["resultado"]]()
+
+
+def _linha_criterio(c: dict, julgados: int) -> str:
+    comando = f"  [`{c['comando']}`]" if c.get("comando") else ""
+    junto = (f" (o mesmo comando de {', '.join(c['compartilhado_com'])})"
+             if c.get("compartilhado_com") else "")
+    return (f"   {ICONES_CRITERIO[c['resultado']]} {c['id']} ({c['prioridade']}) — "
+            f"{_texto_do_criterio(c, julgados)}{junto}{comando}")
+
+
+def imprimir_criterios(r: dict) -> None:
+    _cabecalho(r, f"🎯 Critérios de aceite × mutantes — {r['spec']}")
+    print(f"   SPEC: {r['arquivo']}")
+    if r.get("aviso"):
+        print(f"   {r['aviso']}")
+    plantados = sum(m["resultado"] != "nao_executado" for m in r["mutantes"])
+    for c in r["criterios"]:
+        print(_linha_criterio(c, plantados))
+    sem = [m for m in r["mutantes"] if m["resultado"] == "sem_criterio"]
+    if sem:
+        print("\n   Mutantes que nenhum critério percebe — comportamento sem critério de aceite:")
+    for m in sem:
+        print(f"   🟡 {_onde(m)}: `{m['original']}` → `{m['mutado']}`")
+    p = r["placar"]
+    print(f"\n   critérios — percebe: {p['descarta']} · fachada: {p['fachada']} · "
+          f"vermelho: {p['vermelho']} · sem comando: {p['sem_comando']} · "
+          f"não julgado: {p['nao_julgado']} · pendente: {p['pendente']}")
+    print(f"   mutantes — {len(r['mutantes'])} de {r.get('sitios', 0)} sítios, "
+          f"{p['sem_criterio']} sem critério")
+
+
 # --- CLI -------------------------------------------------------------------------
 
 def opcao(args: list[str], nome: str, tipo=str, padrao=None):
@@ -1149,9 +1513,22 @@ def _mutacao_cli(raiz: Path, base, args) -> tuple[dict, bool]:
     return r, bool(r.get("placar", {}).get("sobreviventes"))
 
 
+def _criterios_cli(raiz: Path, base, args) -> tuple[dict, bool]:
+    spec = next((a for a in args[1:] if re.fullmatch(r"SPEC-\d+", a)), None)
+    if spec is None:
+        return {"erro": "diga a SPEC: qualidade.py criterios SPEC-NNN"}, True
+    filtro = opcao(args, "--requisitos")
+    r = analisar_criterios(raiz, base, spec,
+                           {i.strip() for i in filtro.split(",") if i.strip()} if filtro else None,
+                           opcao(args, "--max", int, 25),
+                           (opcao(args, "--tempo-limite", int, 300), opcao(args, "--teto", int, 900)))
+    return r, bool(r.get("placar", {}).get("fachada"))
+
+
 SUBCOMANDOS = {"crap": (_crap_cli, imprimir_crap),
                "duplicacao": (_duplicacao_cli, imprimir_duplicacao),
-               "mutacao": (_mutacao_cli, imprimir_mutacao)}
+               "mutacao": (_mutacao_cli, imprimir_mutacao),
+               "criterios": (_criterios_cli, imprimir_criterios)}
 
 
 def main() -> int:

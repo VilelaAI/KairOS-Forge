@@ -63,7 +63,7 @@ Acionar:
 | `/kairos-forge:especificar <ideia>` | Antes de codar não-trivial; gera SPEC rastreável | Todos os CLIs |
 | `/kairos-forge:analisar-ameacas <feature>` | Threat model antes de implementar feature sensível (auth, PII, billing, IA) | Todos os CLIs |
 | `/kairos-forge:desenhar <spec>` | Handoff de design: fluxos, cinco estados por view, acessibilidade; modo `verificar` inspeciona o implementado e confere contra o `DESIGN.md` da raiz (ADR-0040) | Todos os CLIs |
-| `/kairos-forge:validar <spec>` | Depois de implementar; valida aceite contra SPEC com gates do barato ao caro (para no primeiro vermelho), prova negativa dos testes (`prova.py`), CRAP, duplicação e mutação no diff (`qualidade.py`), chamadores fora do diff (`grafo.py contexto`) e evidência corroborada pela trajetória | Todos os CLIs |
+| `/kairos-forge:validar <spec>` | Depois de implementar; valida aceite contra SPEC com gates do barato ao caro (para no primeiro vermelho), prova negativa dos testes (`prova.py`), CRAP, duplicação, mutação e critério de fachada no diff (`qualidade.py`), chamadores fora do diff (`grafo.py contexto`) e evidência corroborada pela trajetória | Todos os CLIs |
 | `/kairos-forge:rodar [agente\|time\|apoio-X]` | Conversacional/sequencial — modo padrão; modos `debate <decisão>` (ADR-0018) e `explorar <missão>` (POC descartável em worktree, nunca PR — ADR-0040) | Todos os CLIs |
 | `/kairos-forge:mobilizar <spec>` | Time paralelo sobre o quadro `quadro.py`: dependências, teto de 6 por onda, `varrer` (tempo limite) e `compensar` (desfaz em ordem inversa) | Todos os CLIs (adaptador por CLI) |
 | `/kairos-forge:entregar <feature>` | **O ciclo inteiro sozinho**: especificar → criticar → aprovar → construir → validar ⇄ corrigir → revisar ⇄ corrigir → PR, com orçamento de rodadas declarado | Todos os CLIs |
@@ -293,11 +293,13 @@ diff tocou, só com stdlib (Python pela `ast`, JS/TS e Go por varredura):
 python3 scripts/qualidade.py duplicacao                  # par com Jaccard estrutural ≥ 0,8
 python3 scripts/qualidade.py crap --cobertura coverage.json   # CC² × (1 − cobertura)³ + CC < 10
 python3 scripts/qualidade.py mutacao --comando "pytest -q"    # mutante sobrevivente = teste fraco
+python3 scripts/qualidade.py criterios SPEC-001              # critério que não percebe mutante = fachada
 ```
 
 - `crap` lê a cobertura do relatório que a suíte já gera (coverage.py, LCOV, Cobertura, `go test -coverprofile`). Função antiga que já estava acima do limite e não piorou sai `legado_acima`: listada, não reprova. Piorou, reprova.
 - `mutacao` troca operadores e `return x` → `return None` nas linhas tocadas, um por vez, num worktree descartável. A suíte tem de passar antes; cada mutante tem tempo limite.
-- Arquivo `linguist-generated` no `.gitattributes` fica de fora das três medidas.
+- `criterios` (ADR-0054, do PDD Kit) planta os mesmos mutantes e roda o comando que a `## Matriz de testes` dá a cada requisito. O critério que passa com todos é de fachada, e o `/validar` o conta como sem evidência. O mutante que nenhum critério percebe é comportamento que a entrega mudou sem critério de aceite. Só texto entre crases vira comando.
+- Arquivo `linguist-generated` no `.gitattributes` fica de fora das medidas.
 
 E quando o mesmo gate falha pela terceira vez seguida sem progresso, o `ciclo.py` passa por
 `atacando_premissa_*`: a correção só recomeça com a premissa escrita, e premissa repetida é recusada.

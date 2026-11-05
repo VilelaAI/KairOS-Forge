@@ -112,7 +112,7 @@ frente.
 | Guardrails em hook (vêm com o plugin) | Agente que roda `rm -rf`, lê `.env`, faz force-push na `main` ou marca requisito pronto sem prova | O plugin no Claude Code ou no Cursor | `telemetria.py resumo`: recusas por classe |
 | `/revisar` em sessão | Diff sem olhar de segurança e QA antes do PR | O plugin | `telemetria.py ruido`: achados descartados por revisor |
 | Revisão no PR (`templates/ci/kairos-forge-revisar.yml`) | PR que ninguém revisa a tempo | O segredo `ANTHROPIC_API_KEY` | `telemetria.py ruido --github`: achados que o time marcou ` · descartado: <motivo>` editando o comentário da revisão mais recente de cada PR |
-| `/validar` | "Pronto" que é só alegação; teste que passa sem o patch | Uma SPEC (`/especificar`) | O relatório em `docs/specs/validacoes/`: P1 sem evidência |
+| `/validar` | "Pronto" que é só alegação; teste que passa sem o patch; critério cujo teste fica verde com qualquer bug plantado | Uma SPEC (`/especificar`) | O relatório em `docs/specs/validacoes/`: P1 sem evidência |
 | Auditoria semanal (`/auditar` ou `templates/ci/kairos-forge-auditar.yml`) | Ninguém sabe se a fábrica está melhorando | O plugin, ou o segredo no CI | A pontuação de uma semana contra a outra |
 
 ### Contexto: o que o agente sabe do projeto

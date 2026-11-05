@@ -35,7 +35,8 @@ export type SpecDoPainel = {
   relatorios: { critica?: Relatorio; validacao?: Relatorio; revisao?: Relatorio }
 }
 
-export type Ficha = { gate: string; rodadas: number; orcamento: number; total?: number; teto?: number }
+// `totais`: as rodadas de todas as voltas e o teto absoluto, quando o ciclo registra os dois.
+export type Ficha = { gate: string; rodadas: number; orcamento: number; totais?: { feitas: number; teto: number } }
 
 export type CicloDoPainel = {
   spec: string

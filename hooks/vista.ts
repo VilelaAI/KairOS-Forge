@@ -98,7 +98,7 @@ function fichas(c: Bruto): Ficha[] {
     rodadas: numero(rod[g]),
     orcamento: numero(orc[g]),
     ...(typeof tot[g] === 'number' && typeof teto[g] === 'number'
-      ? { total: numero(tot[g]), teto: numero(teto[g]) }
+      ? { totais: { feitas: numero(tot[g]), teto: numero(teto[g]) } }
       : {}),
   }))
 }
@@ -172,7 +172,7 @@ export function trilho(fase: string | null): Parada[] {
 }
 
 export function textoDaFicha(f: Ficha): string {
-  const total = f.total !== undefined && f.teto !== undefined ? ` (tot ${f.total}/${f.teto})` : ''
+  const total = f.totais ? ` (tot ${f.totais.feitas}/${f.totais.teto})` : ''
   return `${f.gate} ${f.rodadas}/${f.orcamento}${total}`
 }
 

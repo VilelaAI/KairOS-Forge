@@ -44,7 +44,7 @@ const VAZIA: Leitura = { painel: null, caixa: null, falha: null }
 
 // Mude a tag quando o formato mudar: ela recusa o que a versão anterior guardou, que
 // sobrevive a um reload.
-const leitura = atom({ plugin: 'kairos-forge', key: 'leitura' } as const, VAZIA, { shape: 'leitura-1' })
+const leitura = atom({ plugin: 'kairos-forge', key: 'leitura' } as const, VAZIA, { shape: 'leitura-2' })
 const faixaOculta = atom({ plugin: 'kairos-forge', key: 'faixaOculta' } as const, null)
 const avisados = atom({ plugin: 'kairos-forge', key: 'avisados' } as const, [], { shape: 'avisados-1' })
 

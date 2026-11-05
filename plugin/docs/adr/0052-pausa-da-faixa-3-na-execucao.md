@@ -117,6 +117,7 @@ quando roda:
 | Ciclo em `construindo`, `bypassPermissions` | **não** | o cartão, inteiro |
 | Ciclo em `construindo`, modo padrão com `--allowedTools "Bash(terraform:*)"` | **não** | o cartão |
 | Ciclo em `construindo`, `terraform plan` | sim | normal |
+| Ciclo em `construindo`, `npm publish` com `--allowedTools "Bash(npm:*)"` | **não** | o cartão ("publica um pacote") |
 
 O evento de cada pausa saiu na trajetória com a sessão e a SPEC.
 
@@ -126,18 +127,25 @@ de teste não deixa um teste fazer o papel de uma pessoa que libera a chamada.
 ## Consequências
 
 - **Guardrail.** O `guardrail.py` ganha o modo `faixa3` e a chave `"faixa_3": "sempre"`.
-  `test_faixa3.py` cobre:
+  `test_faixa3.py` tem 17 testes:
   - 48 comandos que param e 43 que passam;
-  - o contexto (ciclo, quadro, `sempre`, encerrado, escalado);
-  - o cartão, o evento e a falha aberta.
-- **Mod.** `tests/pausa.test.ts` cobre:
+  - o contexto (ciclo, quadro, `sempre`, encerrado, escalado, o `cwd` do payload);
+  - o cartão, o evento, a falha aberta e a contagem no `resumo`.
+- **Mod.** `tests/pausa.test.ts` tem 9 testes:
   - o `ask` por cima do `allow` e do `ask` do modo;
   - a recusa que fica recusa;
   - o MCP que passa pelo guardrail e as ferramentas de arquivo que nem chegam;
+  - o atalho do `isReadOnly`;
+  - a pausa sem cartão, que ainda pergunta, com um texto padrão;
   - a falha do Python e a chamada recusada sem pessoa.
 
   O `test_mod_painel.py` passa a exigir, no código, que nenhum mod devolva `allow` e que a
   pausa só diga `ask`.
+- **Mutação.** Os 7 estragos plantados à mão na pausa são acusados. A mutação automática
+  do `qualidade.py`, com o `claude plugin test` e as suítes Python como comando, deixou 9 de
+  51 mutantes vivos na primeira rodada. Os que eram lacuna viraram teste. Os equivalentes
+  ficaram: literais de tipo apagados na compilação, um `[]` que o chamador lê como `None` e
+  o `ensure_ascii` do JSON.
 - **Pausa a mais.** Tudo o que a classificação acha irreversível pergunta, durante o arco,
   mesmo quando a pessoa já tinha liberado a ferramenta. É o preço da regra "humano decide,
   sempre", pago só dentro do arco.

@@ -11,6 +11,7 @@ type Motor = {
   decisao?: 'allow' | 'ask' | 'deny'
   semPython?: boolean
   saidaIlegivel?: boolean
+  saida?: unknown
 }
 
 type Visto = {
@@ -30,7 +31,9 @@ function motor(on: Parameters<Parameters<typeof test>[1]>[1], m: Motor = {}): Vi
     visto.classificados.push({ argv: [...e.argv], payload, sessao: e.init?.env?.CLAUDE_SESSION_ID })
     const comando = String((payload.tool_input as { command?: string } | undefined)?.command ?? '')
     const pausa = /terraform apply/.test(comando) || String(payload.tool_name).includes('merge')
-    const stdout = m.saidaIlegivel ? '' : JSON.stringify(pausa ? { pausa: true, razao: RAZAO } : { pausa: false })
+    const stdout = m.saidaIlegivel
+      ? ''
+      : JSON.stringify('saida' in m ? m.saida : pausa ? { pausa: true, razao: RAZAO } : { pausa: false })
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   return visto
@@ -110,4 +113,16 @@ test('o que a ferramenta declara só leitura nem chega ao guardrail', async ($, 
   const r = await $.tool.check({ ...TERRAFORM, isReadOnly: true })
   expect(r.decision).toBe('allow')
   expect(visto.classificados.length).toBe(0)
+})
+
+test('pausa sem cartão ainda pergunta; o que não é pausa, não', async ($, on) => {
+  const m: Motor = { decisao: 'allow', saida: { pausa: true } }
+  motor(on, m)
+  const sem = await $.tool.check(TERRAFORM)
+  expect(sem.decision).toBe('ask')
+  expect(sem.reason).toContain('pausa da faixa 3')
+  for (const saida of [{ pausa: 'sim', razao: 'x' }, { razao: RAZAO }, null]) {
+    m.saida = saida
+    expect((await $.tool.check(TERRAFORM)).decision).toBe('allow')
+  }
 })

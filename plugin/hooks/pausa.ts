@@ -17,6 +17,8 @@ import type { EngineInterface, On } from 'claude-code'
 
 type Veredito = { pausa: false } | { pausa: true; razao: string }
 
+const SEM_CARTAO = '⏸️ kairos-forge, pausa da faixa 3: esta chamada tem efeito que um revert não desfaz.'
+
 async function classificar($: EngineInterface, tool: string, input: unknown): Promise<Veredito> {
   const r = await $.process.run(['python3', `${$.plugin.root}/scripts/guardrail.py`, 'faixa3'], {
     stdin: JSON.stringify({ cwd: await $.session.cwd(), tool_name: tool, tool_input: input ?? {} }),
@@ -24,11 +26,10 @@ async function classificar($: EngineInterface, tool: string, input: unknown): Pr
     // A sessão vai junto para a pausa gravada na trajetória ficar na sessão certa.
     env: { PYTHONDONTWRITEBYTECODE: '1', CLAUDE_SESSION_ID: await $.session.id() },
   })
-  const v: unknown = JSON.parse(r.stdout)
-  if (v !== null && typeof v === 'object' && 'pausa' in v && v.pausa === true && 'razao' in v) {
-    return { pausa: true, razao: String(v.razao) }
-  }
-  return { pausa: false }
+  const v = JSON.parse(r.stdout) as { pausa?: unknown; razao?: unknown } | null
+  if (v?.pausa !== true) return { pausa: false }
+  // Pausa sem cartão ainda é pausa: na dúvida, a pessoa pergunta.
+  return { pausa: true, razao: typeof v.razao === 'string' ? v.razao : SEM_CARTAO }
 }
 
 export function registrarPausa(on: On) {

@@ -16,7 +16,9 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -149,6 +151,19 @@ class Contexto(Sandbox):
         self.estado("quadro", "forge-007", {"slug": "forge-007", "encerrado_em": "2026-11-05T10:00:00Z"})
         self.assertFalse(self.faixa3("npm publish")[1]["pausa"])
 
+    def test_quadro_sem_slug_usa_o_nome_do_arquivo(self) -> None:
+        self.estado("quadro", "forge-sem-slug", {"encerrado_em": None})
+        self.assertIn("a mobilização `forge-sem-slug`", self.faixa3("npm publish")[1]["razao"])
+
+    def test_vale_o_cwd_do_payload_nao_o_do_processo(self) -> None:
+        self.estado("ciclo", "SPEC-007", {"spec": "SPEC-007", "estado": "construindo"})
+        with tempfile.TemporaryDirectory() as outro:
+            os.chdir(outro)
+            try:
+                self.assertTrue(self.faixa3()[1]["pausa"])
+            finally:
+                os.chdir(self.raiz)
+
     def test_sempre_no_guardrails_json_estende_para_fora_do_arco(self) -> None:
         (self.raiz / ".agents").mkdir(exist_ok=True)
         (self.raiz / ".agents" / "guardrails.json").write_text('{"faixa_3": "sempre"}', encoding="utf-8")
@@ -197,6 +212,14 @@ class NaTrajetoria(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             telemetria.imprimir_resumo(m, 7)
         self.assertNotIn("Pausas", out.getvalue())
+        self.assertIn("Rodadas de correção:  0\n  Tokens:", out.getvalue())   # nada entre as duas
+
+    def test_skills_contadas_pela_mesma_conta(self) -> None:
+        eventos = [{"sessao": "s1", "tipo": "prompt", "skill": "entregar"},
+                   {"sessao": "s1", "tipo": "prompt", "skill": "validar"},
+                   {"sessao": "s2", "tipo": "prompt", "skill": "entregar"}]
+        m = telemetria.metricas(telemetria.por_sessao(eventos))
+        self.assertEqual(m["skills_usadas"], {"entregar": 2, "validar": 1})
 
 
 if __name__ == "__main__":

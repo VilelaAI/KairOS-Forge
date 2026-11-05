@@ -17,6 +17,7 @@ type Motor = {
   semPython?: boolean
   saidaIlegivel?: boolean
   ocultar?: boolean
+  exame?: unknown                  // a resposta do guardrail, no lugar da que ele daria
 }
 
 type Visto = {
@@ -45,7 +46,7 @@ function motor(on: Parameters<Parameters<typeof test>[1]>[1], m: Motor = {}): Vi
     const textos = Object.fromEntries(Object.entries(payload.textos).map(([k, v]) => [k, v.split(TOKEN).join(MARCA)]))
     const achados = Object.values(payload.textos).filter(v => v.includes(TOKEN)).length
     const ocultar = m.ocultar ?? true
-    const stdout = m.saidaIlegivel ? '' : JSON.stringify(achados
+    const stdout = m.saidaIlegivel ? '' : 'exame' in m ? JSON.stringify(m.exame) : JSON.stringify(achados
       ? { achados, ocultar, textos: ocultar ? textos : payload.textos, aviso: `${AVISO} — token GitHub (1)` }
       : { achados: 0 })
     return { value: { ...RODOU, stdout } }
@@ -136,6 +137,24 @@ for (const [nome, m] of [['sem Python', { semPython: true }], ['com resposta ile
     const r = await $.tool.call(ENV)
     expect(r.result).toEqual({ stdout: `GITHUB_TOKEN=${TOKEN}\nfim`, stderr: '', interrupted: false })
     expect(visto.rodadas).toBe(1)
+  })
+}
+
+// O que o mod aceita do guardrail: achado, aviso em texto e textos num objeto. Qualquer
+// outra resposta deixa a saída como veio, em vez de trocá-la por algo vazio.
+const MAL_FORMADAS: [string, unknown][] = [
+  ['sem achado, mesmo com o resto', { achados: 0, ocultar: true, textos: { stdout: 'X', stderr: '' }, aviso: 'a' }],
+  ['aviso que não é texto', { achados: 1, ocultar: true, textos: { stdout: 'X', stderr: '' }, aviso: 5 }],
+  ['textos que não são objeto', { achados: 1, ocultar: true, textos: 'X', aviso: 'a' }],
+  ['nada', null],
+]
+for (const [nome, exame] of MAL_FORMADAS) {
+  test(`resposta do guardrail mal formada (${nome}): a saída passa como veio`, async ($, on) => {
+    motor(on, { exame })
+    const r = await $.tool.call(ENV)
+    expect(r.result).toEqual({ stdout: `GITHUB_TOKEN=${TOKEN}\nfim`, stderr: '', interrupted: false })
+    expect(r.ref).toBe(7)
+    expect(r.context).toBeUndefined()
   })
 }
 

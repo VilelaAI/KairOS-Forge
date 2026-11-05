@@ -54,7 +54,7 @@ async function textosDe($: EngineInterface, tool: string, r: Respondido): Promis
   if (respondeuComoBash(tool, r)) {
     return { stdout: await saidaInteira($, r), stderr: String(r.result.stderr ?? '') }
   }
-  return typeof r.text === 'string' && r.text ? { texto: r.text } : null
+  return r.text ? { texto: String(r.text) } : null
 }
 
 function reescrever(tool: string, r: Respondido, exame: Exame): ToolCallResult {

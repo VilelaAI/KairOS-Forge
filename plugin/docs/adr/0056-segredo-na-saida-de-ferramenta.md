@@ -125,7 +125,7 @@ comando, sem o valor.
     - a linha do `resumo`.
 
     Contra a `main`, nenhum dos 14 passa.
-  - `tests/segredo.test.ts` tem 11 testes no kit:
+  - `tests/segredo.test.ts` tem 15 testes no kit:
     - o Bash reescrito sem `ref` nem `text`;
     - a saída grande lida do arquivo;
     - o erro e o MCP retidos;
@@ -134,8 +134,21 @@ comando, sem o valor.
     - a saída sem segredo, que volta como veio;
     - o modo `aviso`;
     - sem Python e com a resposta ilegível, a chamada roda uma vez;
+    - a resposta do guardrail mal formada (sem achado, aviso que não é texto, textos que
+      não são objeto, nada), que deixa a saída como veio em vez de trocá-la por algo
+      vazio;
     - a recusa de baixo e a `Read`, que nem chegam.
-- **Mutação.** O número entra no commit que fecha a mutação.
+- **Mutação.** Com as suítes Python e o kit como comando, a primeira rodada deixou 5 de 35
+  mutantes vivos:
+  - quatro na validação da resposta do guardrail, que nenhum teste mandava mal formada, e
+    que viraram os quatro casos acima;
+  - um equivalente no `textosDe` (o texto vazio já é barrado depois), que saiu do código.
+
+  Cada um dos quatro casos derruba o seu mutante, plantado à mão. A rodada final mata 33
+  de 33.
+- **CRAP.** O kit não gera relatório de cobertura do TypeScript. As funções do mod ficam
+  com complexidade de 8 ou menos, abaixo do limite mesmo sem cobertura, e quem prova o
+  comportamento é a mutação com o kit.
 - **Custo.** Um processo Python por chamada de Bash ou de MCP que devolve texto, como o da
   pausa no `tool.check`.
 

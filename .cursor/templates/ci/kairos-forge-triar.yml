@@ -125,9 +125,9 @@ jobs:
           # A versão em que as travas deste arquivo foram provadas (ADR-0057). Suba de
           # propósito, em `vars.CLAUDE_CODE_VERSAO`, depois de conferir o `--restricted` nela.
           CLAUDE_CODE_VERSAO: ${{ vars.CLAUDE_CODE_VERSAO || '2.1.318' }}
-          # A fábrica roda com o seu segredo: fixe em `vars.FORGE_REF` um commit que você
-          # revisou. Sem a variável, vem a `main`.
-          FORGE_REF: ${{ vars.FORGE_REF || 'main' }}
+          # A fábrica roda com o seu segredo. Sem `vars.FORGE_REF`, vem a tag da versão
+          # de onde você copiou este arquivo; para fixar num commit revisado, use a variável.
+          FORGE_REF: ${{ vars.FORGE_REF || 'v0.50.1' }}
         run: |
           npm install -g "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSAO"
           # A fábrica entra como plugin desta sessão (--plugin-dir), não copiada para o

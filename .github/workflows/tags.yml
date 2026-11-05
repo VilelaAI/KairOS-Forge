@@ -1,0 +1,41 @@
+name: Tags de versão
+
+# Cada versão que entra na main ganha a tag vX.Y.Z no commit em que entrou (emenda ao
+# ADR-0057). É a tag que o FORGE_REF dos gatilhos de CI (templates/ci/) busca por
+# padrão: quem copia um template recebe a fábrica da versão que copiou.
+#
+# Quem decide é o `release.py tags --publicar`: compara com as tags do origin, cria as
+# que faltam com a data do commit e publica num push só, sem --force. Nunca move nem
+# apaga tag; a que já existe em outro commit deixa o job vermelho. No primeiro run,
+# marca também as versões anteriores que têm commit próprio na linha principal.
+on:
+  push:
+    branches: [main]
+    paths: [".claude-plugin/plugin.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tags-de-versao
+  cancel-in-progress: false
+
+jobs:
+  tags:
+    name: Publicar as tags de versão
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0              # a linha principal inteira: é nela que cada versão entrou
+          persist-credentials: false  # o token só entra no passo que publica
+
+      - name: Publicar as tags que faltam
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: |
+          gh auth setup-git
+          python3 scripts/release.py tags --publicar

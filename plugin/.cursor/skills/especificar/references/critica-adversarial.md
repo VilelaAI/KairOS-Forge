@@ -18,11 +18,17 @@ Escolha entre as personas que **não participaram da redação**, pelo eixo de r
 
 | Eixo | Quem ataca | Pergunta |
 |---|---|---|
-| Requisito | Joana, Norma | Requisito ambíguo, sem critério de aceite verificável, ou inventado sem fonte? Na Média+, cada dimensão da Varredura termina em requisito, proteção existente ou `n/a` com motivo? |
+| Requisito | Joana, Norma | Requisito ambíguo, sem critério de aceite verificável, ou inventado sem fonte? Cada um aponta, no Mapa de intenção, para quem pediu, e o deduzido está marcado `inferido`? O critério vale nos dois sentidos: o que proíbe o caso ruim garante o caso bom? Na Média+, cada dimensão da Varredura termina em requisito, proteção existente ou `n/a` com motivo? |
 | Arquitetura | Diego, Fernanda, Thiago | Abordagem cria acoplamento, contradiz o que existe, ou ignora carga real? O Desenho do programa declara tipos, assinaturas, o caminho da T1 e as portas de mão única? A coluna Reusa aponta o que o `grafo.py contexto` mostra que já existe? |
-| Testabilidade | Ricardo, Patrícia | Dá para provar cada P1? Comando existe? Evidência é observável? Critério tem valor ou adjetivo (ADR-0039)? |
+| Testabilidade | Ricardo, Patrícia | Dá para provar cada P1? Comando existe? Evidência é observável? Critério tem valor ou adjetivo (ADR-0039)? A SPEC promete mais do que dá para verificar? O que ela assume sem provar está em Confiado, com quem aceitou e um teste, e o que ninguém garante está em Não prometido? |
 | Segurança | Helena | Toca auth, PII, autorização ou input externo sem mitigação declarada? |
 | Escopo | Camila, Hugo | O apetite comporta? O P1 é mesmo P1? T1 é fatia fim a fim, ou o plano é por camada (ADR-0039)? |
+
+As duas perguntas novas vêm do PDD Kit (GitHub Next, nov/2026), em que dois revisores
+atacam a especificação antes da prova: ela diz o que a pessoa pediu? Ela promete mais do
+que dá para mostrar? Uma especificação que verifica mas descarta quase nada é a
+"verificação de fachada" deles. Aqui, o equivalente é o critério de um sentido só e a
+promessa sem teste nem fronteira declarada (ADR-0053).
 
 Cada crítico produz achados **com localização** — seção, ID do requisito, linha do
 plano. "A SPEC parece boa" não é crítica; se não achou nada, diga qual seção leu e

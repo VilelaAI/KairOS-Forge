@@ -232,8 +232,10 @@ INSTRUCAO = {
                   "em docs/specs/criticas/. Depois: `registrar limpa` ou `registrar com_achados`.",
     "corrigindo_spec": "Corrija os achados da crítica na SPEC — cada um, ou justifique por "
                        "escrito por que não. Depois: `registrar pronto` (a crítica REABRE).",
-    "aguardando_aprovacao": "GATE HUMANO (3/3) — apresente objetivo, P1, não-objetivos e o "
-                            "que a crítica encontrou; espere SIM/NÃO/AJUSTAR. Depois: "
+    "aguardando_aprovacao": "GATE HUMANO (3/3) — apresente objetivo, P1, não-objetivos, o "
+                            "que a crítica encontrou e, da SPEC (ADR-0053), os requisitos "
+                            "`inferido` do mapa de intenção, o que é confiado sem prova e o "
+                            "não prometido; espere SIM/NÃO/AJUSTAR. Depois: "
                             "`registrar aprovada` ou `registrar recusada`. "
                             "Nunca responda pelo usuário.",
     "construindo": "Construa pela SPEC (/mobilizar ou /rodar). Cada tarefa com gate e "

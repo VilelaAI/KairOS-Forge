@@ -161,7 +161,67 @@ def ler_spec(caminho: Path) -> dict | None:
         "p1_abertos": [r["id"] for r in reqs
                        if r["prioridade"] == "P1" and not r["estado"].startswith("conclu")],
         "sem_prova": [r["id"] for r in sem_prova],
+        "intencao": intencao_da_spec(texto),
+        "confiado": confiado_da_spec(texto),
+        "nao_prometido": itens_da_secao(texto, "Não prometido"),
     }
+
+
+# --- intenção e fronteira de confiança (ADR-0053) -------------------------------------
+# Do PDD Kit (GitHub Next): cada requisito aponta para de onde veio, nas palavras de quem
+# pediu, e o que a entrega assume sem provar fica escrito, com quem aceitou e o teste que
+# cobre. O que nenhuma das duas listas tem é o que ninguém está prometendo.
+
+SECAO = re.compile(r"^## +(.+?)[ \t]*$", re.M)
+SEM_VALOR = {"", "—", "-", "?"}
+
+
+def _secao(texto: str, titulo: str) -> str | None:
+    """O corpo da seção `## <titulo>` (pelo começo do título, sem caixa), ou None."""
+    marcas = list(SECAO.finditer(texto))
+    for i, m in enumerate(marcas):
+        if m.group(1).lower().startswith(titulo.lower()):
+            fim = marcas[i + 1].start() if i + 1 < len(marcas) else len(texto)
+            return texto[m.end():fim]
+    return None
+
+
+def _linhas_da_tabela(corpo: str) -> list[list[str]]:
+    """As linhas de dados da primeira tabela do corpo, sem o cabeçalho."""
+    return [c for c in map(_celulas, corpo.splitlines()) if c][1:]
+
+
+def itens_da_secao(texto: str, titulo: str) -> list[str]:
+    corpo = _secao(texto, titulo) or ""
+    itens = [l.strip()[2:].strip() for l in corpo.splitlines() if l.strip().startswith(("- ", "* "))]
+    return [i for i in itens if i not in SEM_VALOR]
+
+
+def intencao_da_spec(texto: str) -> dict:
+    """O mapa de intenção: de onde veio cada requisito. `tem_mapa` False é SPEC sem a
+    seção; `sem_origem` são os ids que a seção não cobre ou cobre sem fonte; `inferidos`,
+    os que a fábrica deduziu, e que a pessoa confirma na aprovação (ADR-0015)."""
+    ids = [r[0] for r in map(_celulas, texto.splitlines())
+           if len(r) >= 5 and any(c.lower() in PESO for c in r)]
+    corpo = _secao(texto, "Mapa de intenção")
+    mapa: dict[str, str] = {}
+    for linha in _linhas_da_tabela(corpo or ""):
+        fonte = linha[1] if len(linha) > 1 else ""
+        for rid in re.split(r"\s*[,·]\s*", linha[0]):
+            mapa[rid.strip()] = fonte
+    return {"tem_mapa": corpo is not None, "ids": ids,
+            "sem_origem": [i for i in ids if mapa.get(i, "") in SEM_VALOR],
+            "inferidos": [i for i in ids if mapa.get(i, "").lower().startswith("inferido")]}
+
+
+def confiado_da_spec(texto: str) -> list[dict]:
+    """As peças que a entrega assume sem provar: o que, quem aceitou, o teste que cobre."""
+    saida = []
+    for linha in _linhas_da_tabela(_secao(texto, "Confiado") or ""):
+        linha = linha + ["", ""]          # aceito por e teste podem faltar na linha
+        saida.append({"assume": linha[0], "aceito_por": linha[1], "teste": linha[2],
+                      "testado": linha[2].lower().startswith("verificado:")})
+    return [p for p in saida if p["assume"] not in SEM_VALOR]
 
 
 ROTULOS = (("critica", "Crítica"), ("validacao", "Validação"), ("revisao", "Revisão"))
@@ -723,8 +783,35 @@ def _spec_mudou(spec: dict, cab: dict, ciclo: dict | None) -> list[str]:
     return []
 
 
+def _intencao(spec: dict, cab: dict, ciclo: dict | None) -> list[str]:
+    i = spec.get("intencao")
+    if not i:                      # SPEC que não passou pelo ler_spec: nada a dizer
+        return []
+    if not i["tem_mapa"]:
+        return ["A SPEC não tem mapa de intenção: confira se cada requisito foi pedido (ADR-0053)."]
+    itens = []
+    if i["sem_origem"]:
+        itens.append("Sem origem no mapa de intenção: " + ", ".join(i["sem_origem"])
+                     + " — entraram sem ser pedidos?")
+    if i["inferidos"]:
+        itens.append("Inferidos pela fábrica, não pedidos: " + ", ".join(i["inferidos"]) + ".")
+    return itens
+
+
+def _confiado(spec: dict, cab: dict, ciclo: dict | None) -> list[str]:
+    return [f"Confiado sem teste verificado: {p['assume']}"
+            + (f" (aceito por {p['aceito_por']})" if p["aceito_por"] not in SEM_VALOR else " (ninguém aceitou)")
+            + "." for p in spec.get("confiado") or [] if not p["testado"]]
+
+
+def _nao_prometido(spec: dict, cab: dict, ciclo: dict | None) -> list[str]:
+    itens = spec.get("nao_prometido") or []
+    return ["Não prometido, e o merge aceita assim: " + "; ".join(itens) + "."] if itens else []
+
+
 # Cada sinal lê os arquivos e diz o que só uma pessoa decide; a ordem é a do corpo.
-SINAIS_DO_PR = (_sem_relatorio, _ressalvas, _fora, _faixa_subestimada, _faixa_3, _spec_mudou)
+SINAIS_DO_PR = (_sem_relatorio, _ressalvas, _fora, _faixa_subestimada, _faixa_3, _spec_mudou,
+                _intencao, _confiado, _nao_prometido)
 
 
 def decisoes_do_pr(spec: dict, cab: dict, ciclo: dict | None) -> list[str]:
@@ -773,6 +860,14 @@ def _faixa(p: dict) -> str:
     return f" · **Faixa:** {estimada} (estimada na triagem)" if estimada else ""
 
 
+def _tabela_da_fronteira(confiado: list[dict] | None) -> list[str]:
+    """A fronteira de confiança inteira, na evidência recolhida (ADR-0053)."""
+    if not confiado:
+        return []
+    return (["", "| Confiado, não provado | Aceito por | Teste |", "|---|---|---|"]
+            + [f"| {p['assume']} | {p['aceito_por'] or '—'} | {p['teste'] or '—'} |" for p in confiado])
+
+
 def _evidencia(p: dict) -> list[str]:
     spec, rel, voltas = p["spec"], p["spec"]["relatorios"], p["voltas"]
     p1 = [x for x in spec["requisitos"] if x["prioridade"] == "P1"]
@@ -784,6 +879,7 @@ def _evidencia(p: dict) -> list[str]:
               "| Requisito | Prioridade | Verificação |", "|---|---|---|"]
     linhas += [f"| {x['id']} | {x['prioridade']} | {_verificacao(x)} |"
                for x in spec["requisitos"]]
+    linhas += _tabela_da_fronteira(spec.get("confiado"))
     linhas += ["", _linha_do_gate("Validação", "docs/specs/validacoes", rel.get("validacao") or {}),
                _linha_do_gate("Revisão", "docs/specs/revisoes", rel.get("revisao") or {})]
     if p["ciclo"]:

@@ -36,7 +36,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver (lista de skills abreviada aqui):
 
 ```
-🔥 kairos-forge v0.45 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+🔥 kairos-forge v0.46 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -126,6 +126,13 @@ Laura entra como Tech Lead, classifica a feature, e aciona os arquitetos relevan
 Eles interrogam, propõem 2-3 abordagens e recomendam uma (feature Média ou maior; na Pequena, seguem com a recomendada como premissa registrada — ADR-0038), e produzem `docs/specs/SPEC-001-exportar-relatorio-csv.md` com requisitos rastreáveis, critérios de aceite, gates e plano de implementação **agente por agente**.
 
 Duas regras do plano valem saber (ADR-0039): a primeira tarefa é uma **fatia fim a fim** — um caminho fino que atravessa todas as camadas e já é testável —, e critério de aceite tem **valor, não adjetivo** ("em ≤ 2 s", "status 403", nunca "rápido" ou "robusto").
+
+E três seções que dizem o que você está aprovando (ADR-0053):
+- **Mapa de intenção:** de onde veio cada requisito, nas suas palavras. O que a fábrica deduziu vem marcado `inferido`, para você confirmar.
+- **Confiado, não provado:** o que a entrega assume sem provar, com quem aceitou e o teste que cobre.
+- **Não prometido:** o que ninguém garante sobre o que é entregue.
+
+O critério de aceite vale nos dois sentidos: "só com a senha certa" vem com "com a senha certa, sempre". As três listas voltam no corpo do PR, na frente de quem decide o merge.
 
 Antes de a SPEC chegar a você, **dois críticos que não a escreveram atacam o documento** (ADR-0033) — premissa, requisito, plano e testabilidade — e o relatório vai para `docs/specs/criticas/`. Era a única etapa do arco sem contraditório: a validação tem Ricardo e Patrícia, a revisão tem Helena e Patrícia, e a SPEC tinha só o autor. O parser cobra dois nomes distintos, porque um olhar só é revisão, não crítica.
 

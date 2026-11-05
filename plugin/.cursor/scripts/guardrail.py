@@ -8,7 +8,7 @@ sugeria lembrar do Ricardo e não impedia nada. As regras duras da fábrica mora
 todas em prosa que o modelo pode driftar — a inversão exata do que o paper
 recomenda.
 
-Este script é a parte que **bloqueia**. Dez classes de risco:
+Este script é a parte que **bloqueia**. Onze classes de risco:
 
   1. Comando destrutivo      — apagar a raiz, force-push em branch protegida,
                                DROP/TRUNCATE fora de migration, curl|sh, chmod 777;
@@ -47,6 +47,10 @@ Este script é a parte que **bloqueia**. Dez classes de risco:
                                construção autônoma roda em worktree (emenda ao
                                ADR-0024). Default `aviso`, uma vez por sessão;
                                `"checkout_principal": "sempre"` vale fora do ciclo
+ 11. Intenção               — requisito da SPEC sem origem no `## Mapa de intenção`
+                               (ADR-0053): inventado, pelo ADR-0015. SPEC nova
+                               sem o mapa também conta. Default `aviso`, uma vez
+                               por arquivo na sessão
 
 Mais três regras de comando no piso (ADR-0042), inspiradas no harness-toolkit do
 Tech Leads Club: destruição fora do projeto (`rm -rf` em caminho absoluto que não é
@@ -121,8 +125,8 @@ que o arquivo mudou — o que um sync legítimo também faz. Por isso ali o defa
     }                                              // também (ADR-0052)
 
 Classes de regra, para o campo `modos`: `comando`, `protegido`, `gerado`, `spec`,
-`contrato`, `teste`, `parada`, `regua`, `checkout`. Todas nascem em `bloqueio`, menos
-`teste`, `parada`, `regua` e `checkout`, que nascem em `aviso` (refactor legítimo também edita teste,
+`contrato`, `teste`, `parada`, `regua`, `checkout`, `intencao`. Todas nascem em `bloqueio`, menos
+`teste`, `parada`, `regua`, `checkout` e `intencao`, que nascem em `aviso` (refactor legítimo também edita teste,
 sessão de leitura também termina sem gate, e migração de versão também mexe na config
 do linter — a regra existe para deixar rastro; promova a `bloqueio` quando a taxa de
 aviso cair).
@@ -461,7 +465,7 @@ MODO_PADRAO = "bloqueio"
 # Classe que nasce em observação (ADR-0039): editar teste existente é legítimo com
 # frequência demais para bloquear por default — o valor está no rastro.
 MODO_PADRAO_POR_CLASSE = {"teste": "aviso", "parada": "aviso", "regua": "aviso",
-                          "checkout": "aviso"}
+                          "checkout": "aviso", "intencao": "aviso"}
 
 
 def modo_de(cfg: dict, classe: str) -> str:
@@ -1107,7 +1111,7 @@ def checar_spec(payload: dict) -> int:
         return 0
     achados = linhas_incoerentes(texto)
     if not achados:
-        return 0
+        return checar_intencao(payload, caminho, texto)
     raiz = Path(payload.get("cwd") or ".")
     modo = modo_de(carregar_config(raiz), "spec")
     registrar_recusa(raiz, "spec", "Concluído sem verificado:", caminho, modo)
@@ -1119,6 +1123,46 @@ def checar_spec(payload: dict) -> int:
         "Corrija agora: rode o gate e escreva `verificado: <como confirmei> (<dd/mm>)`, "
         "ou volte o status para 'Em progresso' com `em progresso: <o que falta>`. "
         "O /kairos-forge:validar trataria isso como 'sem evidência' e bloquearia P1.",
+        modo,
+    )
+
+
+# --- intenção da SPEC (ADR-0053) -------------------------------------------------------
+# Do PDD Kit: requisito que não aponta para quem pediu foi inventado (ADR-0015), e o lugar
+# de ver isso é quando a SPEC é escrita, não no PR. Nasce em `aviso`, uma vez por arquivo na
+# sessão: o rastro fica sempre. SPEC que já estava na base sem o mapa é de antes da regra e
+# passa; com o mapa, vale para ela também.
+
+def requisitos_sem_origem(raiz: Path, rel: str, texto: str) -> list[str]:
+    try:
+        from painel import intencao_da_spec
+    except Exception:
+        return []
+    i = intencao_da_spec(texto)
+    if i["tem_mapa"]:
+        return i["sem_origem"]
+    return [] if existia_na_base(raiz, rel) else i["ids"]
+
+
+def checar_intencao(payload: dict, caminho: str, texto: str) -> int:
+    raiz = Path(payload.get("cwd") or ".")
+    rel = relativo(caminho, raiz)
+    faltam = requisitos_sem_origem(raiz, rel, texto)
+    if not faltam:
+        return 0
+    modo = modo_de(carregar_config(raiz), "intencao")
+    registrar_recusa(raiz, "intencao", "requisito sem origem no mapa de intenção", rel, modo)
+    if modo != "bloqueio" and not primeira_vez_na_sessao(payload, f"intencao:{rel}"):
+        return 0
+    return bloquear(
+        f"requisito sem origem em `{rel}` — {', '.join(faltam[:8])}"
+        + (f" e mais {len(faltam) - 8}" if len(faltam) > 8 else ""),
+        "Cada requisito aponta, no `## Mapa de intenção`, para de onde veio: o pedido, a "
+        "issue, a resposta de um gate, a varredura, um ADR — nas palavras de quem pediu. "
+        "Requisito sem origem foi inventado (ADR-0015).",
+        "Complete o mapa. O que a fábrica deduziu fica como `inferido`, e a pessoa confirma "
+        "na aprovação; o que ninguém pediu e ninguém confirma sai da SPEC ou vira pergunta "
+        "aberta.",
         modo,
     )
 

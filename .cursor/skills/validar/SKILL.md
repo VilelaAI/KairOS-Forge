@@ -94,6 +94,7 @@ Regras:
 - **Status "Concluído" na SPEC sem célula Verificação iniciando com `verificado:` = "sem evidência" automático.** Não importa se o código está no diff: marcar pronto sem prova de execução é o anti-padrão que o ritual existe para impedir. Inspirado no `briefing.md` do Replit-Orchestrator.
 - **Status "Em progresso" sem célula Verificação iniciando com `em progresso:` = falha de contrato.** O autor da SPEC deve listar o que ainda falta. Conta 0.5 no percentual da SPEC se o conteúdo for plausível.
 - SPECs antigas (anteriores à coluna Verificação) ficam fora dessas duas últimas regras — registrar como "SPEC anterior ao ritual de verificação" no veredicto.
+- **A fronteira de confiança também se valida (ADR-0053).** Cada linha de `## Confiado, não provado` com teste `planejado:` tem o teste rodado nesta validação; passou, a célula vira `verificado: <comando> (<dd/mm>)`. Linha sem teste, ou com teste que não roda, entra no relatório como pendência da fronteira. Não bloqueia sozinha: o corpo do PR a põe na frente de quem decide o merge. Requisito sem origem no `## Mapa de intenção` também vai para o relatório, porque é o que o guardrail avisou e ninguém corrigiu.
 
 ### 3.5. Fundamentar afirmações no grafo (se existir)
 

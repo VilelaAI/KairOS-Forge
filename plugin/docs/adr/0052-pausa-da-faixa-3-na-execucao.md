@@ -143,9 +143,9 @@ de teste não deixa um teste fazer o papel de uma pessoa que libera a chamada.
   pausa só diga `ask`.
 - **Mutação.** Os 7 estragos plantados à mão na pausa são acusados. A mutação automática
   do `qualidade.py`, com o `claude plugin test` e as suítes Python como comando, deixou 9 de
-  51 mutantes vivos na primeira rodada. Os que eram lacuna viraram teste. Os equivalentes
-  ficaram: literais de tipo apagados na compilação, um `[]` que o chamador lê como `None` e
-  o `ensure_ascii` do JSON.
+  51 mutantes vivos na primeira rodada. Os que eram lacuna viraram teste. A rodada final
+  mata 42 de 46, e os 4 que sobram são equivalentes: dois literais de tipo apagados na
+  compilação, um `[]` que o chamador lê como `None` e o `ensure_ascii` do JSON.
 - **Pausa a mais.** Tudo o que a classificação acha irreversível pergunta, durante o arco,
   mesmo quando a pessoa já tinha liberado a ferramenta. É o preço da regra "humano decide,
   sempre", pago só dentro do arco.

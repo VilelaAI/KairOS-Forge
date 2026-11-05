@@ -203,6 +203,14 @@ class Contexto(ComEstado):
         self.assertEqual(self.eventos()[0]["spec"], "SPEC-007")
 
 
+    def test_sem_o_execucao_ao_lado_a_raiz_e_o_proprio_cwd(self) -> None:
+        # Cópia avulsa do guardrail, sem o `execucao.py`: o `cwd` vale como está.
+        with mock.patch.dict(sys.modules, {"execucao": None}):
+            self.assertEqual(guardrail.raiz_da_chamada({"cwd": str(self.raiz / "infra")}),
+                             self.raiz / "infra")
+            self.assertEqual(guardrail.raiz_da_chamada({}), guardrail.Path("."))
+
+
 class NoCursor(ComEstado):
     """No Cursor (ADR-0055), o `ask` de um hook não chega a uma pessoa no Auto-review: a
     pausa nasce como recusa com o cartão, e a resposta sai sempre no esquema dele."""

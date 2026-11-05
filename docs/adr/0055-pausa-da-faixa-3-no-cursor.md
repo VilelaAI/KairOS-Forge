@@ -88,8 +88,9 @@ quadro. Daí, o worktree ligado já resolvia para o checkout principal (ADR-0048
 
 ## Prova
 
-- **Testes.** `test_faixa3.py` passa de 17 para 30 testes:
-  - a subpasta, no Claude Code e no Cursor;
+- **Testes.** `test_faixa3.py` passa de 17 para 31 testes:
+  - a subpasta, no Claude Code e no Cursor, e a cópia avulsa do script sem o
+    `execucao.py` ao lado;
   - o `allow` no esquema fora do arco e no que passa dentro dele;
   - a recusa com o cartão e o evento (`deny`, `cursor`);
   - o `perguntar` que vira `ask` para a pessoa;
@@ -100,8 +101,15 @@ quadro. Daí, o worktree ligado já resolvia para o checkout principal (ADR-0048
   - o payload do Claude Code intocado;
   - o shell do Cursor que vira `Bash`;
   - o sync, que liga a pausa no shell e no MCP.
-- **Prova negativa.** Rodados contra a `main`, 12 dos 13 testes novos falham. O que passa
+- **Prova negativa.** Rodados contra a `main`, 13 dos 14 testes novos falham. O que passa
   é a guarda de que o payload do Claude Code continua intocado.
+- **Mutação.** Com o `test_faixa3.py` e o `test_guardrail.py` como suíte, a primeira rodada
+  deixou 3 de 21 mutantes vivos:
+  - dois eram o `ensure_ascii` da resposta, equivalente: o JSON lido é o mesmo, e o
+    argumento saiu do código;
+  - um era o caminho sem o `execucao.py`, que virou teste.
+
+  A rodada final mata 19 de 19.
 - **O que não foi exercitado.** Não rodei um Cursor de verdade, porque não há Cursor no
   ambiente de trabalho. A precedência entre hooks, o esquema da resposta e o
   comportamento do `ask` por modo vêm da documentação do Cursor e do relato confirmado no

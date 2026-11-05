@@ -1770,14 +1770,14 @@ def _responder_pausa(pausa: dict | None) -> int:
     """No Claude Code, o JSON que o mod lê; no Cursor, a decisão no dialeto dele, que
     recusa a ação inteira se a resposta não bate com o esquema."""
     if not _EDITOR["cursor"]:
-        print(json.dumps(pausa or {"pausa": False}, ensure_ascii=False))
+        print(json.dumps(pausa or {"pausa": False}))
     elif pausa is None:
         print(json.dumps({"permission": "allow"}))
     else:
         print(json.dumps({"permission": pausa["decisao"],
                           "user_message": (pausa["razao"] if pausa["decisao"] == "ask" else
                                            f"kairos-forge recusou (faixa 3): {pausa['efeito']}"),
-                          "agent_message": pausa["razao"]}, ensure_ascii=False))
+                          "agent_message": pausa["razao"]}))
     return 0
 
 

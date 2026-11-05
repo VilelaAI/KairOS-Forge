@@ -1,5 +1,5 @@
-"""Testes do encaixe dos mods no plugin: o painel do arco (ADR-0051) e a pausa da faixa 3
-na execução (ADR-0052).
+"""Testes do encaixe dos mods no plugin: o painel do arco (ADR-0051), a pausa da faixa 3
+na execução (ADR-0052) e o segredo ocultado na saída de ferramenta (ADR-0056).
 
 Só stdlib. O comportamento dos mods é testado pelo kit do Claude Code
 (`claude plugin test .`, em `tests/`); aqui fica o que tem de valer em qualquer máquina,
@@ -15,7 +15,9 @@ com ou sem o Claude Code instalado:
      `painel.py`;
    - a pausa só pergunta: o único veredito que ela dá é `ask`, a recusa de baixo passa
      intacta e ela só roda o `guardrail.py faixa3`;
-   - nenhum dos dois devolve `allow`.
+   - o segredo não decide se a chamada roda: só depois de ela rodar, uma vez, troca o
+     texto que volta, e só roda o `guardrail.py saida`;
+   - nenhum dos três devolve `allow`.
 
 Rode: python3 -m unittest discover -s scripts/tests -t scripts -v
 """
@@ -77,6 +79,9 @@ class Encaixe(unittest.TestCase):
         self.assertIn("registrarPainel(on)", entrada)
         self.assertIn("registrarPausa(on)", entrada)
 
+    def test_a_entrada_liga_tambem_o_segredo(self) -> None:
+        self.assertIn("registrarSegredo(on)", codigo(HOOKS / "mod.ts"))
+
     def test_nenhum_mod_escreve_nem_manda_prompt(self) -> None:
         self.assertTrue(fontes())
         for fonte in fontes():
@@ -88,16 +93,32 @@ class Encaixe(unittest.TestCase):
             with self.subTest(fonte.name):
                 texto = codigo(fonte)
                 self.assertNotIn("'allow'", texto)           # nenhum mod libera nada
-                if fonte.name != "pausa.ts":
+                if fonte.name not in ("pausa.ts", "segredo.ts"):
                     self.assertEqual(DECIDE.findall(texto), [])
         pausa = codigo(HOOKS / "pausa.ts")
         self.assertEqual(re.findall(r"decision: '(\w+)'", pausa), ["ask"])
         self.assertIn("if (abaixo.decision === 'deny' || e.isReadOnly) return abaixo", pausa)
         self.assertEqual(pausa.count(".catch(($, e, next) => next(e))"), 1)
 
+    def test_o_segredo_so_reescreve_o_que_ja_rodou(self) -> None:
+        # Retém o resultado (o `deny` de um `tool.call` depois do `next`) e não decide se
+        # a chamada roda: nada de `tool.check`, um só `next`, chamado antes de tudo.
+        segredo = codigo(HOOKS / "segredo.ts")
+        self.assertNotIn("tool.check", segredo)
+        self.assertEqual(re.findall(r"on\('([\w.]+)'", segredo), ["tool.call"])
+        corpo = segredo[segredo.index("on('tool.call'"):]
+        self.assertEqual(corpo.count("await next(e)"), 1)
+        self.assertLess(corpo.index("await next(e)"), corpo.index("examinar("))
+        [retido] = re.findall(r"return \{ deny: (.*)", segredo)   # o único resultado retido
+        self.assertIn("exame.textos.texto", retido)                 # é o texto já oculto
+        self.assertIn("exame.aviso", retido)
+        self.assertIn("if (r.deny !== undefined) return r", corpo)
+        self.assertEqual(segredo.count(".catch(($, e, next) => next(e))"), 1)
+
     def test_cada_mod_so_roda_o_seu_script(self) -> None:
         for nome, script in (("painel.tsx", "/scripts/painel.py`"),
-                             ("pausa.ts", "/scripts/guardrail.py`, 'faixa3'")):
+                             ("pausa.ts", "/scripts/guardrail.py`, 'faixa3'"),
+                             ("segredo.ts", "/scripts/guardrail.py`, 'saida'")):
             with self.subTest(nome):
                 texto = codigo(HOOKS / nome)
                 runs = re.findall(r"\$\.process\.(run|spawn)\((.*)", texto)

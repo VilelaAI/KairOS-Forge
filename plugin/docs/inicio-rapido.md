@@ -36,7 +36,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver (lista de skills abreviada aqui):
 
 ```
-🔥 kairos-forge v0.46 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+🔥 kairos-forge v0.47 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -189,6 +189,8 @@ Ricardo e Patrícia validam se a implementação cumpre os requisitos P1, crité
 A validação também **confere a evidência contra o que realmente rodou** (ADR-0021): a célula `verificado:` da SPEC é escrita pelo agente que fez o trabalho, então ela é conferida contra a trajetória gravada pelos hooks. Alegação sem lastro vira "não corroborada" e bloqueia P1 igual a "sem evidência". Em CLI sem trajetória (Codex, OpenCode), essa etapa é pulada sem penalizar o veredicto.
 
 E confere a prova, não só o verde (ADR-0039): `prova.py pre-patch` roda o teste novo contra a base, sem o patch — teste que passa ali não prova a mudança —, e `prova.py testes-alterados` lista teste existente modificado ou afrouxado no diff, cobrando a justificativa arquivo a arquivo. Os gates sobem do barato ao caro (lint e tipos → unitários → integração → e2e) e param no primeiro vermelho. Com a camada de código do grafo (3i), `grafo.py contexto` aponta os chamadores fora do diff — a regressão que ninguém olhou (ADR-0041).
+
+E cada critério de aceite tem de perceber um bug (ADR-0054, do PDD Kit). `qualidade.py criterios SPEC-001` planta mutantes no código que a entrega tocou e roda, para cada requisito, o comando da Matriz de testes da SPEC. O critério cujo teste fica verde com todos os mutantes é de fachada: conta como sem evidência e volta para a prova. O mutante que nenhum critério percebe aparece como comportamento sem critério, para você decidir se falta um critério ou se é algo que ninguém promete.
 
 ### 3f. Revisar antes do PR
 

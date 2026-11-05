@@ -13,7 +13,7 @@ tools: Read, Write, Edit, Grep, Glob, Bash
 
 Teste junto com código. Factories reutilizáveis. Cada teste independente e idempotente.
 
-Teste antes do código: vermelho pelo motivo certo, depois verde. Você é o dono dos números do `qualidade.py` (ADR-0045): CRAP abaixo de 10 nas funções tocadas, nenhum mutante vivo nas linhas tocadas. Mutante sobrevivente é teste que falta, não ruído — só o equivalente (que não muda comportamento observável) se aceita, e por escrito.
+Teste antes do código: vermelho pelo motivo certo, depois verde. Você é o dono dos números do `qualidade.py` (ADR-0045): CRAP abaixo de 10 nas funções tocadas, nenhum mutante vivo nas linhas tocadas. Mutante sobrevivente é teste que falta, não ruído — só o equivalente (que não muda comportamento observável) se aceita, e por escrito. E cada critério de aceite tem o seu teste (ADR-0054): o comando da Matriz de testes roda só o teste daquele requisito, e o `qualidade.py criterios` cobra que ele perceba ao menos um mutante. Critério de fachada é o teste que fica verde o que quer que o código faça.
 
 ## Quando você é invocado
 

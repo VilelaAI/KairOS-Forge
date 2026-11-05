@@ -1130,7 +1130,7 @@ def comandos_da_matriz(texto: str) -> dict[str, list[str]]:
     cols = tuple(_coluna(linhas[0], nome) for nome in ("comando", "requisito", "tipo"))
     saida: dict[str, list[str]] = {}
     for cels in linhas[1:] if cols[0] is not None else []:
-        _comandos_da_linha(cels + [""] * (len(linhas[0]) - len(cels)), cols, saida)
+        _comandos_da_linha(cels + [""] * len(linhas[0]), cols, saida)  # linha curta
     return saida
 
 
@@ -1186,11 +1186,11 @@ class Rodada:
     def percebe(self, g: int, gate: dict, m: int, mutante: dict) -> bool:
         """Roda o gate com o mutante já plantado. Falhou ou estourou: percebeu."""
         self.tentados.add((g, m))
-        if rodar(gate["comando"], self.arvore, gate["por_mutante"])[0] == "passou":
-            return False
-        gate.setdefault("percebeu", mutante)
-        mutante.setdefault("pego_por", gate["ids"])
-        return True
+        percebeu = rodar(gate["comando"], self.arvore, gate["por_mutante"])[0] != "passou"
+        if percebeu:
+            gate.setdefault("percebeu", mutante)
+            mutante.setdefault("pego_por", gate["ids"])
+        return percebeu
 
 
 def _base_dos_gates(gates: list[dict], rodada: Rodada) -> list[dict]:

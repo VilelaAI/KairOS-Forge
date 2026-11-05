@@ -96,13 +96,23 @@ fica em `types/index.d.ts`, onde o `claude plugin validate` o acha por convenç�
   - `tsconfig.json`: igual ao que o motor escreve ao carregar o mod em desenvolvimento.
 - O CI ganha o job `mod-painel`: `claude plugin validate` (raiz e `plugin/`) e
   `claude plugin test .`, com o Claude Code pinado em 2.1.318, sem chave de API.
-  - Os testes rodam o painel nas quatro superfícies, a faixa, o toast, os dois comandos, a
-    falta de Python e a chamada de ferramenta passando inteira.
-  - Cada um dos dez estragos plantados no mod é acusado por pelo menos um teste.
+  - São 14 testes:
+    - o painel nas quatro superfícies;
+    - a faixa e o toast;
+    - os dois comandos;
+    - o ciclo escalado, o encerrado e o pronto para PR;
+    - o painel vazio;
+    - o script que falha e a falta de Python;
+    - a chamada de ferramenta passando inteira.
 - O CRAP do `qualidade.py` (ADR-0045) não se mede no TypeScript do mod: o kit de teste não
   gera relatório de cobertura, então toda função sai com 0%. Para o mod, a régua é a
-  mutação, rodada com o `claude plugin test` como comando. O desenho saiu de dentro do
-  `register` (CC 47 → 6), e a maior função ficou com CC 14.
+  mutação, rodada com o `claude plugin test` como comando.
+  - O desenho saiu de dentro do `register` (CC 47 → 6), e a maior função ficou com CC 14.
+  - A primeira rodada deixou 33 de 69 mutantes vivos. Cada um virou teste ou código
+    simplificado: um campo que o mod guardava e não desenhava, dois ramos que nunca mudavam
+    o resultado e um tipo que agora diz que o total e o teto vêm juntos.
+  - A rodada final mata 61 de 62. O que sobra é equivalente: o valor inicial de uma
+    variável que o laço reescreve antes de ler.
 - A leitura custa duas execuções do `painel.py` (cerca de 100 ms cada). Ela roda no início
   da sessão, no fim de cada turno, depois de cada chamada que muda o arco e nos botões. Uma
   leitura por vez: o pedido que chega durante uma leitura vira mais uma, depois dela.

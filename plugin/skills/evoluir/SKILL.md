@@ -52,6 +52,35 @@ Sem hooks no CLI, `.agents/execucoes/` fica vazio e o resumo vem zerado. Isso é
 comportamento honesto, não bug: **diga que não há trajetória** e siga para a entrevista
 sem inventar tendência a partir de nada.
 
+### O que as pessoas corrigiram nos PRs da fábrica (emenda ao ADR-0044)
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/telemetria.py prs --correcoes --dias 30
+```
+
+A autonomia de PR diz quantas vezes uma pessoa teve de mexer num PR da fábrica. Esta lista
+diz **o que** ela mudou:
+- o commit de pessoa dentro do PR;
+- a correção ou o revert de pessoa depois do merge, pelos critérios do `comparar`.
+
+Cada mudança vem com os arquivos e o tipo, e a lista também agrega por arquivo e por tipo.
+O diff de um item se lê com `git show <sha>`. Como sai do git, a lista existe em qualquer
+CLI, sem hook. Ela não diz quem corrigiu: o insumo é a correção, não a pessoa.
+
+| O que a lista mostra | O que perguntar |
+|---|---|
+| O mesmo arquivo, ou a mesma pasta, em vários PRs | Que skill ou persona gera esse tipo de arquivo, e o que ela não sabe? |
+| Muito `test` | O teste da fábrica passa sem provar? A prova negativa (ADR-0039) e o mutante por critério (ADR-0054) rodaram no arco? |
+| `fix` depois do merge | O que o gate deixou passar? Que critério de aceite faltava? |
+| `revert` | Onde o arco devia ter parado, e ninguém viu até depois do merge? |
+| Lista vazia com poucos PRs | Amostra pequena sem correção não é prova de qualidade |
+
+A lista é provocação, como a trajetória: aponte o padrão e pergunte. A lição, e se ela vira
+capacidade, é decisão do usuário.
+
+Com a fonte `git`, PR mesclado por squash não aparece. Diga isso, em vez de ler a lista
+vazia como "nada foi corrigido".
+
 ### Memória de sessão (se houver)
 
 Se as tools MCP `memory_*` estiverem disponíveis (ai-memory, ADR-0010): `memory_recent` e `memory_query` sobre a semana (prompts repetidos, tarefas que apareceram várias vezes, sessões longas no mesmo problema). Use como **provocação concreta** nas perguntas — "vi que você pediu geração de fixture 4 vezes esta semana; isso é a repetição?" — em vez de depender só da lembrança do usuário. A resposta continua sendo dele: evidência sugere, não decide.
@@ -173,7 +202,7 @@ provar: o que muda em relação à linha de base abaixo.
 ## Linha de base
 
 (O número ou comportamento que o critério de pronto vai comparar no próximo ciclo,
-medido agora: linha do `telemetria.py resumo`, contagem, ocorrência. Sem trajetória,
+medido agora: linha do `telemetria.py resumo` ou do `prs --correcoes`, contagem, ocorrência. Sem trajetória,
 diga como vai observar.)
 
 ## Veredicto da evolução anterior

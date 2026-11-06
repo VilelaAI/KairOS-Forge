@@ -172,6 +172,8 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True   # não escrever __pycache__ no diretório do plugin
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # para importar contrato.py
+# A regra de o que é segredo (ADR-0056), a mesma da trajetória e da saída de ferramenta.
+from segredos import MARCA_SEGREDO, ocultar, ocultar_segredos
 
 # --- 1. comandos destrutivos --------------------------------------------------------
 # Precisão importa mais que cobertura: guardrail com falso positivo é guardrail que o
@@ -521,8 +523,10 @@ def registrar_evento(raiz: Path, evento: dict) -> None:
     try:
         pasta = pasta_da_trajetoria(raiz)
         pasta.mkdir(parents=True, exist_ok=True)
+        # Comando, alvo e erro passam pela regra de segredo: a trajetória fica em disco.
         evento = {"t": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                  "sessao": (os.environ.get("CLAUDE_SESSION_ID") or "?")[:16], **evento}
+                  "sessao": (os.environ.get("CLAUDE_SESSION_ID") or "?")[:16],
+                  **{k: ocultar(v) if isinstance(v, str) else v for k, v in evento.items()}}
         with (pasta / f"{datetime.now(timezone.utc):%Y-%m}.jsonl").open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(evento, ensure_ascii=False) + "\n")
     except Exception:
@@ -1845,41 +1849,7 @@ def checar_faixa3(payload: dict) -> int:
 # de o modelo ver. Só formatos de alta precisão: o falso positivo esconde um valor da
 # saída; o falso negativo manda o segredo para fora.
 
-MARCA_SEGREDO = "«segredo ocultado pelo kairos-forge: {tipo}»"
-# Valor de variável secreta: um token inteiro, terminado por espaço, aspas ou pontuação,
-# que não começa como referência (`$X`, `<seu-token>`, `{{ }}`, `***`). Assim
-# `api_key = os.environ["API_KEY"]` e `token = get_token()` não são valor.
-VALOR = r"(?![$<{%*])([A-Za-z0-9_\-+/=.:@!#^&~]{8,})(?=[\s'\",;}\]]|$)"
-SEGREDOS_NA_SAIDA: list[tuple[re.Pattern, str, int]] = [    # (padrão, tipo, grupo do valor)
-    (re.compile(r"-----BEGIN ([A-Z ]*)PRIVATE KEY-----[\s\S]*?(?:-----END \1PRIVATE KEY-----|\Z)"),
-     "chave privada", 0),
-    (re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), "chave de acesso AWS", 0),
-    (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36,}\b|\bgithub_pat_[A-Za-z0-9_]{22,}\b"), "token GitHub", 0),
-    (re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b"), "token GitLab", 0),
-    (re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}\b"), "token Slack", 0),
-    (re.compile(r"\b[rs]k_(?:live|test)_[A-Za-z0-9]{16,}\b"), "chave Stripe", 0),
-    (re.compile(r"\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}"), "chave de API de modelo", 0),
-    (re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"), "chave de API Google", 0),
-    (re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"), "JWT", 0),
-    (re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:/@]+:([^\s@/]{3,})@"), "senha em URL de conexão", 1),
-    (re.compile(r"\b[A-Z0-9_]*(?:PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|PRIVATE_KEY|ACCESS_KEY)"
-                r"[A-Z0-9_]*['\"]?\s*[=:]\s*['\"]?" + VALOR), "valor de variável secreta", 1),
-    (re.compile(r"\b(?:password|passwd|secret|token|api_?key|access_?key|private_?key"
-                r"|client_?secret|auth_?token)['\"]?\s*[=:]\s*['\"]?" + VALOR), "valor de chave secreta", 1),
-]
-
-
-def ocultar_segredos(texto: str) -> tuple[str, list[str]]:
-    """O texto com cada segredo trocado pela marca, e o tipo de cada um, em ordem."""
-    tipos: list[str] = []
-    for padrao, tipo, grupo in SEGREDOS_NA_SAIDA:
-        def trocar(m: re.Match, tipo: str = tipo, grupo: int = grupo) -> str:
-            tipos.append(tipo)
-            inteiro, base = m.group(0), m.start()
-            return (inteiro[:m.start(grupo) - base] + MARCA_SEGREDO.format(tipo=tipo)
-                    + inteiro[m.end(grupo) - base:])
-        texto = padrao.sub(trocar, texto)
-    return texto, tipos
+# A regra (o que é segredo) mora em `segredos.py`, que a trajetória também usa.
 
 
 def aviso_de_segredo(ferramenta: str, tipos: list[str], ocultar: bool) -> str:
@@ -1977,7 +1947,7 @@ def falhar_aberto(modo: str, payload: dict, erro: Exception) -> int:
     (ADR-0046, do ECC): o erro vai para a trajetória, que o `/auditar` lê, e para o stderr.
     """
     raiz = Path(payload.get("cwd") or os.getcwd())
-    descricao = f"{type(erro).__name__}: {erro}"[:200]
+    descricao = ocultar(f"{type(erro).__name__}: {erro}")[:200]
     registrar_evento(raiz, {"tipo": "guardrail_erro", "modo": modo, "erro": descricao})
     print(f"⚠️  kairos-forge: o guardrail ({modo}) falhou e deixou passar — {descricao}. "
           "Registrado em .agents/execucoes/.", file=sys.stderr)

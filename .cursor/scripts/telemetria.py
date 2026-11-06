@@ -90,6 +90,10 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+sys.dont_write_bytecode = True   # não escrever __pycache__ no diretório do plugin
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from segredos import ocultar     # a mesma regra que gravou o comando (ADR-0056)
+
 
 def carregar(raiz: Path, dias: int | None) -> list[dict]:
     pasta = pasta_do_projeto(raiz, "execucoes")       # onde o hook grava, mesmo num worktree
@@ -648,8 +652,9 @@ def normalizar(cmd: str) -> str:
 
 
 def corroborar(eventos: list[dict], alvo: str) -> dict:
-    """O comando alegado em `verificado:` aparece na trajetória? Com que resultado?"""
-    alvo_n = normalizar(alvo)
+    """O comando alegado em `verificado:` aparece na trajetória? Com que resultado? O
+    alegado passa pela mesma regra de segredo que o comando passou ao ser gravado."""
+    alvo_n = normalizar(ocultar(alvo))
     achados = []
     for ev in eventos:
         if ev.get("tipo") != "comando":
@@ -670,7 +675,7 @@ def corroborar(eventos: list[dict], alvo: str) -> dict:
         veredicto = "corroborado_com_falha"
     else:
         veredicto = "corroborado_indeterminado"
-    return {"alegado": alvo, "veredicto": veredicto,
+    return {"alegado": ocultar(alvo), "veredicto": veredicto,
             "execucoes": achados[-5:], "total": len(achados)}
 
 

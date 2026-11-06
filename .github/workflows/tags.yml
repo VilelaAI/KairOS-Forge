@@ -8,6 +8,12 @@ name: Tags de versão
 # que faltam com a data do commit e publica num push só, sem --force. Nunca move nem
 # apaga tag; a que já existe em outro commit deixa o job vermelho. No primeiro run,
 # marca também as versões anteriores que têm commit próprio na linha principal.
+#
+# Este token não tem a permissão `workflows`: ele só cria tag cujos arquivos de workflow
+# já existem em alguma ref do repositório. A versão nova sempre passa, porque é a ponta
+# da main. Uma tag antiga recusada por isso ("without `workflows` permission") se
+# resolve publicando uma branch no commit dela e rodando este workflow à mão, ou com
+# `python3 scripts/release.py tags --publicar` no clone de uma pessoa (ADR-0057, emenda).
 on:
   push:
     branches: [main]

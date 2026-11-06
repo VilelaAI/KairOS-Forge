@@ -212,3 +212,27 @@ que publicou. Os dois viraram teste, e a rodada final mata 21 de 21. O CRAP fica
 
 O workflow em si não rodou aqui: o ambiente não roda GitHub Actions. O primeiro run é o
 merge desta emenda.
+
+**O que o primeiro run ensinou (v0.50.2).** O merge publicou 55 das 56 tags, e a v0.19.0
+voltou recusada: `refusing to allow a GitHub App to create or update workflow
+.github/workflows/ci.yml without workflows permission`. O token do workflow não tem a
+permissão `workflows`, e nenhuma linha de `permissions:` a concede. Por isso ele só cria
+uma ref cujos arquivos de workflow já existem em alguma ref do repositório.
+- O `ci.yml` da v0.34.2 e o da v0.44.0 estavam na ponta de branches antigas, e essas tags
+  passaram.
+- O da v0.19.0 não estava em nenhuma.
+
+Como o push não é atômico, as outras 55 tags saíram, e o job ficou vermelho só pela que
+faltou.
+
+- **Versão nova não cai nisso.** O workflow marca o commit da ponta da `main`, que já tem
+  esses arquivos.
+- **Tag antiga recusada.** O caminho é publicar uma branch no commit dela, com uma
+  credencial que tenha a permissão `workflows`, e rodar o workflow à mão. Foi o que se fez
+  com `claude/ancora-tag-v0.19.0`. Depois que a tag existe, a branch pode ser apagada:
+  a própria tag segura o commit.
+- **Alternativa.** A pessoa roda `python3 scripts/release.py tags --publicar` no próprio
+  clone.
+
+Em nenhum dos dois casos o workflow ganha `workflows`. Um token que edita workflow, num
+job que roda a cada versão, é mais permissão do que uma tag histórica vale.

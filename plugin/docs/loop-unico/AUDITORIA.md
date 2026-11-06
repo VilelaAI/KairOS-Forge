@@ -76,8 +76,9 @@ subagente, não sobra.
   contexto, e a Alethe diz o mesmo do validador ("numa sessão nova, nunca a do autor"). A
   peça de encaixe já existe: os blocos `kairos-critica`, `kairos-revisao` e `kairos-validacao`
   são o resultado estruturado que um subagente chamado como ferramenta devolve.
-- **Medida:** as tarefas `t04` e `t05` do eval têm defeitos plantados e medem se a crítica e a
-  revisão os acham.
+- **Medida:** as tarefas `t04`, `t05`, `t09` e `t11` do eval têm defeitos plantados e medem se a
+  crítica e a revisão os acham. A `t09` e a `t11` também têm iscas, e a `t10` não tem defeito:
+  as três medem se elas bloqueiam à toa.
 
 ### B. O conhecimento das personas não entra quando elas fazem papel no contexto
 
@@ -129,11 +130,12 @@ A maior parte é prosa. Ela some à medida que personas viram `references/`, sem
 Cada item é uma variante do eval (`evals/tarefas-fabrica/`), comparada com a última que ficou.
 Fica só se não piorar a tarefa concluída.
 
-- [ ] **0. Linha de base** (`base`): as 8 tarefas, 2 reps, depois de uma sonda pequena para
+- [ ] **0. Linha de base** (`base`): as 11 tarefas, 2 reps, depois de uma sonda pequena para
   medir tokens. Precisa do seu ok para gastar.
 - [ ] **1. Verificação isolada** (`v1-verificacao-isolada`): crítica e revisão em subagente de
   contexto limpo, que recebe só o artefato e o critério e devolve o bloco de contrato. Achado A.
-  Medido em `t04` e `t05`, com custo extra em tokens.
+  Medido em `t04`, `t05`, `t09`, `t10` e `t11` (o acerto e o bloqueio à toa), com custo extra
+  em tokens.
 - [ ] **2. Juntar o apoio** (`v2-apoio-juntado`): os 7 squads de apoio sem papel viram uma
   persona cada. Achado C. Medido pelo eval de roteamento e por todas as tarefas, para ver se
   nada piora.

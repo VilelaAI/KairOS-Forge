@@ -42,7 +42,9 @@ class TarefasReais(unittest.TestCase):
     def test_todas_distinguem_base_solucao_e_erradas(self) -> None:
         codigo, saida = calado(rodar.main, ["validar"])
         self.assertEqual(codigo, 0, saida)
-        self.assertIn("8 de 8", saida)
+        n = len(rodar.carregar_tarefas())
+        self.assertGreaterEqual(n, 11)              # nenhuma tarefa some em silêncio
+        self.assertIn(f"{n} de {n}", saida)
 
     def test_todas_bem_formadas(self) -> None:
         for t in rodar.carregar_tarefas():
@@ -96,8 +98,9 @@ class Checagens(unittest.TestCase):
     def test_intocado_pega_mudanca_commit_e_arquivo_novo(self) -> None:
         c = {"tipo": "intocado", "caminhos": ["vendas/"]}
         self.assertTrue(self.checar(c))
+        self.assertEqual(rodar.checar(c, self.ws, self.ref, ""), (True, "intocado"))
         (self.ws / "vendas" / "novo.py").write_text("y = 2\n", encoding="utf-8")
-        self.assertFalse(self.checar(c))
+        self.assertEqual(rodar.checar(c, self.ws, self.ref, ""), (False, "mudou: ['vendas/novo.py']"))
         rodar.git(self.ws, "add", "-A")
         rodar.git(self.ws, "commit", "-qm", "muda")
         self.assertFalse(self.checar(c))
@@ -113,6 +116,9 @@ class Checagens(unittest.TestCase):
         self.assertTrue(self.checar({**base, "campos": {"veredicto": "bloqueado"}}))
         self.assertFalse(self.checar({**base, "campos": {"veredicto": "aprovado"}}))
         self.assertFalse(self.checar({**base, "minimos": {"achados": 2}}))
+        self.assertEqual(rodar.checar({**base, "campos": {"veredicto": "aprovado"}}, self.ws, self.ref, ""),
+                         (False, "CRITICA-SPEC-001-2026-11-03.md · difere: ['veredicto']"))
+        self.assertEqual(rodar.checar(base, self.ws, self.ref, ""), (True, "CRITICA-SPEC-001-2026-11-03.md"))
         self.assertFalse(self.checar({**base, "glob": "docs/nada/*.md"}))
 
     def test_contrato_invalido_reprova(self) -> None:
@@ -140,6 +146,92 @@ class Checagens(unittest.TestCase):
         c = {"tipo": "resposta", "regex": ["\\?", "câmbio"]}
         self.assertTrue(self.checar(c, "Qual fonte de câmbio?"))
         self.assertFalse(self.checar(c, "Converti tudo para dólar."))
+
+
+class Bloqueios(unittest.TestCase):
+    """A checagem que separa quem acha o defeito de quem bloqueia por qualquer coisa."""
+
+    RELATORIO = textwrap.dedent("""\
+        # Revisão pré-PR — feature/x
+
+        ## 🔴 Crítico (qualquer revisor) → bloqueia merge
+        - [Helena] R1 · vendas/nomes.py:7 — caminho absoluto passa pelo validador.
+        - [Helena] R2 · vendas/compactar.py:14 — subprocess · descartado: lista sem shell, com `--`.
+
+        ## 🟡 Médio
+        - [Patrícia] vendas/compactar.py — falta teste do gzip.
+
+        | # | Onde | Achado | Severidade |
+        |---|---|---|---|
+        | 1 | REG-02 | critério de um sentido só | 🔴 |
+        | 2 | REG-04 | bem especificado | 🔵 |
+
+        ```kairos-revisao
+        {"veredicto": "bloqueado", "examinado": ["vendas/compactar.py (Helena)", "REG-04"]}
+        ```
+        """)
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.ws = Path(self.tmp.name)
+        (self.ws / "REVISAO-x.md").write_text(self.RELATORIO, encoding="utf-8")
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def checar(self, **c) -> tuple[bool, str]:
+        return rodar.checar({"tipo": "bloqueios", "glob": "REVISAO-*.md", **c}, self.ws, "", "")
+
+    def test_so_as_linhas_que_bloqueiam_contam(self) -> None:
+        linhas = rodar.linhas_que_bloqueiam(self.RELATORIO)
+        self.assertEqual(len(linhas), 2)
+        self.assertIn("nomes.py", linhas[0])
+        self.assertIn("REG-02", linhas[1])
+
+    def test_achado_antes_de_qualquer_titulo_so_conta_com_o_vermelho(self) -> None:
+        self.assertEqual(rodar.linhas_que_bloqueiam("- [Helena] nota sem severidade\n"), [])
+        self.assertEqual(rodar.linhas_que_bloqueiam("- [Helena] 🔴 R1 · a.py\n"), ["- [Helena] 🔴 R1 · a.py"])
+
+    def test_exige_e_proibido(self) -> None:
+        self.assertEqual(self.checar(exige=["nomes\\.py", "absolut", "REG-02"],
+                                     proibido=["compactar", "REG-04", "subprocess"]),
+                         (True, "2 bloqueio(s), todos no lugar"))
+        ok, detalhe = self.checar(exige=["servidor\\.py"])
+        self.assertFalse(ok)
+        self.assertIn("não bloqueou: ['servidor\\\\.py']", detalhe)
+        ok, detalhe = self.checar(proibido=["caminho absoluto"])
+        self.assertFalse(ok)
+        self.assertIn("bloqueou à toa", detalhe)
+
+    def test_sem_relatorio_reprova(self) -> None:
+        ok, detalhe = rodar.checar({"tipo": "bloqueios", "glob": "nada/*.md"}, self.ws, "", "")
+        self.assertEqual((ok, detalhe), (False, "nenhum nada/*.md"))
+
+    def test_toda_checagem_declarada_tem_quem_a_faca(self) -> None:
+        self.assertEqual(set(rodar.CHECAGENS), set(rodar.CHECADORES))
+        self.assertEqual(rodar.checar({"tipo": "outra"}, self.ws, "", ""),
+                         (False, "checagem desconhecida: outra"))
+
+    def test_campos_aceita_uma_lista_de_valores(self) -> None:
+        self.assertTrue(rodar._bate("aprovado", ["aprovado", "aprovado_com_ressalvas"]))
+        self.assertFalse(rodar._bate("bloqueado", ["aprovado", "aprovado_com_ressalvas"]))
+        self.assertTrue(rodar._bate("bloqueado", "bloqueado"))
+        self.assertFalse(rodar._bate(["bloqueado"], "bloqueado"))
+
+
+class Mudanca(unittest.TestCase):
+    def test_branch_e_mensagem_vem_da_tarefa(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as pasta:
+            (Path(pasta) / "mudanca").mkdir()
+            (Path(pasta) / "mudanca" / "novo.txt").write_text("x", encoding="utf-8")
+            for mudanca, branch, mensagem in (
+                    (True, "feature/download", "feat: download dos relatórios"),
+                    ({"branch": "feature/media", "mensagem": "feat: média"}, "feature/media", "feat: média")):
+                ws = Path(tmp) / branch.replace("/", "-")
+                ws.mkdir()
+                rodar.preparar({"pasta": Path(pasta), "mudanca": mudanca}, ws)
+                self.assertEqual(rodar.git(ws, "branch", "--show-current").stdout.strip(), branch)
+                self.assertEqual(rodar.git(ws, "log", "-1", "--format=%s").stdout.strip(), mensagem)
 
 
 class SolucaoErrada(unittest.TestCase):

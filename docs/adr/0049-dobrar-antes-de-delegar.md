@@ -118,3 +118,51 @@ tarefa concluída não piorar. Toda rodada paga pede ok, com tamanho e estimativ
 ## Nota (v0.43.0): o que mudou depois da auditoria
 
 O `/relatar` (ADR-0050) entrou depois desta auditoria, com a Talita falando no contexto principal, no mesmo padrão das outras: hoje são 18 das 19 skills sem subagente. A linha da Talita no inventário passa a citar a skill; o veredicto dela não foi reavaliado.
+
+## Emenda (v0.50.5): tarefas de verificação que separam as variantes
+
+Na linha de base, a fábrica acertou a `t04` e a `t05` em todas as rodadas. Com isso, a variante
+1 (verificação isolada) não tinha como mostrar ganho nelas. E as duas só mediam o acerto, não o
+bloqueio à toa, que a verificação isolada também pode aumentar.
+
+O eval ganha três tarefas de verificação e uma checagem:
+- **`t09-revisar-caminho-absoluto`:** o validador do diff recusa `..` mas deixa passar o caminho
+  absoluto, os testes do diff passam, e há uma isca (`subprocess` com lista e `--`);
+- **`t10-revisar-sem-defeito`:** um diff correto e testado, com iscas, em que o certo é aprovar com
+  a lista do que foi examinado;
+- **`t11-criticar-spec-sutil`:** uma SPEC com um critério de um sentido só (ADR-0053) e uma matriz
+  que aponta o requisito para um teste que mede outra coisa, mais um requisito incomum mas bem
+  feito como isca;
+- **a checagem `bloqueios`:** lê só os achados bloqueantes do relatório e cobra os dois lados, o
+  defeito plantado em `exige` e a isca em `proibido`.
+
+Cada tarefa tem soluções erradas conhecidas, e o `rodar.py validar` (CI, sem modelo) exige que
+todas sejam reprovadas. A variante 1 passa a ser medida em `t04`, `t05`, `t09`, `t10` e `t11`.
+Ela só fica se não piorar nem o acerto nem o bloqueio à toa.
+
+A linha de base precisa rodar de novo, agora com 11 tarefas, antes da variante 1. A rodada é
+paga e pede ok.
+
+Duas mudanças de apoio:
+- **O `checar` do runner virou uma tabela, com uma função por tipo de checagem.** Ele era legado
+  acima do limite do CRAP (CC 25), e o tipo novo o faria piorar. Agora tem CC 2.
+- **Os fixtures das tarefas saem das medidas do `qualidade.py`.** No `.gitattributes`, ficam como
+  `linguist-vendored`. São o projeto, a mudança com o defeito plantado e as soluções erradas de
+  propósito, e medir CRAP e mutação de código escrito para estar errado não diz nada.
+
+**Prova.**
+- Contra o runner da `main`, as três tarefas são reprovadas no `validar`, e falham os 7 testes
+  novos ou alterados do runner: a checagem `bloqueios`, a lista de valores, o branch da tarefa e
+  as contagens. O teste que conferia "8 de 8" passou a contar as tarefas da pasta, com piso de
+  11.
+- Cada solução errada cai pelo motivo certo:
+  - a revisão que só vê o `..` cai por "não bloqueou o caminho absoluto";
+  - a que bloqueia o `subprocess`, por "bloqueou à toa";
+  - a que bloqueia a divisão já protegida, pelo veredicto;
+  - a que mexe no código, por "intocado";
+  - a crítica que acha um defeito só, por "não bloqueou REG-03";
+  - a que bloqueia o REG-04, por "bloqueou à toa".
+- Os testes do diff da `t09` passam, e `servir_relatorio('/etc/hostname')` lê fora da pasta: o
+  buraco é real.
+- A mutação do `qualidade.py` sobre o runner mata 34 de 34. Os 3 sobreviventes da primeira
+  rodada eram asserções que faltavam e viraram teste.

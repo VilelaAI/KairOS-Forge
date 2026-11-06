@@ -1342,12 +1342,15 @@ def correcoes_humanas(raiz: Path, prs: list[dict], extras: tuple = (), gh: bool 
             itens.append({"numero": pr.get("numero"), "titulo": (pr.get("titulo") or "")[:80],
                           "branch": pr.get("branch"), "antes": antes, "depois": depois})
     por_arquivo, por_tipo, nao_lidos = _agregar(itens)
+    return {**_totais(itens, da_fabrica, agora), "janela_correcao_dias": JANELA_CORRECAO_DIAS,
+            "por_arquivo": por_arquivo, "por_tipo": por_tipo, "nao_lidos": nao_lidos, "prs": itens}
+
+
+def _totais(itens: list[dict], da_fabrica: list[dict], agora: datetime) -> dict:
     return {"da_fabrica": len(da_fabrica), "com_mudanca": len(itens),
             "antes_do_merge": sum(1 for i in itens if i["antes"]),
             "depois_do_merge": sum(1 for i in itens if i["depois"]),
-            "janela_aberta": sum(1 for p in da_fabrica if not janela_fechada(p, agora)),
-            "janela_correcao_dias": JANELA_CORRECAO_DIAS, "por_arquivo": por_arquivo,
-            "por_tipo": por_tipo, "nao_lidos": nao_lidos, "prs": itens}
+            "janela_aberta": sum(1 for p in da_fabrica if not janela_fechada(p, agora))}
 
 
 def _arquivos_da_mudanca(m: dict) -> str:

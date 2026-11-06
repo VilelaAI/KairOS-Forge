@@ -13,8 +13,9 @@ Três invariantes, nesta ordem de prioridade:
      Quem bloqueia é o guardrail.py.
   2. NUNCA escreve em stdout. Em `SessionStart` e `UserPromptSubmit` o stdout do
      hook entra no contexto do modelo — poluir ali custa tokens em toda interação.
-  3. NUNCA registra segredo. Comandos são redigidos antes de gravar; prompts
-     entram como contagem e skill detectada, jamais como texto.
+  3. NUNCA registra segredo. Comandos passam pela regra do `segredos.py` (a mesma da
+     saída de ferramenta, ADR-0056) antes de gravar; sem ela, o comando não é gravado.
+     Prompts entram como contagem e skill detectada, jamais como texto.
 
 Uso (nos hooks):
     execucao.py inicio      # SessionStart
@@ -36,6 +37,13 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+sys.dont_write_bytecode = True   # não escrever __pycache__ no diretório do plugin
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+try:
+    from segredos import ocultar
+except ImportError:              # cópia antiga sem o módulo: não grava o que não sabe ocultar
+    ocultar = None
 
 LIMITE_CMD = 300
 LIMITE_ARQ = 200
@@ -64,12 +72,11 @@ SUCESSO = re.compile(
 )
 
 # --- redação de segredo ------------------------------------------------------------
-SEGREDO_ROTULADO = re.compile(
-    r"(?i)\b(bearer|token|api[_-]?key|apikey|secret|password|passwd|senha|auth)"
-    r"([=:\s]+)(\S+)"
-)
-TOKEN_LONGO = re.compile(r"\b[A-Za-z0-9_\-]{40,}\b")
-FLAG_CURTA = re.compile(r"(?i)(-p|--password|--token|--secret)(\s+)(\S+)")
+# A regra é a do `segredos.py`: só formatos de alta precisão. A regra antiga, daqui, deixava
+# passar `DB_PASSWORD=…`, a senha na URL de conexão e as chaves com prefixo, e ao mesmo tempo
+# apagava o hash de commit e o nome longo de teste, o que fazia o `corroborar` não achar o
+# gate que rodou.
+NAO_GRAVADO = "«comando não gravado: falta o segredos.py»"
 
 EXT_PRODUCAO = re.compile(
     r"\.(py|ts|tsx|js|jsx|mjs|cjs|go|rs|java|rb|php|kt|kts|swift|cs|scala|ex|exs|vue|svelte)$"
@@ -88,11 +95,8 @@ SKILLS = re.compile(
 
 
 def redigir(texto: str) -> str:
-    """Remove o que parece segredo antes de qualquer gravação."""
-    texto = SEGREDO_ROTULADO.sub(lambda m: f"{m.group(1)}{m.group(2)}«redigido»", texto)
-    texto = FLAG_CURTA.sub(lambda m: f"{m.group(1)}{m.group(2)}«redigido»", texto)
-    texto = TOKEN_LONGO.sub("«redigido»", texto)
-    return texto
+    """O texto com cada segredo trocado pela marca, antes de qualquer gravação."""
+    return ocultar(texto) if ocultar else NAO_GRAVADO
 
 
 def _relativo(caminho: str, base) -> str | None:
@@ -268,11 +272,11 @@ def ev_ferramenta(p: dict) -> dict | None:
     resposta = p.get("tool_response")
 
     if nome == "Bash":
-        cmd = redigir(str(entrada.get("command") or ""))[:LIMITE_CMD]
+        bruto = str(entrada.get("command") or "")
         return {
             "tipo": "comando",
-            "cmd": cmd,
-            "gate": classificar_gate(cmd),
+            "cmd": redigir(bruto)[:LIMITE_CMD],
+            "gate": classificar_gate(bruto),         # o gate sai do comando, não da gravação
             "ok": avaliar_saida(resposta),
         }
 

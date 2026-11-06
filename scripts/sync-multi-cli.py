@@ -95,7 +95,8 @@ MARCA_GERADO = "GERADO por scripts/sync-multi-cli.py (kairos-forge)"
 # para que o sync funcione em qualquer ponto do histórico).
 SCRIPTS_DE_SUPORTE = ["grafo.py", "telemetria.py", "execucao.py", "guardrail.py",
                       "diagnostico.py", "ciclo.py", "contrato.py", "painel.py",
-                      "quadro.py", "prova.py", "qualidade.py"]
+                      "quadro.py", "prova.py", "qualidade.py",
+                      "segredos.py"]     # a regra de segredo que guardrail, execucao e telemetria importam
 
 
 def montar_rule(skills: list[str]) -> str:

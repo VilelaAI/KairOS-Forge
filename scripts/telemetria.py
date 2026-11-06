@@ -21,6 +21,10 @@ Uso:
     telemetria.py prs [--dias 30] [--fonte gh|git] [--marca REGEX]... [--json]
                                                   # autonomia de PR, medida pelo git
                                                   # (ADR-0044) — funciona sem hook
+    telemetria.py prs --correcoes [--dias 30] [--fonte gh|git] [--marca REGEX]... [--json]
+                                                  # o que as pessoas mudaram nos PRs da
+                                                  # fábrica, antes e depois do merge — o
+                                                  # insumo do /evoluir (emenda ao ADR-0044)
     telemetria.py comparar [--dias 90] [--fonte gh|git] [--marca REGEX]... [--json]
                                                   # a entrega da fábrica × a humana:
                                                   # PRs revertidos e corrigidos depois
@@ -82,7 +86,7 @@ import re
 import shutil
 import subprocess
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -1017,18 +1021,18 @@ def historico_principal(raiz: Path) -> list[dict]:
     try:
         r = subprocess.run(["git", "-C", str(raiz), "log", "--reverse", "--first-parent",
                             "--diff-merges=first-parent", "--name-only",
-                            "--format=%x1e%H%x1f%cI%x1f%s%x1f%b%x1f"],
+                            "--format=%x1e%H%x1f%cI%x1f%an%x1f%s%x1f%b%x1f"],
                            capture_output=True, text=True, timeout=120)
     except (OSError, subprocess.SubprocessError):
         return []
     commits = []
     for bloco in r.stdout.split("\x1e")[1:] if r.returncode == 0 else []:
         partes = bloco.split("\x1f")
-        if len(partes) < 5:
+        if len(partes) < 6:
             continue
-        arquivos = [a.strip() for a in partes[4].splitlines() if a.strip()]
-        commits.append({"oid": partes[0], "quando": _data(partes[1]), "assunto": partes[2],
-                        "corpo": partes[3], "arquivos": arquivos})
+        arquivos = [a.strip() for a in partes[5].splitlines() if a.strip()]
+        commits.append({"oid": partes[0], "quando": _data(partes[1]), "autor": partes[2],
+                        "assunto": partes[3], "corpo": partes[4], "arquivos": arquivos})
     return commits
 
 
@@ -1075,16 +1079,28 @@ def _rotulo(c: dict | None) -> str | None:
     return f"{c['oid'][:9]} {titulo_do_commit(c)[:60]}" if c else None
 
 
-def sinais_do_pr(pr: dict, historico: list[dict]) -> dict:
+def depois_do_merge(pr: dict, historico: list[dict]) -> tuple[list[tuple[str, dict]], set[str]]:
+    """([(sinal, commit)], arquivos do PR): o que reverteu ou corrigiu o PR depois do merge,
+    pelos critérios acima, na ordem do histórico. Sem data de merge, nada."""
     quando = _data(pr.get("mesclado_em"))
     if quando is None:
-        return {"revertido": None, "corrigido": None}
+        return [], set()
     oids = _oids_do_pr(pr)
     entrega = next((c for c in historico if c["oid"] == pr.get("entrega")), None)
-    codigo = de_codigo(entrega["arquivos"]) if entrega else set()
-    depois = _posteriores(historico, quando, oids)
-    return {"revertido": _rotulo(next((c for c in depois if reverte(c, pr, oids)), None)),
-            "corrigido": _rotulo(next((c for c in depois if corrige(c, quando, codigo)), None))}
+    arquivos = set(entrega["arquivos"]) if entrega else set()
+    sinais = []
+    for c in _posteriores(historico, quando, oids):
+        if reverte(c, pr, oids):
+            sinais.append(("revertido", c))
+        elif corrige(c, quando, de_codigo(arquivos)):
+            sinais.append(("corrigido", c))
+    return sinais, arquivos
+
+
+def sinais_do_pr(pr: dict, historico: list[dict]) -> dict:
+    sinais, _ = depois_do_merge(pr, historico)
+    return {nome: _rotulo(next((c for s, c in sinais if s == nome), None))
+            for nome in ("revertido", "corrigido")}
 
 
 def _grupo(itens: list[dict]) -> dict:
@@ -1202,6 +1218,196 @@ def _cmd_comparar(raiz: Path, dias: int | None, fonte, extras, como_json: bool) 
         print(json.dumps(r, ensure_ascii=False, indent=2))
     else:
         imprimir_comparacao(r, dias)
+    return 0
+
+
+# --- o que as pessoas mudaram nos PRs da fábrica (emenda ao ADR-0044) ---------------
+# A autonomia de PR diz quantos PRs da fábrica uma pessoa teve de tocar, e o `comparar`
+# quantos voltaram depois. Nenhum dos dois diz o que a pessoa mudou, e é isso que o
+# /evoluir precisa para perguntar onde a fábrica erra. Duas fontes, as duas do git:
+#
+#   antes do merge   commit humano dentro do PR da fábrica; o merge da base fica de fora
+#   depois do merge  o revert ou a correção humana, pelos critérios do `comparar`; o PR
+#                    que corrige é humano quando não tem nenhum commit de agente
+#
+# Sai o que mudou (assunto, tipo, arquivos com as linhas), nunca quem mudou: o insumo é a
+# correção, não a pessoa. O diff fica no git (`git show <sha>`), fora da saída.
+
+TIPO_DO_COMMIT = re.compile(r"^(\w+)(?:\([^)]*\))?!?:")
+MERGE_NO_PR = re.compile(r"^Merge\b")
+
+
+def tipo_do_commit(assunto: str) -> str:
+    """O prefixo convencional (`fix`, `test`, `refactor`…), `revert`, ou `outro`."""
+    if assunto.lower().startswith("revert"):          # `Revert "..."`, `revert:`, "Reverte"
+        return "revert"
+    m = TIPO_DO_COMMIT.match(assunto)
+    if m:
+        return m.group(1).lower()
+    return "fix" if CORRECAO.match(assunto) else "outro"
+
+
+def _numstat(saida: str) -> list[dict]:
+    arquivos = []
+    for linha in saida.splitlines():
+        partes = linha.split("\t")
+        if len(partes) == 3:
+            mais, menos, arquivo = partes
+            arquivos.append({"arquivo": arquivo, "mais": int(mais) if mais.isdigit() else None,
+                             "menos": int(menos) if menos.isdigit() else None})
+    return arquivos
+
+
+def _numstat_do_clone(raiz: Path, oid: str) -> list[dict] | None:
+    """None quando o commit não está no clone, ou o git não roda."""
+    try:
+        r = subprocess.run(["git", "-C", str(raiz), "show", "--numstat", "--format=",
+                            "--diff-merges=first-parent", oid], capture_output=True,
+                           text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return _numstat(r.stdout) if r.returncode == 0 else None
+
+
+def arquivos_do_commit(raiz: Path, oid: str, gh: bool) -> list[dict] | None:
+    """Arquivos e linhas do commit: do clone, ou do `gh` quando o commit não está aqui (o
+    branch do PR apagado depois do squash). None quando nenhum dos dois alcança."""
+    local = _numstat_do_clone(raiz, oid)
+    if local is not None or not gh:
+        return local
+    dados = gh_json(raiz, "api", f"repos/{{owner}}/{{repo}}/commits/{oid}", "--jq",
+                    "[.files[] | {arquivo: .filename, mais: .additions, menos: .deletions}]")
+    return None if dados is None else [d for d in dados if isinstance(d, dict) and d.get("arquivo")]
+
+
+def _mudanca(raiz: Path, oid: str, assunto: str, gh: bool, do_pr: set[str] | None = None) -> dict:
+    """Uma mudança de pessoa. Depois do merge, só os arquivos que eram do PR."""
+    arquivos = arquivos_do_commit(raiz, oid, gh)
+    if arquivos is not None and do_pr is not None:
+        arquivos = [a for a in arquivos if a["arquivo"] in do_pr]
+    return {"oid": oid, "assunto": assunto[:100], "tipo": tipo_do_commit(assunto),
+            "arquivos": arquivos}
+
+
+def _de_pessoa_na_main(c: dict, por_entrega: dict, extras: tuple) -> bool:
+    """O commit da main que reverteu ou corrigiu é de pessoa? Se é a entrega de um PR da
+    lista, decide o PR (nenhum commit de agente); senão, o próprio commit."""
+    pr = por_entrega.get(c["oid"])
+    if pr is not None:
+        return not any(commit_de_agente(x, extras) for x in pr["commits"])
+    return not commit_de_agente({"mensagem": f"{c['assunto']}\n\n{c['corpo']}",
+                                 "autor": c.get("autor")}, extras)
+
+
+def _correcoes_do_pr(raiz: Path, pr: dict, historico: list[dict], por_entrega: dict,
+                     extras: tuple, gh: bool) -> tuple[list[dict], list[dict]]:
+    antes = [_mudanca(raiz, c.get("oid") or "", (c.get("mensagem") or "").split("\n", 1)[0], gh)
+             for c in pr["commits"] if not commit_de_agente(c, extras)
+             and not MERGE_NO_PR.match(c.get("mensagem") or "")]
+    sinais, do_pr = depois_do_merge(pr, historico)
+    depois = [{**_mudanca(raiz, c["oid"], titulo_do_commit(c), gh, do_pr), "sinal": sinal}
+              for sinal, c in sinais if _de_pessoa_na_main(c, por_entrega, extras)]
+    return antes, depois
+
+
+def _agregar(itens: list[dict]) -> tuple[list[dict], dict, int]:
+    """(por arquivo, por tipo, commits sem arquivos lidos)."""
+    por_arquivo: dict[str, dict] = {}
+    tipos: Counter = Counter()
+    nao_lidos = 0
+    for i, item in enumerate(itens):
+        for m in item["antes"] + item["depois"]:
+            tipos[m["tipo"]] += 1
+            nao_lidos += m["arquivos"] is None
+            for a in m["arquivos"] or []:
+                d = por_arquivo.setdefault(a["arquivo"], {"prs": set(), "commits": 0})
+                d["prs"].add(i)
+                d["commits"] += 1
+    lista = sorted(({"arquivo": k, "prs": len(d["prs"]), "commits": d["commits"]}
+                    for k, d in por_arquivo.items()),
+                   key=lambda d: (-d["prs"], -d["commits"], d["arquivo"]))
+    return lista, dict(tipos.most_common()), nao_lidos
+
+
+def correcoes_humanas(raiz: Path, prs: list[dict], extras: tuple = (), gh: bool = False,
+                      agora: datetime | None = None) -> dict:
+    agora = agora or datetime.now(timezone.utc)
+    historico = historico_principal(raiz)
+    por_entrega = {p["entrega"]: p for p in prs if p.get("entrega")}
+    da_fabrica = [p for p in prs if any(commit_de_agente(c, extras) for c in p["commits"])]
+    itens = []
+    for pr in da_fabrica:
+        antes, depois = _correcoes_do_pr(raiz, pr, historico, por_entrega, extras, gh)
+        if antes or depois:
+            itens.append({"numero": pr.get("numero"), "titulo": (pr.get("titulo") or "")[:80],
+                          "branch": pr.get("branch"), "antes": antes, "depois": depois})
+    por_arquivo, por_tipo, nao_lidos = _agregar(itens)
+    return {**_totais(itens, da_fabrica, agora), "janela_correcao_dias": JANELA_CORRECAO_DIAS,
+            "por_arquivo": por_arquivo, "por_tipo": por_tipo, "nao_lidos": nao_lidos, "prs": itens}
+
+
+def _totais(itens: list[dict], da_fabrica: list[dict], agora: datetime) -> dict:
+    return {"da_fabrica": len(da_fabrica), "com_mudanca": len(itens),
+            "antes_do_merge": sum(1 for i in itens if i["antes"]),
+            "depois_do_merge": sum(1 for i in itens if i["depois"]),
+            "janela_aberta": sum(1 for p in da_fabrica if not janela_fechada(p, agora))}
+
+
+def _arquivos_da_mudanca(m: dict) -> str:
+    if m["arquivos"] is None:
+        return "arquivos não lidos"
+    nomes = [a["arquivo"] + (f" (+{a['mais']} −{a['menos']})" if a["mais"] is not None else "")
+             for a in m["arquivos"][:4]]
+    resto = len(m["arquivos"]) - len(nomes)
+    return ", ".join(nomes) + (f" e mais {resto}" if resto > 0 else "") if nomes else "nenhum arquivo"
+
+
+def _linhas_do_pr(item: dict) -> list[str]:
+    rotulo = f"#{item['numero']}" if item["numero"] else (item["branch"] or "merge")
+    linhas = [f"   {rotulo} {item['titulo'][:60]}"]
+    for m in item["antes"]:
+        linhas.append(f"     antes do merge   {m['oid'][:9]} {m['assunto'][:55]} — {_arquivos_da_mudanca(m)}")
+    for m in item["depois"]:
+        linhas.append(f"     depois ({m['sinal']}) {m['oid'][:9]} {m['assunto'][:55]} — "
+                      f"{_arquivos_da_mudanca(m)}")
+    return linhas
+
+
+def imprimir_correcoes(r: dict, dias: int | None) -> None:
+    janela = f"últimos {dias} dias" if dias else "todo o histórico"
+    print(f"🩹 O que as pessoas mudaram nos PRs da fábrica — {janela} (fonte: {r['fonte']})\n")
+    if r["fonte"] == "git":
+        print(AVISO_FONTE_GIT)
+    if not r["da_fabrica"]:
+        print("   Nenhum PR da fábrica mesclado na janela: nada a ler.")
+        return
+    print(f"   PRs da fábrica: {r['da_fabrica']} · com mudança de uma pessoa: {r['com_mudanca']} "
+          f"(antes do merge: {r['antes_do_merge']} · depois: {r['depois_do_merge']})")
+    if r["janela_aberta"]:
+        print(f"   {r['janela_aberta']} mesclado(s) há menos de {r['janela_correcao_dias']} dias: "
+              "a correção depois do merge ainda pode vir.")
+    if not r["prs"]:
+        print("\n   Nenhuma pessoa mudou os PRs da fábrica nesta janela.")
+        return
+    print("\n   Onde as pessoas mexeram (arquivo — PRs, commits):")
+    for a in r["por_arquivo"][:10]:
+        print(f"     {a['arquivo']} — {a['prs']} PR(s), {a['commits']} commit(s)")
+    print("   Tipo de mudança: " + " · ".join(f"{t} {n}" for t, n in r["por_tipo"].items()))
+    if r["nao_lidos"]:
+        print(f"   {r['nao_lidos']} commit(s) sem arquivos: fora deste clone e sem `gh` para buscar.")
+    for item in r["prs"]:
+        print()
+        print("\n".join(_linhas_do_pr(item)))
+    print("\n   Para ver o que mudou: git show <sha>")
+
+
+def _cmd_correcoes(raiz: Path, dias: int | None, fonte, extras, como_json: bool) -> int:
+    origem, prs = prs_mesclados(raiz, dias, fonte)
+    r = {"fonte": origem, **correcoes_humanas(raiz, prs, tuple(extras), gh=origem == "gh")}
+    if como_json:
+        print(json.dumps(r, ensure_ascii=False, indent=2))
+    else:
+        imprimir_correcoes(r, dias)
     return 0
 
 
@@ -1354,7 +1560,8 @@ def _cmd_periodo(raiz: Path, dias: int | None, fonte, extras, como_json: bool) -
 
 
 # Comandos sobre os PRs mesclados: (raiz, dias, fonte, marcas, json) → exit code.
-SOBRE_PRS = {"prs": _cmd_prs, "comparar": _cmd_comparar, "periodo": _cmd_periodo}
+SOBRE_PRS = {"prs": _cmd_prs, "correcoes": _cmd_correcoes, "comparar": _cmd_comparar,
+             "periodo": _cmd_periodo}
 
 
 # --- custo por versão no /avaliar (aula 5 do Tech Leads Club) -----------------------
@@ -1508,6 +1715,8 @@ def _valor_de(args: list[str], nome: str) -> str | None:
 
 
 def _rodar_sobre_prs(comando: str, raiz: Path, dias, args: list[str], como_json: bool) -> int:
+    if comando == "prs" and "--correcoes" in args:
+        comando, args = "correcoes", [a for a in args if a != "--correcoes"]
     opcoes = _opcoes_de_pr(args)
     if isinstance(opcoes, str):
         print(opcoes, file=sys.stderr)

@@ -199,3 +199,81 @@ pergunta "O que entregamos aguenta?".
 - **Não pontua.** A rubrica de 120 pontos não muda, e as auditorias anteriores continuam
   comparáveis. A comparação entra no nível, que já era julgamento sobre os números.
 - **Nenhum número por pessoa.** O grupo humano é um só (regra 6 do `/relatar`).
+
+## Emenda (v0.50.3): o que as pessoas mudaram nos PRs da fábrica
+
+A autonomia de PR conta quantos PRs da fábrica uma pessoa teve de tocar. O `comparar` conta
+quantos voltaram depois do merge. Nenhum dos dois diz **o que** a pessoa mudou. E é isso que o
+`/evoluir` precisa para perguntar onde a fábrica erra, em vez de perguntar de memória.
+
+### Decisão
+
+`telemetria.py prs --correcoes` lista, por PR mesclado da fábrica, as mudanças de pessoa:
+- **Antes do merge:** o commit de pessoa dentro do PR, pelo mesmo critério da autonomia (sem
+  marca de agente). O merge da base no branch fica de fora, porque atualiza o branch e não
+  corrige o PR.
+- **Depois do merge:** o revert ou a correção, pelos critérios do `comparar` (correção é o
+  `fix:` em até 14 dias num arquivo de código do PR). Só conta a mudança de pessoa:
+  - se o commit da `main` é a entrega de um PR da lista, decide o PR, que é de pessoa quando
+    não tem nenhum commit de agente;
+  - senão, decide o próprio commit.
+
+  O `comparar` e esta lista passam a usar a mesma função para o que veio depois do merge.
+
+O que sai de cada mudança:
+- o sha, o assunto e o tipo (o prefixo convencional, `revert` ou `outro`);
+- os arquivos com as linhas mudadas. Depois do merge, só os arquivos que eram do PR.
+
+A lista também agrega por arquivo (em quantos PRs e commits) e por tipo, e conta quantos PRs
+ainda estão com a janela de 14 dias aberta.
+
+De onde vêm os arquivos de cada commit:
+- do clone;
+- do `gh`, quando o commit não está no clone (o branch do PR apagado depois do squash);
+- se nenhum dos dois alcança, "não lido", nunca uma lista vazia.
+
+O `/evoluir` lê a lista antes da entrevista, ao lado da trajetória. O mesmo arquivo em
+vários PRs, muito `test`, `fix` depois do merge e `revert` viram perguntas, e a lição continua
+sendo do usuário. A linha de base de uma evolução pode ser uma linha da lista.
+
+### Limites
+
+- **Sai o que mudou, nunca quem mudou.** Nem o nome de quem corrigiu nem o diff entram na
+  saída. O diff se lê com `git show <sha>`, e assim um segredo que tenha passado por um commit
+  não vai parar no relatório.
+- **Com a fonte `git`, squash e rebase não aparecem**, como na autonomia. O `/evoluir` diz isso
+  em vez de ler a lista vazia como "nada corrigido".
+- **O critério de correção é o do `comparar`, com os mesmos limites.** Correção sem `fix:` no
+  título escapa. E um `fix:` que mexe num arquivo de dois PRs aparece nos dois.
+- **Não muda nada sozinha.** A lista provoca a pergunta. Transformar um padrão em capacidade
+  continua sendo decisão humana, a mesma fronteira do auto-enxerto recusado no ADR-0037.
+
+### Prova
+
+O `test_correcoes.py` monta um git de verdade com merges datados e confere:
+- o commit de pessoa dentro do PR, com um binário sem contagem de linhas;
+- a correção de pessoa na `main`, só com os arquivos do PR;
+- a correção da própria fábrica, que não conta;
+- o revert de pessoa;
+- o PR de correção que decide entre pessoa e fábrica;
+- o PR de pessoa e o PR que ninguém tocou, ambos fora da lista;
+- a agregação e a janela aberta;
+- o nome de quem corrigiu, ausente da saída e do JSON;
+- a linha de comando.
+
+O caminho do `gh` é testado com a resposta simulada: o commit fora do clone, o merge da base
+fora da lista, a resposta com lixo, e "não lido" sem o `gh`. O comando só consulta o `gh` quando
+a lista de PRs veio dele, e respeita `--fonte gh` em vez de cair para o git. São 16 testes, e
+nenhum passa contra a `main`.
+
+Na mutação do `qualidade.py` sobre as linhas do diff, a primeira rodada deixou 8 mutantes vivos:
+- o título do PR, que nenhum teste lia;
+- o " e mais 0" no fim da lista de arquivos;
+- o rótulo do PR sem número;
+- a escolha do `gh` pela fonte;
+- o acento escapado no JSON;
+- o `return 0` do comando;
+- o `--correcoes` que comia os outros argumentos;
+- uma checagem de revert redundante, que saiu do código.
+
+Os sete primeiros viraram teste, e cada um derruba o seu mutante plantado à mão.

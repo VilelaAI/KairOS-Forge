@@ -1239,7 +1239,7 @@ MERGE_NO_PR = re.compile(r"^Merge\b")
 
 def tipo_do_commit(assunto: str) -> str:
     """O prefixo convencional (`fix`, `test`, `refactor`…), `revert`, ou `outro`."""
-    if REVERTE_TITULO.match(assunto) or assunto.lower().startswith("revert"):
+    if assunto.lower().startswith("revert"):          # `Revert "..."`, `revert:`, "Reverte"
         return "revert"
     m = TIPO_DO_COMMIT.match(assunto)
     if m:

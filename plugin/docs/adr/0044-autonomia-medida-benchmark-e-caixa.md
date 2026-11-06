@@ -262,4 +262,18 @@ O `test_correcoes.py` monta um git de verdade com merges datados e confere:
 - a linha de comando.
 
 O caminho do `gh` é testado com a resposta simulada: o commit fora do clone, o merge da base
-fora da lista, a resposta com lixo, e "não lido" sem o `gh`.
+fora da lista, a resposta com lixo, e "não lido" sem o `gh`. O comando só consulta o `gh` quando
+a lista de PRs veio dele, e respeita `--fonte gh` em vez de cair para o git. São 16 testes, e
+nenhum passa contra a `main`.
+
+Na mutação do `qualidade.py` sobre as linhas do diff, a primeira rodada deixou 8 mutantes vivos:
+- o título do PR, que nenhum teste lia;
+- o " e mais 0" no fim da lista de arquivos;
+- o rótulo do PR sem número;
+- a escolha do `gh` pela fonte;
+- o acento escapado no JSON;
+- o `return 0` do comando;
+- o `--correcoes` que comia os outros argumentos;
+- uma checagem de revert redundante, que saiu do código.
+
+Os sete primeiros viraram teste, e cada um derruba o seu mutante plantado à mão.

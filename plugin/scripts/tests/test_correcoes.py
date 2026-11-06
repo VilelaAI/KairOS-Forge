@@ -47,7 +47,7 @@ class CorrecoesNumGitDeVerdade(unittest.TestCase):
         self.commit_na_main(PESSOA, "fix: corrige b", {"src/b.py": "b = 2\n", "docs/x.md": "x\n"}, dia=4)
         self.commit_na_main(AGENTE, "fix: b de novo" + FABRICA, {"src/b.py": "b = 3\n"}, dia=5)
         # PR 3 da fábrica, revertido por uma pessoa
-        self.merge3 = self.pr(3, [(AGENTE, "feat: c" + FABRICA, {"src/c.py": "c = 1\n"})], dia=3)
+        self.merge3 = self.pr(3, [(AGENTE, "feat: cálculo de c" + FABRICA, {"src/c.py": "c = 1\n"})], dia=3)
         self.g("revert", "-m", "1", "--no-edit", self.merge3, dia=6, autor=PESSOA)
         # PR 4 da fábrica; a fábrica corrige no PR 5, e uma pessoa no PR 6 (que pega o 4 e o 5)
         self.pr(4, [(AGENTE, "feat: d" + FABRICA, {"src/d.py": "d = 1\n"})], dia=7)
@@ -127,7 +127,9 @@ class CorrecoesNumGitDeVerdade(unittest.TestCase):
         self.assertEqual([a["arquivo"] for a in m["arquivos"]], ["src/b.py"])   # docs/x.md fora
 
     def test_o_revert_de_pessoa(self) -> None:
-        [m] = self.por_numero(self.correcoes())[3]["depois"]
+        pr3 = self.por_numero(self.correcoes())[3]
+        self.assertEqual(pr3["titulo"], "feat: cálculo de c")
+        [m] = pr3["depois"]
         self.assertEqual((m["sinal"], m["tipo"]), ("revertido", "revert"))
         self.assertEqual([a["arquivo"] for a in m["arquivos"]], ["src/c.py"])
 
@@ -171,6 +173,11 @@ class CorrecoesNumGitDeVerdade(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         dados = json.loads(r.stdout)
         self.assertEqual((dados["fonte"], dados["da_fabrica"], dados["com_mudanca"]), ("git", 6, 5))
+        self.assertIn("feat: cálculo de c", r.stdout)                    # acento sem escape
+        gh = subprocess.run([sys.executable, "-B", str(RAIZ / "telemetria.py"), "prs", "--correcoes",
+                             "--fonte", "gh", "--json"], cwd=self.raiz, capture_output=True, text=True)
+        # a fonte pedida é respeitada: sem `gh` que responda, nada, e não o git por trás
+        self.assertEqual((json.loads(gh.stdout)["fonte"], json.loads(gh.stdout)["da_fabrica"]), ("gh", 0))
         sem = subprocess.run([sys.executable, "-B", str(RAIZ / "telemetria.py"), "prs", "--fonte", "git"],
                              cwd=self.raiz, capture_output=True, text=True)
         self.assertIn("Autonomia de PR", sem.stdout)                # sem a flag, o `prs` de sempre
@@ -241,7 +248,35 @@ class TipoDoCommit(unittest.TestCase):
         muitos = {"arquivos": [{"arquivo": f"f{i}", "mais": 1, "menos": 0} for i in range(6)]}
         self.assertEqual(telemetria._arquivos_da_mudanca(muitos),
                          "f0 (+1 −0), f1 (+1 −0), f2 (+1 −0), f3 (+1 −0) e mais 2")
+        poucos = {"arquivos": [{"arquivo": "a", "mais": 1, "menos": 0},
+                               {"arquivo": "b", "mais": None, "menos": None}]}
+        self.assertEqual(telemetria._arquivos_da_mudanca(poucos), "a (+1 −0), b")
         self.assertEqual(telemetria._arquivos_da_mudanca({"arquivos": []}), "nenhum arquivo")
+
+    def test_pr_sem_numero_e_rotulado_pelo_branch_ou_como_merge(self) -> None:
+        item = {"numero": None, "branch": "feat/x", "titulo": "t", "antes": [], "depois": []}
+        self.assertEqual(telemetria._linhas_do_pr(item), ["   feat/x t"])
+        self.assertEqual(telemetria._linhas_do_pr({**item, "branch": ""}), ["   merge t"])
+        self.assertEqual(telemetria._linhas_do_pr({**item, "numero": 7}), ["   #7 t"])
+
+    def test_reverte_em_portugues(self) -> None:
+        self.assertEqual(telemetria.tipo_do_commit("Reverte o PR 3"), "revert")
+
+
+class OComandoEscolheAFonte(unittest.TestCase):
+    """O `gh` só é consultado quando a lista de PRs veio dele, e o comando sai 0."""
+
+    def test_gh_so_com_a_fonte_gh(self) -> None:
+        prs = [{"numero": 9, "titulo": "z", "branch": "z", "mesclado_em": None, "entrega": None,
+                "issues": [], "commits": [{"oid": "a" * 40, "autor": "x", "mensagem": "feat: z" + FABRICA},
+                                          {"oid": "c" * 40, "autor": PESSOA, "mensagem": "fix: z"}]}]
+        with tempfile.TemporaryDirectory() as tmp:
+            for fonte, chamado in (("gh", True), ("git", False)):
+                with mock.patch.object(telemetria, "prs_mesclados", return_value=(fonte, prs)), \
+                     mock.patch.object(telemetria, "gh_json", return_value=[]) as gh, \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(telemetria._cmd_correcoes(Path(tmp), 30, None, [], True), 0)
+                self.assertEqual(gh.called, chamado, fonte)
 
 
 if __name__ == "__main__":

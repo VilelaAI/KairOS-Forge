@@ -49,7 +49,7 @@ sys.path.insert(0, str(RAIZ_REPO / "scripts"))
 import contrato  # noqa: E402
 
 TIPOS = ("corrigir", "construir", "verificar", "perguntar")
-CHECAGENS = ("arquivo", "contrato", "ciclo", "intocado", "resposta")
+CHECAGENS = ("arquivo", "contrato", "ciclo", "intocado", "resposta", "bloqueios")
 DELEGACAO = ("Agent", "Task")       # ferramentas que abrem subagente no Claude Code
 
 
@@ -108,10 +108,13 @@ def preparar(t: dict, ws: Path) -> str:
     git(ws, "add", "-A")
     git(ws, "commit", "-qm", "base")
     if t.get("mudanca"):
-        git(ws, "checkout", "-q", "-b", "feature/download")
+        # `"mudanca": true` é o diff de download das primeiras tarefas; um objeto dá o branch e a
+        # mensagem, para o revisor ler um histórico que combina com o diff.
+        m = t["mudanca"] if isinstance(t["mudanca"], dict) else {}
+        git(ws, "checkout", "-q", "-b", m.get("branch", "feature/download"))
         sobrepor(t["pasta"] / "mudanca", ws)
         git(ws, "add", "-A")
-        git(ws, "commit", "-qm", "feat: download dos relatórios")
+        git(ws, "commit", "-qm", m.get("mensagem", "feat: download dos relatórios"))
     return git(ws, "rev-parse", "HEAD").stdout.strip()
 
 
@@ -146,41 +149,101 @@ def _arquivos(ws: Path, padrao: str) -> list[Path]:
     return sorted(p for p in ws.glob(padrao) if p.is_file())
 
 
+ACHADO_DE_LISTA = re.compile(r"^\s*(?:[-*|]|\d+[.)])")
+DESCARTADO = re.compile(r"(?i)descartad")
+
+
+def linhas_que_bloqueiam(texto: str) -> list[str]:
+    """As linhas de achado bloqueante de um relatório de revisão ou de crítica: a que traz 🔴,
+    e a linha de achado (item de lista ou de tabela) dentro de uma seção cujo título traz 🔴.
+    O bloco de contrato fica de fora (o `examinado` cita arquivo sem acusar), e a linha
+    marcada `descartado` também (é o achado que o revisor releu e retirou, ADR-0039)."""
+    saida, secao_critica, no_bloco = [], False, False
+    for linha in texto.splitlines():
+        if linha.lstrip().startswith("```"):
+            no_bloco = not no_bloco
+            continue
+        if no_bloco:
+            continue
+        if linha.lstrip().startswith("#"):
+            secao_critica = "🔴" in linha
+            continue
+        if DESCARTADO.search(linha):
+            continue
+        if "🔴" in linha or (secao_critica and ACHADO_DE_LISTA.match(linha)):
+            saida.append(linha)
+    return saida
+
+
+def _checar_bloqueios(c: dict, ws: Path) -> tuple[bool, str]:
+    """`exige`: cada regex casa com algum achado bloqueante. `proibido`: nenhuma casa. É o
+    que separa o verificador que acha o defeito do que bloqueia por qualquer coisa."""
+    arqs = _arquivos(ws, c["glob"])
+    if not arqs:
+        return False, f"nenhum {c['glob']}"
+    linhas = linhas_que_bloqueiam(arqs[-1].read_text(encoding="utf-8", errors="replace"))
+    faltam = [rx for rx in c.get("exige", []) if not any(re.search(rx, l, re.I) for l in linhas)]
+    falsos = [rx for rx in c.get("proibido", []) if any(re.search(rx, l, re.I) for l in linhas)]
+    detalhe = "; ".join(x for x in (f"não bloqueou: {faltam}" if faltam else "",
+                                    f"bloqueou à toa: {falsos}" if falsos else "") if x)
+    return not (faltam or falsos), detalhe or f"{len(linhas)} bloqueio(s), todos no lugar"
+
+
+def _bate(valor, esperado) -> bool:
+    """Um valor, ou qualquer um de uma lista de valores aceitos."""
+    return valor in esperado if isinstance(esperado, list) else valor == esperado
+
+
+def _checar_arquivo(c: dict, ws: Path, ref: str, resposta: str) -> tuple[bool, str]:
+    for arq in _arquivos(ws, c["glob"]):
+        texto = arq.read_text(encoding="utf-8", errors="replace")
+        if all(re.search(rx, texto, re.I) for rx in c.get("regex", [])):
+            return True, str(arq.relative_to(ws))
+    return False, f"nenhum {c['glob']} com {c.get('regex', [])}"
+
+
+def _checar_contrato(c: dict, ws: Path, ref: str, resposta: str) -> tuple[bool, str]:
+    arqs = _arquivos(ws, c["glob"])
+    if not arqs:
+        return False, f"nenhum {c['glob']}"
+    r = contrato.LEITORES[c["leitor"]](arqs[-1].read_text(encoding="utf-8", errors="replace"))
+    if not r.ok:
+        return False, f"{arqs[-1].name}: [{r.codigo}] {r.erro}"
+    errado = [k for k, v in c.get("campos", {}).items() if not _bate(r.dados.get(k), v)]
+    baixo = [k for k, v in c.get("minimos", {}).items() if (r.dados.get(k) or 0) < v]
+    return not (errado or baixo), f"{arqs[-1].name}" + (f" · difere: {errado + baixo}" if errado or baixo else "")
+
+
+def _checar_ciclo(c: dict, ws: Path, ref: str, resposta: str) -> tuple[bool, str]:
+    estados = []
+    for arq in _arquivos(ws, ".agents/ciclo/*.json"):
+        try:
+            estados.append(json.loads(arq.read_text(encoding="utf-8")).get("estado"))
+        except ValueError:
+            continue
+    return any(e in c["estados"] for e in estados), f"estados: {estados or 'nenhum ciclo'}"
+
+
+def _checar_intocado(c: dict, ws: Path, ref: str, resposta: str) -> tuple[bool, str]:
+    mudados = git(ws, "diff", "--name-only", ref, "--", *c["caminhos"]).stdout.split()
+    novos = git(ws, "ls-files", "--others", "--exclude-standard", "--", *c["caminhos"]).stdout.split()
+    return not (mudados or novos), f"mudou: {mudados + novos}" if mudados or novos else "intocado"
+
+
+def _checar_resposta(c: dict, ws: Path, ref: str, resposta: str) -> tuple[bool, str]:
+    faltam = [rx for rx in c["regex"] if not re.search(rx, resposta or "", re.I)]
+    return not faltam, f"faltou: {faltam}" if faltam else "ok"
+
+
+# Uma função por tipo de checagem: o `checar` só despacha.
+CHECADORES = {"arquivo": _checar_arquivo, "contrato": _checar_contrato, "ciclo": _checar_ciclo,
+              "intocado": _checar_intocado, "resposta": _checar_resposta,
+              "bloqueios": lambda c, ws, ref, resposta: _checar_bloqueios(c, ws)}
+
+
 def checar(c: dict, ws: Path, ref: str, resposta: str) -> tuple[bool, str]:
-    tipo = c["tipo"]
-    if tipo == "arquivo":
-        for arq in _arquivos(ws, c["glob"]):
-            texto = arq.read_text(encoding="utf-8", errors="replace")
-            if all(re.search(rx, texto, re.I) for rx in c.get("regex", [])):
-                return True, str(arq.relative_to(ws))
-        return False, f"nenhum {c['glob']} com {c.get('regex', [])}"
-    if tipo == "contrato":
-        arqs = _arquivos(ws, c["glob"])
-        if not arqs:
-            return False, f"nenhum {c['glob']}"
-        r = contrato.LEITORES[c["leitor"]](arqs[-1].read_text(encoding="utf-8", errors="replace"))
-        if not r.ok:
-            return False, f"{arqs[-1].name}: [{r.codigo}] {r.erro}"
-        errado = [k for k, v in c.get("campos", {}).items() if r.dados.get(k) != v]
-        baixo = [k for k, v in c.get("minimos", {}).items() if (r.dados.get(k) or 0) < v]
-        return not (errado or baixo), f"{arqs[-1].name}" + (f" · difere: {errado + baixo}" if errado or baixo else "")
-    if tipo == "ciclo":
-        estados = []
-        for arq in _arquivos(ws, ".agents/ciclo/*.json"):
-            try:
-                estados.append(json.loads(arq.read_text(encoding="utf-8")).get("estado"))
-            except ValueError:
-                continue
-        ok = any(e in c["estados"] for e in estados)
-        return ok, f"estados: {estados or 'nenhum ciclo'}"
-    if tipo == "intocado":
-        mudados = git(ws, "diff", "--name-only", ref, "--", *c["caminhos"]).stdout.split()
-        novos = git(ws, "ls-files", "--others", "--exclude-standard", "--", *c["caminhos"]).stdout.split()
-        return not (mudados or novos), f"mudou: {mudados + novos}" if mudados or novos else "intocado"
-    if tipo == "resposta":
-        faltam = [rx for rx in c["regex"] if not re.search(rx, resposta or "", re.I)]
-        return not faltam, f"faltou: {faltam}" if faltam else "ok"
-    return False, f"checagem desconhecida: {tipo}"
+    funcao = CHECADORES.get(c["tipo"])
+    return funcao(c, ws, ref, resposta) if funcao else (False, f"checagem desconhecida: {c['tipo']}")
 
 
 def avaliar(t: dict, ws: Path, ref: str, resposta: str) -> dict:

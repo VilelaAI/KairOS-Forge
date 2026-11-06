@@ -8,3 +8,8 @@ plugin/README.md -linguist-generated
 .agents/*/AGENT.md linguist-generated=true
 .claude-plugin/ativos.manifest.json linguist-generated=true
 .tucano/** linguist-generated=true
+
+# Fixtures do eval de tarefa concluída (ADR-0049): o projeto em que o agente trabalha, a mudança
+# com o defeito plantado e as soluções erradas de propósito. Código escrito para estar errado
+# não se mede: fica fora do CRAP, da duplicação e da mutação do qualidade.py.
+evals/tarefas-fabrica/tarefas/** linguist-vendored=true

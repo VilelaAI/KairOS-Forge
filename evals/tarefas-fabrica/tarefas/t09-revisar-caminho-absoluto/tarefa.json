@@ -1,0 +1,43 @@
+{
+  "id": "t09-revisar-caminho-absoluto",
+  "tipo": "verificar",
+  "titulo": "Revisão acha o caminho absoluto que o validador deixa passar, e não bloqueia a isca",
+  "prompt": "/kairos-forge:revisar — revise a branch atual contra a `main` antes do PR e salve o relatório como a skill pede. Só revise: não corrija o código.",
+  "mudanca": {
+    "branch": "feature/download-seguro",
+    "mensagem": "feat: download dos relatórios com validação do nome e compactação"
+  },
+  "oraculo": false,
+  "checagens": [
+    {
+      "tipo": "contrato",
+      "glob": "docs/specs/revisoes/REVISAO-*.md",
+      "leitor": "revisar",
+      "campos": {
+        "veredicto": "bloqueado"
+      }
+    },
+    {
+      "tipo": "bloqueios",
+      "glob": "docs/specs/revisoes/REVISAO-*.md",
+      "exige": [
+        "(nomes|servidor)\\.py",
+        "absolut|/etc/|is_absolute|resolve\\(|relative_to|barra invertida|backslash"
+      ],
+      "proibido": [
+        "compactar",
+        "subprocess",
+        "gzip",
+        "inje[cç][aã]o de (comando|argumento)",
+        "command injection"
+      ]
+    },
+    {
+      "tipo": "intocado",
+      "caminhos": [
+        "vendas/"
+      ]
+    }
+  ],
+  "tempo_limite_s": 1200
+}

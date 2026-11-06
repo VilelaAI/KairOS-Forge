@@ -1,0 +1,38 @@
+{
+  "id": "t11-criticar-spec-sutil",
+  "tipo": "verificar",
+  "titulo": "Crítica acha o critério de um sentido só e a matriz que não prova, e não bloqueia a isca",
+  "prompt": "Faça a crítica adversarial da SPEC-002 em `docs/specs/` (o passo 7 do /kairos-forge:especificar): ataque requisito, plano e testabilidade e salve o relatório de crítica com o bloco de contrato. Não altere a SPEC.",
+  "oraculo": false,
+  "checagens": [
+    {
+      "tipo": "contrato",
+      "glob": "docs/specs/criticas/CRITICA-SPEC-002-*.md",
+      "leitor": "criticar",
+      "campos": {
+        "veredicto": "bloqueado"
+      },
+      "minimos": {
+        "achados": 2
+      }
+    },
+    {
+      "tipo": "bloqueios",
+      "glob": "docs/specs/criticas/CRITICA-SPEC-002-*.md",
+      "exige": [
+        "REG-02",
+        "REG-03"
+      ],
+      "proibido": [
+        "REG-04"
+      ]
+    },
+    {
+      "tipo": "intocado",
+      "caminhos": [
+        "docs/specs/SPEC-002-total-por-regiao.md"
+      ]
+    }
+  ],
+  "tempo_limite_s": 1200
+}

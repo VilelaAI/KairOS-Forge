@@ -30,6 +30,35 @@ acrescenta o que precisa por cima dele.
 | `t06-perguntar-moeda` | perguntar | código intocado, e a resposta pergunta pela moeda ou pelo câmbio | Pare e Pergunte (ADR-0015) |
 | `t07-dois-modulos` | construir | oráculo | trabalho independente: paralelo vale a pena? |
 | `t08-corrigir-traversal` | corrigir | oráculo e uma solução errada conhecida | segurança: correção de verdade, não ingênua |
+| `t09-revisar-caminho-absoluto` | verificar | revisão bloqueada no caminho absoluto que o validador deixa passar, sem bloquear a isca (`subprocess` seguro), sem corrigir | verificação que não vai pelo padrão: o `..` já é recusado, e os testes do diff passam |
+| `t10-revisar-sem-defeito` | verificar | revisão aprovada, com a lista do que foi examinado, de um diff correto e testado com iscas | o falso positivo: bloquear o que estava certo |
+| `t11-criticar-spec-sutil` | verificar | crítica bloqueada no critério de um sentido só e na matriz que não prova, sem bloquear o requisito bem feito | crítica além do adjetivo e da contradição direta |
+
+### Por que t09, t10 e t11
+
+Na linha de base, a fábrica acertou a `t04` e a `t05` em todas as rodadas. Um path traversal de
+manual num arquivo de três linhas, um adjetivo e uma contradição direta não separam uma variante
+da outra: as duas acertam. E as duas só mediam o acerto. A verificação isolada do ADR-0049 pode
+achar mais, e pode também bloquear mais à toa, e só medindo os dois lados dá para saber se ela
+ajuda.
+
+- **O defeito não vai pelo padrão.**
+  - Na `t09`, o validador já recusa `..`, os testes do diff passam e o buraco é o caminho
+    absoluto: `Path("relatorios") / "/etc/passwd"` é `/etc/passwd`. É a mesma armadilha da
+    solução errada "só `..`" da `t08`, do lado de quem revisa.
+  - Na `t11`, o critério de REG-02 proíbe o caso ruim sem garantir o bom (ADR-0053), e a matriz
+    aponta REG-03 para um teste que mede outra coisa.
+- **Cada tarefa tem uma isca, e bloquear a isca reprova.** São elas o `subprocess` com lista e
+  `--` na `t09`, a divisão já protegida e o `TODO` na `t10`, e o REG-04 incomum mas bem
+  especificado na `t11`.
+- **A `t10` não tem defeito nenhum.** O certo é aprovar e dizer o que foi lido. A base dela já
+  sai com a leitura do CSV corrigida (a solução da `t01`), para nenhum defeito anterior ao diff
+  ficar no caminho.
+
+Cada uma tem soluções erradas conhecidas que o `validar` exige reprovar:
+- na `t09`, a revisão que só vê o `..` e a que bloqueia o `subprocess`;
+- na `t10`, a que bloqueia a isca e a que mexe no código em vez de só revisar;
+- na `t11`, a que acha um defeito só e a que bloqueia a isca.
 
 ## Formato de uma tarefa
 
@@ -52,6 +81,18 @@ As checagens são lidas do disco, por código:
 | `ciclo` | algum `.agents/ciclo/*.json` está num dos `estados` |
 | `intocado` | nada mudou nos `caminhos` desde o commit de referência, nem em commit nem em arquivo novo |
 | `resposta` | a resposta final da sessão casa com todas as `regex` |
+| `bloqueios` | no último arquivo do `glob`, cada regex de `exige` casa com algum achado bloqueante, e nenhuma de `proibido` casa |
+
+Para a checagem `bloqueios`, achado bloqueante é:
+- a linha que traz 🔴;
+- a linha de lista ou de tabela dentro de uma seção cujo título traz 🔴.
+
+Ficam de fora o bloco de contrato (o `examinado` cita arquivo sem acusar) e a linha marcada
+`descartado` (ADR-0039).
+
+Em `contrato`, um campo pode pedir uma lista de valores aceitos: `"veredicto": ["aprovado",
+"aprovado_com_ressalvas"]`. Em `tarefa.json`, `"mudanca"` pode ser um objeto com `branch` e
+`mensagem` do commit da mudança. Com `true`, valem `feature/download` e a mensagem de download.
 
 A tarefa passa quando o oráculo passa (se houver) e todas as checagens passam.
 
@@ -110,7 +151,8 @@ coisa em relação à última que ficou:
 
 1. `base` — a fábrica como está (v0.43.0).
 2. `v1-verificacao-isolada` — crítica e revisão em subagente de contexto limpo, com o bloco de
-   contrato como resultado. Mede-se em `t04` e `t05`.
+   contrato como resultado. Mede-se em `t04`, `t05`, `t09`, `t10` e `t11`: o acerto e o bloqueio à
+   toa.
 3. `v2-apoio-juntado` — os squads de apoio sem papel juntados dentro do squad. Mede-se pelo
    roteamento e por todas as tarefas, para ver se nada piora.
 4. `v3-correcao-no-loop` — o loop de correção do `/entregar` sem repasse. Mede-se em `t02`.

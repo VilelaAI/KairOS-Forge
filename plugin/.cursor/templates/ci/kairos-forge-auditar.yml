@@ -32,7 +32,7 @@ jobs:
         # alcança a lista abaixo. O modo `block` é gratuito em repositório público; em
         # privado, pede o plano da StepSecurity. Sem a variável, este passo nem roda.
         if: vars.FORGE_SAIDA == 'audit' || vars.FORGE_SAIDA == 'block'
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: ${{ vars.FORGE_SAIDA }}
           allowed-endpoints: >
@@ -43,7 +43,7 @@ jobs:
             objects.githubusercontent.com:443
             registry.npmjs.org:443
 
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false # o token não fica em .git/config, ao alcance do Read (ADR-0057)
           fetch-depth: 0 # o critério de churn do /auditar precisa de histórico
@@ -60,10 +60,11 @@ jobs:
             echo "ativo=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         if: steps.cred.outputs.ativo == 'true'
         with:
-          node-version: "20"
+          node-version: "22"
+          package-manager-cache: false
 
       - name: Instalar Claude Code e a fábrica
         if: steps.cred.outputs.ativo == 'true'
@@ -73,7 +74,7 @@ jobs:
           CLAUDE_CODE_VERSAO: ${{ vars.CLAUDE_CODE_VERSAO || '2.1.318' }}
           # A fábrica roda com o seu segredo. Sem `vars.FORGE_REF`, vem a tag da versão
           # de onde você copiou este arquivo; para fixar num commit revisado, use a variável.
-          FORGE_REF: ${{ vars.FORGE_REF || 'v0.50.5' }}
+          FORGE_REF: ${{ vars.FORGE_REF || 'v0.50.6' }}
         run: |
           npm install -g "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSAO"
           # A fábrica entra como plugin desta sessão (--plugin-dir), não copiada para o
@@ -119,7 +120,7 @@ jobs:
         id: app
         if: steps.cred.outputs.ativo == 'true' && vars.FORGE_APP_ID != ''
         continue-on-error: true
-        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ vars.FORGE_APP_ID }}
           private-key: ${{ secrets.FORGE_APP_PRIVATE_KEY }}

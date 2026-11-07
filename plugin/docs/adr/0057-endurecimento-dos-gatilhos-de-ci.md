@@ -51,7 +51,8 @@ Uma leitura dos templates achou o que ainda ficava aberto:
      `main`.
    - **Actions:** citadas pelo commit, com a versão num comentário (`checkout` v4.4.0,
      `setup-node` v4.4.0, `create-github-app-token` v1.12.0, `harden-runner` v2.22.3).
-     As majors continuam as de antes; subir de major é outra decisão.
+     As majors continuam as de antes; subir de major é outra decisão (tomada na emenda de
+     v0.50.6, abaixo: as actions em `node24`).
 2. **A fábrica entra como plugin da sessão** (`--plugin-dir /tmp/forge/plugin`), e não
    copiada para o `.claude/` do projeto. As skills carregam com o nome
    `kairos-forge:<skill>`, e o projeto deixa de ser fonte de settings.
@@ -236,3 +237,61 @@ faltou.
 
 Em nenhum dos dois casos o workflow ganha `workflows`. Um token que edita workflow, num
 job que roda a cada versão, é mais permissão do que uma tag histórica vale.
+
+## Emenda (v0.50.6): as actions em `node24`
+
+O GitHub descontinuou o runtime Node 20 das actions, e o próprio CI deste repositório já
+avisava: "Node.js 20 is deprecated", e a action era forçada a rodar em Node 24. A Decisão 1
+deixou a troca de major para outra decisão, e esta é ela.
+
+**Uma versão por action: a primeira em `node24`, no patch mais recente dela.** Não é a
+última major. É a menor mudança que resolve. Para cada uma, o commit veio do
+`git ls-remote` (nenhuma das tags é anotada), e o runtime foi lido no `action.yml` daquele
+commit.
+
+| Action | Antes | Agora |
+|---|---|---|
+| `actions/checkout` | v4.4.0 (`node20`) | v5.1.0 |
+| `actions/setup-node` | v4.4.0 (`node20`) | v5.0.0 |
+| `actions/setup-python` (CI do repositório) | v5, por tag | v6.3.0 |
+| `actions/create-github-app-token` | v1.12.0 (`node20`) | v3.3.0. A v2 ainda roda em `node20` |
+| `step-security/harden-runner` | v2.22.3 (`node20`) | v2.22.4 |
+| `configure-pages`, `upload-pages-artifact`, `deploy-pages` (Pages) | v5, v3, v4, por tag | v6.0.0, v5.0.0, v5.0.1 |
+
+**O que muda para quem instala, lido nas notas de cada major:**
+- **`create-github-app-token`.**
+  - A v2 removeu as entradas com sublinhado (`app_id`, `private_key`), e os templates usam as
+    com hífen.
+  - A v3 exige `NODE_USE_ENV_PROXY=1` para usar proxy HTTP, e runner self-hosted 2.327.1 ou
+    mais novo.
+  - O `app-id` continua aceito, mas está obsoleto em favor de `client-id`. Os templates
+    seguem com `app-id`, porque trocar quebraria quem já configurou `vars.FORGE_APP_ID` com
+    o id numérico do app. Mudar para o Client ID fica para outra decisão.
+- **`checkout` v5.** Só troca o runtime, e também pede o runner 2.327.1. A v5.1.0 traz
+  `allow-unsafe-pr-checkout`, que nasce `false` e recusa o checkout de código de fork em
+  workflow de `workflow_run` ou `pull_request_target`. Isso reforça a regra de fork do
+  ADR-0026: o `corrigir` já descartava fork antes do checkout.
+- **`setup-node` v5.** Liga cache automático quando o `package.json` do projeto tem o campo
+  `packageManager`. Nos templates, o Node só instala o Claude Code, e um cache sem lockfile
+  poderia falhar o job. Por isso, `package-manager-cache: false`.
+
+**De quebra:**
+- **O Claude Code passa a ser instalado sobre Node 22.** O Node 20 saiu de suporte em abril
+  de 2026, e esse job roda com o segredo do projeto. É a mesma versão em que o job
+  `mod-painel` deste CI já roda o Claude Code fixado.
+- **Os workflows do próprio repositório** (`ci.yml`, `pages.yml`) também passam a citar as
+  actions pelo commit, como os templates e o `tags.yml`.
+
+**Prova.**
+- O `test_actions.py` lê os 28 `uses:` dos workflows e dos templates e exige:
+  - o commit;
+  - a versão no comentário;
+  - uma versão igual ou posterior à primeira em `node24` de cada action;
+  - o mesmo commit para a mesma versão em todo lugar.
+
+  Action nova fora da tabela reprova até alguém conferir o runtime dela.
+- Nos templates, o mesmo arquivo cobra o `setup-node` com Node 22 ou mais novo e sem o cache
+  automático. Contra a `main`, falha em 15 casos, mais 2 erros.
+- O `test_ci.py` trocou a exigência da major 1 do token pela 3.
+- O workflow em si não rodou aqui, porque o ambiente não roda GitHub Actions. O primeiro run é
+  o CI deste PR.

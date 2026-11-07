@@ -63,6 +63,11 @@ segredo (ADR-0057):**
   privado, pede o plano da StepSecurity. Sem a variável, o passo nem roda. No
   `corrigir`, acrescente à lista os hosts que o seu `GATE` usa.
 
+**Runner self-hosted e proxy.** As actions dos templates rodam em `node24`. Num runner
+self-hosted, isso pede a versão 2.327.1 ou mais nova do runner. Atrás de um proxy HTTP
+(`HTTPS_PROXY`), o passo do app da fábrica (`create-github-app-token`) só usa o proxy com
+`NODE_USE_ENV_PROXY=1` no ambiente do job. Nos runners do GitHub, nada disso se aplica.
+
 ## O modelo de segurança
 
 Autonomia só é segura se o erro for barato. As sete regras que estes workflows

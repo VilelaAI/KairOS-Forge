@@ -64,7 +64,8 @@ na validação alcançando ferramenta que não tem não está passando.**
 **B2. Modo `aviso` por classe de regra.** *"Uma regra que falha em 30% dos PRs vai ser
 desabilitada em uma semana."* `.agents/guardrails.json` ganha `modo` (global) e `modos`
 (por classe): `bloqueio` (default, exit 2) ou `aviso` (exit 1 — o usuário vê, a execução
-segue). A promoção não é por gosto: migra para `bloqueio` quando `recusas_em_modo_aviso`
+segue; desde a v0.50.7, exit 0 com `systemMessage`, porque o Claude Code mostrava o exit 1
+como "hook error" — emenda ao ADR-0042). A promoção não é por gosto: migra para `bloqueio` quando `recusas_em_modo_aviso`
 cai, e o número está no `telemetria.py resumo`.
 
 **Os caminhos sagrados nunca degradam.** `.agents/execucoes/`, `.agents/guardrails.json` e

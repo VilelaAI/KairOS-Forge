@@ -159,14 +159,16 @@ class OQueOGuardrailGrava(unittest.TestCase):
         self.assertNotIn(GH, ev["alvo"])
 
     def test_o_erro_do_guardrail_sem_o_segredo_no_disco_e_no_aviso(self) -> None:
-        err = io.StringIO()
-        with contextlib.redirect_stderr(err):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             guardrail.falhar_aberto("comando", {"cwd": str(self.raiz)},
                                     ValueError(f"falhou em DB_PASSWORD={SENHA}"))
         [ev] = self.gravado()
         self.assertEqual(ev["tipo"], "guardrail_erro")
         self.assertNotIn(SENHA, ev["erro"])
-        self.assertNotIn(SENHA, err.getvalue())
+        aviso = json.loads(out.getvalue())["systemMessage"]
+        self.assertIn("falhou em DB_PASSWORD=", aviso)
+        self.assertNotIn(SENHA, aviso + err.getvalue())
         self.assertIn("ValueError: falhou em DB_PASSWORD=", ev["erro"])
 
 

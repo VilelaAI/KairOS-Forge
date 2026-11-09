@@ -62,7 +62,8 @@ hooks do git — `--no-verify`, `git commit -n`, `core.hooksPath` trocado, `HUSK
 E um gate de PARADA (ADR-0042, hook `Stop`): sessão que escreveu código de produção
 e não rodou nenhum gate verde depois da última escrita não encerra em silêncio.
 Default `aviso`; em `bloqueio` o modelo recebe a lista do que ficou sem prova e
-continua. Nunca dispara duas vezes na mesma parada (`stop_hook_active`).
+continua. Nunca dispara duas vezes na mesma parada (`stop_hook_active`). A pasta que o
+projeto declara sem gate (`sem_gate`, abaixo) fica fora da conta.
 
 ## Goodhart: o agente não escreve o próprio medidor
 
@@ -80,7 +81,10 @@ agente pode afrouxar não guarda nada. Quem edita esses arquivos é o humano.
 
 ## Modos
 
-Hook (payload do hook em stdin, exit 2 = bloqueia e o motivo vai para o modelo):
+Hook (payload do hook em stdin, exit 2 = bloqueia e o motivo vai para o modelo). A
+regra em `aviso` sai 0 com uma linha `{"systemMessage": ...}` no stdout, que o Claude Code
+mostra à pessoa como "<evento> says: ..."; o modelo não a lê. Exit 1 com o texto no
+stderr, como era, aparecia como "hook error" (emenda ao ADR-0042):
 
     guardrail.py comando    # PreToolUse  matcher Bash
     guardrail.py escrita    # PreToolUse  matcher Write|Edit
@@ -143,8 +147,10 @@ que o arquivo mudou — o que um sync legítimo também faz. Por isso ali o defa
                                                    // bloqueio (default) | aviso
       "faixa_3":         "sempre",                 // pausa da faixa 3 fora do arco
                                                    // também (ADR-0052)
-      "faixa_3_cursor":  "perguntar"               // no Cursor, `ask` em vez de recusa
-    }                                              // (ADR-0055; só fora do Auto-review)
+      "faixa_3_cursor":  "perguntar",              // no Cursor, `ask` em vez de recusa
+                                                   // (ADR-0055; só fora do Auto-review)
+      "sem_gate":        ["experiments/**"]        // pasta sem teste: fora do gate de
+    }                                              // parada (emenda ao ADR-0042)
 
 Classes de regra, para o campo `modos`: `comando`, `protegido`, `gerado`, `spec`,
 `contrato`, `teste`, `parada`, `regua`, `checkout`, `intencao`, `saida` (em `bloqueio`, o
@@ -544,14 +550,29 @@ def registrar_recusa(raiz: Path, classe: str, regra: str, alvo: str, modo: str) 
                             "alvo": alvo[:200], "modo": modo})
 
 
+# O aviso é para a pessoa e chega como `systemMessage`, com o processo saindo 0 (emenda ao
+# ADR-0042). Exit 1 com o texto no stderr, como era, o Claude Code mostra como
+# "<evento> hook error: Failed with non-blocking status code" — o guardrail parecia
+# quebrado justamente quando funcionava. O modelo não lê nenhum dos dois: o aviso nunca foi
+# para ele. Dentro do script, `AVISOU` continua distinguindo "avisou" de "nada a dizer";
+# o `main` traduz para o exit 0 na fronteira do processo.
+AVISOU = 1
+
+
+def avisar_pessoa(texto: str) -> None:
+    """Uma linha `systemMessage` no stdout: o Claude Code mostra como "<evento> says: …".
+    Em ASCII (o "⚠️" vira escape): um stdout em cp1252, no Windows, não quebra o aviso."""
+    print(json.dumps({"systemMessage": texto}))
+
+
 def bloquear(motivo: str, detalhe: str, saida: str, modo: str = "bloqueio") -> int:
-    """exit 2 bloqueia e manda o motivo ao modelo; exit 1 avisa e deixa passar."""
+    """exit 2 bloqueia e manda o motivo ao modelo; `AVISOU` avisa a pessoa e deixa passar."""
     if _EDITOR["cursor"]:
         return responder_cursor(1 if modo == "aviso" else 2, motivo, detalhe, saida)
     if modo == "aviso":
-        print(f"⚠️  kairos-forge (guardrail, modo aviso): {motivo}\n\n{detalhe}\n\n{saida}\n"
-              "Esta regra está em observação — hoje ela avisa, não bloqueia.", file=sys.stderr)
-        return 1
+        avisar_pessoa(f"⚠️  kairos-forge (guardrail, modo aviso): {motivo}\n\n{detalhe}\n\n{saida}\n"
+                      "Esta regra está em observação — hoje ela avisa, não bloqueia.")
+        return AVISOU
     print(f"🛑 kairos-forge (guardrail): {motivo}\n\n{detalhe}\n\n{saida}", file=sys.stderr)
     return 2
 
@@ -1303,25 +1324,56 @@ def eventos_da_sessao(raiz: Path, sessao: str) -> list[dict]:
     return eventos
 
 
-def pendencia_de_parada(eventos: list[dict]) -> dict | None:
-    """Arquivos de produção escritos depois do último gate verde; None se nada pende."""
-    ultimo_gate_ok = -1
+def encurtar_no_meio(texto: str, limite: int = 90) -> str:
+    """O começo e o fim de um comando longo. O começo costuma ser o `cd` até a pasta, e o fim
+    é o que diz qual teste rodou: cortar só o fim escondia justamente essa parte."""
+    if len(texto) <= limite:
+        return texto
+    cabeca = limite // 3
+    return f"{texto[:cabeca]} … {texto[-(limite - cabeca - 3):]}"
+
+
+def pastas_sem_gate(cfg: dict) -> list[str]:
+    """`sem_gate` em `.agents/guardrails.json`: onde o projeto declara que não há gate
+    (experimento, spike, script de uma vez). É a ausência declarada que o ADR-0042 aceita."""
+    valor = cfg.get("sem_gate")
+    return [p for p in valor if isinstance(p, str) and p.strip()] if isinstance(valor, list) else []
+
+
+def _ultimo_gate_verde(eventos: list[dict]) -> int:
+    """Índice do último gate que passou; -1 quando nenhum passou."""
+    ultimo = -1
     for i, ev in enumerate(eventos):
         if ev.get("tipo") == "comando" and ev.get("gate") and ev.get("ok") is True:
-            ultimo_gate_ok = i
-    pendentes: list[str] = []
-    for ev in eventos[ultimo_gate_ok + 1:]:
-        if ev.get("tipo") == "escrita" and ev.get("producao"):
-            arq = str(ev.get("arquivo") or "?")
-            if arq not in pendentes:
-                pendentes.append(arq)
+            ultimo = i
+    return ultimo
+
+
+def _escritos_de_producao(eventos: list[dict], sem_gate: list[str]) -> list[str]:
+    """Os arquivos de produção escritos, sem repetir, fora das pastas declaradas sem gate."""
+    escritos: list[str] = []
+    for ev in eventos:
+        if ev.get("tipo") != "escrita" or not ev.get("producao"):
+            continue
+        arq = str(ev.get("arquivo") or "?")
+        if arq not in escritos and not any(casa(arq, p) for p in sem_gate):
+            escritos.append(arq)
+    return escritos
+
+
+def _gates_vermelhos(eventos: list[dict]) -> list[str]:
+    """Os três últimos gates que falharam: o nome e o comando com o começo e o fim."""
+    return [f"{ev['gate']}: `{encurtar_no_meio(str(ev.get('cmd') or ''))}`" for ev in eventos
+            if ev.get("tipo") == "comando" and ev.get("gate") and ev.get("ok") is False][-3:]
+
+
+def pendencia_de_parada(eventos: list[dict], sem_gate: list[str] | None = None) -> dict | None:
+    """Arquivos de produção escritos depois do último gate verde; None se nada pende."""
+    depois = eventos[_ultimo_gate_verde(eventos) + 1:]
+    pendentes = _escritos_de_producao(depois, sem_gate or [])
     if not pendentes:
         return None
-    gates_depois = [ev for ev in eventos[ultimo_gate_ok + 1:]
-                    if ev.get("tipo") == "comando" and ev.get("gate")]
-    return {"arquivos": pendentes,
-            "gates_vermelhos": [g.get("cmd", "")[:80] for g in gates_depois if g.get("ok") is False][-3:],
-            "houve_gate_verde": ultimo_gate_ok >= 0}
+    return {"arquivos": pendentes, "gates_vermelhos": _gates_vermelhos(depois)}
 
 
 def gates_declarados(raiz: Path) -> list[str]:
@@ -1343,29 +1395,50 @@ def checar_parada(payload: dict) -> int:
         return 0
     raiz = Path(payload.get("cwd") or ".")
     sessao = str(payload.get("session_id") or "?")[:16]
-    pend = pendencia_de_parada(eventos_da_sessao(raiz, sessao))
+    cfg = carregar_config(raiz)
+    pend = pendencia_de_parada(eventos_da_sessao(raiz, sessao), pastas_sem_gate(cfg))
     if pend is None:
         return 0
-    cfg = carregar_config(raiz)
     modo = modo_de(cfg, "parada")
     registrar_recusa(raiz, "parada", "encerrar sem gate verde", ", ".join(pend["arquivos"])[:200], modo)
-    lista = "\n".join(f"  · {a}" for a in pend["arquivos"][:8])
-    if len(pend["arquivos"]) > 8:
-        lista += f"\n  · … e mais {len(pend['arquivos']) - 8}"
-    declarados = gates_declarados(raiz)
+    texto = _parada_para_a_pessoa if modo == "aviso" else _parada_para_o_modelo
+    return bloquear(*texto(len(pend["arquivos"]), _lista_da_parada(pend), gates_declarados(raiz)), modo)
+
+
+def _lista_da_parada(pend: dict) -> str:
+    """Até oito arquivos, quantos faltam, e os últimos gates vermelhos."""
+    arquivos = pend["arquivos"]
+    lista = "\n".join(f"  · {a}" for a in arquivos[:8])
+    if len(arquivos) > 8:
+        lista += f"\n  · … e mais {len(arquivos) - 8}"
+    if pend["gates_vermelhos"]:
+        lista += "\nÚltimos gates, todos vermelhos: " + " · ".join(pend["gates_vermelhos"])
+    return lista
+
+
+def _parada_para_a_pessoa(n: int, lista: str, declarados: list[str]) -> tuple[str, str, str]:
+    """Em `aviso`, quem lê é a pessoa, não o modelo (emenda ao ADR-0042): o texto diz o que
+    aconteceu e o que ela pode pedir ou declarar."""
+    qual = (" ou ".join(f"`{g}`" for g in declarados[:2]) + " (de `contextos/testes.md`)"
+            if declarados else "o teste ou o lint do projeto")
+    return (f"o agente encerrou sem gate verde depois de escrever {n} arquivo(s) de produção",
+            f"Escritos depois do último gate verde desta sessão:\n{lista}",
+            f"Para fechar a pendência, peça que rode {qual} em primeiro plano: o teste rodado "
+            "em background não conta, porque o hook só vê o comando começar.\n"
+            "Se essa pasta não tem teste, declare em `.agents/guardrails.json`, por exemplo "
+            '`{"sem_gate": ["experiments/**"]}`, e ela sai desta conta.')
+
+
+def _parada_para_o_modelo(n: int, lista: str, declarados: list[str]) -> tuple[str, str, str]:
+    """Em `bloqueio`, o texto vai ao modelo pelo stderr do exit 2, e o Claude Code o faz seguir."""
     dica = ("Gates do projeto (contextos/testes.md): " + " · ".join(f"`{g}`" for g in declarados)
             if declarados else
             "Rode o teste/lint do projeto (o comando de `contextos/testes.md`, ou o padrão do ecossistema).")
-    vermelhos = ("\nÚltimos gates, todos vermelhos: " + " · ".join(pend["gates_vermelhos"])
-                 if pend["gates_vermelhos"] else "")
-    return bloquear(
-        f"parada sem prova — {len(pend['arquivos'])} arquivo(s) de produção escrito(s) "
-        "sem nenhum gate verde depois",
-        f"Escritos depois do último gate verde nesta sessão:\n{lista}{vermelhos}",
-        f"{dica}\nDepois, encerre de novo. Se não há gate que cubra isso, diga ao usuário "
-        "por quê — a ausência declarada é aceitável; a silenciosa, não (ADR-0042).",
-        modo,
-    )
+    return (f"parada sem prova — {n} arquivo(s) de produção escrito(s) sem nenhum gate verde depois",
+            f"Escritos depois do último gate verde nesta sessão:\n{lista}",
+            f"{dica} Em primeiro plano: o gate rodado em background não conta.\n"
+            "Depois, encerre de novo. Se não há gate que cubra isso, diga ao usuário "
+            "por quê — a ausência declarada é aceitável; a silenciosa, não (ADR-0042).")
 
 
 # --- adaptador do Cursor (ADR-0042) -------------------------------------------------
@@ -1932,25 +2005,45 @@ def main() -> int:
     if modo is None:
         print(__doc__.strip())
         return 1
+    return rodar_hook(args[0], modo)
+
+
+def rodar_hook(nome: str, checar) -> int:
+    """Lê o payload, roda a regra e devolve o exit do processo. O aviso já saiu como
+    `systemMessage`; com exit 1 o Claude Code o trocaria por "hook error" (emenda ao ADR-0042)."""
     payload: dict = {}
     try:
         bruto = sys.stdin.read()
         payload = normalizar_payload(json.loads(bruto) if bruto.strip() else {})
-        return modo(payload)
+        codigo = checar(payload)
     except Exception as erro:
-        return falhar_aberto(args[0], payload, erro)
+        return falhar_aberto(nome, payload, erro)
+    return 0 if codigo == AVISOU and not _EDITOR["cursor"] else codigo
+
+
+# Os modos que um mod lê pelo stdout (ADR-0052, ADR-0056): ali uma linha a mais quebraria a
+# resposta que ele espera, então a falha deles fica no stderr e na trajetória.
+MODOS_DO_MOD = {"faixa3", "saida"}
 
 
 def falhar_aberto(modo: str, payload: dict, erro: Exception) -> int:
     """Guardrail quebrado nunca trava a sessão: bloquear por bug próprio seria pior que a
     ausência do check. Mas falhar aberto em silêncio é o guardrail sumir sem ninguém ver
-    (ADR-0046, do ECC): o erro vai para a trajetória, que o `/auditar` lê, e para o stderr.
+    (ADR-0046, do ECC): o erro vai para a trajetória, que o `/auditar` lê, e para a pessoa.
+
+    Com exit 0 o Claude Code não mostra o stderr, então para a pessoa vai como
+    `systemMessage` (emenda ao ADR-0042); no Cursor e nos modos que um mod lê, segue no
+    stderr.
     """
     raiz = Path(payload.get("cwd") or os.getcwd())
     descricao = ocultar(f"{type(erro).__name__}: {erro}")[:200]
     registrar_evento(raiz, {"tipo": "guardrail_erro", "modo": modo, "erro": descricao})
-    print(f"⚠️  kairos-forge: o guardrail ({modo}) falhou e deixou passar — {descricao}. "
-          "Registrado em .agents/execucoes/.", file=sys.stderr)
+    texto = (f"⚠️  kairos-forge: o guardrail ({modo}) falhou e deixou passar — {descricao}. "
+             "Registrado em .agents/execucoes/.")
+    if _EDITOR["cursor"] or modo in MODOS_DO_MOD:
+        print(texto, file=sys.stderr)
+    else:
+        avisar_pessoa(texto)
     return 0
 
 

@@ -30,6 +30,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 import ciclo  # noqa: E402
 import guardrail  # noqa: E402
+from tests.test_guardrail import o_que_se_le  # noqa: E402
 import painel  # noqa: E402
 import quadro  # noqa: E402
 import telemetria  # noqa: E402
@@ -56,14 +57,14 @@ def chamar(modulo, *args: str) -> int:
 
 
 def escrever(payload_cwd: Path, alvo: Path, sessao: str = "s1") -> tuple[int, str]:
-    err = io.StringIO()
+    out, err = io.StringIO(), io.StringIO()
     guardrail._EDITOR["cursor"] = False
     guardrail._EDITOR["evento"] = ""
-    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
         codigo = guardrail.MODOS["escrita"](guardrail.normalizar_payload({
             "session_id": sessao, "cwd": str(payload_cwd),
             "tool_input": {"file_path": str(alvo), "content": "x = 1\n"}}))
-    return codigo, err.getvalue()
+    return codigo, o_que_se_le(codigo, out.getvalue(), err.getvalue())
 
 
 class ComWorktree(unittest.TestCase):

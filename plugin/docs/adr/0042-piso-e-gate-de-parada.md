@@ -191,3 +191,106 @@ sagrado, e permissões e variáveis seguem livres. O que muda é o que conta com
   isso pede turnos de modelo. A regra bloqueia antes, nos dois casos.
 - **A busca do shell é heurística**: `python3 x.py; cat .claude/settings.json` bloqueia por
   engano, e uma escrita por um caminho montado em variável escapa.
+
+## Emenda (v0.50.7): o aviso é para a pessoa
+
+Uma pessoa mandou a tela de uma sessão em que o gate de parada tinha disparado:
+
+> Stop hook error: Failed with non-blocking status code: ⚠️ kairos-forge (guardrail, modo
+> aviso): parada sem prova — 10 arquivo(s) de produção escrito(s) sem nenhum gate verde depois
+
+Ela perguntou como resolver "o erro". Não havia erro: o gate funcionou. Mas a tela mostrou
+quatro defeitos nossos.
+
+1. **O rótulo de erro.** No modo `aviso`, o guardrail saía com exit 1 e o texto no stderr. O
+   Claude Code mostra qualquer exit 1 como "<evento> hook error: Failed with non-blocking
+   status code", no `Stop` e também no `PreToolUse:Write`. A regra em observação parecia um
+   hook quebrado.
+2. **O texto falava com quem não o lia.** "Depois, encerre de novo" e "diga ao usuário por
+   quê" são instruções para o modelo. Só que o modelo não lê o aviso; só a pessoa lê.
+3. **Não havia onde declarar a pasta sem teste.** O texto original diz que a ausência
+   declarada é aceitável. Mas a única forma de declarar era repetir o motivo em cada
+   sessão, e uma pasta de experimentos disparava o aviso em toda parada.
+4. **A linha do gate vermelho cortava o comando em 80 caracteres.** O que ficava era o
+   `bash -c 'cd /Users/…`, e o que sumia era justamente o teste que tinha rodado.
+
+A lista da tela também trazia arquivos do scratchpad (`/private/tmp/claude-501/…`). Isso já
+estava corrigido desde a v0.41.2, porque escrita fora do projeto deixou de contar como
+produção. A sessão da tela rodava uma versão anterior.
+
+### Decisão
+
+- **O aviso sai como `systemMessage`, com exit 0**, em toda classe que está em `aviso`:
+  `teste`, `parada`, `regua`, `checkout`, `intencao` e qualquer classe que o projeto
+  rebaixe. O Claude Code mostra "Stop says: …" e "PreToolUse:Write says: …", sem rótulo de
+  erro.
+  - O bloqueio continua em exit 2 com o stderr, que vai ao modelo.
+  - O Cursor continua no dialeto dele.
+  - Dentro do script, `AVISOU` (1) continua separando "avisou" de "nada a dizer". O `main`
+    traduz para exit 0 na fronteira do processo.
+  - A linha sai em ASCII: o "⚠️" e os acentos viram escapes do JSON. Assim um stdout em
+    cp1252, no Windows, não derruba o aviso, e a tela fica igual (conferido no Claude Code
+    real).
+- **A falha do próprio guardrail vai pelo mesmo canal.** Ela já saía com exit 0 (ADR-0046),
+  mas com o texto no stderr, e com exit 0 o Claude Code não mostra o stderr. Ninguém via a
+  falha, e o ADR-0046 prometia que a pessoa veria. Ficam no stderr dois casos: o Cursor e
+  os modos `faixa3` e `saida`, cujo stdout o mod lê como resposta.
+- **O texto da parada é escrito para quem o lê.**
+  - Em `aviso`, o texto fala com a pessoa. Diz o que aconteceu e o que ela pode pedir: o
+    gate de `contextos/testes.md` (até dois) ou, sem ele, "o teste ou o lint do projeto".
+    Avisa que o teste rodado em background não conta, porque o hook só vê o comando
+    começar. E mostra como declarar a pasta sem teste.
+  - Em `bloqueio`, o texto continua falando com o modelo, como antes. Ganha só a nota sobre
+    o primeiro plano.
+- **`sem_gate` em `.agents/guardrails.json`** declara as pastas sem teste:
+  - É uma lista de globs, por exemplo `["experiments/**"]`.
+  - A escrita que casa com ela sai da conta da parada, em `aviso` e em `bloqueio`, e o resto
+    continua contando.
+  - Fica num arquivo que o agente não escreve, porque `.agents/guardrails.json` é sagrado:
+    quem declara a ausência é a pessoa.
+  - Não é um modo `desligado`: a classe segue valendo para todas as outras pastas.
+  - Valor mal formado é ignorado, sem derrubar o hook.
+- **A linha do gate vermelho** traz o nome do gate e o comando com o começo e o fim, em 90
+  caracteres.
+
+### Prova
+
+- **Claude Code 2.1.319 com hooks mínimos e uma API falsa**, numa sessão interativa no tmux:
+  - Exit 1 com stderr reproduz a tela da pessoa: "Stop hook error: Failed with non-blocking
+    status code" e "PreToolUse:Write hook error".
+  - `systemMessage` com exit 0 aparece como "Stop says:" e "PreToolUse:Write says:", com as
+    várias linhas preservadas.
+  - Nas duas formas, nenhum pedido à API traz o texto: o modelo nunca leu o aviso.
+  - No 2.0.77, "Stop says:" também.
+  - Em `-p`, a saída de texto e a de `--output-format json` são as mesmas nas duas formas.
+    Ou seja, o que os gatilhos de CI publicam não muda.
+- **O plugin de verdade, com `--plugin-dir`**, numa sessão que escreve `src/app.py` e encerra:
+  - Na `main` (v0.50.6) aparece "Stop hook error", seguido do texto para o modelo.
+  - Nesta versão aparece "Stop says: ⚠️ kairos-forge (guardrail, modo aviso): o agente
+    encerrou sem gate verde…", seguido do texto para a pessoa.
+- **`scripts/tests/test_aviso.py`**, com 18 testes. Contra a `main`, 15 falham. Os três que
+  passam guardam o que não muda: o bloqueio pelo stderr, o "sem nada a dizer, nada sai" e o
+  Cursor no dialeto dele. Os testes cobrem:
+  - o canal na fronteira do processo, na parada, na classe `teste` e na falha do guardrail;
+  - os modos do mod, que continuam no stderr;
+  - o Cursor, que continua no dialeto dele;
+  - o texto para a pessoa e para o modelo;
+  - o gate de `contextos/testes.md`;
+  - a linha do gate, que só traz o gate que falhou, com o começo e o fim do comando;
+  - a lista, que cabe inteira com oito arquivos e, com mais, diz quantos faltam;
+  - o `sem_gate` com uma pasta declarada, com tudo declarado, em bloqueio e mal formado.
+- **Testes alterados.** São os helpers que leem o texto do aviso: `hook()` (`test_guardrail`),
+  `escrever` (`test_checkout`) e `parada` (`test_execucao`). Eles passam a ler o
+  `systemMessage` e a recusar aviso que ainda saia pelo stderr. Também mudam as três
+  asserções da falha do guardrail (`test_guardrail` e `test_trajetoria_sem_segredo`). O que
+  cada teste cobra não mudou; mudou o canal.
+
+### Limites
+
+- **O modelo continua sem ler o aviso**, como antes. Classe que deve mudar o que o agente
+  faz vai para `bloqueio`.
+- **O teste rodado em background continua não contando.** O `PostToolUse` chega quando o
+  comando começa, e o fim dele não passa por hook nenhum. O texto agora diz isso.
+- **No Cursor, a parada em `aviso` segue sem nada na tela.** O evento `stop` de lá só tem
+  `followup_message`, que reabre o agente.
+- **Codex e OpenCode**, sem hook de parada, não mudam.

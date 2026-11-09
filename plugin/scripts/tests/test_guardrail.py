@@ -23,13 +23,24 @@ sys.path.insert(0, str(RAIZ))
 import guardrail  # noqa: E402
 
 
+def o_que_se_le(codigo: int, out: str, err: str) -> str:
+    """O texto que chega a alguém: o aviso vai à pessoa como `systemMessage` no stdout, sem
+    nada no stderr (emenda ao ADR-0042); o bloqueio vai ao modelo pelo stderr."""
+    if codigo == guardrail.AVISOU and not guardrail._EDITOR["cursor"]:
+        if err:
+            raise AssertionError(f"o aviso saiu pelo stderr, que o Claude Code mostra como erro: {err!r}")
+        return json.loads(out)["systemMessage"]
+    return err
+
+
 def hook(modo: str, payload: dict) -> tuple[int, str, str]:
+    """(código, stdout, o que se lê): o terceiro é o aviso ou o motivo do bloqueio."""
     out, err = io.StringIO(), io.StringIO()
     guardrail._EDITOR["cursor"] = False
     guardrail._EDITOR["evento"] = ""
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
         codigo = guardrail.MODOS[modo](guardrail.normalizar_payload(payload))
-    return codigo, out.getvalue(), err.getvalue()
+    return codigo, out.getvalue(), o_que_se_le(codigo, out.getvalue(), err.getvalue())
 
 
 class Sandbox(unittest.TestCase):
@@ -322,7 +333,8 @@ class FalhaAberta(Sandbox):
         r = subprocess.run([sys.executable, str(RAIZ / "guardrail.py"), "comando"],
                            input="{quebrado", capture_output=True, text=True, cwd=self.raiz)
         self.assertEqual(r.returncode, 0)
-        self.assertIn("falhou e deixou passar", r.stderr)
+        self.assertEqual(r.stderr, "")
+        self.assertIn("falhou e deixou passar", json.loads(r.stdout)["systemMessage"])
         evento, = self.rastro()
         self.assertEqual((evento["tipo"], evento["modo"]), ("guardrail_erro", "comando"))
         self.assertIn("JSONDecodeError", evento["erro"])
@@ -330,7 +342,7 @@ class FalhaAberta(Sandbox):
     def test_bug_numa_regra_usa_o_cwd_do_payload(self) -> None:
         # O hook pode rodar com o processo noutro diretório: vale o projeto do payload.
         os.chdir(self._cwd)
-        with contextlib.redirect_stderr(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             codigo = guardrail.falhar_aberto("escrita", {"cwd": str(self.raiz)},
                                              KeyError("tool_input"))
         self.assertEqual(codigo, 0)
@@ -435,9 +447,9 @@ class Principal(Sandbox):
         self.assertEqual(self.main("comando", entrada="")[0], 0)
 
     def test_payload_quebrado_passa_e_avisa(self) -> None:
-        codigo, _, err = self.main("comando", entrada="{x")
-        self.assertEqual(codigo, 0)
-        self.assertIn("falhou e deixou passar", err)
+        codigo, out, err = self.main("comando", entrada="{x")
+        self.assertEqual((codigo, err), (0, ""))
+        self.assertIn("falhou e deixou passar", json.loads(out)["systemMessage"])
 
 
 class Regua(ComCommit):

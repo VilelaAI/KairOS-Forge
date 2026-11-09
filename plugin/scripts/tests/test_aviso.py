@@ -73,6 +73,7 @@ class OAvisoChegaAPessoa(ComTrajetoria):
         r = self.processo("parada", {"session_id": "s1", "cwd": str(self.raiz)})
         self.assertEqual((r.returncode, r.stderr), (0, ""))
         [linha] = r.stdout.splitlines()
+        self.assertTrue(linha.isascii())                     # stdout em cp1252 não quebra
         aviso = json.loads(linha)["systemMessage"]
         self.assertIn("o agente encerrou sem gate verde depois de escrever 1 arquivo(s)", aviso)
         self.assertIn("· src/a.py", aviso)
@@ -157,6 +158,20 @@ class OTextoDaParada(ComTrajetoria):
         self.assertIn(" … ", linha)
         self.assertIn("python -m pytest -q tests/unit'`", linha)   # o que diz qual teste rodou
 
+    def test_so_o_gate_que_falhou_entra_na_linha(self) -> None:
+        self.gravar(self.escrita("src/a.py"),
+                    {"tipo": "comando", "cmd": "ls pasta-que-nao-existe", "gate": None, "ok": False},
+                    {"tipo": "comando", "cmd": "ruff check .", "gate": "lint", "ok": None},
+                    {"tipo": "comando", "cmd": "pytest -q", "gate": "teste", "ok": False})
+        [linha] = [l for l in self.parada()[2].splitlines() if l.startswith("Últimos gates")]
+        self.assertEqual(linha, "Últimos gates, todos vermelhos: teste: `pytest -q`")
+
+    def test_lista_de_oito_cabe_inteira(self) -> None:
+        self.gravar(*[self.escrita(f"src/m{i}.py") for i in range(8)])
+        aviso = self.parada()[2]
+        self.assertIn("· src/m7.py\n\nPara fechar", aviso)
+        self.assertNotIn("e mais", aviso)
+
     def test_lista_longa_mostra_oito_e_diz_quantos_faltam(self) -> None:
         self.gravar(*[self.escrita(f"src/m{i}.py") for i in range(10)])
         aviso = self.parada()[2]
@@ -166,6 +181,8 @@ class OTextoDaParada(ComTrajetoria):
 
     def test_encurtar_no_meio(self) -> None:
         self.assertEqual(guardrail.encurtar_no_meio("pytest -q"), "pytest -q")
+        no_limite = "x" * 45 + "y" * 45
+        self.assertEqual(guardrail.encurtar_no_meio(no_limite), no_limite)
         curto = guardrail.encurtar_no_meio(LONGO)
         self.assertEqual(len(curto), 90)
         self.assertTrue(curto.startswith(LONGO[:30]) and curto.endswith(LONGO[-57:]))

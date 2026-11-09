@@ -228,6 +228,9 @@ produção. A sessão da tela rodava uma versão anterior.
   - O Cursor continua no dialeto dele.
   - Dentro do script, `AVISOU` (1) continua separando "avisou" de "nada a dizer". O `main`
     traduz para exit 0 na fronteira do processo.
+  - A linha sai em ASCII: o "⚠️" e os acentos viram escapes do JSON. Assim um stdout em
+    cp1252, no Windows, não derruba o aviso, e a tela fica igual (conferido no Claude Code
+    real).
 - **A falha do próprio guardrail vai pelo mesmo canal.** Ela já saía com exit 0 (ADR-0046),
   mas com o texto no stderr, e com exit 0 o Claude Code não mostra o stderr. Ninguém via a
   falha, e o ADR-0046 prometia que a pessoa veria. Ficam no stderr dois casos: o Cursor e
@@ -265,7 +268,7 @@ produção. A sessão da tela rodava uma versão anterior.
   - Na `main` (v0.50.6) aparece "Stop hook error", seguido do texto para o modelo.
   - Nesta versão aparece "Stop says: ⚠️ kairos-forge (guardrail, modo aviso): o agente
     encerrou sem gate verde…", seguido do texto para a pessoa.
-- **`scripts/tests/test_aviso.py`**, com 16 testes. Contra a `main`, 13 falham. Os três que
+- **`scripts/tests/test_aviso.py`**, com 18 testes. Contra a `main`, 15 falham. Os três que
   passam guardam o que não muda: o bloqueio pelo stderr, o "sem nada a dizer, nada sai" e o
   Cursor no dialeto dele. Os testes cobrem:
   - o canal na fronteira do processo, na parada, na classe `teste` e na falha do guardrail;
@@ -273,7 +276,8 @@ produção. A sessão da tela rodava uma versão anterior.
   - o Cursor, que continua no dialeto dele;
   - o texto para a pessoa e para o modelo;
   - o gate de `contextos/testes.md`;
-  - a linha do gate e a lista que mostra oito arquivos e diz quantos faltam;
+  - a linha do gate, que só traz o gate que falhou, com o começo e o fim do comando;
+  - a lista, que cabe inteira com oito arquivos e, com mais, diz quantos faltam;
   - o `sem_gate` com uma pasta declarada, com tudo declarado, em bloqueio e mal formado.
 - **Testes alterados.** São os helpers que leem o texto do aviso: `hook()` (`test_guardrail`),
   `escrever` (`test_checkout`) e `parada` (`test_execucao`). Eles passam a ler o

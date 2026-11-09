@@ -560,8 +560,9 @@ AVISOU = 1
 
 
 def avisar_pessoa(texto: str) -> None:
-    """Uma linha `systemMessage` no stdout: o Claude Code mostra como "<evento> says: …"."""
-    print(json.dumps({"systemMessage": texto}, ensure_ascii=False))
+    """Uma linha `systemMessage` no stdout: o Claude Code mostra como "<evento> says: …".
+    Em ASCII (o "⚠️" vira escape): um stdout em cp1252, no Windows, não quebra o aviso."""
+    print(json.dumps({"systemMessage": texto}))
 
 
 def bloquear(motivo: str, detalhe: str, saida: str, modo: str = "bloqueio") -> int:
@@ -1372,8 +1373,7 @@ def pendencia_de_parada(eventos: list[dict], sem_gate: list[str] | None = None) 
     pendentes = _escritos_de_producao(depois, sem_gate or [])
     if not pendentes:
         return None
-    return {"arquivos": pendentes, "gates_vermelhos": _gates_vermelhos(depois),
-            "houve_gate_verde": len(depois) < len(eventos)}
+    return {"arquivos": pendentes, "gates_vermelhos": _gates_vermelhos(depois)}
 
 
 def gates_declarados(raiz: Path) -> list[str]:

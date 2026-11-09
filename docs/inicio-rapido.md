@@ -351,7 +351,11 @@ CLI: dos PRs mesclados com commit da fábrica (trailer `Fabrica: kairos-forge` o
 Duas regras nascem em `aviso` e deixam rastro em vez de bloquear (ADR-0039/0042):
 edição em teste existente (o `/validar` cobra a justificativa) e o **gate de
 parada** — sessão que escreveu produção sem gate verde depois não encerra em
-silêncio.
+silêncio. O aviso aparece para você como "Stop says: ⚠️ kairos-forge …" (ou
+"PreToolUse:Edit says: …"): é a regra funcionando, não um hook quebrado. Para
+fechá-lo, peça que o teste rode em primeiro plano; rodado em background, o hook só vê
+o comando começar. Pasta que não tem teste (experimento, spike) você declara uma
+vez: `{"sem_gate": ["experiments/**"]}` tira essa pasta da conta da parada.
 
 Se um bloqueio atrapalhar algo legítimo, quem ajusta `.agents/guardrails.json` é
 **você**, não o agente — ele não escreve a própria regra. `liberados` só libera

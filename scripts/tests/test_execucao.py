@@ -22,6 +22,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 import execucao  # noqa: E402
 import guardrail  # noqa: E402
+from tests.test_guardrail import o_que_se_le  # noqa: E402
 
 
 def escrita(arquivo: str, cwd: Path, ferramenta: str = "Write") -> dict:
@@ -103,11 +104,11 @@ class GateDeParadaDePontaAPonta(Sandbox):
             sys.stdin, sys.argv = antigo, argv
 
     def parada(self) -> tuple[int, str]:
-        err = io.StringIO()
+        out, err = io.StringIO(), io.StringIO()
         guardrail._EDITOR["cursor"] = False
-        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
             codigo = guardrail.checar_parada({"session_id": "s1", "cwd": str(self.raiz)})
-        return codigo, err.getvalue()
+        return codigo, o_que_se_le(codigo, out.getvalue(), err.getvalue())
 
     def test_script_no_scratchpad_nao_dispara_o_aviso(self) -> None:
         self.ferramenta(escrita(str(self.scratchpad / "medicao" / "medir.py"), self.raiz))

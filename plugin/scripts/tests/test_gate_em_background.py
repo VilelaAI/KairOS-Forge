@@ -87,6 +87,7 @@ class LeituraDoTranscript(unittest.TestCase):
 
     def test_o_que_nao_veio_do_claude_code_nao_conta(self) -> None:
         self.assertEqual(self.ler(forjada("x"), na_fila("y"), "{quebrado", "[1, 2]",
+                                  '{"type": "user", "content": "<task-notification> sem fechar',
                                   {"type": "user", "message": {"role": "user", "content": "<task-notification>"
                                                                                           "<task-id>z</task-id>"
                                                                                           "<status>completed</status>"
@@ -201,6 +202,39 @@ class AParadaComBackground(Sandbox):
         codigo, _, aviso = self.parada(rodando)
         self.assertEqual(codigo, guardrail.AVISOU)
         self.assertIn("· src/b.py", aviso)
+
+    def test_escrita_que_nao_pende_depois_do_inicio_nao_tira_a_cobertura(self) -> None:
+        # Doc e pasta sem gate escritas depois do início não são o que o gate precisa cobrir.
+        (self.raiz / ".agents" / "guardrails.json").parent.mkdir(parents=True, exist_ok=True)
+        (self.raiz / ".agents" / "guardrails.json").write_text('{"sem_gate": ["experiments/**"]}')
+        self.gravar(self.escrita(), self.gate("t1"), {"tipo": "escrita", "arquivo": "docs/x.md", "producao": False},
+                    self.escrita("experiments/poc.py"))
+        rodando = [{"id": "t1", "type": "shell", "status": "running", "command": "pytest -q"}]
+        self.assertEqual(self.parada(rodando), (0, "", ""))
+
+    def test_so_o_shell_que_ainda_roda_segura(self) -> None:
+        self.gravar(self.escrita(), self.gate("t1"))
+        for rodando in ([{"id": "t1", "type": "shell", "status": "completed", "command": "pytest -q"}],
+                        [{"id": "t1", "type": "subagent", "status": "running"}],
+                        ["lixo", {"id": "t1"}]):
+            with self.subTest(rodando=rodando):
+                self.assertEqual(self.parada(rodando)[0], guardrail.AVISOU)
+        self.assertEqual(self.parada([{"id": "t1", "type": "shell", "status": "pending"}]), (0, "", ""))
+
+    def test_sem_o_execucao_a_parada_ainda_funciona(self) -> None:
+        self.gravar(self.escrita(), self.gate("t1"))
+        self.linhas.append(com_a_sessao_parada("t1"))
+        with mock.patch.dict(sys.modules, {"execucao": None}):
+            rodando = [{"id": "t1", "type": "shell", "status": "running", "command": "pytest -q"}]
+            self.assertEqual(self.parada(rodando), (0, "", ""))          # o que roda, sim
+            self.assertEqual(self.parada()[0], guardrail.AVISOU)         # o término lido, não
+        self.assertEqual(self.passos, 0)
+
+    def test_o_que_nao_e_gate_e_terminou_nao_faz_esperar(self) -> None:
+        self.gravar(self.escrita(), {"tipo": "comando", "cmd": "python3 gerar_docs.py", "gate": None, "ok": None,
+                                     "tarefa": "docs1"})
+        self.assertEqual(self.parada()[0], guardrail.AVISOU)
+        self.assertEqual(self.passos, 0)
 
     def test_o_que_roda_e_nao_e_gate_nao_segura(self) -> None:
         self.gravar(self.escrita(), {"tipo": "comando", "cmd": "npm run dev", "gate": None, "ok": None,

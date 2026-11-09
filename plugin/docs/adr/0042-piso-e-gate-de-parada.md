@@ -366,18 +366,26 @@ agente escreve um arquivo, roda um `pytest` em background e encerra:
     repeti três sessões verdes e uma vermelha. As verdes ficaram sem aviso, e a vermelha
     avisou uma vez, com a linha do gate. Não dá para dizer em quantas a releitura chegou a
     ser acionada.
-- **`scripts/tests/test_gate_em_background.py`**, com 20 testes. Os formatos das linhas são
+- **`scripts/tests/test_gate_em_background.py`**, com 24 testes. Os formatos das linhas são
   os do transcript real. Os testes cobrem:
   - os dois formatos, o resultado pelo código de saída e a notificação forjada, a da fila
     e a sem origem, que não contam, e o arquivo ilegível, que não derruba o hook;
   - o id gravado no início;
   - o verde e o vermelho em background;
-  - a espera enquanto o gate roda e cobre as escritas, e o gate em modo watch e o servidor,
-    que não seguram;
+  - a espera enquanto o gate roda e cobre as escritas, com doc e pasta sem gate escritas
+    depois sem tirar a cobertura;
+  - o gate em modo watch, o servidor e a tarefa que não é `shell` ou já terminou, que não
+    seguram;
+  - a parada que funciona sem o `execucao.py`;
   - o verde que não cobre a escrita feita depois do início;
   - o caminho inteiro pelos dois hooks, em processo;
   - o término que chega depois do hook, o teto da espera e a espera que não acontece sem
-    motivo.
+    motivo, nem por comando que não é gate.
+- **Mutação nas linhas tocadas.** A primeira rodada deixou 8 sobreviventes (84%):
+  - dois eram código redundante, que saiu: o `is_file`, já coberto pelo `OSError`, e um
+    `return False` antecipado;
+  - seis eram casos sem teste, que viraram teste.
+  O resultado da segunda rodada fica no PR.
 
 ### Limites
 

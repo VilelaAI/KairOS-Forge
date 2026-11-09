@@ -480,8 +480,9 @@ def _conclusoes_da_linha(linha: str) -> dict[str, bool | None]:
 
 
 def conclusoes_em_background(caminho: str) -> dict[str, bool | None]:
-    """Id da tarefa → resultado, para cada comando em background que terminou na sessão."""
-    if not caminho or not Path(caminho).is_file():
+    """Id da tarefa → resultado, para cada comando em background que terminou na sessão.
+    Sem transcript (arquivo que falta, pasta, ilegível), nada: o `OSError` cobre os três."""
+    if not caminho:
         return {}
     conclusoes: dict[str, bool | None] = {}
     try:

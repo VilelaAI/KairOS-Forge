@@ -1384,8 +1384,6 @@ def _gate_rodando_cobre(depois: list[dict], pendentes: list[str], em_curso: set[
     sessão está em pausa, não encerrando. O Claude Code a acorda quando ele termina, e o
     resultado dele decide. Começado antes de alguma escrita (um teste em modo watch, por
     exemplo), não cobre a escrita e não segura nada."""
-    if not em_curso:
-        return False
     ultima = max(i for i, ev in enumerate(depois)
                  if ev.get("tipo") == "escrita" and str(ev.get("arquivo") or "?") in pendentes)
     return any(ev.get("gate") and ev.get("tarefa") in em_curso for ev in depois[ultima + 1:])

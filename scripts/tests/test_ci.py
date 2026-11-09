@@ -342,7 +342,7 @@ class IdentidadeDaFabrica(unittest.TestCase):
                 texto = arq.read_text(encoding="utf-8")
                 passo = texto[texto.index("- name: Identidade da fábrica"):]
                 passo = passo[:passo.index("\n\n")]
-                self.assertRegex(passo, r"uses: actions/create-github-app-token@[0-9a-f]{40} # v1\.")
+                self.assertRegex(passo, r"uses: actions/create-github-app-token@[0-9a-f]{40} # v3\.")
                 self.assertIn("vars.FORGE_APP_ID != ''", passo)
                 self.assertIn("continue-on-error: true", passo)      # chave ausente não derruba o job
                 self.assertIn("secrets.FORGE_APP_PRIVATE_KEY", passo)

@@ -63,7 +63,9 @@ E um gate de PARADA (ADR-0042, hook `Stop`): sessão que escreveu código de pro
 e não rodou nenhum gate verde depois da última escrita não encerra em silêncio.
 Default `aviso`; em `bloqueio` o modelo recebe a lista do que ficou sem prova e
 continua. Nunca dispara duas vezes na mesma parada (`stop_hook_active`). A pasta que o
-projeto declara sem gate (`sem_gate`, abaixo) fica fora da conta.
+projeto declara sem gate (`sem_gate`, abaixo) fica fora da conta. O gate rodado em
+background conta quando termina (o fim é lido do transcript), e a parada espera enquanto
+um gate que cobre as escritas ainda roda (emenda ao ADR-0042).
 
 ## Goodhart: o agente não escreve o próprio medidor
 
@@ -173,6 +175,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -1367,13 +1370,79 @@ def _gates_vermelhos(eventos: list[dict]) -> list[str]:
             if ev.get("tipo") == "comando" and ev.get("gate") and ev.get("ok") is False][-3:]
 
 
-def pendencia_de_parada(eventos: list[dict], sem_gate: list[str] | None = None) -> dict | None:
-    """Arquivos de produção escritos depois do último gate verde; None se nada pende."""
+def _com_conclusoes(eventos: list[dict], conclusoes: dict) -> list[dict]:
+    """O gate que foi para background começa sem resultado; o término lido do transcript
+    lhe dá o dele, na posição em que ele começou — o que ele verificou foi o código de então."""
+    if not conclusoes:
+        return eventos
+    return [{**ev, "ok": conclusoes[ev["tarefa"]]}
+            if ev.get("ok") is None and ev.get("tarefa") in conclusoes else ev for ev in eventos]
+
+
+def _gate_rodando_cobre(depois: list[dict], pendentes: list[str], em_curso: set[str]) -> bool:
+    """Um gate ainda rodando em background, começado depois da última escrita pendente: a
+    sessão está em pausa, não encerrando. O Claude Code a acorda quando ele termina, e o
+    resultado dele decide. Começado antes de alguma escrita (um teste em modo watch, por
+    exemplo), não cobre a escrita e não segura nada."""
+    if not em_curso:
+        return False
+    ultima = max(i for i, ev in enumerate(depois)
+                 if ev.get("tipo") == "escrita" and str(ev.get("arquivo") or "?") in pendentes)
+    return any(ev.get("gate") and ev.get("tarefa") in em_curso for ev in depois[ultima + 1:])
+
+
+def pendencia_de_parada(eventos: list[dict], sem_gate: list[str] | None = None,
+                        conclusoes: dict | None = None,
+                        em_curso: set[str] | None = None) -> dict | None:
+    """Arquivos de produção escritos depois do último gate verde; None se nada pende ou se
+    um gate que os cobre ainda roda em background."""
+    eventos = _com_conclusoes(eventos, conclusoes or {})
     depois = eventos[_ultimo_gate_verde(eventos) + 1:]
     pendentes = _escritos_de_producao(depois, sem_gate or [])
-    if not pendentes:
+    if not pendentes or _gate_rodando_cobre(depois, pendentes, em_curso or set()):
         return None
     return {"arquivos": pendentes, "gates_vermelhos": _gates_vermelhos(depois)}
+
+
+# O término pode ainda não estar no transcript quando o `Stop` roda: numa de três sessões
+# reais com o plugin, a linha chegou depois do hook. Gate que começou em background, já não
+# roda e não tem término lido termina logo: relê-se o transcript em passos curtos.
+ESPERA_PASSO, ESPERA_PASSOS = 0.25, 6
+
+
+def _rodando(payload: dict) -> set[str]:
+    """Os comandos que o `Stop` relata ainda rodando em background."""
+    return {str(t.get("id")) for t in payload.get("background_tasks") or []
+            if isinstance(t, dict) and t.get("type") == "shell" and t.get("status") in ("running", "pending")}
+
+
+def _ler_esperando(ler, caminho: str, esperadas: set[str]) -> dict:
+    """Relê até o término de cada tarefa esperada aparecer, ou o teto da espera."""
+    conclusoes = ler(caminho)
+    for _ in range(ESPERA_PASSOS):
+        if esperadas <= conclusoes.keys():
+            break
+        # Releitura com condição e teto, não sincronia às cegas: não há evento de "linha
+        # gravada" no transcript para esperar (docs/adr/0042-piso-e-gate-de-parada.md,
+        # emenda v0.50.8).
+        time.sleep(ESPERA_PASSO)
+        conclusoes = ler(caminho)
+    return conclusoes
+
+
+def em_background(payload: dict, eventos: list[dict]) -> tuple[dict, set[str]]:
+    """O que terminou em background (do transcript) e o que ainda roda (do `Stop`, campo
+    `background_tasks`, conferido no 2.1.319). Sem um ou outro, nada muda."""
+    em_curso = _rodando(payload)
+    try:
+        from execucao import conclusoes_em_background
+    except Exception:
+        return {}, em_curso
+    caminho = str(payload.get("transcript_path") or "")
+    # Só espera quem relata o `background_tasks`: sem ele, não se sabe se a tarefa ainda roda.
+    esperadas = ({ev["tarefa"] for ev in eventos if ev.get("gate") and ev.get("tarefa")} - em_curso
+                 if caminho and "background_tasks" in payload else set())
+    return _ler_esperando(conclusoes_em_background, caminho, esperadas), em_curso
 
 
 def gates_declarados(raiz: Path) -> list[str]:
@@ -1396,7 +1465,8 @@ def checar_parada(payload: dict) -> int:
     raiz = Path(payload.get("cwd") or ".")
     sessao = str(payload.get("session_id") or "?")[:16]
     cfg = carregar_config(raiz)
-    pend = pendencia_de_parada(eventos_da_sessao(raiz, sessao), pastas_sem_gate(cfg))
+    eventos = eventos_da_sessao(raiz, sessao)
+    pend = pendencia_de_parada(eventos, pastas_sem_gate(cfg), *em_background(payload, eventos))
     if pend is None:
         return 0
     modo = modo_de(cfg, "parada")
@@ -1423,8 +1493,8 @@ def _parada_para_a_pessoa(n: int, lista: str, declarados: list[str]) -> tuple[st
             if declarados else "o teste ou o lint do projeto")
     return (f"o agente encerrou sem gate verde depois de escrever {n} arquivo(s) de produção",
             f"Escritos depois do último gate verde desta sessão:\n{lista}",
-            f"Para fechar a pendência, peça que rode {qual} em primeiro plano: o teste rodado "
-            "em background não conta, porque o hook só vê o comando começar.\n"
+            f"Para fechar a pendência, peça que rode {qual}. Em background também vale: conta "
+            "quando terminar.\n"
             "Se essa pasta não tem teste, declare em `.agents/guardrails.json`, por exemplo "
             '`{"sem_gate": ["experiments/**"]}`, e ela sai desta conta.')
 
@@ -1436,7 +1506,7 @@ def _parada_para_o_modelo(n: int, lista: str, declarados: list[str]) -> tuple[st
             "Rode o teste/lint do projeto (o comando de `contextos/testes.md`, ou o padrão do ecossistema).")
     return (f"parada sem prova — {n} arquivo(s) de produção escrito(s) sem nenhum gate verde depois",
             f"Escritos depois do último gate verde nesta sessão:\n{lista}",
-            f"{dica} Em primeiro plano: o gate rodado em background não conta.\n"
+            f"{dica}\n"
             "Depois, encerre de novo. Se não há gate que cubra isso, diga ao usuário "
             "por quê — a ausência declarada é aceitável; a silenciosa, não (ADR-0042).")
 

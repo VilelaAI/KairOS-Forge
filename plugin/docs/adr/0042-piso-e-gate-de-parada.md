@@ -291,6 +291,98 @@ produção. A sessão da tela rodava uma versão anterior.
   faz vai para `bloqueio`.
 - **O teste rodado em background continua não contando.** O `PostToolUse` chega quando o
   comando começa, e o fim dele não passa por hook nenhum. O texto agora diz isso.
+  (Resolvido na emenda v0.50.8, abaixo: o fim é lido do transcript.)
 - **No Cursor, a parada em `aviso` segue sem nada na tela.** O evento `stop` de lá só tem
   `followup_message`, que reabre o agente.
 - **Codex e OpenCode**, sem hook de parada, não mudam.
+
+## Emenda (v0.50.8): o gate rodado em background
+
+O limite que a emenda anterior deixou declarado é justamente o caso da tela que a
+motivou: a avaliação rodava em background quando o agente encerrou. Até aqui, o gate de
+parada não tinha como ver um gate rodado em background:
+
+- **Ele avisava com o teste ainda rodando.** Para o hook, a sessão tinha encerrado; para o
+  Claude Code, ela só estava parada, esperando o trabalho em background acordá-la.
+- **E avisava de novo depois que o teste passava.** O `PostToolUse` chega quando o comando
+  começa, sem saída nem código, e o fim dele não passa por hook nenhum. O gate ficava
+  indeterminado para sempre.
+
+### O que o Claude Code entrega
+
+Conferido no Claude Code 2.1.319 com a API falsa, numa sessão interativa no tmux, em que o
+agente escreve um arquivo, roda um `pytest` em background e encerra:
+
+- **O `PostToolUse` do comando em background** traz `tool_response.backgroundTaskId`, o id
+  da tarefa.
+- **O `Stop` traz `background_tasks`**: a lista do que ainda roda, com o id, o tipo
+  (`shell`, `subagent`…), o status e o comando. A lista vem vazia quando nada roda.
+- **O fim fica no transcript** como `<task-notification>`, com o id da tarefa, `<status>`
+  (`completed`, `failed`) e o resumo com "exit code N". O formato muda conforme o momento:
+  - com a sessão parada, uma entrada `user` com `origin.kind: "task-notification"`;
+  - no meio de um turno, um anexo `queued_command` com a mesma origem.
+- **Uma notificação forjada fica de fora.** O mesmo texto impresso por um comando volta
+  como `tool_result`, sem essa origem. Também ficam de fora as entradas `queue-operation`,
+  porque nelas cai também o que a pessoa digita.
+
+### Decisão
+
+- **O `execucao.py` grava o id da tarefa** (`tarefa`) no evento do comando que vai para
+  background. O `ok` continua `None`.
+- **O `guardrail.py` lê, no `Stop`, o fim de cada tarefa no transcript**
+  (`execucao.conclusoes_em_background`):
+  - Só vale "exit code 0" como verde. `failed`, ou um código diferente de zero, é vermelho.
+  - Parado sem código (`killed`) não se afirma.
+  - O resultado vale na posição em que o gate começou. O que ele verificou foi o código
+    daquele momento, então uma escrita feita depois do início continua pendente.
+- **A parada espera enquanto um gate que cobre as escritas ainda roda.** É gate (pelo mesmo
+  classificador da trajetória), está em `background_tasks` e começou depois da última
+  escrita pendente: a sessão está em pausa, não encerrando. Não há aviso nem recusa
+  registrada. Já um gate que começou antes de alguma escrita (um teste em modo watch, por
+  exemplo) não a cobre e não segura nada. O mesmo vale para o que roda e não é gate, como
+  um servidor de desenvolvimento.
+- **O fim pode chegar ao transcript depois do hook.** Numa de três sessões reais com o
+  plugin, a linha ainda não estava lá quando o `Stop` rodou. Por isso, se o gate começou em
+  background, não roda mais e o fim ainda não foi lido, o guardrail relê o transcript a cada
+  0,25 s por até 1,5 s. Só espera quando a versão relata o `background_tasks` e há
+  transcript para reler.
+- **O texto muda.** "Em background também vale: conta quando terminar" substitui o "não
+  conta", e o texto para o modelo perde a nota sobre o primeiro plano.
+- **O `sleep` da releitura** é o único candidato do `prova.py atalhos`. Não é sincronia às
+  cegas: cada passo confere a condição, e a espera tem teto. Também não há evento a esperar,
+  porque quem grava o transcript é outro processo. A justificativa fica no comentário, ao
+  lado do código.
+
+### Prova
+
+- **O plugin de verdade, com `--plugin-dir`**, numa sessão que escreve `src/app.py`, roda
+  um `pytest` em background que termina depois de o agente encerrar:
+  - Na `main` (v0.50.7) aparecem dois avisos, um com o teste ainda rodando e outro depois de
+    ele passar com exit 0.
+  - Nesta versão, com o teste passando, não aparece aviso nenhum.
+  - Nesta versão, com o teste falhando, o aviso só aparece depois do fim, e traz "Últimos
+    gates, todos vermelhos: teste: `pytest -q`".
+  - Sem a releitura do transcript, uma das três sessões verdes ainda avisava. Com ela,
+    repeti três sessões verdes e uma vermelha. As verdes ficaram sem aviso, e a vermelha
+    avisou uma vez, com a linha do gate. Não dá para dizer em quantas a releitura chegou a
+    ser acionada.
+- **`scripts/tests/test_gate_em_background.py`**, com 20 testes. Os formatos das linhas são
+  os do transcript real. Os testes cobrem:
+  - os dois formatos, o resultado pelo código de saída e a notificação forjada, a da fila
+    e a sem origem, que não contam, e o arquivo ilegível, que não derruba o hook;
+  - o id gravado no início;
+  - o verde e o vermelho em background;
+  - a espera enquanto o gate roda e cobre as escritas, e o gate em modo watch e o servidor,
+    que não seguram;
+  - o verde que não cobre a escrita feita depois do início;
+  - o caminho inteiro pelos dois hooks, em processo;
+  - o término que chega depois do hook, o teto da espera e a espera que não acontece sem
+    motivo.
+
+### Limites
+
+- **A telemetria não muda.** O `/auditar` e o `corroborar` continuam vendo o gate em
+  background como indeterminado. Só o gate de parada lê o fim.
+- **Só no Claude Code**, e conferido no 2.1.319. Versão que não relata `background_tasks`
+  nem grava a origem fica como antes: sem espera, com o gate indeterminado.
+- **Gate que roda num subagente** não entra. O fim dele é o do subagente, não o do comando.

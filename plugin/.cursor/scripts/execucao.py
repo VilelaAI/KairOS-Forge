@@ -266,19 +266,32 @@ def ev_prompt(p: dict) -> dict:
     }
 
 
+def ev_comando(bruto: str, resposta) -> dict:
+    """O comando sem o segredo, o gate pelo comando cru e o resultado quando dá para afirmar.
+
+    O comando que vai para background volta sem saída e sem código: o `ok` fica `None`, e
+    o id da tarefa (`backgroundTaskId`) vai junto, para o término lido do transcript lhe
+    dar o resultado (`conclusoes_em_background`, emenda ao ADR-0042).
+    """
+    ev = {
+        "tipo": "comando",
+        "cmd": redigir(bruto)[:LIMITE_CMD],
+        "gate": classificar_gate(bruto),             # o gate sai do comando, não da gravação
+        "ok": avaliar_saida(resposta),
+    }
+    tarefa = resposta.get("backgroundTaskId") if isinstance(resposta, dict) else None
+    if tarefa:
+        ev["tarefa"] = str(tarefa)[:40]
+    return ev
+
+
 def ev_ferramenta(p: dict) -> dict | None:
     nome = p.get("tool_name") or "?"
     entrada = p.get("tool_input") or {}
     resposta = p.get("tool_response")
 
     if nome == "Bash":
-        bruto = str(entrada.get("command") or "")
-        return {
-            "tipo": "comando",
-            "cmd": redigir(bruto)[:LIMITE_CMD],
-            "gate": classificar_gate(bruto),         # o gate sai do comando, não da gravação
-            "ok": avaliar_saida(resposta),
-        }
+        return ev_comando(str(entrada.get("command") or ""), resposta)
 
     if nome in ("Write", "Edit", "NotebookEdit", "MultiEdit"):
         bruto = str(entrada.get("file_path") or entrada.get("notebook_path") or "")
@@ -408,6 +421,76 @@ def ler_transcript(caminho: str) -> tuple[dict | None, dict[str, int]]:
 def tokens_do_transcript(caminho: str) -> dict | None:
     """O uso acumulado da sessão: a soma de cada resposta do modelo, contada uma vez."""
     return ler_transcript(caminho)[0]
+
+
+# --- o término do que rodou em background (emenda ao ADR-0042) ----------------------
+# O `PostToolUse` de um comando em background chega quando ele começa, sem saída nem
+# código. O término chega depois, como notificação que o próprio Claude Code põe no
+# transcript: `<task-notification>` com o id da tarefa, o status e "exit code N" no
+# resumo. Vale só a que traz `origin.kind == "task-notification"` — numa entrada `user`
+# quando a sessão estava parada, num anexo `queued_command` quando chegou no meio de um
+# turno (conferido no 2.1.319). O mesmo texto impresso por um comando volta como
+# `tool_result`, sem essa origem: o agente não forja o próprio gate verde.
+
+NOTIFICACAO = re.compile(r"<task-notification>(.*?)</task-notification>", re.S)
+
+
+def _campo(bloco: str, nome: str) -> str:
+    m = re.search(rf"<{nome}>([^<]*)</{nome}>", bloco)
+    return m.group(1).strip() if m else ""
+
+
+def _resultado(bloco: str) -> bool | None:
+    """Verde só com "exit code 0"; `failed` sem código é vermelho; o resto não se afirma."""
+    m = re.search(r"exit code (\d+)", _campo(bloco, "summary"))
+    if m:
+        return m.group(1) == "0"
+    return False if _campo(bloco, "status") == "failed" else None
+
+
+def _do_harness(origem) -> bool:
+    return isinstance(origem, dict) and origem.get("kind") == "task-notification"
+
+
+def _texto_da_mensagem(conteudo) -> str:
+    if isinstance(conteudo, str):
+        return conteudo
+    return " ".join(str(b.get("text") or "") for b in conteudo or [] if isinstance(b, dict))
+
+
+def _texto_do_harness(d: dict) -> str:
+    """O texto da notificação, se foi o Claude Code que a pôs no transcript; senão, nada."""
+    if d.get("type") == "user" and _do_harness(d.get("origin")):
+        return _texto_da_mensagem((d.get("message") or {}).get("content"))
+    anexo = d.get("attachment") or {}
+    if d.get("type") == "attachment" and _do_harness(anexo.get("origin")):
+        return str(anexo.get("prompt") or "")
+    return ""
+
+
+def _conclusoes_da_linha(linha: str) -> dict[str, bool | None]:
+    if "task-notification" not in linha:              # filtro barato: o transcript é grande
+        return {}
+    try:
+        d = json.loads(linha)
+    except ValueError:
+        return {}
+    blocos = NOTIFICACAO.findall(_texto_do_harness(d)) if isinstance(d, dict) else []
+    return {_campo(b, "task-id"): _resultado(b) for b in blocos if _campo(b, "task-id")}
+
+
+def conclusoes_em_background(caminho: str) -> dict[str, bool | None]:
+    """Id da tarefa → resultado, para cada comando em background que terminou na sessão."""
+    if not caminho or not Path(caminho).is_file():
+        return {}
+    conclusoes: dict[str, bool | None] = {}
+    try:
+        with Path(caminho).open(encoding="utf-8", errors="replace") as fh:
+            for linha in fh:
+                conclusoes.update(_conclusoes_da_linha(linha))
+    except OSError:
+        return {}
+    return conclusoes
 
 
 def ev_fim(p: dict) -> dict:

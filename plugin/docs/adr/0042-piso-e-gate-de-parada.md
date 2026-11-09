@@ -366,10 +366,11 @@ agente escreve um arquivo, roda um `pytest` em background e encerra:
     repeti três sessões verdes e uma vermelha. As verdes ficaram sem aviso, e a vermelha
     avisou uma vez, com a linha do gate. Não dá para dizer em quantas a releitura chegou a
     ser acionada.
-- **`scripts/tests/test_gate_em_background.py`**, com 24 testes. Os formatos das linhas são
+- **`scripts/tests/test_gate_em_background.py`**, com 25 testes. Os formatos das linhas são
   os do transcript real. Os testes cobrem:
   - os dois formatos, o resultado pelo código de saída e a notificação forjada, a da fila
-    e a sem origem, que não contam, e o arquivo ilegível, que não derruba o hook;
+    e a sem origem, que não contam, o prompt digitado na fila e o anexo fora do tipo, que
+    também não contam, e o arquivo ilegível, que não derruba o hook;
   - o id gravado no início;
   - o verde e o vermelho em background;
   - a espera enquanto o gate roda e cobre as escritas, com doc e pasta sem gate escritas
@@ -385,7 +386,8 @@ agente escreve um arquivo, roda um `pytest` em background e encerra:
   - dois eram código redundante, que saiu: o `is_file`, já coberto pelo `OSError`, e um
     `return False` antecipado;
   - seis eram casos sem teste, que viraram teste.
-  O resultado da segunda rodada fica no PR.
+  A rodada sobre os 55 sítios deixou um sobrevivente (98%): o anexo que não é da origem
+  ou do tipo do Claude Code. Virou teste, que passa no código e reprova o mutante.
 
 ### Limites
 

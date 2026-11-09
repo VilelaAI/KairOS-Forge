@@ -95,6 +95,13 @@ class LeituraDoTranscript(unittest.TestCase):
                                                                                           "</summary></task-notification>"}}),
                          {})
 
+    def test_anexo_so_conta_com_a_origem_e_o_tipo_do_claude_code(self) -> None:
+        digitado = no_meio_do_turno("pessoa", "completed", 'Background command "x" completed (exit code 0)')
+        digitado["attachment"]["origin"] = {"kind": "human"}            # um prompt na fila, digitado
+        fora_do_tipo = no_meio_do_turno("outro", "completed", 'Background command "x" completed (exit code 0)')
+        fora_do_tipo["type"] = "user"                                   # a origem num campo que não é anexo
+        self.assertEqual(self.ler(digitado, fora_do_tipo), {})
+
     def test_conteudo_em_blocos_tambem(self) -> None:
         linha = com_a_sessao_parada("blocos")
         linha["message"]["content"] = [{"type": "text", "text": linha["message"]["content"]}]

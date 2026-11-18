@@ -36,7 +36,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver (lista de skills abreviada aqui):
 
 ```
-🔥 kairos-forge v0.50 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+🔥 kairos-forge v0.51 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -354,7 +354,7 @@ parada** — sessão que escreveu produção sem gate verde depois não encerra 
 silêncio. O aviso aparece para você como "Stop says: ⚠️ kairos-forge …" (ou
 "PreToolUse:Edit says: …"): é a regra funcionando, não um hook quebrado. Para
 fechá-lo, peça que o teste rode. Rodado em background, ele conta quando terminar, e
-enquanto ainda roda a parada espera. Pasta que não tem teste (experimento, spike) você declara uma
+enquanto ainda roda a parada espera. E, se o agente disser "os testes passam" sem um teste verde na trajetória depois da última escrita, a resposta volta para ele uma vez, até rodar o teste ou dizer o que não verificou (ADR-0058). Pasta que não tem teste (experimento, spike) você declara uma
 vez: `{"sem_gate": ["experiments/**"]}` tira essa pasta da conta da parada.
 
 Se um bloqueio atrapalhar algo legítimo, quem ajusta `.agents/guardrails.json` é

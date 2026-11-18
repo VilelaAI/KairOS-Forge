@@ -93,8 +93,10 @@ class DestruicaoNoPiso(Sandbox):
         antigo = guardrail.TEMP
         guardrail.TEMP = ()  # o sandbox do teste vive em /tmp; sem isto o vizinho seria "temp"
         try:
-            self.assertEqual(self.cmd("rm -rf ../vizinho")[0], 2)
-            self.assertEqual(self.cmd("rm -rf ~/projetos/outro")[0], 2)
+            # O `$TMPDIR` também conta como temp: definido como /tmp, o vizinho passaria.
+            with mock.patch.dict(os.environ, {"TMPDIR": ""}):
+                self.assertEqual(self.cmd("rm -rf ../vizinho")[0], 2)
+                self.assertEqual(self.cmd("rm -rf ~/projetos/outro")[0], 2)
         finally:
             guardrail.TEMP = antigo
         self.assertEqual(self.cmd(f"rm -rf {self.raiz}/node_modules")[0], 0)

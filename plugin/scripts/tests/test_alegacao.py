@@ -192,6 +192,17 @@ class NaParada(Sandbox):
         self.assertEqual(guardrail.ultima_resposta({"transcript_path": str(so_pessoa)}), "")
         self.assertEqual(guardrail.ultima_resposta({}), "")
 
+    def test_a_frase_da_pessoa_nao_e_alegacao_do_agente(self) -> None:
+        self.gravar(escrita())
+        transcript = self.raiz / "t.jsonl"
+        linhas = [{"type": "assistant", "message": {"content": [{"type": "text", "text": "Mexi no login."}]}},
+                  {"type": "user", "message": {"content": [{"type": "text", "text": "Os testes passam?"}]}},
+                  {"type": "user", "message": {"content": [{"type": "text", "text": "Aqui os testes passam."}]}},
+                  [1, 2]]
+        transcript.write_text("".join(json.dumps(l) + "\n" for l in linhas), encoding="utf-8")
+        self.assertEqual(guardrail.ultima_resposta({"transcript_path": str(transcript)}), "Mexi no login.")
+        self.assertEqual(self.parada(None, transcript_path=str(transcript))[0], guardrail.AVISOU)  # só a parada
+
     def test_no_cursor_vira_followup(self) -> None:
         self.gravar({**escrita(), "sessao": "c1"})
         codigo, out, _ = hook("parada", {"conversation_id": "c1", "hook_event_name": "stop",

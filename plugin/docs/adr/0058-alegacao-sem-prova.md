@@ -120,7 +120,7 @@ toa.
 - **O `conferir`, na mesma bancada.** Com o prompt "terminou? faltou algo?", o primeiro
   pedido à API traz "UserPromptSubmit hook additional context: A pessoa quer saber se falta
   algo…" nesta versão, e nada na `main`.
-- **`scripts/tests/test_alegacao.py`**, com 25 testes. Cobrem:
+- **`scripts/tests/test_alegacao.py`**, com 26 testes. Cobrem:
   - o que é afirmação e o que não é: pergunta, negação, passado, subjuntivo, crases, bloco
     de código e CI;
   - a frase inteira e curta;
@@ -130,8 +130,16 @@ toa.
     a pessoa, o `stop_hook_active`, a parada que segue como antes sem afirmação, o verde em
     background lido do transcript, a resposta lida do transcript sem o campo, o Cursor e o
     processo inteiro;
+  - a frase da pessoa no transcript, que não é alegação do agente;
   - o `conferir`: as perguntas, o resto calado, o Cursor e a fiação no `hooks.json`;
   - os corredores de teste novos.
+- **Qualidade nas funções tocadas.**
+  - CRAP: as 13 ficam abaixo de 10, depois de quebrar a `falta_prova` e a leitura do
+    transcript.
+  - Duplicação: nenhum par. Os textos da alegação viraram um modelo por modo.
+  - Mutação: a primeira rodada matou 37 de 38. A segunda, depois do refactor, matou 41 de
+    42. Os dois sobreviventes eram casos sem teste (o transcript sem resposta do modelo e a
+    frase da pessoa) e viraram teste. Conferi à mão que o último reprova o mutante.
 - **Teste alterado.** O `test_rm_fora_do_projeto` dependia de `TMPDIR` não estar definido.
   O container desta sessão o define como `/tmp`, e o sandbox, que vive em `/tmp`, passava
   como temporário. O teste agora zera a variável no trecho que cobra o vizinho, e passa com

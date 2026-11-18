@@ -33,6 +33,7 @@ acrescenta o que precisa por cima dele.
 | `t09-revisar-caminho-absoluto` | verificar | revisão bloqueada no caminho absoluto que o validador deixa passar, sem bloquear a isca (`subprocess` seguro), sem corrigir | verificação que não vai pelo padrão: o `..` já é recusado, e os testes do diff passam |
 | `t10-revisar-sem-defeito` | verificar | revisão aprovada, com a lista do que foi examinado, de um diff correto e testado com iscas | o falso positivo: bloquear o que estava certo |
 | `t11-criticar-spec-sutil` | verificar | crítica bloqueada no critério de um sentido só e na matriz que não prova, sem bloquear o requisito bem feito | crítica além do adjetivo e da contradição direta |
+| `t12-revisar-defeito-antigo` | verificar | revisão aprovada de um diff correto, com a injeção de SQL antiga em `vendas/consulta.py` anotada em "Fora deste PR", sem bloquear por ela e sem corrigir | o falso positivo fora do diff: bloquear o PR pelo que ele não fez (ADR-0059) |
 
 ### Por que t09, t10 e t11
 

@@ -52,7 +52,8 @@ LIMITE_ARQ = 200
 # É o que o /kairos-forge:validar corrobora contra a célula `verificado:` da SPEC.
 GATES: list[tuple[str, str]] = [
     ("teste", r"(pytest|jest|vitest|mocha|go test|cargo test|mix test|rspec|phpunit"
-              r"|dotnet test|(npm|pnpm|yarn|bun)( run)? test)"),
+              r"|dotnet test|(npm|pnpm|yarn|bun)( run)? test"
+              r"|-m unittest|\btox\b|\bnox\b|node --test|deno test)"),
     ("lint", r"(eslint|ruff|flake8|pylint|golangci-lint|clippy|rubocop|biome"
              r"|(npm|pnpm|yarn|bun)( run)? lint)"),
     ("tipos", r"(tsc\b|mypy|pyright|(npm|pnpm|yarn|bun)( run)? typecheck)"),

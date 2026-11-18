@@ -67,6 +67,13 @@ projeto declara sem gate (`sem_gate`, abaixo) fica fora da conta. O gate rodado 
 background conta quando termina (o fim é lido do transcript), e a parada espera enquanto
 um gate que cobre as escritas ainda roda (emenda ao ADR-0042).
 
+Antes dela, a ALEGAÇÃO SEM PROVA (ADR-0058, classe `alegacao`, nasce em `bloqueio`): a
+última resposta que afirma gate verde ("os testes passam", "o build passou", "tudo verde")
+é conferida contra a trajetória e volta uma vez ao modelo quando o registro a desmente —
+nenhum gate daquele tipo depois da última escrita, o último vermelho, ou ainda rodando. E,
+no `UserPromptSubmit`, o modo `conferir`: quando a pessoa pergunta se falta algo, o modelo
+recebe a conferência item a item do pedido contra o entregue.
+
 ## Goodhart: o agente não escreve o próprio medidor
 
 Quatro caminhos são bloqueados sem possibilidade de configuração:
@@ -93,7 +100,8 @@ stderr, como era, aparecia como "hook error" (emenda ao ADR-0042):
     guardrail.py leitura    # PreToolUse  matcher Read           (ADR-0042)
     guardrail.py spec       # PostToolUse matcher Write|Edit
     guardrail.py contrato   # PostToolUse matcher Write|Edit
-    guardrail.py parada     # Stop                               (ADR-0042)
+    guardrail.py parada     # Stop                               (ADR-0042, ADR-0058)
+    guardrail.py conferir   # UserPromptSubmit — só contexto      (ADR-0058)
 
 E um modo que não bloqueia: `faixa3` (ADR-0052) recebe o mesmo payload e responde em
 JSON se a chamada para por uma pessoa — efeito que um revert não desfaz, com o arco
@@ -155,7 +163,7 @@ que o arquivo mudou — o que um sync legítimo também faz. Por isso ali o defa
     }                                              // parada (emenda ao ADR-0042)
 
 Classes de regra, para o campo `modos`: `comando`, `protegido`, `gerado`, `spec`,
-`contrato`, `teste`, `parada`, `regua`, `checkout`, `intencao`, `saida` (em `bloqueio`, o
+`contrato`, `teste`, `parada`, `alegacao`, `regua`, `checkout`, `intencao`, `saida` (em `bloqueio`, o
 segredo da saída é ocultado; em `aviso`, fica e o modelo é avisado). Todas nascem em `bloqueio`, menos
 `teste`, `parada`, `regua`, `checkout` e `intencao`, que nascem em `aviso` (refactor legítimo também edita teste,
 sessão de leitura também termina sem gate, e migração de versão também mexe na config
@@ -1455,6 +1463,181 @@ def gates_declarados(raiz: Path) -> list[str]:
     return achados[:5]
 
 
+# --- alegação sem prova (ADR-0058) ---------------------------------------------------
+# A ideia vem da corno-confere (corno-skills, sem licença declarada: a ideia, não o
+# texto): o agente diz "os testes passam" e ninguém confere. Lá, toda resposta que diz
+# "pronto" depois de uma edição volta uma vez para a conferência. Aqui, a frase é
+# conferida contra a trajetória: só volta a afirmação de gate verde que o registro desmente
+# — nenhum gate daquele tipo depois da última escrita, o último vermelho, ou ainda rodando.
+
+ALEGACOES: tuple[tuple[str | None, re.Pattern], ...] = (
+    ("teste", re.compile(
+        r"\b(testes?|su[ií]tes?|pytest|jest|vitest|unittest|specs?)\b[^.!?\n]{0,40}?"
+        r"\b(passa|passam|passaram|passando|passou|verdes?)\b"
+        r"|\btests? (pass|passes|passed|are (all )?(passing|green))\b", re.I)),
+    ("lint", re.compile(
+        r"\b(lint|linter|ruff|eslint|flake8|pylint|biome)\b[^.!?\n]{0,30}?"
+        r"\b(passa|passam|passou|limpo|verde|sem (erros|avisos))\b"
+        r"|\blint (passes|passed|is clean)\b", re.I)),
+    ("tipos", re.compile(
+        r"\b(tipos|tipagem|typecheck|mypy|tsc|pyright)\b[^.!?\n]{0,30}?"
+        r"\b(passa|passam|passou|verde|sem erros)\b|\btype ?check(ing)? pass(es|ed)?\b", re.I)),
+    ("build", re.compile(
+        r"\b(build|compila[çc][ãa]o)\b[^.!?\n]{0,30}?\b(passa|passou|verde|sem erros)\b"
+        r"|\bcompila sem erros\b|\bbuild (passes|passed|succeeded|is green)\b", re.I)),
+    (None, re.compile(r"\b(tudo (verde|passando)|todos os gates (passam|verdes)|all green"
+                      r"|all checks pass)\b", re.I)),
+)
+NEGACAO = re.compile(r"\b(n[ãa]o|nem|nunca|not|no longer|ainda falta)\b|n't\b", re.I)
+# O CI e o servidor ficam fora da trajetória local: afirmar o que eles mostram não se confere aqui.
+FORA_DA_TRAJETORIA = re.compile(r"\b(CI|pipeline|GitHub Actions|workflow|servidor|produ[çc][ãa]o)\b")
+
+
+def _frases(texto: str) -> list[str]:
+    """As frases da resposta, sem bloco de código nem trecho entre crases: saída colada não
+    é afirmação."""
+    texto = re.sub(r"`[^`\n]*`", " ", re.sub(r"```.*?```", " ", texto, flags=re.S))
+    return [f.strip() for f in re.split(r"(?<=[.!?])\s+|\n+", texto) if f.strip()]
+
+
+def alegacoes(texto: str) -> list[tuple[str | None, str]]:
+    """(tipo de gate, frase) de cada afirmação de gate verde. Fora: pergunta, negação antes
+    da afirmação e o que só o CI ou o servidor mostram."""
+    achadas = []
+    for frase in _frases(texto or ""):
+        if frase.endswith("?") or FORA_DA_TRAJETORIA.search(frase):
+            continue
+        for tipo, padrao in ALEGACOES:
+            m = padrao.search(frase)
+            if m and not NEGACAO.search(frase[:m.end()]):
+                achadas.append((tipo, frase[:160]))      # cada gate afirmado é conferido
+    return achadas
+
+
+def _resposta_da_linha(linha: str) -> str | None:
+    """O texto da resposta do modelo naquela linha do transcript; None se a linha não é uma."""
+    try:
+        d = json.loads(linha)
+    except ValueError:
+        return None
+    if not isinstance(d, dict) or d.get("type") != "assistant" or d.get("isSidechain"):
+        return None
+    blocos = (d.get("message") or {}).get("content") or []
+    return " ".join(str(b.get("text") or "") for b in blocos if isinstance(b, dict))
+
+
+def _ultima_do_transcript(caminho: str) -> str:
+    """O texto da última resposta do modelo no transcript, para quem não manda
+    `last_assistant_message` no `Stop`."""
+    try:
+        linhas = Path(caminho).read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    for linha in reversed(linhas):
+        texto = _resposta_da_linha(linha)
+        if texto is not None:
+            return texto
+    return ""
+
+
+def ultima_resposta(payload: dict) -> str:
+    texto = payload.get("last_assistant_message")
+    if isinstance(texto, str):
+        return texto
+    caminho = str(payload.get("transcript_path") or "")
+    return _ultima_do_transcript(caminho) if caminho else ""
+
+
+def falta_prova(eventos: list[dict], tipo: str | None, em_curso: set[str],
+                sem_gate: list[str]) -> str | None:
+    """O que desmente a afirmação de que o gate `tipo` (None: todos) passou, ou None quando a
+    trajetória a sustenta ou não dá para afirmar o contrário. Conta o que rodou depois da
+    última escrita de produção; sem escrita, a sessão inteira."""
+    desde = _depois_da_ultima_escrita(eventos, sem_gate)
+    ultimos = _ultimo_de_cada_gate(eventos[desde:], tipo)
+    if not ultimos:
+        return "nenhum rodou depois da última escrita" if desde else "nenhum rodou nesta sessão"
+    return next(filter(None, (_o_que_desmente(ev, em_curso) for ev in ultimos.values())), None)
+
+
+def _depois_da_ultima_escrita(eventos: list[dict], sem_gate: list[str]) -> int:
+    """O índice logo depois da última escrita de produção fora das pastas sem gate; 0 sem escrita."""
+    escritas = [i for i, ev in enumerate(eventos) if ev.get("tipo") == "escrita" and ev.get("producao")
+                and not any(casa(str(ev.get("arquivo") or ""), p) for p in sem_gate)]
+    return escritas[-1] + 1 if escritas else 0
+
+
+def _ultimo_de_cada_gate(eventos: list[dict], tipo: str | None) -> dict[str, dict]:
+    ultimos: dict[str, dict] = {}
+    for ev in eventos:
+        if ev.get("tipo") == "comando" and ev.get("gate") and tipo in (None, ev.get("gate")):
+            ultimos[ev["gate"]] = ev
+    return ultimos
+
+
+def _o_que_desmente(ev: dict, em_curso: set[str]) -> str | None:
+    cmd = encurtar_no_meio(str(ev.get("cmd") or ""))
+    if ev.get("ok") is False:
+        return f"o último rodou vermelho: `{cmd}`"
+    if ev.get("ok") is None and ev.get("tarefa") in em_curso:
+        return f"ainda roda em background: `{cmd}`"
+    return None
+
+
+def checar_alegacao(payload: dict, raiz: Path, cfg: dict, eventos: list[dict],
+                    em_curso: set[str]) -> int | None:
+    """Volta uma vez a resposta que afirma gate verde sem prova; None quando nada a dizer."""
+    for tipo, frase in alegacoes(ultima_resposta(payload)):
+        falta = falta_prova(eventos, tipo, em_curso, pastas_sem_gate(cfg))
+        if falta:
+            modo = modo_de(cfg, "alegacao")
+            registrar_recusa(raiz, "alegacao", f"afirmou {tipo or 'os gates'} verde sem prova", frase, modo)
+            motivo, detalhe, saida = TEXTOS_DA_ALEGACAO[modo]
+            gate = tipo or "todos"
+            return bloquear(motivo.format(frase=frase, falta=falta), detalhe.format(gate=gate), saida, modo)
+    return None
+
+
+# Em `bloqueio`, o texto vai ao modelo, que roda o gate ou corrige a resposta; em `aviso`, à
+# pessoa (emenda v0.50.7 ao ADR-0042).
+TEXTOS_DA_ALEGACAO = {
+    "bloqueio": ("alegação sem prova — a resposta diz “{frase}”, e a trajetória desta sessão não "
+                 "sustenta: {falta}",
+                 "O que conta é o registro de execução (.agents/execucoes/), não a frase. Gate: {gate}.",
+                 "Rode o gate agora e responda com o resultado que ele der. Se não dá para rodar aqui, "
+                 "ou se quem rodou foi a pessoa, diga isso em vez de afirmar que passa (ADR-0058)."),
+    "aviso": ("o agente afirmou “{frase}” sem prova na trajetória: {falta}",
+              "Gate: {gate}. O que conta é o registro de execução, não a frase.",
+              "Peça que rode o gate e mostre o resultado, ou que diga o que não foi verificado."),
+}
+
+
+# Quando a pessoa pergunta se falta algo, o agente recebe a conferência item a item: o que
+# foi pedido ao lado do que foi entregue, com prova rodada agora (a outra metade da
+# corno-confere, ADR-0058). Contexto para o modelo, nunca bloqueio.
+PEDE_CONFERENCIA = re.compile(
+    r"(faltou (algo|alguma coisa|coisa|nada)|falta (algo|alguma coisa)|ficou faltando"
+    r"|esqueceu (algo|alguma)|terminou\s*\?|t[aá] pronto\s*\?|est[aá] pronto\s*\?|ficou pronto\s*\?"
+    r"|confere (a[ií]|tudo|se)|anything missing|did you miss|is it done\s*\?)", re.I)
+CONFERENCIA = (
+    "A pessoa quer saber se falta algo. Antes de responder, liste cada coisa que ela pediu "
+    "nesta conversa, com as palavras dela: o pedido inicial, cada mudança de rumo, o que chegou "
+    "no meio do trabalho e os detalhes ditos de passagem. Ao lado de cada item, o que foi "
+    "entregue, lido agora no arquivo ou na saída, não lembrado, e se ficou igual ao pedido ou "
+    "só parecido. Para cada item, uma prova rodada depois da última mudança: arquivo:linha, ou "
+    "o comando com o resultado. Faça o que faltou, se está no escopo, e confira a lista inteira "
+    "de novo. Na resposta, diga o que ficou diferente, o que falta e o que não deu para "
+    "verificar (kairos-forge, ADR-0058).")
+
+
+def checar_conferencia(payload: dict) -> int:
+    if _EDITOR["cursor"] or not PEDE_CONFERENCIA.search(str(payload.get("prompt") or "")):
+        return 0
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
+                                             "additionalContext": CONFERENCIA}}))
+    return 0
+
+
 def checar_parada(payload: dict) -> int:
     # Nunca duas vezes na mesma parada: o Claude Code marca `stop_hook_active`; o
     # Cursor conta `loop_count`. Sem isso, gate vermelho viraria laço infinito.
@@ -1464,7 +1647,11 @@ def checar_parada(payload: dict) -> int:
     sessao = str(payload.get("session_id") or "?")[:16]
     cfg = carregar_config(raiz)
     eventos = eventos_da_sessao(raiz, sessao)
-    pend = pendencia_de_parada(eventos, pastas_sem_gate(cfg), *em_background(payload, eventos))
+    conclusoes, em_curso = em_background(payload, eventos)
+    alegado = checar_alegacao(payload, raiz, cfg, _com_conclusoes(eventos, conclusoes), em_curso)
+    if alegado is not None:
+        return alegado
+    pend = pendencia_de_parada(eventos, pastas_sem_gate(cfg), conclusoes, em_curso)
     if pend is None:
         return 0
     modo = modo_de(cfg, "parada")
@@ -2054,7 +2241,7 @@ def ocultar_arquivos(arquivos: list[Path]) -> int:
 
 MODOS = {"comando": checar_comando, "escrita": checar_escrita, "spec": checar_spec,
          "contrato": checar_contrato, "leitura": checar_leitura, "parada": checar_parada,
-         "faixa3": checar_faixa3, "saida": checar_saida}
+         "faixa3": checar_faixa3, "saida": checar_saida, "conferir": checar_conferencia}
 
 
 def main() -> int:

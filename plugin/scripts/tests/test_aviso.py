@@ -125,8 +125,8 @@ class OTextoDaParada(ComTrajetoria):
         self.gravar(self.escrita("src/a.py"))
         codigo, _, aviso = self.parada()
         self.assertEqual(codigo, guardrail.AVISOU)
-        self.assertIn("peça que rode o teste ou o lint do projeto em primeiro plano", aviso)
-        self.assertIn("o teste rodado em background não conta", aviso)
+        self.assertIn("peça que rode o teste ou o lint do projeto.", aviso)
+        self.assertIn("Em background também vale: conta quando terminar.", aviso)
         self.assertIn('`{"sem_gate": ["experiments/**"]}`', aviso)
         self.assertNotIn("encerre de novo", aviso)          # instrução para o modelo
         self.assertNotIn("diga ao usuário", aviso)
@@ -137,7 +137,7 @@ class OTextoDaParada(ComTrajetoria):
             "# Gates\n\n- `pytest -q`\n- `ruff check .`\n- `mypy src`\n", encoding="utf-8")
         self.gravar(self.escrita("src/a.py"))
         aviso = self.parada()[2]
-        self.assertIn("peça que rode `pytest -q` ou `ruff check .` (de `contextos/testes.md`)", aviso)
+        self.assertIn("peça que rode `pytest -q` ou `ruff check .` (de `contextos/testes.md`).", aviso)
         self.assertNotIn("mypy", aviso)
 
     def test_em_bloqueio_fala_com_o_modelo(self) -> None:
@@ -145,8 +145,8 @@ class OTextoDaParada(ComTrajetoria):
         self.config({"modos": {"parada": "bloqueio"}})
         codigo, _, motivo = self.parada()
         self.assertEqual(codigo, 2)
-        self.assertIn("Em primeiro plano: o gate rodado em background não conta.", motivo)
         self.assertIn("Depois, encerre de novo.", motivo)
+        self.assertNotIn("background não conta", motivo)   # conta, desde a emenda v0.50.8
         self.assertNotIn("peça que rode", motivo)
 
     def test_o_gate_vermelho_mostra_o_comeco_e_o_fim_do_comando(self) -> None:

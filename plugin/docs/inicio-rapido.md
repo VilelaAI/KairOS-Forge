@@ -353,8 +353,8 @@ edição em teste existente (o `/validar` cobra a justificativa) e o **gate de
 parada** — sessão que escreveu produção sem gate verde depois não encerra em
 silêncio. O aviso aparece para você como "Stop says: ⚠️ kairos-forge …" (ou
 "PreToolUse:Edit says: …"): é a regra funcionando, não um hook quebrado. Para
-fechá-lo, peça que o teste rode em primeiro plano; rodado em background, o hook só vê
-o comando começar. Pasta que não tem teste (experimento, spike) você declara uma
+fechá-lo, peça que o teste rode. Rodado em background, ele conta quando terminar, e
+enquanto ainda roda a parada espera. Pasta que não tem teste (experimento, spike) você declara uma
 vez: `{"sem_gate": ["experiments/**"]}` tira essa pasta da conta da parada.
 
 Se um bloqueio atrapalhar algo legítimo, quem ajusta `.agents/guardrails.json` é

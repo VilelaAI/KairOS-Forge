@@ -137,6 +137,18 @@ class Checagens(unittest.TestCase):
         (self.ws / "r3.md").write_text("servidor.py tem path TRAVERSAL\n", encoding="utf-8")
         self.assertTrue(self.checar(c))
 
+    def test_ausente_reprova_o_que_sobrou(self) -> None:
+        c = {"tipo": "ausente", "glob": "**/*.py", "regex": "forge-" + "depura-"}
+        (self.ws / "vendas").mkdir(exist_ok=True)
+        (self.ws / "vendas" / "a.py").write_text("x = 1\n", encoding="utf-8")
+        self.assertTrue(self.checar(c))
+        (self.ws / "vendas" / "b.py").write_text("print('[FORGE-" + "DEPURA-1a2b]')\n",
+                                                 encoding="utf-8")
+        self.assertFalse(self.checar(c))   # sem diferença de maiúscula, como no prova.py
+        self.assertFalse(self.checar({**c, "regex": ["nada", "forge-" + "depura-"]}))
+        self.assertTrue(self.checar({**c, "regex": ["nada", "outra"]}))
+
+
     def test_ciclo_e_resposta(self) -> None:
         self.assertFalse(self.checar({"tipo": "ciclo", "estados": ["pronto_para_pr"]}))
         (self.ws / ".agents" / "ciclo").mkdir(parents=True)
@@ -333,6 +345,16 @@ class Comparar(unittest.TestCase):
             self.assertIn(f"Piorou: {T1}", saida)
             codigo, saida = calado(rodar.main, ["estimar", "base", "--reps", "3", "--tarefas", "t01"])
             self.assertIn("300 tokens novos", saida)
+
+
+class Preparar(unittest.TestCase):
+    def test_o_workspace_tem_a_base_do_diff(self) -> None:
+        """Como num clone: `origin/main` é o commit base, para o `prova.py` achar o diff."""
+        (t,) = rodar.carregar_tarefas("t13")
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = Path(tmp)
+            ref = rodar.preparar(t, ws)
+            self.assertEqual(rodar.git(ws, "rev-parse", "origin/main").stdout.strip(), ref)
 
 
 if __name__ == "__main__":

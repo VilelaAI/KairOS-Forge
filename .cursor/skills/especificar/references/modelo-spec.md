@@ -17,11 +17,11 @@ Em `docs/specs/SPEC-<NNN>-<slug>.md` no projeto do usuário, com seções:
 - **Desenho do programa** — em SPEC Pequena+ que cria ou muda interface: os tipos e as assinaturas públicas que a mudança cria ou altera, o caminho de chamada da T1 (por onde a entrada chega e onde o dado é gravado ou devolvido) e as **portas de mão única** com o formato literal (schema gravado, contrato de API pública, migração). Sai do `grafo.py contexto` dos arquivos tocados (passo 2.1). Decidir o formato antes de construir custa menos que discutir no review (Dex Horthy, *Why Software Factories Fail*); o que não é interface pública fica para quem constrói
 - **Diagrama** — em SPEC Média+ com fluxo entre componentes, bloco Mermaid do desenho (à mão ou via `grafo.py mermaid`); o diagrama deriva do texto, nunca o substitui
 - **Requisitos rastreáveis** — IDs estáveis, prioridade, critério de aceite **com valor concreto, nunca adjetivo** (ADR-0039) e status. O critério vale **nos dois sentidos** (ADR-0053): o requisito que proíbe o caso ruim garante também o caso bom, ou diz por que não (abaixo)
-- **Mapa de intenção** — cada requisito aponta para de onde veio, nas palavras de quem pediu (ADR-0053): o pedido, a issue, a resposta de um gate, a varredura, a trilha, um ADR. O que a fábrica deduziu fica `inferido`, e a pessoa confirma na aprovação; requisito sem origem foi inventado (ADR-0015), e o guardrail avisa ao escrever a SPEC
+- **Mapa de intenção** — cada requisito aponta para de onde veio, nas palavras de quem pediu (ADR-0053): o pedido, a issue, a resposta de um gate, a varredura, a trilha, um ADR, uma pesquisa salva (`pesquisa: docs/pesquisa/<assunto>.md`, ADR-0060). O que a fábrica deduziu fica `inferido`, e a pessoa confirma na aprovação; requisito sem origem foi inventado (ADR-0015), e o guardrail avisa ao escrever a SPEC
 - **Varredura** — em SPEC Média+, as nove dimensões que ninguém escreve sem lista: cada uma termina num requisito, numa proteção que já existe ou em `n/a` com motivo (tabela abaixo)
 - **Plano de implementação** — tarefas atômicas, cada item ≤ 1 dia (a unidade de posse do quadro), com agente, arquivos, dependências e gates; **T1 é a fatia fim a fim** (ADR-0039); a coluna **Reusa** aponta o `arquivo:função` que já existe e a tarefa usa em vez de escrever de novo — é ela que o gate de duplicação do `/validar` cobra
 - **Matriz de testes** — tipo de teste por requisito/tarefa, comando esperado e responsável; o tipo é a camada da escada de verificação que o `/validar` sobe do barato ao caro
-- **Confiado, não provado** — o que a entrega assume sem provar: a biblioteca que faz o que diz, o provedor que responde, o banco que devolve o que gravou (ADR-0053). Cada linha tem quem aceitou e o teste que cobre (`planejado:` até rodar, `verificado:` depois); a que fica sem teste aparece no corpo do PR como decisão
+- **Confiado, não provado** — o que a entrega assume sem provar: a biblioteca que faz o que diz, o provedor que responde, o banco que devolve o que gravou (ADR-0053). O comportamento de biblioteca ou de API que alguém consultou cita a pesquisa salva (`docs/pesquisa/<assunto>.md`, skill `/pesquisar`, ADR-0060), e o `prova.py fontes SPEC-NNN` a confere. Cada linha tem quem aceitou e o teste que cobre (`planejado:` até rodar, `verificado:` depois); a que fica sem teste aparece no corpo do PR como decisão
 - **Não prometido** — o que ninguém está garantindo sobre o que **é** entregue: tempo sob carga, ordem entre chamadas simultâneas, o que acontece se a dependência demorar. Não-objetivo é o que fica fora do escopo; não prometido é a propriedade do que entra que ninguém assegura. O corpo do PR põe a lista no que o merge aceita
 - **Riscos e mitigações**
 - **Perguntas abertas** — se houver qualquer incerteza bloqueante
@@ -93,7 +93,7 @@ Use este template mínimo:
 
 | Requisito | De onde veio | Nas palavras de quem pediu |
 |---|---|---|
-| <SLUG>-01 | <pedido · issue #123 · gate 1/3 · varredura: <dimensão> · trilha <nome> · ADR-NNNN · inferido> | "<a frase de quem pediu, ou — >" |
+| <SLUG>-01 | <pedido · issue #123 · gate 1/3 · varredura: <dimensão> · trilha <nome> · ADR-NNNN · pesquisa: docs/pesquisa/<assunto>.md · inferido> | "<a frase de quem pediu, ou — >" |
 
 Prioridades:
 - **P1**: necessário para entregar a mudança
@@ -138,7 +138,7 @@ O Comando/gate vai entre crases e roda **só o teste daquele requisito** (`pytes
 
 | O que se assume | Quem aceitou | Teste que cobre |
 |---|---|---|
-| <a biblioteca, o provedor ou o dado que a entrega toma como certo> | <pessoa, no gate 3/3> | <planejado: <teste> · verificado: <comando> (<dd/mm>)> |
+| <a biblioteca, o provedor ou o dado que a entrega toma como certo; com a pesquisa, se houver: docs/pesquisa/<assunto>.md> | <pessoa, no gate 3/3> | <planejado: <teste> · verificado: <comando> (<dd/mm>)> |
 
 ## Não prometido
 

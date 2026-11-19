@@ -240,3 +240,12 @@ Outros candidatos ficaram registrados para os próximos ciclos.
 - **Recomende UM item.** Mesmo que apareçam 5 candidatos. Disciplina é o que faz a fábrica evoluir consistentemente.
 - **Não puxe respostas.** Se o usuário disser "nenhum prompt repetido esta semana", aceite. Próxima pergunta.
 - **Salve o registro mesmo se nada novo emergir.** Padrão "esta semana sem novidade" é informação útil — talvez a fábrica esteja madura, talvez você não tenha trabalhado o suficiente, ambas hipóteses interessantes.
+
+## Pronto quando
+
+- `telemetria.py resumo --dias 7` e `telemetria.py prs --correcoes --dias 30` rodaram antes da primeira das 5 perguntas, feitas uma por vez, e a pessoa soube quando não havia trajetória ou quando a fonte `git` não mostra squash nem rebase, sem tendência inventada.
+- O EVOL traz o veredicto anterior, dado antes da escolha (`ajudou`, `piorou`, `sem efeito observado` ou `confundido`, com o contraste), ou diz que não havia EVOL com linha de base; lição em `.agents/memory/<slug>.md` só com `ajudou` ou `piorou` e contraste, senão `sem lição`.
+- Com item escolhido: `decisoes/evolucoes/EVOL-YYYY-MM-DD.md` tem as seções do passo 3, um item só, os candidatos descartados com o motivo, a "Linha de base" medida hoje (ou como vai observar) e o "Critério de pronto" dizendo o que muda em relação a ela.
+- Sem item (nada emergiu ou a pessoa não quis nenhum): o `decisoes/evolucoes/EVOL-YYYY-MM-DD.md` foi salvo mesmo assim, dizendo que a semana veio sem novidade, com os candidatos descartados, se houve.
+- Com candidatos, a fábrica recomendou um só, com o critério explícito, e a pessoa escolheu o item da semana, ou nenhum, e confirmou o escopo de qualquer fonte nova a ligar (gate humano).
+- Nada foi construído: a execução só escreveu o EVOL e, com lição, `.agents/memory/<slug>.md`; com item, o próximo passo dito é o `/kairos-forge:especificar`, ou o `/kairos-forge:otimizar` quando a dor é métrica que não melhora.

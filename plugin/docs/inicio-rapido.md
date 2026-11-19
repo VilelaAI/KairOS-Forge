@@ -36,7 +36,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver (lista de skills abreviada aqui):
 
 ```
-🔥 kairos-forge v0.52 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+🔥 kairos-forge v0.53 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -279,6 +279,8 @@ O `codigo.jsonl` é regenerável a qualquer momento e nunca se edita à mão. O 
 - `/kairos-forge:otimizar` — ciclo de catraca contra uma métrica que um comando mede: uma mudança por rodada, medir, manter ou reverter via git (ADR-0012).
 - `/kairos-forge:migrar` — modernização de legado por estrangulamento, com Ivan: testes de caracterização, rota de corte com rollback, manter-ou-reverter por fatia (ADR-0018).
 - `/kairos-forge:relatar` — o que entregamos, por que decidimos e quanto custou em tokens, com a Talita: cada número com o comando de onde saiu, "não medido" onde não há hook, o período ao lado do anterior (`telemetria.py periodo`) e o status em `decisoes/gestao/` quando pedido (ADR-0050).
+- `/kairos-forge:investigar` — bug de causa desconhecida, com o Ricardo: laço que reproduz o problema, uma hipótese por vez, a causa provada e escrita na ficha antes do conserto, e o teste que falha na base e passa agora (`prova.py reproduzir`, ADR-0060).
+- `/kairos-forge:pesquisar` — o que a fonte primária diz, com o Rafael: a versão que o projeto usa, cada fato com fonte, versão e data, salvo em `docs/pesquisa/` para a SPEC ou o ADR citar (`prova.py fontes`, ADR-0060).
 
 ## Passo 4 — ritmo semanal
 

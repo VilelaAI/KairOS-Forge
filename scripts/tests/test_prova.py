@@ -116,6 +116,23 @@ class Selado(Repo):
         self.escrever("skills/x/SKILL.md", PEDIDO)
         self.assertEqual(rodar(), 1)
 
+    def test_cli_sai_1_so_com_repetido_no_visivel_ou_so_com_linha_ilegivel(self) -> None:
+        """Cada achado basta sozinho para sair 1: o repetido no visível e a linha ilegível também."""
+        def rodar() -> int:
+            return subprocess.run([sys.executable, "-B", str(RAIZ / "prova.py"), "selado", "--raiz",
+                                   str(self.raiz)], capture_output=True, text=True).returncode
+
+        self.casos("evals/rota/selado.jsonl", {"id": "s-01", "pedido": PEDIDO})
+        self.casos("evals/rota/gold.jsonl", {"id": "v-07", "pedido": PEDIDO + "?"})
+        r = prova.selado(self.raiz)
+        self.assertEqual((r["vazamentos"], len(r["no_visivel"]), r["ilegiveis"]), ([], 1, []))
+        self.assertEqual(rodar(), 1)
+        (self.raiz / "evals/rota/gold.jsonl").unlink()
+        self.escrever("evals/rota/selado.jsonl", "isto não é json\n")
+        r = prova.selado(self.raiz)
+        self.assertEqual((r["vazamentos"], r["no_visivel"], len(r["ilegiveis"])), ([], [], 1))
+        self.assertEqual(rodar(), 1)
+
 
 def git(raiz: Path, *args: str, autor: str = "Pessoa") -> str:
     r = subprocess.run(["git", "-C", str(raiz), "-c", f"user.name={autor}", "-c",

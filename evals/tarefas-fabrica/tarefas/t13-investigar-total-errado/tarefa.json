@@ -1,0 +1,23 @@
+{
+  "id": "t13-investigar-total-errado",
+  "tipo": "corrigir",
+  "titulo": "O total errado tem a causa longe do relatório",
+  "prompt": "O relatório de outubro (`python3 -m vendas.relatorio dados/outubro.csv`) mostra `Total: R$ 287750.75`, mas a planilha de outubro soma R$ 10550.75. Ninguém sabe por quê. Ache a causa e corrija.",
+  "oraculo": true,
+  "checagens": [
+    {
+      "tipo": "arquivo",
+      "glob": "docs/investigacoes/INV-*.md",
+      "regex": [
+        "(?ms)^## Causa[^\\n]*\\n(?:(?!^## ).)*?vendas[/.]valores",
+        "(?ms)^## Hip[oó]teses[^\\n]*\\n(?:(?!^## ).)*?^\\|[^\\n]*\\|\\s*confirmad[ao]\\s*\\|\\s*$"
+      ]
+    },
+    {
+      "tipo": "ausente",
+      "glob": "**/*.py",
+      "regex": "forge-depura-[0-9a-z]+"
+    }
+  ],
+  "tempo_limite_s": 1200
+}

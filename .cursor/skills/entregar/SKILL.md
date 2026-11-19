@@ -219,6 +219,16 @@ Etapa isolada (chame a skill direto); deploy (`/kairos-forge:lancar`); exploraç
 - **Falha volta ao agente, não ao usuário**; **só os agentes dos achados** corrigem. **Toda rodada entra na linhagem.**
 - **Nunca faça merge nem deploy. Nunca abra PR com P1 bloqueado ou 🔴 aberto. PT-BR em tudo.**
 
+## Pronto quando
+
+- Os gates 1/3, 2/3 e 3/3 que o arco percorreu (o 3/3 com o que a crítica achou), cada Pare e Pergunte e a SPEC alterada aceita com `ciclo.py reaprovar` foram decisão da pessoa, e merge e deploy ficaram com ela; com `--spec-aprovada`, a SPEC já vinha aprovada (gate humano).
+- Com PR: a validação mais recente, `docs/specs/validacoes/VALIDACAO-SPEC-NNN-*.md`, passa em `contrato.py validar` com `bloqueios` 0, e `guardrail.py verificar docs/specs/SPEC-NNN-<slug>.md` não acusa requisito Concluído sem `verificado:`.
+- Com PR: a revisão mais recente, `docs/specs/revisoes/REVISAO-SPEC-NNN-*.md`, passa em `contrato.py revisar` com `criticos` 0 e, na re-revisão, cada crítico da rodada anterior está em `anteriores` como `resolvido`.
+- Com PR: título `<tipo>(<escopo>): <o que muda>`, corpo de `painel.py --pr SPEC-NNN` com os altos e médios da revisão como follow-up, e `ciclo.py estado --json` em `encerrado`, com `pr_aberto` no `historico` e `spec_alterada` diferente de `true`.
+- Sem PR por escalação (orçamento, teto, faixa 3, pausa recusada que você não contornou, ou à mão): `ciclo.py estado --json` mostra `escalado`, a pessoa recebeu a mensagem de `references/escalacao.md` e só ela destrava (gate humano).
+- Sem PR por outra saída: a SPEC recusada no 3/3 deixa `ciclo.py estado --json` em `encerrado` com `recusada` no `historico`; git sujo ou branch `main` no Passo 0 não abre ciclo, e a pessoa ouviu o que falta.
+- Com PR ou escalado, `docs/specs/entregas/ENTREGA-SPEC-NNN-YYYY-MM-DD.md` traz desfecho, rodadas do `historico` inclusive as que falharam, evidência, ressalvas e o que ficou de fora; sem `ciclo.py`, a pessoa soube que o orçamento foi contado por você.
+
 ## Referências
 
 | Arquivo | Leia quando |

@@ -1630,11 +1630,116 @@ CONFERENCIA = (
     "verificar (kairos-forge, ADR-0058).")
 
 
+# As skills da fábrica que rodaram nesta sessão (ADR-0060): chamadas pelo modelo (a tool
+# `Skill`) ou digitadas pela pessoa (`<command-name>`). Só nome de skill que existe na pasta
+# da fábrica: o texto do transcript nunca vira caminho.
+# Só com o prefixo da fábrica: a skill do usuário ou o comando do projeto com o mesmo nome
+# (`/revisar` dele) não traz o `## Pronto quando` daqui.
+SKILL_CHAMADA = re.compile(r"^kairos-forge:([a-z][a-z-]*)$")
+SKILL_DIGITADA = re.compile(r"<command-name>/?kairos-forge:([a-z][a-z-]*)</command-name>")
+PASTA_SKILLS = Path(__file__).resolve().parent.parent / "skills"
+TETO_DO_HOOK = 10_000   # o `additionalContext` do Claude Code (docs/pesquisa/claude-code-user-prompt-submit.md)
+CABECA_DO_PRONTO = ("\n\nSkills da fábrica usadas nesta sessão: confira também o que cada uma "
+                    "exige para dar o trabalho por terminado (o `## Pronto quando` dela), item a "
+                    "item, com a prova (ADR-0060).\n\n")
+
+
+def _blocos(d: dict) -> list:
+    msg = d.get("message")
+    conteudo = msg.get("content") if isinstance(msg, dict) else None
+    if isinstance(conteudo, str):
+        return [{"type": "text", "text": conteudo}]
+    return [b for b in conteudo if isinstance(b, dict)] if isinstance(conteudo, list) else []
+
+
+def _skill_chamada(b: dict) -> list[str]:
+    entrada = b.get("input")
+    if b.get("type") != "tool_use" or b.get("name") != "Skill" or not isinstance(entrada, dict):
+        return []
+    m = SKILL_CHAMADA.match(str(entrada.get("skill") or ""))
+    return [m.group(1)] if m else []
+
+
+def _skill_do_bloco(quem: str, b: dict) -> list[str]:
+    """A skill chamada pelo modelo (tool `Skill`) ou digitada pela pessoa (`<command-name>`)."""
+    if quem == "assistant":
+        return _skill_chamada(b)
+    if quem == "user" and b.get("type") == "text":
+        return SKILL_DIGITADA.findall(str(b.get("text") or ""))
+    return []
+
+
+def _skills_da_linha(linha: str) -> list[str]:
+    try:
+        d = json.loads(linha)
+    except (ValueError, RecursionError):   # linha malformada ou aninhada demais: fica de fora
+        return []
+    if not isinstance(d, dict):
+        return []
+    return [nome for b in _blocos(d) for nome in _skill_do_bloco(str(d.get("type")), b)]
+
+
+def skills_da_sessao(caminho: str, pasta: Path = PASTA_SKILLS) -> list[str]:
+    vistas: list[str] = []
+    try:
+        with open(caminho, encoding="utf-8", errors="replace") as f:
+            for linha in f:
+                for nome in _skills_da_linha(linha):
+                    # A mesma skill chamada duas vezes na mesma resposta entra uma vez só.
+                    if nome not in vistas and (pasta / nome / "SKILL.md").is_file():
+                        vistas.append(nome)
+    except (OSError, ValueError):   # sem arquivo, ou caminho com NUL
+        return []
+    return vistas
+
+
+def pronto_das_skills(payload: dict, pasta: Path = PASTA_SKILLS) -> str:
+    """O `## Pronto quando` de cada skill usada na sessão, para conferir item a item."""
+    try:
+        from pronto import itens
+    except Exception:                 # cópia avulsa do guardrail, sem o pronto.py ao lado
+        return ""
+    blocos = []
+    for nome in skills_da_sessao(str(payload.get("transcript_path") or ""), pasta):
+        lista = itens((pasta / nome / "SKILL.md").read_text(encoding="utf-8")) or []
+        if lista:
+            blocos.append((nome, f"/{nome}:\n" + "\n".join(f"- {i}" for i in lista)))
+    if not blocos:
+        return ""
+    return CABECA_DO_PRONTO + caber_no_teto(blocos)
+
+
+def caber_no_teto(blocos: list[tuple[str, str]]) -> str:
+    """Blocos inteiros, da skill usada por último para a primeira, enquanto couberem no teto do
+    hook; as que não cabem aparecem pelo nome, nunca cortadas no meio de um item."""
+    teto = TETO_DO_HOOK - len(CONFERENCIA) - len(CABECA_DO_PRONTO) - 400
+    cabem, fora, usado = [], [], 0
+    for nome, bloco in reversed(blocos):
+        if usado + len(bloco) + 2 <= teto:
+            cabem.append(bloco)
+            usado += len(bloco) + 2
+        else:
+            fora.append(f"/{nome}")
+    texto = "\n\n".join(reversed(cabem))
+    if fora:
+        texto += (f"\n\nSem espaço para o `## Pronto quando` de {', '.join(reversed(fora))}: "
+                  "leia em `skills/<nome>/SKILL.md`.")
+    return texto
+
+
 def checar_conferencia(payload: dict) -> int:
     if _EDITOR["cursor"] or not PEDE_CONFERENCIA.search(str(payload.get("prompt") or "")):
         return 0
+    try:
+        extra = pronto_das_skills(payload)
+    except Exception as erro:   # a lista é extra: a conferência sai sempre (ADR-0046)
+        registrar_evento(Path(payload.get("cwd") or os.getcwd()),
+                         {"tipo": "guardrail_erro", "modo": "conferir",
+                          "erro": ocultar(f"{type(erro).__name__}: {erro}")[:200]})
+        extra = ""
+    contexto = CONFERENCIA + extra
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
-                                             "additionalContext": CONFERENCIA}}))
+                                             "additionalContext": contexto}}))
     return 0
 
 
@@ -1809,6 +1914,47 @@ def avisar_regua(raiz: Path) -> list[str]:
             "neste projeto"] if duro else []
 
 
+def marcas_e_fontes(raiz: Path) -> list[str]:
+    """Log de depuração que sobrou no diff e fonte salva fora da forma (ADR-0060).
+
+    A marca é inequívoca e mora no diff: é problema. Sem base para o diff, não dá para
+    procurar, e isso aparece, em vez de um "sem achados" que não olhou. A fonte olha o
+    repositório inteiro, inclusive o que a mudança não tocou, então nasce em `aviso`, como as
+    outras classes do modo CLI; `{"modos": {"fontes": "bloqueio"}}` endurece."""
+    return _marcas_no_diff(raiz) + _fontes_salvas(raiz)
+
+
+def _marcas_no_diff(raiz: Path) -> list[str]:
+    try:
+        from prova import marcas
+        r = marcas(raiz, None)
+    except Exception as erro:
+        print(f"⚠️  marca de depuração não conferida: {type(erro).__name__}: {erro}"[:200])
+        return []
+    if r.get("erro"):
+        print(f"⚠️  marca de depuração não conferida: {r['erro']}")
+    return [f"{m['arquivo']}:{m['linha']}: marca de depuração que sobrou (forge-depura)"
+            for m in r.get("marcas", [])]
+
+
+def _fontes_salvas(raiz: Path) -> list[str]:
+    try:
+        from prova import IDADE_MAX_PADRAO, fontes
+        lidas = fontes(raiz, None, IDADE_MAX_PADRAO)
+    except Exception as erro:
+        print(f"⚠️  fontes salvas não conferidas: {type(erro).__name__}: {erro}"[:200])
+        return []
+    achados = ([f"{p['arquivo']}: {x}" for p in lidas["pesquisas"] for x in p["problemas"]]
+               + [f"{c['arquivo']}:{c['linha']}: cita {c['alvo']}, que não existe"
+                  for c in lidas["citacoes_quebradas"]])
+    if not achados or (carregar_config(raiz).get("modos", {}) or {}).get("fontes") == "bloqueio":
+        return achados
+    print(f"⚠️  {len(achados)} achado(s) nas fontes salvas em docs/pesquisa/ (ADR-0060):")
+    for a in achados[:10]:
+        print(f"   {a}")
+    return []
+
+
 def verificar(alvo: Path) -> int:
     """Sem PreToolUse não há bloqueio prévio — então o mesmo contrato roda depois."""
     problemas: list[str] = []
@@ -1886,6 +2032,7 @@ def verificar(alvo: Path) -> int:
                 problemas.append(f"{len(suspeitos)} teste(s) existente(s) com sinal de "
                                  "afrouxamento — `modos.teste` está em bloqueio neste projeto")
         problemas += avisar_regua(raiz)  # a régua no diff (ADR-0046)
+        problemas += marcas_e_fontes(raiz)  # log de depuração e fonte salva (ADR-0060)
 
     for padrao, motivo in PROTEGIDOS_PADRAO[:5]:  # só os de segredo, não o de CI
         for achado in raiz.rglob(padrao.replace("**/", "")):

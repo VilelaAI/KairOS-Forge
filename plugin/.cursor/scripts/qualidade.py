@@ -150,21 +150,10 @@ def eh_producao(rel: str) -> bool:
             and linguagem_de(rel) is not None and not prova.eh_teste(rel))
 
 
-def gerados(raiz: Path, rels: list[str]) -> set[str]:
-    """Arquivos marcados `linguist-generated` ou `linguist-vendored` no `.gitattributes`.
-
-    É o jeito padrão de dizer "não fui escrito à mão aqui": cópia espelhada, código
-    gerado, biblioteca de terceiro. Medir qualidade do que ninguém edita é ruído.
-    """
-    marcados: set[str] = set()
-    for i in range(0, len(rels), 200):
-        r = prova.git(raiz, "check-attr", "linguist-generated", "linguist-vendored", "--",
-                      *rels[i:i + 200], timeout=60)
-        for linha in r.stdout.splitlines():
-            atributo, _, valor = linha.rpartition(": ")
-            if valor.strip() in ("true", "set"):
-                marcados.add(atributo.rsplit(": ", 1)[0])
-    return marcados
+# Arquivos marcados `linguist-generated` ou `linguist-vendored` no `.gitattributes`: o
+# jeito padrão de dizer "não fui escrito à mão aqui". Medir qualidade do que ninguém edita
+# é ruído. Mora no `prova.py`, que também o usa para a marca de depuração (ADR-0060).
+gerados = prova.gerados
 
 
 def ler_hunks(diff: str) -> dict[str, set[int]]:

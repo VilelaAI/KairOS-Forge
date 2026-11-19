@@ -53,7 +53,7 @@ Acionar:
 /kairos-forge:rodar apoio-revisao-arquitetural
 ```
 
-## As 19 skills
+## As 21 skills
 
 | Skill | Quando usar | Disponível em |
 |---|---|---|
@@ -76,6 +76,8 @@ Acionar:
 | `/kairos-forge:auditar` | Semanal. Pontuação 0–120 em 6 dimensões (Fundação, Pipeline, Guardrails, Conhecimento, Estrutura, **Autonomia**) | Todos os CLIs |
 | `/kairos-forge:evoluir` | Semanal pós-auditoria: lê a trajetória (`telemetria.py resumo`), dá veredicto à evolução anterior e escolhe UMA capacidade nova | Todos os CLIs |
 | `/kairos-forge:relatar [dias\|SPEC]` | O que entregamos, por que decidimos e quanto custou em tokens, com a Talita: cada número com o comando de onde saiu, "não medido" onde não há hook, decisão citada por arquivo e linha, e o status do período em `decisoes/gestao/` quando pedido (ADR-0050) | Todos os CLIs (tokens e trajetória só onde há hook) |
+| `/kairos-forge:investigar <sintoma>` | Bug, falha intermitente ou lentidão de causa desconhecida, com o Ricardo: ficha em `docs/investigacoes/`, laço que reproduz, uma hipótese por vez, causa provada e escrita antes do conserto, e o `prova.py reproduzir` mostrando a falha na base e a passagem agora. Três hipóteses descartadas: para e pergunta | Todos os CLIs |
+| `/kairos-forge:pesquisar <pergunta>` | O que a doc, o código ou o changelog dizem, com o Rafael: a versão que o projeto usa, cada fato com fonte, versão e data, salvo em `docs/pesquisa/` e citado pelo caminho na SPEC ou no ADR; o `prova.py fontes` confere a forma e as citações | Todos os CLIs |
 | `/forge-painel` · `/forge-caixa [--github]` | O arco ao lado da conversa, sem gastar turno do modelo: o trilho especificar → construir → validar → revisar → PR com a fase marcada, fichas, veredictos e mobilizações; uma faixa acima do prompt quando algo espera por você, com toast no gate humano novo; a caixa como texto, na hora. Só lê, do `painel.py` (ADR-0051) | Só Claude Code (mod); nos outros, `painel.py` no terminal |
 | Segredo ocultado na saída (automático) | O token, a senha ou a chave que aparece na saída de um comando ou de uma ferramenta de MCP vira uma marca antes de o modelo ler, e não vai à API nem ao transcript. Só o valor sai, e o modelo é avisado de que não deve tentar recuperá-lo (ADR-0056) | Só Claude Code (mod) |
 | Pausa da faixa 3 (automática) | No arco, a chamada que um revert não desfaz — `terraform apply`, deploy, `npm publish`, push na `main`, migration em banco remoto, merge pelo MCP — para por uma pessoa antes de rodar, com um cartão que diz o efeito e o que acontece se você recusar. Ensaio e banco local passam (ADR-0052) | Claude Code (mod, pergunta); Cursor (hook, recusa com o cartão, ou pergunta com `"faixa_3_cursor": "perguntar"` — ADR-0055); nos outros, a regra é da skill |
@@ -493,7 +495,7 @@ python3 kairos-forge/scripts/sync-multi-cli.py instalar --cli cursor [--escopo g
 
 `mobilizar` roda no Cursor: o agente principal orquestra os subagents de `.cursor/agents/` em paralelo enquanto o `quadro.py` guarda dependências, posse e contagem — sem canal para falar com worker em voo; se faltar contexto, relance com o contexto completo.
 
-O que chega: 71 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 19 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, os dez scripts de suporte em `.cursor/scripts/` (`grafo`, `telemetria`, `execucao`, `guardrail`, `diagnostico`, `ciclo`, `contrato`, `painel`, `quadro`, `prova`), `templates/` e o `hooks.json` que liga telemetria e guardrail aos eventos do Cursor (ADR-0042). Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
+O que chega: 71 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 21 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, os 13 scripts de suporte em `.cursor/scripts/` (`grafo`, `telemetria`, `execucao`, `guardrail`, `diagnostico`, `ciclo`, `contrato`, `painel`, `quadro`, `prova`, `qualidade`, `segredos`, `pronto`), `templates/` e o `hooks.json` que liga telemetria e guardrail aos eventos do Cursor (ADR-0042). Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
 
 ### Hermes Agent (bot 24/7 — ponte)
 

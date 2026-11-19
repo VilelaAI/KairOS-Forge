@@ -127,3 +127,13 @@ A linhagem é o **grafo de trabalho** (o que foi tentado, de onde descende — o
 - **Melhora que viola sentinela é derrota**, não vitória. Reverta.
 - **Escale em vez de decidir sozinho** quando a mudança boa estiver fora dos mutáveis.
 - **PT-BR em tudo** — programa, hipóteses, mensagens de commit (`exp(<slug>): ...`), relatório.
+
+## Pronto quando
+
+- Sem catraca (faltou uma das quatro pré-condições, como `git status` limpo, ou a mudança é irreversível): nenhum commit `exp(<slug>)` foi feito e a resposta diz o que falta e o que fazer primeiro. Os itens abaixo valem quando a catraca rodou.
+- O programa `decisoes/otimizacoes/OTIM-<slug>.md` tem o comando e a direção da métrica, o baseline medido antes da rodada 1, as sentinelas (no mínimo a suíte), os mutáveis, os protegidos com o script da métrica, o orçamento e o critério de exaustão.
+- Toda rodada, mantida, revertida ou crash, tem linha na linhagem do `OTIM-<slug>.md` com uma hipótese só, commit, métrica, sentinelas e decisão; cada mantida melhora a anterior retida com as sentinelas intactas, e o total cabe no orçamento declarado.
+- `git log --grep='^exp(<slug>)'` mostra na branch as rodadas mantidas da linhagem, e só elas, cada uma com o trailer `Fabrica: kairos-forge`.
+- `git diff <commit da rodada 1>^..HEAD -- <protegidos>` sai vazio: o script da métrica, as sentinelas e os demais protegidos do `OTIM-<slug>.md` não mudaram durante a catraca.
+- O encerramento do passo 4 saiu, também por orçamento, exaustão ou interrupção e quando nada superou o baseline, com o motivo, baseline → final e as contagens de mantidas, revertidas e crash iguais às da linhagem do `OTIM-<slug>.md`.
+- Os mutáveis foram delimitados com a pessoa quando não deu para listá-los, e cada mudança fora deles, dúvida de segurança ou sentinela ambígua que a catraca escalou foi decidida pela pessoa (gate humano).

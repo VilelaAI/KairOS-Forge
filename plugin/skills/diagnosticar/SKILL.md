@@ -108,7 +108,7 @@ julgamento — e o julgamento é seu, rotulado como `inferido`.
 |---|---|---|---|
 | **Performance** | Vinícius (+ Carlos em query) | Latência, N+1, ausência de paginação, cache | Nível 2+: tempo real por endpoint, `EXPLAIN ANALYZE` |
 | **Confiabilidade** | Sérgio (+ Ricardo) | Cobertura de caminho de erro, retry, timeout, idempotência | Suíte executada, taxa de falha, teste de regressão |
-| **Segurança** | Helena | Auth, input externo, segredo em repo, dependência vulnerável | `check-agent-security.py`, varredura de segredo, versão de dep |
+| **Segurança** | Helena | Auth, input externo, segredo em repo, dependência vulnerável | `check-agent-security.py`, varredura de segredo, versão de dep; fim de vida e aviso de segurança pela `/pesquisar`, salvos em `docs/pesquisa/` |
 | **Manutenibilidade** | Rafael + Diego | Acoplamento, duplicação de domínio, tamanho, bus factor, **scope creep** | Nível 1 (churn, autoria, tamanho, revisão de SPEC) + leitura de estrutura |
 | **Observabilidade** | Renata | Log estruturado, correlação de request, métrica de negócio, alerta | Existência e formato verificados no código; nível 3 confirma uso |
 | **Custo** | Elisa | Recurso ocioso, consulta cara, egress, tier errado | Nível 3, ou fatura quando o usuário fornecer |
@@ -269,3 +269,13 @@ cliente, ele também não deveria estar no documento interno.**
 - **Não implemente correção nesta skill.** Diagnóstico produz decisão; a execução
   é `/otimizar`, `/migrar` ou `/especificar`.
 - **PT-BR em tudo.**
+
+## Pronto quando
+
+- O relatório está em `docs/diagnosticos/DIAGNOSTICO-<sistema>-YYYY-MM-DD.md`, com score geral, confiança, nível de evidência (rebaixado e dito quando o acesso não veio), escopo e janela no topo, e a dor declarada aparece como hipótese a testar, não como conclusão.
+- Em `docs/diagnosticos/DIAGNOSTICO-*.md`, a tabela por dimensão traz as seis, cada uma com score de 0 a 100 e se é medido ou inferido (a que não pôde ser medida diz isso), o score geral é a média simples dela e não aparece sem ela, e a rubrica de cada faixa está publicada.
+- `diagnostico.py coletar <caminho> --dias N`, com N a janela do topo, e `grafo.py codigo --raiz <caminho>` rodaram (sem Python, JS/TS nem Go, a camada de código fica como não verificável), e cada achado tem severidade, esforço, evidência e origem.
+- Em `docs/diagnosticos/DIAGNOSTICO-*.md`, cada ganho estimado tem faixa e base ou diz que não é estimável com o acesso atual, "O que não foi possível verificar" existe e não está vazia no nível 1, e a Prontidão declara o degrau com a evidência vista, sem pontuar.
+- Em `docs/diagnosticos/DIAGNOSTICO-*.md`, o roadmap põe alto impacto e baixo esforço primeiro, por horizonte e com o porquê, e cada achado tem destino no Encaminhamento: otimizar com métrica e alvo, migrar com fatia inicial, especificar ou analisar-ameacas.
+- Nada sai desta skill além de documentos e da camada de código em `.agents/grafo/`: nenhum código do sistema foi corrigido (a correção fica no Encaminhamento) e, na entrega externa, a versão do cliente só muda o registro, com os mesmos números do relatório.
+- A pessoa combinou no passo 1 o recorte, o destinatário (time ou cliente) e o acesso que fixa o nível de evidência (gate humano).

@@ -145,6 +145,16 @@ Template completo em `references/relatorio.md`. Seções, nesta ordem:
 - **Não suavize.** A primeira auditoria de quem nunca fez isso costuma dar 30/100 ou menos. Isso é normal e útil.
 - **Salve o relatório.** Mesmo se o usuário não pedir explicitamente. É como você mede progresso ao longo do tempo.
 
+## Pronto quando
+
+- O único arquivo escrito é `decisoes/auditorias/AUDIT-YYYY-MM-DD.md`, com as cinco seções de "Formato do relatório" na ordem e o Histórico pelo percentual (antes da v0.17 com `*`) ou "primeira auditoria"; no gatilho de CI, sem escrita, ele sai na resposta.
+- Cada dimensão pontua pela tabela de `references/rubrica.md`, com o total NN/120 (NN%), a dimensão que limita marcada e os cruzamentos verdadeiros abaixo, ou "nenhum"; critério não verificado vale 0 com "não foi possível verificar".
+- A segurança do setup só leva os 4 pontos sem achado ALTA nem MEDIA de `check-agent-security.py .claude`; no grafo, os três arquivos valem 2, o exit 0 de `grafo.py validar` +2 e o frescor em `GRAFO.md` +1.
+- A Autonomia pontua com `telemetria.py resumo --dias 30`, lendo hooks e `.github/workflows/`, −2 por sessão com produção sem gate, falhas do guardrail no relatório e nível L<N> o menor que os números descrevem; sem telemetria, vale 0 e as linhas do `resumo` dizem "não medida".
+- Autonomia de PR com taxa, N e fonte (gh ou git), espera e entrega da fábrica × humana vêm de `telemetria.py prs --dias 30`, `telemetria.py espera --dias 30` e `telemetria.py comparar --dias 90`, ou dizem "não medida" ou "não comparável" com os N.
+- Em "Top 3 lacunas" do `AUDIT-YYYY-MM-DD.md`, cada uma tem dimensão, esforço, por que esta primeiro e como fechar, ranqueadas por alavancagem, e em Autonomia instrumentar vem antes de conter, e conter antes de disparar.
+- Em sessão, a pessoa confirmou no passo 1 a raiz auditada (gate humano).
+
 ## Referências
 
 | Arquivo | Quando ler |

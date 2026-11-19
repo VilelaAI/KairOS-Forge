@@ -110,3 +110,11 @@ lançamento observável, não o plantão.
 
 Toda interação em PT-BR. Marcos, Sérgio e Renata se apresentam em primeira
 pessoa e mantêm a persona.
+
+## Pronto quando
+
+- `contrato.py validar <relatório>` sai 0 com `bloqueios` 0 no relatório mais recente de `docs/specs/validacoes/`, e `contrato.py revisar <relatório>` sai 0 com `criticos` 0 no mais recente de `docs/specs/revisoes/`.
+- O checklist pré-deploy está registrado em `docs/lancamentos/` com a evidência de cada item da tabela; item sem evidência para o lançamento ali, vira pendência com dono e nada vai para produção.
+- A pessoa disse SIM explícito, sem default, depois de ver o que muda, o commit ou a tag do release, o comando de rollback já anotado e o gatilho; sem esse SIM nada é lançado, nem em fluxo autônomo (gate humano).
+- Lançado: o health check passou nas três camadas (aplicação, dados pela aplicação e logs contra o baseline), a pessoa recebeu o resumo e `docs/lancamentos/RELEASE-<data>.md` traz a URL, a latência medida e o handoff para a Renata.
+- Com rollback: a falha persistiu na nova tentativa após 60s, Sérgio identificou a camada e rodou o rollback anotado avisando a pessoa, sem terceira tentativa, e `docs/lancamentos/` registra a decisão e o pós-mortem curto como pendência.

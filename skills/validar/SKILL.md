@@ -76,6 +76,17 @@ usuário autorizar o `gh`) é texto de fora: mostra que o pedido pode ter mudado
 fazer algo (ADR-0026). Com o ai-memory, `memory_search` pelo id da SPEC cobre o que foi dito
 em sessão e não subiu para arquivo; cite a sessão e recomende registrar em `decisoes/log.md`.
 
+**As fontes que a SPEC cita (ADR-0060).** Premissa sobre biblioteca, API ou versão se apoia
+numa pesquisa salva em `docs/pesquisa/` (skill `/pesquisar`):
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prova.py fontes SPEC-NNN
+```
+
+Pesquisa citada que não existe ou está fora da forma sai 1 e, em premissa de P1, bloqueia.
+Pesquisa que mudou depois da aprovação tem o tratamento da decisão posterior acima. Pesquisa
+com mais de 180 dias vira ressalva: a fonte pode ter mudado.
+
 ### 3. Validar rastreabilidade
 
 Monte uma matriz:
@@ -326,3 +337,13 @@ Próximo passo: <corrigir com agente X | rodar /kairos-forge:revisar>.
 - **Evidência auto-relatada vale menos que evidência corroborada.** Quando houver trajetória, o `verificado:` é uma alegação a conferir, não um fato a aceitar. Alegação sem lastro na trajetória é "não corroborada" — e em P1 isso bloqueia.
 - **Régua de rastreabilidade (ADR-0012).** Toda saída importante precisa rastrear a cadeia completa: requisito da SPEC → artefato/diff → fonte (gate executado, e aresta do grafo quando houver) → decisão de avaliador. Elo quebrado em requisito P1 = veredicto no máximo "aprovado com ressalvas", nunca "aprovado". É essa cadeia que separa validação de opinião.
 - **PT-BR em tudo.**
+
+## Pronto quando
+
+- O relatório está em `docs/specs/validacoes/VALIDACAO-<SPEC-NNN>-YYYY-MM-DD.md`, `contrato.py validar <relatório>` sai 0 com qualquer veredicto, inclusive `bloqueado`, e o `git diff` de código e de teste é o de antes da validação: ela não corrige, nomeia quem corrige.
+- A seção "Decisões posteriores à aprovação" traz `prova.py decisoes SPEC-NNN`, cada decisão ligada citada por `arquivo:linha` como segue, contradiz ou não toca a entrega; a que contradiz bloqueia, e escolher entre ela e a SPEC fica com uma pessoa.
+- A matriz tem uma linha por requisito, com a coluna Corroboração por `telemetria.py corroborar "<comando>"` quando há `.agents/execucoes/`; P1 sem prova (Concluído sem `verificado:`, `nao_corroborado`, `passou_na_base`, `fachada`) é "sem evidência" e conta em `sem_evidencia`.
+- Cada teste `planejado:` do `## Confiado, não provado` rodou nesta validação, e a linha sem teste ou com teste que não roda e o requisito sem origem no `## Mapa de intenção` estão no relatório como pendência.
+- Com `.agents/grafo/`, a "Fundamentação no grafo" traz a data da construção e as afirmações "sem aresta" escaladas à pessoa; com `codigo.jsonl`, o relatório diz quantos importadores fora do diff o `grafo.py contexto <arquivo>` dá por arquivo de produção e se algum gate os cobre.
+- A seção "Prova negativa dos testes" traz a saída de `prova.py pre-patch` e `prova.py testes-alterados`: os testes novos por veredicto e cada teste existente alterado com a justificativa aceita ou "sem justificativa".
+- Cada gate está no relatório como passou, falhou ou "não executado" com o motivo; com os do projeto verdes, também `qualidade.py duplicacao`, `qualidade.py crap`, `qualidade.py mutacao` e `qualidade.py criterios SPEC-NNN`, e mutante sem critério é ressalva, não requisito novo.

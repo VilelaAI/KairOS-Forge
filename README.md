@@ -6,7 +6,7 @@ Este repositório é ao mesmo tempo a **fonte do plugin** e o **marketplace cata
 
 ## O plugin distribuído
 
-**`kairos-forge`** — 71 agentes (40 core + 31 apoio em 10 squads) coordenados por Laura (Tech Lead), 19 skills cobrindo o ciclo completo (onboarding → mapa arquitetural brownfield → diagnóstico de sistema existente → especificação rastreável → threat model → design → execução paralela/sequencial → validação contra SPEC → revisão → lançamento com gates → grafo de conhecimento com proveniência → auditoria em 6 dimensões → evolução). O `/kairos-forge:entregar` percorre o trecho central sozinho, até o PR; `otimizar` (catraca contra métrica), `migrar` (estrangulamento de legado) e `avaliar` (evals com rubrica) entram sob demanda.
+**`kairos-forge`** — 71 agentes (40 core + 31 apoio em 10 squads) coordenados por Laura (Tech Lead), 21 skills cobrindo o ciclo completo (onboarding → mapa arquitetural brownfield → diagnóstico de sistema existente → especificação rastreável → threat model → design → execução paralela/sequencial → validação contra SPEC → revisão → lançamento com gates → grafo de conhecimento com proveniência → auditoria em 6 dimensões → evolução). O `/kairos-forge:entregar` percorre o trecho central sozinho, até o PR; `otimizar` (catraca contra métrica), `migrar` (estrangulamento de legado) e `avaliar` (evals com rubrica) entram sob demanda.
 
 A partir da v0.17 o harness se instrumenta e se contém: **telemetria de execução** gravada por hook (a autonomia da fábrica vira número), **guardrails determinísticos** que bloqueiam comando destrutivo e SPEC sem evidência, o **arco fechado** do `/kairos-forge:entregar` (a falha volta ao agente responsável, não ao usuário) e **gatilhos por evento** prontos para o CI do seu projeto.
 
@@ -45,7 +45,7 @@ kairos-forge/                          ← repo = fonte canônica + MARKETPLACE
 │   └── ativos.manifest.json           ← manifesto de ativos (gerado)
 ├── .codex-plugin/plugin.json          ← manifest Codex CLI
 ├── .agents/plugins/marketplace.json   ← catalog Codex CLI (aponta para ./plugin)
-├── agents/, skills/                   ← CANÔNICOS: 71 personas, 19 skills
+├── agents/, skills/                   ← CANÔNICOS: 71 personas, 21 skills
 ├── hooks/, scripts/, templates/, contratos/
 ├── docs/, hermes/
 ├── evals/                             ← gold sets do próprio plugin (não distribuídos)
@@ -128,7 +128,7 @@ mkdir -p /caminho/do/projeto/.cursor && cp -R kairos-forge/plugin/.cursor/. /cam
 mkdir -p ~/.cursor && cp -R kairos-forge/plugin/.cursor/{agents,skills,rules,scripts,templates} ~/.cursor/
 ```
 
-Isso entrega os 71 subagents, as 19 skills no menu `/`, a rule com o banner da fábrica, os scripts que as skills chamam (`grafo.py`, `telemetria.py`, `execucao.py`, `guardrail.py`, `diagnostico.py`, `ciclo.py`, `contrato.py`, `painel.py`, `quadro.py`, `prova.py`), os templates e o `hooks.json` que liga telemetria e guardrail aos eventos do Cursor (ADR-0042). A cópia global deixa o `hooks.json` de fora de propósito: ele chama `.cursor/scripts/` relativo à raiz do projeto, então telemetria e guardrail exigem a instalação por projeto. Para atualizar só as personas: `python3 kairos-forge/scripts/sync-multi-cli.py instalar --cli cursor`. `mobilizar` roda no Cursor: o agente principal orquestra os subagents em paralelo enquanto o `quadro.py` guarda dependências, posse e contagem.
+Isso entrega os 71 subagents, as 21 skills no menu `/`, a rule com o banner da fábrica, os scripts que as skills chamam (`grafo.py`, `telemetria.py`, `execucao.py`, `guardrail.py`, `diagnostico.py`, `ciclo.py`, `contrato.py`, `painel.py`, `quadro.py`, `prova.py`), os templates e o `hooks.json` que liga telemetria e guardrail aos eventos do Cursor (ADR-0042). A cópia global deixa o `hooks.json` de fora de propósito: ele chama `.cursor/scripts/` relativo à raiz do projeto, então telemetria e guardrail exigem a instalação por projeto. Para atualizar só as personas: `python3 kairos-forge/scripts/sync-multi-cli.py instalar --cli cursor`. `mobilizar` roda no Cursor: o agente principal orquestra os subagents em paralelo enquanto o `quadro.py` guarda dependências, posse e contagem.
 
 ### OpenCode
 
@@ -201,6 +201,8 @@ Sob demanda:
 /kairos-forge:otimizar <métrica>      # ciclo de catraca: 1 mudança por rodada, manter ou reverter
 /kairos-forge:migrar <legado>         # modernização por estrangulamento, fatia por fatia (Ivan)
 /kairos-forge:relatar [dias|SPEC]     # o que entregamos, por que e quanto custou, com a fonte (Talita)
+/kairos-forge:investigar <sintoma>    # a causa antes do conserto: laço que reproduz, hipóteses, trava (Ricardo)
+/kairos-forge:pesquisar <pergunta>    # o que a fonte primária diz, salvo em docs/pesquisa/ (Rafael)
 ```
 
 Documentação completa em [`plugin/README.md`](plugin/README.md).

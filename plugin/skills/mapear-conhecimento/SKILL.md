@@ -90,7 +90,7 @@ Se `.agents/grafo/esquema.md` não existir, crie a partir do modelo em `referenc
 
 Para cada documento, extraia com o prompt de extração de `references/playbook-grafo.md`. As quatro regras que controlam a qualidade:
 
-1. **Só entidades centrais** ao documento — mencões incidentais ficam de fora (controla precisão).
+1. **Só entidades centrais** ao documento — menções incidentais ficam de fora (controla precisão).
 2. **Descrição de uma frase por entidade, ancorada neste documento** — é o sinal de desambiguação da resolução, não metadado opcional.
 3. **Predicados são verbos curtos** ("implementa", "depende de", "decidiu usar") — predicado vago ("está relacionado a") não é raciocinável.
 4. **Toda relação conecta duas entidades extraídas** — nada de aresta apontando pra nó que não existe.
@@ -191,6 +191,16 @@ Linguagem fora das três: o import que não resolve é contado, não inventado; 
 - **`codigo.jsonl` não se edita nem se cura.** É derivado do código; rodar `grafo.py codigo` substitui. Fato estrutural que veio de documento continua indo para `relacoes.jsonl`.
 - **O grafo é memória, não juiz.** Ele fundamenta decisões; quem decide são os agentes — e o humano.
 - **Read-only sobre o projeto.** Esta skill só escreve em `.agents/grafo/`. Código, specs e docs do usuário não são modificados.
+
+## Pronto quando
+
+- Depois do `construir`, do `atualizar` ou de editar os JSONL à mão, `grafo.py validar` sai 0, sem aresta órfã, alias ambíguo nem relação sem fonte.
+- No `construir` e no `atualizar` de projeto com Python, JS/TS ou Go, `grafo.py codigo` saiu 0 e `.agents/grafo/codigo.meta.json` traz o `construido_em` desta rodada.
+- No `construir`, cada nó de grau 3 ou mais tem `.agents/grafo/perfis/<slug>.md`, `grafo.py diagnosticar` não marca nenhum dos 5 maiores hubs com "(perfil recomendado)", e a resposta dá, pela saída dele, nós, arestas, componentes, compressão e os 3 maiores hubs.
+- No `construir` e no `atualizar`, `.agents/grafo/GRAFO.md` traz a data da rodada; no `construir`, também a versão de `esquema.md`, as contagens, o resumo do diagnóstico e o que ficou fora do cap de 30 documentos.
+- No `consultar`, cada afirmação cita, com a fonte, uma aresta que a saída de `grafo.py subgrafo "<entidade>"` traz, e a resposta diz o que o grafo não contém e a data da última construção, lida de `.agents/grafo/GRAFO.md`.
+- No `diagnosticar`, a resposta lê os sinais de `grafo.py diagnosticar`, e a pessoa conferiu 2 ou 3 arestas do nó de `grafo.py amostrar` contra as fontes, com a amostra em `.agents/grafo/GRAFO.md`, inclusive a aresta que ninguém explica, sinal de parar e revisar (gate humano).
+- Em qualquer modo, a skill só escreveu em `.agents/grafo/`, e o `git status --porcelain` não mostra mudança dela em código, specs ou docs do projeto.
 
 ## Referências
 

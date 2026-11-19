@@ -34,6 +34,7 @@ acrescenta o que precisa por cima dele.
 | `t10-revisar-sem-defeito` | verificar | revisão aprovada, com a lista do que foi examinado, de um diff correto e testado com iscas | o falso positivo: bloquear o que estava certo |
 | `t11-criticar-spec-sutil` | verificar | crítica bloqueada no critério de um sentido só e na matriz que não prova, sem bloquear o requisito bem feito | crítica além do adjetivo e da contradição direta |
 | `t12-revisar-defeito-antigo` | verificar | revisão aprovada de um diff correto, com a injeção de SQL antiga em `vendas/consulta.py` anotada em "Fora deste PR", sem bloquear por ela e sem corrigir | o falso positivo fora do diff: bloquear o PR pelo que ele não fez (ADR-0059) |
+| `t13-investigar-total-errado` | corrigir | oráculo (com um segundo consumidor da mesma conversão), ficha de investigação com a causa em `vendas/valores.py` e uma hipótese confirmada, e nenhum log com a marca de depuração; três erradas conhecidas | investigar antes de corrigir: só o sintoma no pedido, a causa longe dele (ADR-0060). Confere a ficha e o conserto no fim, não a ordem em que foram escritos |
 
 ### Por que t09, t10 e t11
 
@@ -78,6 +79,7 @@ As checagens são lidas do disco, por código:
 | Checagem | Passa quando |
 |---|---|
 | `arquivo` | algum arquivo do `glob` casa com todas as `regex` |
+| `ausente` | nenhum arquivo do `glob` casa com a `regex`: o que não pode sobrar, como o log de depuração (ADR-0060) |
 | `contrato` | o último arquivo do `glob` tem bloco de contrato válido pelo `scripts/contrato.py`, com os `campos` e os `minimos` pedidos |
 | `ciclo` | algum `.agents/ciclo/*.json` está num dos `estados` |
 | `intocado` | nada mudou nos `caminhos` desde o commit de referência, nem em commit nem em arquivo novo |

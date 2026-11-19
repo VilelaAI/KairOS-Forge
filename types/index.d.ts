@@ -58,6 +58,8 @@ export type QuadroDoPainel = {
   emVoo: string[]
   bloqueadas: string[]
   vencidas: string[]
+  /** Concluídas com o gate pulado e sem lacuna declarada: o que falta para encerrar (ADR-0036). */
+  gatePulado: string[]
   lacunas: string[]
 }
 

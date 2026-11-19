@@ -32,7 +32,8 @@ skill e valiam enquanto havia um humano lendo. Sem ninguém lendo, prosa não im
     sobreposta não saem juntas — o quadro serializa antes de alguém escrever.
   - **Contagem antes de declarar pronto.** "Nunca sintetize por cima de resultado
     parcial" era um pedido. Agora `encerrar` recusa quadro com tarefa aberta que
-    não tenha lacuna declarada.
+    não tenha lacuna declarada, e a concluída com o gate pulado conta como aberta
+    para isso: pronto só com gate rodado. Quadro sem tarefa nenhuma não encerra.
 
 E o estado vive em `.agents/quadro/<slug>.json`, protegido por guardrail
 (ADR-0022): o agente não escreve o próprio quadro pela mesma razão que não escreve
@@ -51,6 +52,7 @@ Uso:
                                                 # sessão à tarefa na trajetória (tokens)
     quadro.py concluir <slug> T1 --evidencia "..." [--gate-ok | --gate-pulado "motivo"]
                            [--fora-da-posse "motivo"]   # confere no git o que a tarefa mudou
+                           [--sem-foto "motivo"]        # sem a foto do iniciar, não confere
     quadro.py varrer <slug> [--dry-run]         # bloqueia quem venceu o tempo limite
     quadro.py compensar <slug> T1 --motivo "..." [--aplicar]   # Saga: desfaz T1 e o que
                                                 # foi construído sobre ela, ordem inversa
@@ -100,7 +102,7 @@ def pasta_do_estado() -> Path:
 #
 # MENOR (1.x): campo novo, estado novo. Consumidor antigo continua válido.
 # MAIOR (x.0): campo removido/renomeado, semântica alterada.
-CONTRATO_VERSAO = "1.2"
+CONTRATO_VERSAO = "1.3"
 
 ESTADOS_TASK = ("planejada", "em_progresso", "concluida", "bloqueada")
 
@@ -127,8 +129,9 @@ CAMPOS_ESTADO = {
     "teto_onda": "integer",
     "total": "integer",
     "por_estado": "object<string,integer>",
-    "completo": "boolean",          # todas as tarefas concluídas
-    "pode_encerrar": "boolean",     # completo OU toda pendência com lacuna declarada
+    "completo": "boolean",          # todas as tarefas concluídas com o gate rodado
+    "pode_encerrar": "boolean",     # quadro com tarefa, e completo OU toda pendência
+                                    # (aberta ou com gate pulado) com lacuna declarada
     "em_voo": "string[]",           # ids em_progresso
     "prontas": "string[]",          # ids que a próxima onda pode lançar
     "bloqueadas": "string[]",
@@ -230,6 +233,11 @@ def posses_colidem(a: list[str], b: list[str]) -> list[tuple[str, str]]:
 # pela posse: o que cabe na posse de uma tarefa que esteve em voo junto com esta é dela,
 # não desta. Com worktree por teammate (ADR-0024), cada foto é do próprio worktree e a
 # atribuição é exata.
+#
+# Sem uma das duas fotos (fora do git, sujo demais, worktree que sumiu, tarefa iniciada
+# antes da conferência existir), não há o que comparar. Concluir assim em silêncio seria
+# aceitar qualquer arquivo: o `concluir` recusa, e só passa com `--sem-foto "motivo"`,
+# registrado na tarefa e no ledger, do mesmo jeito que o `--fora-da-posse`.
 LIMITE_FOTO = 5000                  # arquivos sujos acima disso: a foto não é tirada
 LIMITE_IMPRESSAO = 32 * 1024 * 1024 # acima disso, tamanho e mtime no lugar do sha256
 # Escritos por script e hook, não por tarefa: o próprio quadro muda entre as duas fotos.
@@ -375,7 +383,8 @@ def guardar_foto(q: dict, tid: str, checkout: Path) -> dict | None:
     if foto is None:
         alvo.unlink(missing_ok=True)
         print(f"   ⚠️  sem foto do checkout ({checkout} fora do git ou sujo demais): o "
-              "`concluir` não vai conferir o que a tarefa mudou.")
+              "`concluir` não vai ter como conferir o que a tarefa mudou e vai pedir\n"
+              "       --sem-foto \"motivo\" — confira à mão o que ela mudou antes.")
         return None
     foto["em"] = agora()
     foto["seq"] = len(q.get("historico", []))
@@ -386,17 +395,19 @@ def guardar_foto(q: dict, tid: str, checkout: Path) -> dict | None:
     return foto
 
 
-def conferir_posse(q: dict, tid: str) -> tuple[bool, list[str], list[str]]:
-    """(conferida, mudados, fora) da tarefa contra a foto do `iniciar`."""
+def conferir_posse(q: dict, tid: str) -> tuple[bool, list[str], list[str], str | None]:
+    """(conferida, mudados, fora, por que não conferiu) da tarefa contra a foto do `iniciar`."""
     alvo = caminho_da_foto(q["slug"], tid)
     if not alvo.is_file():
-        return False, [], []
+        return False, [], [], "não houve foto do checkout no `iniciar`"
     antes = json.loads(alvo.read_text(encoding="utf-8"))
     depois = foto_do_checkout(Path(antes["raiz"]))
     if depois is None:
-        return False, [], []
+        return False, [], [], (f"a foto de agora não pôde ser tirada ({antes['raiz']} fora "
+                               "do git, sujo demais ou removido)")
     mudados = caminhos_mudados(antes, depois)
-    return True, mudados, fora_da_posse(q, tid, mudados, trabalharam_junto(q, tid, antes))
+    return (True, mudados, fora_da_posse(q, tid, mudados, trabalharam_junto(q, tid, antes)),
+            None)
 
 
 # --- persistência --------------------------------------------------------------------
@@ -575,6 +586,26 @@ def plano_de_compensacao(q: dict, raiz: str) -> list[str]:
     return afetados + [raiz]
 
 
+def gate_pulado(t: dict) -> bool:
+    """Concluída sem o gate rodado e verde. Pronto só com gate rodado: o que pulou o gate
+    é lacuna, e lacuna não se esconde num "N de N concluídas" (ADR-0036).
+
+    A tarefa `--leitura` sem gate declarado não tem gate a pular: o `--gate-pulado` dela
+    não esconde nada, e cobrar lacuna ali seria lacuna falsa no relatório."""
+    if t["estado"] != "concluida" or t.get("gate_resultado") == "ok":
+        return False
+    return not (t.get("leitura") and not t.get("gate"))
+
+
+def motivo_do_pulo(t: dict) -> str:
+    return (t.get("gate_resultado") or "sem resultado de gate").removeprefix("pulado: ")
+
+
+def pendencias(q: dict) -> list[str]:
+    """O que impede o quadro de se dizer completo: tarefa aberta ou com o gate pulado."""
+    return [tid for tid, t in q["tasks"].items() if t["estado"] != "concluida" or gate_pulado(t)]
+
+
 def lacunas_declaradas(q: dict) -> set[str]:
     """Ids citados nas lacunas. `encerrar --lacuna "T7: sem ambiente"` cobre T7."""
     ids = set()
@@ -594,9 +625,9 @@ def vista_publica(q: dict) -> dict:
     tasks = q["tasks"]
     por_estado = {e: sum(1 for t in tasks.values() if t["estado"] == e) for e in ESTADOS_TASK}
     prontas, _ = calcular_prontas(q)
-    abertas = [tid for tid, t in tasks.items() if t["estado"] != "concluida"]
+    pendentes = pendencias(q)
     cobertas = lacunas_declaradas(q)
-    completo = bool(tasks) and not abertas
+    completo = bool(tasks) and not pendentes
     return {
         "contrato": CONTRATO_VERSAO,
         "slug": q["slug"],
@@ -608,7 +639,9 @@ def vista_publica(q: dict) -> dict:
         "total": len(tasks),
         "por_estado": por_estado,
         "completo": completo,
-        "pode_encerrar": completo or all(tid in cobertas for tid in abertas),
+        # Quadro sem tarefa não encerra: "0 de 0, sem lacuna" é uma mobilização que não
+        # entregou nada com cara de completa — `all([])` dizia que podia.
+        "pode_encerrar": bool(tasks) and all(tid in cobertas for tid in pendentes),
         "em_voo": [tid for tid, t in tasks.items() if t["estado"] == "em_progresso"],
         "prontas": prontas,
         "bloqueadas": [tid for tid, t in tasks.items() if t["estado"] == "bloqueada"],
@@ -633,11 +666,18 @@ def contrato_publico() -> dict:
         "regras": [
             "prontas: estado planejada + dependências concluídas + posse livre + vaga na onda",
             "posse: dois padrões colidem salvo refinamento por caminho ou por nome",
-            "concluir exige evidência e resultado de gate (rodado ou pulado com motivo)",
+            "concluir exige evidência e resultado de gate: --gate-ok, ou --gate-pulado com "
+            "motivo não vazio; os dois juntos recusam",
+            "concluída com gate pulado não conta como pronta: fica fora de `completo` e, como "
+            "tarefa aberta, precisa de lacuna declarada para encerrar; tarefa --leitura sem "
+            "gate declarado não tem gate a pular",
             "concluir confere no git o que a tarefa mudou desde o iniciar: arquivo fora da "
             "posse dela e das que trabalhavam junto recusa, salvo --fora-da-posse com motivo",
+            "sem a foto do iniciar ou sem a de agora, a posse não é conferida: concluir "
+            "recusa, salvo --sem-foto com motivo, registrado",
             "tarefa --leitura tem posse vazia: qualquer arquivo mudado fica fora da posse",
-            "encerrar exige quadro completo OU lacuna declarada para cada tarefa aberta",
+            "encerrar exige quadro completo OU lacuna declarada para cada tarefa aberta ou "
+            "com gate pulado; quadro sem tarefa não encerra",
             "dependência inexistente é recusada na inserção; ciclo é recusado em `depender`",
             "onda nova começa quando nada está em voo (fan-in), não a cada lançamento",
             "vencidas: em_progresso além do tempo limite; `varrer` as bloqueia e libera a vaga",
@@ -781,6 +821,9 @@ def cmd_prontas(a) -> int:
         vista = vista_publica(q)
         if vista["completo"]:
             print("✅ nada pronto: todas as tarefas concluídas. Rode `encerrar`.")
+        elif vista["total"] and vista["por_estado"]["concluida"] == vista["total"]:
+            print("✅ nada pronto: todas concluídas, mas nem todas com o gate rodado — o "
+                  "`encerrar` pede a lacuna de cada gate pulado.")
         else:
             print("⏸️  nada pronto agora.")
             for tid, m in motivos.items():
@@ -864,37 +907,59 @@ def cmd_concluir(a) -> int:
         print("❌ --evidencia vazia. Concluir sem evidência é exatamente o resumo "
               "fluente por cima de resultado parcial que o quadro existe para impedir.")
         return 1
-    if not (a.gate_ok or a.gate_pulado):
+    pulado = (a.gate_pulado or "").strip()
+    if a.gate_ok and a.gate_pulado is not None:
+        print("❌ --gate-ok e --gate-pulado juntos se contradizem: o gate rodou e passou, "
+              "ou não rodou. Escolha um.")
+        return 1
+    if not (a.gate_ok or pulado):
         alvo = t.get("gate") or "(nenhum gate declarado)"
         print(f"❌ falta o resultado do gate — {alvo}.\n"
-              "   Use --gate-ok se rodou e passou, ou --gate-pulado \"motivo\" "
+              "   Use --gate-ok se rodou e passou, ou --gate-pulado \"motivo\" (não vazio) "
               "se não foi possível. Silêncio sobre o gate não é opção.")
         return 1
-    exercida = posse_exercida(q, a.task, a.fora_da_posse)
-    if recusar_fora_da_posse(a.task, t, exercida):
+    exercida = posse_exercida(q, a.task, a.fora_da_posse, a.sem_foto)
+    if recusar_sem_foto(a.task, exercida) or recusar_fora_da_posse(a.task, t, exercida):
         return 1
     t["estado"] = "concluida"
     t["iniciado_em"] = None
     t["concluida_em"] = agora()
     t["evidencia"] = a.evidencia
-    t["gate_resultado"] = "ok" if a.gate_ok else f"pulado: {a.gate_pulado}"
+    t["gate_resultado"] = "ok" if a.gate_ok else f"pulado: {pulado}"
     t["posse_exercida"] = exercida
     registrar(q, "concluiu", task=a.task, gate=t["gate_resultado"],
-              fora_da_posse=len(exercida["fora"]))
+              fora_da_posse=len(exercida["fora"]), posse_conferida=exercida["conferida"])
     salvar(q)
     caminho_da_foto(q["slug"], a.task).unlink(missing_ok=True)
     vista = vista_publica(q)
     feitas = vista["por_estado"]["concluida"]
     print(f"✅ {a.task} concluída ({feitas} de {vista['total']}) · gate: {t['gate_resultado']}")
+    if gate_pulado(t):
+        print(f"   ⚠️  gate pulado: {a.task} não conta como pronta. No `encerrar`, declare a "
+              f"lacuna: --lacuna \"{a.task}: gate pulado — {pulado}\"")
     print(resumo_da_posse(exercida))
     print(o_que_liberou(vista))
     return 0
 
 
-def posse_exercida(q: dict, tid: str, motivo: str | None) -> dict:
-    conferida, mudados, fora = conferir_posse(q, tid)
+def posse_exercida(q: dict, tid: str, motivo: str | None, sem_foto: str | None = None) -> dict:
+    conferida, mudados, fora, por_que = conferir_posse(q, tid)
     return {"conferida": conferida, "mudados": len(mudados), "fora": fora[:50],
-            "total_fora": len(fora), "motivo": (motivo or "").strip() or None}
+            "total_fora": len(fora), "motivo": (motivo or "").strip() or None,
+            "por_que_nao_conferida": por_que,
+            "sem_foto": None if conferida else ((sem_foto or "").strip() or None)}
+
+
+def recusar_sem_foto(tid: str, exercida: dict) -> bool:
+    """Imprime a recusa e devolve True quando a posse não foi conferida e ninguém disse
+    por que concluir assim. Sem as duas fotos, aceitar seria aceitar qualquer arquivo."""
+    if exercida["conferida"] or exercida["sem_foto"]:
+        return False
+    print(f"❌ posse não conferida em {tid}: {exercida['por_que_nao_conferida']}.\n"
+          "   Sem as duas fotos, o quadro não sabe o que a tarefa mudou, e concluir calado\n"
+          "   aceitaria qualquer arquivo. Confira à mão (git status, git diff) e conclua com\n"
+          "   --sem-foto \"motivo\" — fica registrado e aparece no ledger.")
+    return True
 
 
 def recusar_fora_da_posse(tid: str, t: dict, exercida: dict) -> bool:
@@ -918,7 +983,8 @@ def resumo_da_posse(exercida: dict) -> str:
     if exercida["conferida"]:
         return (f"   posse conferida no git: {exercida['mudados']} arquivo(s) mudado(s), "
                 "todos na posse.")
-    return "   ⚠️  posse não conferida: não houve foto no `iniciar`."
+    return (f"   ⚠️  posse não conferida ({exercida.get('por_que_nao_conferida')}), aceito: "
+            f"{exercida.get('sem_foto')}")
 
 
 def o_que_liberou(vista: dict) -> str:
@@ -926,6 +992,9 @@ def o_que_liberou(vista: dict) -> str:
         return f"   🔓 liberou: {', '.join(vista['prontas'])}"
     if vista["completo"]:
         return "   🏁 quadro completo — rode `encerrar`."
+    if vista["total"] and vista["por_estado"]["concluida"] == vista["total"]:
+        return ("   🏁 todas concluídas, mas nem todas com o gate rodado — o `encerrar` pede "
+                "a lacuna de cada gate pulado.")
     return "   ⏳ nada liberado ainda."
 
 
@@ -1155,7 +1224,8 @@ def cmd_estado(a) -> int:
         itens = []
         for tid in ids:
             t = vista["tasks"][tid]
-            marca = " ✓gate" if t["gate_resultado"] == "ok" else ""
+            marca = (" ✓gate" if t["gate_resultado"] == "ok"
+                     else " ⚠gate pulado" if gate_pulado(t) else "")
             quem = f" ({t['agente']})" if t["agente"] and estado == "em_progresso" else ""
             itens.append(f"{tid}{quem}{marca}")
         print(f"   {rotulo}: {', '.join(itens)}")
@@ -1247,14 +1317,22 @@ def cmd_ledger(a) -> int:
     print(f"\nOrçamento: {total_rodadas} rodadas usadas · teto {teto} por task · "
           f"ondas: {vista['onda']} · teto de onda {vista['teto_onda']}")
     print(f"Entrega: {vista['por_estado']['concluida']} de {vista['total']} tarefas planejadas.")
-    if not vista["completo"]:
-        abertas = [tid for tid, t in vista["tasks"].items() if t["estado"] != "concluida"]
-        print(f"Lacunas: {', '.join(abertas)} — declare cada uma, nunca omita.")
+    puladas = [f"{tid} ({motivo_do_pulo(t)})" for tid, t in q["tasks"].items() if gate_pulado(t)]
+    if puladas:
+        print(f"Gate pulado: {'; '.join(puladas)} — concluída não é pronta sem o gate.")
+    pendentes = pendencias(q)
+    if pendentes:
+        print(f"Lacunas: {', '.join(pendentes)} — declare cada uma, nunca omita.")
     excedidas = [f"{tid} ({(t.get('posse_exercida') or {}).get('motivo')})"
                  for tid, t in q["tasks"].items()
                  if (t.get("posse_exercida") or {}).get("total_fora")]
     if excedidas:
         print(f"Fora da posse, aceito com motivo: {'; '.join(excedidas)}")
+    sem_foto = [f"{tid} ({t['posse_exercida']['sem_foto']})"
+                for tid, t in q["tasks"].items()
+                if (t.get("posse_exercida") or {}).get("sem_foto")]
+    if sem_foto:
+        print(f"Posse não conferida, aceito com motivo: {'; '.join(sem_foto)}")
     print(linha_de_tokens(gasto, tel))
     return 0
 
@@ -1264,25 +1342,45 @@ def cmd_encerrar(a) -> int:
     if q.get("encerrado_em"):
         print("⚠️  quadro já encerrado.")
         return 0
+    if not q["tasks"]:
+        print("❌ o quadro não tem nenhuma tarefa. Encerrar agora diria \"0 de 0, sem lacuna\":\n"
+              "   uma mobilização que não entregou nada com cara de completa.\n"
+              f"   Adicione as tarefas do plano (quadro.py adicionar {a.slug} ...); o que não "
+              "for feito\n   vira lacuna declarada no encerrar.")
+        return 1
     if a.lacuna:
         q["lacunas"] = list(dict.fromkeys(q.get("lacunas", []) + a.lacuna))
     vista = vista_publica(q)
     if not vista["pode_encerrar"]:
-        abertas = [tid for tid, t in vista["tasks"].items() if t["estado"] != "concluida"]
-        sem_lacuna = [tid for tid in abertas if tid not in lacunas_declaradas(q)]
-        print(f"❌ {len(abertas)} tarefa(s) aberta(s) sem lacuna declarada: "
-              f"{', '.join(sem_lacuna)}")
+        cobertas = lacunas_declaradas(q)
+        sem_lacuna = [tid for tid in pendencias(q) if tid not in cobertas]
+        puladas = [tid for tid in sem_lacuna if gate_pulado(q["tasks"][tid])]
+        abertas = [tid for tid in sem_lacuna if tid not in puladas]
+        if abertas:
+            print(f"❌ {len(abertas)} tarefa(s) aberta(s) sem lacuna declarada: "
+                  f"{', '.join(abertas)}")
+        if puladas:
+            print(f"❌ {len(puladas)} tarefa(s) concluída(s) com gate pulado sem lacuna "
+                  "declarada: " + "; ".join(f"{tid} ({motivo_do_pulo(q['tasks'][tid])})"
+                                            for tid in puladas))
+            print("   Pronto só com gate rodado: o que pulou o gate é lacuna, e entra no")
+            print("   relatório como tal.")
         print("   Em cadeia, uma falha para tudo e todo mundo vê. Em grafo, o nó que")
         print("   falhou some num relatório que parece completo — é esse relatório que")
         print("   esta recusa existe para impedir.")
-        print(f"   Declare: quadro.py encerrar {a.slug} --lacuna \"{sem_lacuna[0]}: motivo\"")
+        primeira = sem_lacuna[0]
+        texto = (f"{primeira}: gate pulado — {motivo_do_pulo(q['tasks'][primeira])}"
+                 if primeira in puladas else f"{primeira}: motivo")
+        print(f"   Declare: quadro.py encerrar {a.slug} --lacuna \"{texto}\"")
         return 1
     q["encerrado_em"] = agora()
     registrar(q, "encerrou", completo=vista["completo"], lacunas=len(vista["lacunas"]))
     salvar(q)
     pe = vista["por_estado"]
+    puladas = sum(1 for t in q["tasks"].values() if gate_pulado(t))
     print(f"🏁 {q['slug']} encerrado · {pe['concluida']} de {vista['total']} tarefas "
-          f"planejadas concluídas em {vista['onda']} onda(s).")
+          f"planejadas concluídas em {vista['onda']} onda(s)"
+          + (f", {puladas} delas com o gate pulado." if puladas else "."))
     for texto in vista["lacunas"]:
         print(f"   ⚠️  lacuna: {texto}")
     return 0
@@ -1381,6 +1479,9 @@ def main() -> int:
     p.add_argument("--gate-pulado", default=None)
     p.add_argument("--fora-da-posse", default=None,
                    help="motivo para aceitar arquivo mudado fora da posse")
+    p.add_argument("--sem-foto", default=None,
+                   help="motivo para concluir sem a posse conferida (não houve foto no "
+                        "iniciar, ou a de agora não pôde ser tirada)")
     p.set_defaults(fn=cmd_concluir)
 
     p = sub.add_parser("varrer", help="bloqueia tarefas em voo além do tempo limite")

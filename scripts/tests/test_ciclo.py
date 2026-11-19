@@ -64,6 +64,24 @@ def estado(spec: str = "SPEC-001") -> dict:
     return json.loads(out)
 
 
+REVISAO_LIMPA = ('# Revisão\n\n**Veredicto:** aprovado\n\n```kairos-revisao\n'
+                 '{"veredicto": "aprovado", "faixa": 1, "criticos": 0, '
+                 '"examinado": ["x.py (Helena)"]}\n```\n')
+
+# Um `gh` que responde o que o teste mandou e anota cada chamada. Shebang absoluto: o PATH
+# do teste tem só a pasta dele, para o `gh` de verdade nunca ser chamado.
+GH_FALSO = f"""#!{sys.executable}
+import json, pathlib, sys
+pasta = pathlib.Path(__file__).resolve().parent
+cfg = json.loads((pasta / "gh.json").read_text(encoding="utf-8"))
+with open(pasta / "chamadas.txt", "a", encoding="utf-8") as f:
+    f.write(" ".join(sys.argv[1:]) + "\\n")
+sys.stdout.write(cfg["saida"])
+sys.stderr.write(cfg["erro"])
+sys.exit(cfg["codigo"])
+"""
+
+
 class Sandbox(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory(prefix="kairos-forge-ciclo-")
@@ -75,6 +93,26 @@ class Sandbox(unittest.TestCase):
     def tearDown(self) -> None:
         os.chdir(self._cwd)
         self._tmp.cleanup()
+
+    def sem_gh(self) -> Path:
+        """O PATH passa a ser uma pasta vazia: nenhum `gh` alcançável."""
+        pasta = Path(self._tmp.name) / "bin"
+        pasta.mkdir(exist_ok=True)
+        antigo = os.environ.get("PATH", "")
+        self.addCleanup(os.environ.__setitem__, "PATH", antigo)
+        os.environ["PATH"] = str(pasta)
+        return pasta
+
+    def gh_falso(self, saida: dict | str = "", erro: str = "", codigo: int = 0) -> Path:
+        """Só um `gh` falso no PATH; devolve o arquivo onde ele anota as chamadas."""
+        pasta = self.sem_gh()
+        texto = saida if isinstance(saida, str) else json.dumps(saida)
+        (pasta / "gh.json").write_text(json.dumps({"saida": texto, "erro": erro,
+                                                   "codigo": codigo}), encoding="utf-8")
+        gh = pasta / "gh"
+        gh.write_text(GH_FALSO, encoding="utf-8")
+        gh.chmod(0o755)
+        return pasta / "chamadas.txt"
 
 
 class RegistrarIdempotente(Sandbox):
@@ -98,17 +136,21 @@ class RegistrarIdempotente(Sandbox):
         rodar("registrar", "aprovado", "SPEC-001")
         Path("docs/specs/revisoes").mkdir()
         Path("docs/specs/revisoes/REVISAO-SPEC-001-2026-01-01.md").write_text(
-            '# Revisão\n\n**Veredicto:** aprovado\n\n```kairos-revisao\n'
-            '{"veredicto": "aprovado", "faixa": 1, "criticos": 0, "examinado": ["x.py (Helena)"]}\n```\n',
-            encoding="utf-8")
+            REVISAO_LIMPA, encoding="utf-8")
         rodar("registrar", "limpo", "SPEC-001")
-        self.assertEqual(rodar("registrar", "pr_aberto", "SPEC-001")[0], 0)
+        self.sem_gh()
+        self.assertEqual(rodar("registrar", "pr_aberto", "SPEC-001", "--pr", "12")[0], 0)
         e = estado()
         self.assertTrue(e["terminal"])
-        codigo, _, err = rodar("registrar", "pr_aberto", "SPEC-001")
+        codigo, _, err = rodar("registrar", "pr_aberto", "SPEC-001", "--pr", "12")
         self.assertEqual(codigo, 1)
         self.assertIn("terminal", err)
         self.assertEqual(estado()["estado"], "encerrado")
+
+    def test_registrar_sem_spec_usa_o_unico_ciclo_aberto(self) -> None:
+        rodar("abrir", "SPEC-001", "--spec-aprovada")
+        self.assertEqual(rodar("registrar", "pronto")[0], 0)
+        self.assertEqual(estado()["estado"], "validando")
 
     def test_revisao_incompleta_nao_registra_limpo(self) -> None:
         # ADR-0046: revisor que não rodou não aprovou — o contrato recusa, o ciclo não fecha.
@@ -280,7 +322,9 @@ class AtacarPremissa(Sandbox):
         self.assertEqual(e["estado"], "atacando_premissa_validacao")
         self.assertEqual(e["resultados_validos"], ["premissa_escrita"])
         self.assertFalse(e["aguardando_humano"])
-        self.assertEqual(e["contrato"], "1.3")
+        self.assertEqual(e["contrato"], "1.4")
+        self.assertIn("próxima correção", e["proximo_passo"])   # com orçamento, corrige
+        self.assertNotIn("escalação", e["proximo_passo"])
 
     def test_premissa_precisa_ser_uma_frase(self) -> None:
         self.validando()
@@ -325,20 +369,110 @@ class AtacarPremissa(Sandbox):
         rodar("registrar", "bloqueado", "SPEC-001")
         self.assertEqual(estado()["estado"], "atacando_premissa_validacao")
 
-    def test_orcamento_padrao_escala_antes_e_pede_a_premissa(self) -> None:
+    def test_orcamento_padrao_ataca_a_premissa_e_a_leva_na_escalacao(self) -> None:
+        # O /entregar e a ponte Hermes abrem com o orçamento padrão (2): a terceira falha
+        # seguida é a que esgota o orçamento. Ela passa pelo ataque à premissa, sem ficha a
+        # mais, e a premissa escrita vai para a escalação em vez de abrir uma terceira correção.
         self.validando("2")
         self.falhar_e_corrigir(2)
         rodar("registrar", "bloqueado", "SPEC-001")
         e = estado()
+        self.assertEqual(e["estado"], "atacando_premissa_validacao")
+        self.assertEqual(e["resultados_validos"], ["premissa_escrita"])
+        self.assertIn("escalação", e["proximo_passo"])
+        self.assertEqual(e["rodadas"]["validar"], 2)
+        self.assertEqual(rodar("registrar", "premissa_escrita", "SPEC-001",
+                               "--nota", self.PREMISSA)[0], 0)
+        e = estado()
         self.assertEqual(e["estado"], "escalado")
+        self.assertIn("orçamento de validar esgotado", e["motivo_escalacao"])
+        self.assertIn(self.PREMISSA, e["motivo_escalacao"])
         self.assertIn("premissa", e["proximo_passo"])
+        self.assertEqual(e["rodadas"]["validar"], 2)
+
+    def test_com_orcamento_maior_a_escalacao_tambem_leva_a_premissa(self) -> None:
+        # Orçamento 4: a terceira e a quarta falhas atacam uma premissa cada (ADR-0045) e pagam
+        # uma correção cada; a quinta esgota o orçamento. A escalação leva a última premissa
+        # atacada, como no orçamento padrão.
+        segunda = "o arredondamento acontece antes da soma das parcelas"
+        self.validando("4")
+        self.falhar_e_corrigir(2)
+        for premissa in (self.PREMISSA, segunda):
+            rodar("registrar", "bloqueado", "SPEC-001")
+            self.assertEqual(estado()["estado"], "atacando_premissa_validacao")
+            self.assertEqual(rodar("registrar", "premissa_escrita", "SPEC-001", "--nota",
+                                   premissa)[0], 0)
+            self.assertEqual(rodar("registrar", "pronto", "SPEC-001")[0], 0)
+        rodar("registrar", "bloqueado", "SPEC-001")
+        e = estado()
+        self.assertEqual(e["estado"], "escalado")
+        self.assertIn("orçamento de validar esgotado", e["motivo_escalacao"])
+        self.assertIn(segunda, e["motivo_escalacao"])
+
+    def test_premissa_da_escalacao_tambem_precisa_ser_uma_frase(self) -> None:
+        self.validando("2")
+        self.falhar_e_corrigir(2)
+        rodar("registrar", "bloqueado", "SPEC-001")
+        codigo, _, err = rodar("registrar", "premissa_escrita", "SPEC-001", "--nota", "cache")
+        self.assertEqual(codigo, 1)
+        self.assertIn("uma frase", err)
+        self.assertEqual(estado()["estado"], "atacando_premissa_validacao")
+
+    def test_resultado_errado_no_ataque_da_escalacao_repete_o_passo_certo(self) -> None:
+        # A recusa de um resultado inválido repete o próximo passo. No ataque que antecede a
+        # escalação, o passo certo é o que diz que não há terceira correção — não o genérico,
+        # que promete "a próxima correção".
+        self.validando("2")
+        self.falhar_e_corrigir(2)
+        rodar("registrar", "bloqueado", "SPEC-001")
+        codigo, _, err = rodar("registrar", "pronto", "SPEC-001")
+        self.assertEqual(codigo, 1)
+        self.assertIn("não há terceira correção", err)
+        self.assertNotIn("A próxima correção parte de outra premissa", err)
+
+    def test_orcamento_esgotado_sem_tres_falhas_seguidas_escala_direto(self) -> None:
+        # Gate verde zera a sequência, não as fichas: a falha que esgota o orçamento depois
+        # de um verde não é a terceira seguida e escala sem pedir premissa.
+        self.validando("2")
+        self.falhar_e_corrigir(1)
+        Path("docs/specs/validacoes/VALIDACAO-SPEC-001-2026-01-01.md").write_text(
+            VALIDACAO_OK, encoding="utf-8")
+        self.assertEqual(rodar("registrar", "aprovado", "SPEC-001")[0], 0)
+        self.assertEqual(rodar("registrar", "critico", "SPEC-001")[0], 0)
+        self.assertEqual(rodar("registrar", "pronto", "SPEC-001")[0], 0)  # reabre a validação
+        self.relatorio(2)
+        self.falhar_e_corrigir(1)
+        rodar("registrar", "bloqueado", "SPEC-001")
+        self.assertEqual(estado()["estado"], "escalado")
+
+    def test_orcamento_um_escala_na_segunda_falha_sem_premissa(self) -> None:
+        self.validando("1")
+        self.falhar_e_corrigir(1)
+        rodar("registrar", "bloqueado", "SPEC-001")
+        self.assertEqual(estado()["estado"], "escalado")
+
+    def test_premissa_ja_atacada_na_sequencia_escala_direto(self) -> None:
+        # Com orçamento 3 a terceira falha ainda paga a correção: a premissa abre a correção,
+        # e a quarta falha, que esgota o orçamento, escala sem pedir outra.
+        self.validando("3")
+        self.falhar_e_corrigir(2)
+        rodar("registrar", "bloqueado", "SPEC-001")
+        self.assertEqual(rodar("registrar", "premissa_escrita", "SPEC-001",
+                               "--nota", self.PREMISSA)[0], 0)
+        self.assertEqual(estado()["estado"], "corrigindo_validacao")
+        rodar("registrar", "pronto", "SPEC-001")
+        rodar("registrar", "bloqueado", "SPEC-001")
+        self.assertEqual(estado()["estado"], "escalado")
 
     def test_contrato_publica_os_estados_novos(self) -> None:
         codigo, out, _ = rodar("contrato")
         c = json.loads(out)
-        self.assertEqual(c["versao"], "1.3")
+        self.assertEqual(c["versao"], "1.4")
+        # 1.4: o destino da premissa é calculado — a correção do mesmo gate, ou `escalado`
+        # quando o orçamento acabou na terceira falha seguida.
         self.assertEqual(c["transicoes"]["atacando_premissa_revisao"],
-                         {"premissa_escrita": "corrigindo_revisao"})
+                         {"premissa_escrita": None})
+        self.assertIn("atacando_premissa_revisao", c["estados"])
 
 
 class FaltaDeProva(Sandbox):
@@ -456,6 +590,195 @@ class ReRevisao(Sandbox):
         c = json.loads(rodar("contrato")[1])
         self.assertEqual(c["transicoes"]["provando"], {"pronto": "validando"})
         self.assertIn("pendentes_revisao", c["campos"])
+
+    def test_revisao_incompleta_nao_conta_como_progresso(self) -> None:
+        # ADR-0046: com um revisor a menos a contagem de 🔴 não está completa. Cair de 3 para
+        # 1 porque a Helena não rodou não é convergência e não devolve a ficha.
+        self.revisando()
+        self.critico_e_volta(["R1", "R2", "R3"])
+        self.assertEqual(estado()["rodadas"]["revisar"], 1)
+        self.revisao(veredicto="bloqueado", criticos=1, achados=["R4"], incompletos=["Helena"],
+                     anteriores={"R1": "resolvido", "R2": "resolvido", "R3": "resolvido"})
+        _, _, err = rodar("registrar", "critico", "SPEC-001")
+        e = estado()
+        self.assertEqual(e["estado"], "corrigindo_revisao")
+        self.assertEqual(e["rodadas"]["revisar"], 2)
+        self.assertEqual(e["marca"]["revisar"], 3)
+        self.assertNotIn("bloqueios", e["historico"][-1])
+        self.assertIn("incompleta", err)
+
+    def test_revisao_incompleta_sem_critico_e_bloqueio_valido(self) -> None:
+        # Sem 🔴 dos revisores que rodaram, o bloco que o ADR-0046 pede (`bloqueado` com
+        # `incompletos`) era recusado, e o único bloco aceito era apagar o `incompletos`.
+        self.revisando()
+        self.revisao(veredicto="bloqueado", criticos=0, incompletos=["Patrícia"])
+        codigo, _, err = rodar("registrar", "limpo", "SPEC-001")
+        self.assertEqual(codigo, 1)
+        self.assertIn("BLOQUEADO", err)
+        self.assertEqual(rodar("registrar", "critico", "SPEC-001")[0], 0)
+        h = estado()["historico"][-1]
+        self.assertEqual(h["fonte"], "contrato")
+        self.assertNotIn("bloqueios", h)
+
+
+class Faixa3(Sandbox):
+    """ADR-0031: faixa 3 (difícil de reverter) não fecha por evidência. O /entregar escala
+    em vez de abrir o PR; o ciclo recusa o `limpo` que o levaria ao PR."""
+
+    def revisando_com(self, faixa: int) -> None:
+        rodar("abrir", "SPEC-001", "--spec-aprovada")
+        rodar("registrar", "pronto", "SPEC-001")
+        Path("docs/specs/validacoes/VALIDACAO-SPEC-001-2026-01-01.md").write_text(
+            VALIDACAO_OK, encoding="utf-8")
+        self.assertEqual(rodar("registrar", "aprovado", "SPEC-001")[0], 0)
+        Path("docs/specs/revisoes").mkdir()
+        bloco = {"veredicto": "aprovado", "faixa": faixa, "criticos": 0,
+                 "examinado": ["migrations/0042_saldo.sql (Carlos)", "api.py (Helena)"]}
+        Path("docs/specs/revisoes/REVISAO-SPEC-001-2026-01-01.md").write_text(
+            f"# Revisão\n\n```kairos-revisao\n{json.dumps(bloco)}\n```\n", encoding="utf-8")
+
+    def test_revisao_limpa_na_faixa_3_nao_vai_para_o_pr(self) -> None:
+        self.revisando_com(3)
+        codigo, _, err = rodar("registrar", "limpo", "SPEC-001")
+        self.assertEqual(codigo, 1)
+        self.assertIn("faixa 3", err)
+        self.assertIn("ciclo.py escalar", err)
+        self.assertEqual(estado()["estado"], "revisando")
+        self.assertEqual(rodar("escalar", "SPEC-001", "--motivo",
+                               "faixa 3: a migration apaga a coluna saldo")[0], 0)
+        self.assertEqual(estado()["estado"], "escalado")
+
+    def test_faixa_2_segue_para_o_pr(self) -> None:
+        self.revisando_com(2)
+        self.assertEqual(rodar("registrar", "limpo", "SPEC-001")[0], 0)
+        self.assertEqual(estado()["estado"], "pronto_para_pr")
+
+    def test_proximo_passo_da_revisao_avisa_da_faixa_3(self) -> None:
+        self.revisando_com(1)
+        self.assertIn("faixa 3", estado()["proximo_passo"])
+
+
+class PrAberto(Sandbox):
+    """`registrar pr_aberto` encerra o arco: precisa dizer qual PR, e o PR precisa existir."""
+
+    def pronto_para_pr(self) -> None:
+        rodar("abrir", "SPEC-001", "--spec-aprovada")
+        rodar("registrar", "pronto", "SPEC-001")
+        Path("docs/specs/validacoes/VALIDACAO-SPEC-001-2026-01-01.md").write_text(
+            VALIDACAO_OK, encoding="utf-8")
+        rodar("registrar", "aprovado", "SPEC-001")
+        Path("docs/specs/revisoes").mkdir()
+        Path("docs/specs/revisoes/REVISAO-SPEC-001-2026-01-01.md").write_text(
+            REVISAO_LIMPA, encoding="utf-8")
+        rodar("registrar", "limpo", "SPEC-001")
+        self.assertEqual(estado()["estado"], "pronto_para_pr")
+
+    def test_sem_referencia_nao_encerra(self) -> None:
+        self.pronto_para_pr()
+        self.sem_gh()
+        codigo, _, err = rodar("registrar", "pr_aberto", "SPEC-001")
+        self.assertEqual(codigo, 1)
+        self.assertIn("--pr", err)
+        self.assertEqual(estado()["estado"], "pronto_para_pr")
+
+    def test_referencia_que_nao_e_de_pr_e_recusada(self) -> None:
+        self.pronto_para_pr()
+        self.sem_gh()
+        for ref in ("amanhã", "https://github.com/o/r/issues/3", "12a"):
+            codigo, _, err = rodar("registrar", "pr_aberto", "SPEC-001", "--pr", ref)
+            self.assertEqual(codigo, 1, ref)
+            self.assertIn("não é referência de PR", err, ref)
+        self.assertEqual(estado()["estado"], "pronto_para_pr")
+
+    def test_pr_aberto_conferido_pelo_gh_encerra(self) -> None:
+        self.pronto_para_pr()
+        chamadas = self.gh_falso({"number": 12, "state": "OPEN", "headRefName": "feat/x",
+                                  "url": "https://github.com/o/r/pull/12"})
+        self.assertEqual(rodar("registrar", "pr_aberto", "SPEC-001", "--pr", "#12")[0], 0)
+        e = estado()
+        self.assertEqual(e["estado"], "encerrado")
+        h = e["historico"][-1]
+        self.assertEqual((h["resultado"], h["pr"], h["pr_conferido"], h["pr_estado"]),
+                         ("pr_aberto", "12", True, "aberto"))
+        self.assertEqual(h["pr_url"], "https://github.com/o/r/pull/12")
+        self.assertIn("pr view 12 --json", chamadas.read_text(encoding="utf-8"))
+
+    def test_pr_mesclado_tambem_vale_e_a_url_vai_como_veio(self) -> None:
+        self.pronto_para_pr()
+        url = "https://github.com/o/r/pull/7"
+        chamadas = self.gh_falso({"number": 7, "state": "MERGED", "url": url,
+                                  "headRefName": "feat/x"})
+        self.assertEqual(rodar("registrar", "pr_aberto", "SPEC-001", "--pr", url)[0], 0)
+        h = estado()["historico"][-1]
+        self.assertEqual((h["pr"], h["pr_estado"]), (url, "mesclado"))
+        self.assertIn(f"pr view {url} --json", chamadas.read_text(encoding="utf-8"))
+
+    def test_pr_fechado_sem_merge_e_recusado(self) -> None:
+        self.pronto_para_pr()
+        self.gh_falso({"number": 12, "state": "CLOSED", "url": "https://github.com/o/r/pull/12",
+                       "headRefName": "feat/x"})
+        codigo, _, err = rodar("registrar", "pr_aberto", "SPEC-001", "--pr", "12")
+        self.assertEqual(codigo, 1)
+        self.assertIn("fechado", err)
+        self.assertEqual(estado()["estado"], "pronto_para_pr")
+
+    def test_pr_que_o_gh_diz_nao_existir_e_recusado(self) -> None:
+        self.pronto_para_pr()
+        self.gh_falso(erro="GraphQL: Could not resolve to a PullRequest with the number of "
+                           "999. (repository.pullRequest)\n", codigo=1)
+        codigo, _, err = rodar("registrar", "pr_aberto", "SPEC-001", "--pr", "999")
+        self.assertEqual(codigo, 1)
+        self.assertIn("não existe", err)
+        self.assertEqual(estado()["estado"], "pronto_para_pr")
+
+    def test_sem_gh_encerra_e_registra_que_nao_conferiu(self) -> None:
+        self.pronto_para_pr()
+        self.sem_gh()
+        codigo, _, err = rodar("registrar", "pr_aberto", "SPEC-001", "--pr", "12")
+        self.assertEqual(codigo, 0)
+        h = estado()["historico"][-1]
+        self.assertEqual((h["pr"], h["pr_conferido"]), ("12", False))
+        self.assertIn("gh", h["pr_nao_conferido"])
+        self.assertIn("não conferido", err)
+
+    def test_gh_sem_rede_nao_bloqueia(self) -> None:
+        self.pronto_para_pr()
+        self.gh_falso(erro="error connecting to api.github.com\n", codigo=1)
+        self.assertEqual(rodar("registrar", "pr_aberto", "SPEC-001", "--pr", "12")[0], 0)
+        h = estado()["historico"][-1]
+        self.assertFalse(h["pr_conferido"])
+        self.assertIn("api.github.com", h["pr_nao_conferido"])
+
+    def test_gh_que_nao_executa_nao_bloqueia(self) -> None:
+        self.pronto_para_pr()
+        pasta = self.sem_gh()
+        (pasta / "gh").write_text("sem permissão de execução\n", encoding="utf-8")
+        self.assertEqual(rodar("registrar", "pr_aberto", "SPEC-001", "--pr", "12")[0], 0)
+        h = estado()["historico"][-1]
+        self.assertFalse(h["pr_conferido"])
+        self.assertIn("gh não respondeu", h["pr_nao_conferido"])
+
+    def test_resposta_ilegivel_do_gh_nao_bloqueia(self) -> None:
+        self.pronto_para_pr()
+        self.gh_falso("isto não é json")
+        self.assertEqual(rodar("registrar", "pr_aberto", "SPEC-001", "--pr", "12")[0], 0)
+        h = estado()["historico"][-1]
+        self.assertEqual((h["pr_conferido"], h["pr_nao_conferido"]),
+                         (False, "resposta do gh ilegível"))
+
+    def test_pr_de_outra_branch_encerra_com_aviso(self) -> None:
+        for args in (["init", "-q", "."],
+                     ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q",
+                      "--allow-empty", "-m", "base"],
+                     ["checkout", "-q", "-b", "feat/spec-001"]):
+            subprocess.run(["git", *args], check=True, capture_output=True)
+        self.pronto_para_pr()
+        self.gh_falso({"number": 3, "state": "OPEN", "url": "https://github.com/o/r/pull/3",
+                       "headRefName": "feat/outra"})
+        codigo, _, err = rodar("registrar", "pr_aberto", "SPEC-001", "--pr", "3")
+        self.assertEqual(codigo, 0)
+        self.assertIn("feat/outra", err)
+        self.assertEqual(estado()["historico"][-1]["pr_branch"], "feat/outra")
 
 
 class AjudaEOpcaoDesconhecida(Sandbox):

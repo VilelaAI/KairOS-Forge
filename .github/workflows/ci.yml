@@ -44,8 +44,12 @@ jobs:
           python3 plugin/scripts/check-agent-security.py plugin
 
       - name: Grafo de conhecimento válido (se existir)
+        # O `validar` não sai 0 sem entidade (sem grafo não é contrato ok), então a
+        # pergunta "existe?" é pelos arquivos do grafo de conhecimento: o `codigo.jsonl`
+        # da camada de código (ADR-0041) sozinho não é grafo para validar.
         run: |
-          if [ -d .agents/grafo ] && ls .agents/grafo/*.jsonl >/dev/null 2>&1; then
+          if [ -f .agents/grafo/entidades.jsonl ] || [ -f .agents/grafo/relacoes.jsonl ] \
+             || [ -f .agents/grafo/aliases.jsonl ]; then
             python3 scripts/grafo.py validar
           else
             echo "sem grafo no repo do plugin — ok"

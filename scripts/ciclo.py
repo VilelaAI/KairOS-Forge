@@ -61,8 +61,16 @@ quase sempre partem da mesma premissa errada — e a terceira, escrita no mesmo 
 também. Na terceira falha seguida o ciclo não volta para a correção: vai para
 `atacando_premissa_*`, e só sai com a premissa escrita em uma frase (`--nota`),
 diferente das que já foram atacadas na mesma sequência. Progresso real ou gate verde
-zeram a sequência. Com o orçamento padrão (2) a escalada chega antes, e a instrução
-de `escalado` pede a mesma frase para levar ao humano.
+zeram a sequência. Com o orçamento padrão (2) a terceira falha é a que esgota o
+orçamento: o ciclo passa pelo mesmo `atacando_premissa_*`, sem ficha a mais, e a
+premissa escrita segue com a escalação (`motivo_escalacao`) em vez de abrir uma
+terceira correção. Por isso o destino de `premissa_escrita` é calculado (contrato 1.4).
+
+E a faixa 3 (ADR-0031): revisão limpa de um diff difícil de reverter não fecha por
+evidência. `registrar limpo` é recusado com a `faixa` 3 no bloco, e o arco escala.
+E `registrar pr_aberto` encerra o arco só dizendo qual PR (`--pr`); com o `gh` à mão,
+o PR precisa existir e estar aberto ou mesclado. Sem o `gh`, encerra e registra que
+não conferiu.
 
 E duas, desde a v0.41 (ADR-0048, da Alethe): **falta de prova não é falha, e a
 re-revisão presta contas.** Validação bloqueada só por requisito sem evidência — o
@@ -76,8 +84,9 @@ Uso:
                             [--orcamento-revisar 2] [--teto-criticar 6]
                             [--teto-validar 6] [--teto-revisar 6] [--spec-aprovada]
     ciclo.py estado [SPEC-001] [--json]
-    ciclo.py registrar <resultado> [SPEC-001] [--nota "..."]
+    ciclo.py registrar <resultado> [SPEC-001] [--nota "..."] [--pr <URL ou número>]
                          # premissa_escrita exige --nota com a premissa atacada
+                         # pr_aberto exige --pr; com o gh, o PR precisa existir
     ciclo.py reaprovar [SPEC-001]   # aceita a SPEC alterada depois da aprovação (humano);
                                     # recusado antes de a SPEC ter sido selada
     ciclo.py encerrar [SPEC-001] --motivo "..."
@@ -136,9 +145,11 @@ def pasta_do_estado() -> Path:
 #
 # MENOR (1.x): campo novo, estado novo, aresta nova. Consumidor antigo continua válido.
 # MAIOR (x.0): campo removido/renomeado, semântica alterada, aresta removida.
-CONTRATO_VERSAO = "1.3"   # 1.1: campo `spec_alterada` (digest do contrato da SPEC)
+CONTRATO_VERSAO = "1.4"   # 1.1: campo `spec_alterada` (digest do contrato da SPEC)
                           # 1.2: estados `atacando_premissa_*` (ADR-0045)
                           # 1.3: estado `provando` e campo `pendentes_revisao` (ADR-0048)
+                          # 1.4: `premissa_escrita` com destino calculado — a correção, ou
+                          #      `escalado` quando o orçamento acabou (ADR-0045)
 
 # Gates com orçamento próprio. Cada um conta rodadas SEM progresso, tem teto absoluto
 # e guarda a melhor marca já atingida (ADR-0032).
@@ -198,8 +209,9 @@ TRANSICOES: dict[str, dict[str, str | None]] = {
     "revisando":           {"limpo": "pronto_para_pr", "critico": None},
     "corrigindo_revisao":  {"pronto": "validando"},
     "pronto_para_pr":      {"pr_aberto": "encerrado"},
-    # ADR-0045: a premissa escrita reabre a correção do mesmo gate.
-    **{estado: {"premissa_escrita": CORRIGIR[gate]} for gate, estado in ATACAR_PREMISSA.items()},
+    # ADR-0045: a premissa escrita reabre a correção do mesmo gate — ou, se a falha que
+    # trouxe até aqui esgotou o orçamento, segue com a escalação (calculado).
+    **{estado: {"premissa_escrita": None} for estado in ATACAR_PREMISSA.values()},
 }
 TERMINAIS = {"encerrado", "escalado"}
 
@@ -250,11 +262,14 @@ INSTRUCAO = {
                 "falhar, a próxima validação mostra a falha. Depois: `registrar pronto`.",
     "revisando": "Rode /kairos-forge:revisar. Depois: `registrar limpo` (zero 🔴) ou "
                  "`registrar critico`. Com 🔴 pendente da rodada anterior, o bloco marca "
-                 "cada um em `anteriores` (resolvido ou nao_resolvido).",
+                 "cada um em `anteriores` (resolvido ou nao_resolvido). Revisão na faixa 3 "
+                 "não fecha por evidência: o `limpo` é recusado, e o caminho é `ciclo.py "
+                 "escalar --motivo \"faixa 3: <o que é irreversível>\"` (ADR-0031).",
     "corrigindo_revisao": "Corrija os achados 🔴 — nunca por workaround. Depois: "
                           "`registrar pronto` (o ciclo REABRE a validação, não a revisão).",
     "pronto_para_pr": "Abra o PR com a evidência no corpo. NUNCA faça merge. Depois: "
-                      "`registrar pr_aberto`.",
+                      "`registrar pr_aberto --pr <URL ou número>` — a URL que o "
+                      "`gh pr create` imprimiu.",
     "escalado": "PARADO. Leve ao usuário o achado exato, o que já foi tentado, a premissa "
                 "que as tentativas compartilharam (em uma frase) e a decisão necessária. Só "
                 "o usuário destrava (novo `abrir` com orçamento ampliado).",
@@ -266,6 +281,23 @@ INSTRUCAO = {
        for gate, estado in ATACAR_PREMISSA.items()},
     "encerrado": "Ciclo encerrado. Salve o relatório em docs/specs/entregas/.",
 }
+
+# O mesmo estado, quando a falha que trouxe até ele esgotou o orçamento: não há correção
+# para abrir, e a premissa vai com a escalação (ADR-0045, orçamento padrão).
+INSTRUCAO_PREMISSA_DA_ESCALACAO = (
+    "ATAQUE A PREMISSA — a terceira falha seguida no gate de {gate} esgotou o orçamento sem "
+    "baixar os achados, e não há terceira correção. Escreva em UMA frase a premissa que as "
+    "correções compartilharam e quais agentes ou componentes a sustentam: ela segue com a "
+    "escalação, para a pessoa decidir com ela em mãos. Depois: "
+    "`registrar premissa_escrita --nota \"<a premissa>\"`.")
+
+
+def instrucao(d: dict) -> str:
+    """O próximo passo do estado; no ataque à premissa que antecede a escalação, o texto dela."""
+    e = d["estado"]
+    if e in GATE_DA_PREMISSA and d.get("escalacao_apos_premissa"):
+        return INSTRUCAO_PREMISSA_DA_ESCALACAO.format(gate=GATE_DA_PREMISSA[e])
+    return INSTRUCAO[e]
 
 
 # Todos os estados alcançáveis, derivados do grafo — nunca digitados à mão.
@@ -414,7 +446,10 @@ def ler_relatorio(spec: str, gate: str) -> tuple[str | None, int | None, str, st
     if leitor is not None:
         r = leitor(texto)
         if r.ok:
-            return r.dados["veredicto"], r.dados[campo], "contrato", None
+            # Revisão com revisor a menos não tem contagem completa (ADR-0046): 🔴 que caiu
+            # porque alguém não rodou não é progresso.
+            contagem = None if r.dados.get("incompletos") else r.dados[campo]
+            return r.dados["veredicto"], contagem, "contrato", None
         if r.codigo != AUSENTE:
             return None, None, "invalido", f"[{r.codigo}] {r.erro}"
     return _veredicto_da_prosa(texto), None, "prosa", None
@@ -438,6 +473,20 @@ def destino_do_bloqueio(d: dict, gate: str, contagem: int | None,
     if destino == CORRIGIR["validar"] and (dados or {}).get("so_falta_prova"):
         return "provando", motivo
     return destino, motivo
+
+
+def destino_calculado(d: dict, estado: str, gate: str | None, contagem: int | None,
+                      dados: dict | None) -> tuple[str, str | None]:
+    """Destino das arestas `None`. A falha de gate vai ao orçamento; a premissa escrita reabre
+    a correção do gate ou, quando a falha que a pediu esgotou o orçamento, segue com a
+    escalação, levando a premissa no motivo (ADR-0045)."""
+    if estado not in GATE_DA_PREMISSA:
+        return destino_do_bloqueio(d, gate or "validar", contagem, dados)
+    do_gate = GATE_DA_PREMISSA[estado]
+    pendente = d.pop("escalacao_apos_premissa", None)
+    if not pendente:
+        return CORRIGIR[do_gate], None
+    return "escalado", f"{pendente}; premissa das correções: {d['premissas'][do_gate][-1]}"
 
 
 def atualizar_pendentes(d: dict, estado: str, resultado: str, dados: dict | None) -> None:
@@ -637,13 +686,30 @@ def decidir_orcamento(d: dict, gate: str, bloqueios: int | None) -> tuple[str, s
 
     if d["rodadas"][gate] >= d["orcamento"][gate]:
         estagnado = "" if bloqueios is None else f", parado em {bloqueios} bloqueio(s)"
-        return "escalado", (f"orçamento de {gate} esgotado sem progresso "
-                            f"({d['rodadas'][gate]}/{d['orcamento'][gate]} rodadas{estagnado})")
+        return _esgotado(d, gate, f"orçamento de {gate} esgotado sem progresso "
+                                  f"({d['rodadas'][gate]}/{d['orcamento'][gate]} "
+                                  f"rodadas{estagnado})")
 
     d["rodadas"][gate] += 1
     d["seguidas"][gate] += 1
     atacar = d["seguidas"][gate] >= LIMIAR_PREMISSA
     return (ATACAR_PREMISSA[gate] if atacar else CORRIGIR[gate]), None
+
+
+def _esgotado(d: dict, gate: str, motivo: str) -> tuple[str, str | None]:
+    """Orçamento esgotado: escala. Mas se esta é a terceira falha seguida sem progresso e a
+    sequência ainda não tem premissa escrita, a escalação espera por ela (ADR-0045). É o
+    caso do orçamento padrão (2), em que a terceira falha nunca paga uma correção: sem
+    isto, o ataque à premissa só existia com `--orcamento-<gate>` 3 ou mais."""
+    if d["premissas"][gate]:
+        # A premissa já atacada nesta sequência vai no motivo, com qualquer orçamento: quem
+        # lê a escalação (a pessoa, a ponte Hermes) a recebe sempre, e não só no padrão.
+        return "escalado", f"{motivo}; premissa das correções: {d['premissas'][gate][-1]}"
+    if d["seguidas"][gate] + 1 < LIMIAR_PREMISSA:
+        return "escalado", motivo
+    d["seguidas"][gate] += 1
+    d["escalacao_apos_premissa"] = f"{motivo} na {d['seguidas'][gate]}ª falha seguida"
+    return ATACAR_PREMISSA[gate], None
 
 
 def _recusa_do_verde(d: dict, estado: str, gate: str, leitura: tuple) -> str | None:
@@ -692,13 +758,108 @@ def _recusa_da_premissa(d: dict, estado: str, nota: str | None) -> str | None:
     return None
 
 
+def _recusa_da_faixa_3(d: dict, resultado: str, dados: dict | None) -> str | None:
+    """Faixa 3 (difícil de reverter) não fecha por evidência (ADR-0031): o arco escala."""
+    if resultado != "limpo" or (dados or {}).get("faixa") != 3:
+        return None
+    return (f"🛑 recusado: a revisão mais recente de {d['spec']} classificou o diff na faixa 3 "
+            "(difícil de reverter: migration destrutiva, deleção, produção, dinheiro, "
+            "credencial).\n   Faixa 3 não fecha por evidência (ADR-0031): o arco não abre o PR "
+            "sozinho, quem decide é a pessoa. Escale: `ciclo.py escalar "
+            f"{d['spec']} --motivo \"faixa 3: <o que é irreversível>\"`.")
+
+
+# Referência de PR: o número (com ou sem `#`) ou a URL que o `gh pr create` imprime.
+REF_PR = re.compile(r"#?\d+|https?://[^\s/]+/[^\s/]+/[^\s/]+/pull/\d+/?")
+# O que o `gh pr view` diz quando respondeu e o PR não existe. Qualquer outra falha (sem
+# login, sem rede, fora de um repositório) é "não conferido", nunca recusa.
+PR_INEXISTENTE = re.compile(r"(?i)could not resolve to a pullrequest|no pull requests? found")
+SITUACAO_DO_PR = {"OPEN": "aberto", "MERGED": "mesclado"}
+
+
+def consultar_pr(ref: str) -> tuple[str, dict | str]:
+    """O que o `gh` diz do PR: ("conferido", dados), ("inexistente", erro) ou
+    ("nao_conferido", motivo)."""
+    try:
+        r = subprocess.run(["gh", "pr", "view", ref, "--json", "number,state,url,headRefName"],
+                           capture_output=True, text=True, timeout=30)
+    except FileNotFoundError:
+        return "nao_conferido", "gh ausente"
+    except (OSError, subprocess.SubprocessError) as e:
+        return "nao_conferido", f"gh não respondeu ({type(e).__name__})"
+    return _resposta_do_gh(r)
+
+
+def _resposta_do_gh(r: subprocess.CompletedProcess) -> tuple[str, dict | str]:
+    if r.returncode != 0:
+        erro = (r.stderr or "").strip().splitlines()
+        primeira = erro[0] if erro else f"saída {r.returncode}"
+        if PR_INEXISTENTE.search(r.stderr or ""):
+            return "inexistente", primeira
+        return "nao_conferido", f"gh falhou: {primeira}"
+    try:
+        dados = json.loads(r.stdout)
+    except ValueError:
+        dados = None
+    return ("conferido", dados) if isinstance(dados, dict) else (
+        "nao_conferido", "resposta do gh ilegível")
+
+
+def _recusa_do_pr(d: dict, pr: str | None, extra: dict) -> str | None:
+    """`pr_aberto` encerra o arco: precisa dizer qual PR e, quando o `gh` responde, o PR
+    existe e está aberto ou mesclado. Sem resposta do `gh`, encerra com `pr_conferido`
+    falso no histórico — quem chama sem rede não fica preso."""
+    ref = (pr or "").strip()
+    if not ref:
+        return ("🛑 recusado: diga qual PR foi aberto — `ciclo.py registrar pr_aberto "
+                f"{d['spec']} --pr <URL ou número>` (o `gh pr create` imprime a URL). Sem a "
+                "referência, o arco encerraria sem PR nenhum.")
+    if not REF_PR.fullmatch(ref):
+        return f"🛑 recusado: '{ref}' não é referência de PR — use a URL (…/pull/N) ou o número."
+    extra["pr"] = ref.lstrip("#")
+    return _conferir_pr(extra)
+
+
+def _conferir_pr(extra: dict) -> str | None:
+    """Recusa só o que o `gh` desmentiu (PR inexistente ou fechado sem merge)."""
+    ref = extra["pr"]
+    situacao, info = consultar_pr(ref)
+    if situacao == "inexistente":
+        return (f"🛑 recusado: o gh respondeu que o PR {ref} não existe ({info}).\n   Abra o PR "
+                "e registre com a URL que o `gh pr create` imprime.")
+    estado_pr = str(info.get("state") or "").upper() if situacao == "conferido" else ""
+    if estado_pr == "CLOSED":
+        return (f"🛑 recusado: o PR {ref} está fechado sem merge. O arco termina num PR aberto; "
+                "reabra-o, ou abra outro e registre a referência dele.")
+    if estado_pr in SITUACAO_DO_PR:
+        extra.update(pr_conferido=True, pr_estado=SITUACAO_DO_PR[estado_pr],
+                     pr_url=info.get("url"), pr_branch=info.get("headRefName"))
+    else:
+        extra.update(pr_conferido=False, pr_nao_conferido=(
+            info if situacao == "nao_conferido" else f"estado '{estado_pr}' que o gh devolveu"))
+    return None
+
+
+def _avisar_pr(d: dict, extra: dict) -> None:
+    if extra.get("pr_conferido") is False:
+        print(f"\n   ⚠️  PR {extra['pr']} não conferido ({extra['pr_nao_conferido']}): o ciclo "
+              "encerrou na palavra de quem registrou. Confira o PR à mão.", file=sys.stderr)
+    elif extra.get("pr_branch") and d.get("branch") and extra["pr_branch"] != d["branch"]:
+        print(f"\n   ⚠️  O PR {extra['pr']} sai de `{extra['pr_branch']}`, e o ciclo nasceu em "
+              f"`{d['branch']}`. Confira se é o PR desta entrega.", file=sys.stderr)
+
+
 def _recusa(d: dict, estado: str, resultado: str, gate: str | None, leitura: tuple,
-            nota: str | None, dados: dict | None = None) -> str | None:
+            nota: str | None, dados: dict | None = None, pr: str | None = None,
+            extra: dict | None = None) -> str | None:
     if resultado in LIMPO_DO_GATE.get(estado, ()):
-        return _recusa_do_verde(d, estado, gate, leitura) or _recusa_da_rerevisao(
-            d, resultado, dados)
+        return (_recusa_do_verde(d, estado, gate, leitura)
+                or _recusa_da_rerevisao(d, resultado, dados)
+                or _recusa_da_faixa_3(d, resultado, dados))
     if estado in GATE_DA_PREMISSA:
         return _recusa_da_premissa(d, estado, nota)
+    if resultado == "pr_aberto":
+        return _recusa_do_pr(d, pr, {} if extra is None else extra)
     return None
 
 
@@ -710,9 +871,14 @@ def _depois_de_registrar(d: dict, estado: str, resultado: str, gate: str | None)
         zerar_sequencia(d, gate)  # gate verde encerra a sequência de falhas
 
 
-def _avisar_fonte(gate: str | None, fonte: str, erro_bloco: str | None, destino: str) -> None:
+def _avisar_fonte(gate: str | None, fonte: str, erro_bloco: str | None, destino: str,
+                  dados: dict | None = None) -> None:
     if not gate or destino in TERMINAIS:
         return
+    if (dados or {}).get("incompletos"):
+        print(f"\n   ⚠️  Revisão incompleta — sem parecer de {', '.join(dados['incompletos'])}: "
+              "a contagem de 🔴 não vale como progresso, e esta rodada queima ficha.\n"
+              "       Acione de novo quem faltou (ADR-0046).", file=sys.stderr)
     if fonte == "prosa":
         print("\n   ⚠️  Relatório sem bloco de contrato — sem contagem de achados, toda "
               f"rodada queima ficha.\n       Adicione o bloco ```{FENCE_DO_GATE[gate]}"
@@ -723,7 +889,8 @@ def _avisar_fonte(gate: str | None, fonte: str, erro_bloco: str | None, destino:
               "bloco antes da próxima rodada (ADR-0032).", file=sys.stderr)
 
 
-def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
+def registrar(spec: str | None, resultado: str, nota: str | None,
+              pr: str | None = None) -> int:
     p = resolver(spec)
     d = compatibilizar(ler(p))
     estado = d["estado"]
@@ -737,7 +904,7 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
     if resultado not in aceitos:
         validos = ", ".join(sorted(aceitos)) or "—"
         print(f"🛑 resultado '{resultado}' não é válido em '{estado}'.\n"
-              f"   Válidos aqui: {validos}\n   {INSTRUCAO[estado]}", file=sys.stderr)
+              f"   Válidos aqui: {validos}\n   {instrucao(d)}", file=sys.stderr)
         return 1
 
     gate_do_estado = {"criticando": "criticar", "validando": "validar",
@@ -746,15 +913,16 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
                else (None, None, "ausente", None))
     _, contagem, fonte, erro_bloco = leitura
     dados = dados_do_relatorio(d["spec"], gate_do_estado, fonte)
-    recusa = _recusa(d, estado, resultado, gate_do_estado, leitura, nota, dados)
+    extra: dict = {}   # o que a conferência do PR acrescenta ao evento
+    recusa = _recusa(d, estado, resultado, gate_do_estado, leitura, nota, dados, pr, extra)
     if recusa:
         print(recusa, file=sys.stderr)
         return 1
 
     destino = aceitos[resultado]
     motivo = None
-    if destino is None:  # bloqueio/crítico — o orçamento decide
-        destino, motivo = destino_do_bloqueio(d, gate_do_estado or "validar", contagem, dados)
+    if destino is None:  # bloqueio, crítico ou premissa — o orçamento decide
+        destino, motivo = destino_calculado(d, estado, gate_do_estado, contagem, dados)
     atualizar_pendentes(d, estado, resultado, dados)
 
     evento = {"t": agora(), "de": estado, "para": destino, "resultado": resultado}
@@ -764,6 +932,7 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
         evento["fonte"] = fonte
     if nota:
         evento["nota"] = nota
+    evento.update(extra)
     d["historico"].append(evento)
     d["estado"] = destino
     if motivo:
@@ -771,7 +940,8 @@ def registrar(spec: str | None, resultado: str, nota: str | None) -> int:
     _depois_de_registrar(d, estado, resultado, gate_do_estado)
     gravar(p, d)
     imprimir(d)
-    _avisar_fonte(gate_do_estado, fonte, erro_bloco, destino)
+    _avisar_fonte(gate_do_estado, fonte, erro_bloco, destino, dados)
+    _avisar_pr(d, extra)
     return 0
 
 
@@ -856,7 +1026,7 @@ def imprimir(d: dict) -> None:
         print(f"   ⚠️  SPEC alterada desde a aprovação (selo {d['spec_digest'][:12]}, "
               f"{d.get('spec_selada_por', '?')}). Resultado verde de gate será recusado "
               f"até `ciclo.py reaprovar {d['spec']}` — decisão do humano.")
-    print(f"\n   PRÓXIMO PASSO: {INSTRUCAO[e]}")
+    print(f"\n   PRÓXIMO PASSO: {instrucao(d)}")
 
 
 def vista_publica(d: dict) -> dict:
@@ -875,7 +1045,7 @@ def vista_publica(d: dict) -> dict:
         "aguardando_humano": e.startswith("aguardando_"),
         "gate": {"criticando": "criticar", "validando": "validar",
                  "revisando": "revisar"}.get(e),
-        "proximo_passo": INSTRUCAO[e],
+        "proximo_passo": instrucao(d),
         "resultados_validos": sorted(TRANSICOES.get(e, {})),
         "spec_alterada": spec_alterada(d),
         # Prometido no contrato 1.3: sai sempre, mesmo de estado gravado antes dele.
@@ -962,6 +1132,7 @@ def main() -> int:
     teto = {g: opcao(f"--teto-{g}", int, max(1, orcamento[g]) * FATOR_TETO) for g in GATES}
     motivo = opcao("--motivo", str, "")
     nota = opcao("--nota", str, None)
+    pr = opcao("--pr", str, None)
     spec_aprovada = "--spec-aprovada" in args
     args = [a for a in args if a != "--spec-aprovada"]
     recusar_opcao_desconhecida(args)
@@ -978,7 +1149,7 @@ def main() -> int:
     if cmd == "registrar":
         if not resto:
             sys.exit("erro: uso — ciclo.py registrar <resultado> [SPEC]")
-        return registrar(resto[1] if len(resto) > 1 else None, resto[0], nota)
+        return registrar(resto[1] if len(resto) > 1 else None, resto[0], nota, pr)
     if cmd == "reaprovar":
         return reaprovar(resto[0] if resto else None)
     if cmd == "escalar":

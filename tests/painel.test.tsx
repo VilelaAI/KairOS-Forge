@@ -48,6 +48,7 @@ const PAINEL = {
       prontas: [],
       bloqueadas: ['T2'],
       vencidas: [],
+      gate_pulado: [],
       lacunas: [],
     },
   ],
@@ -353,6 +354,7 @@ const PAINEL_PARADO = {
   ],
   quadros: [
     { ...PAINEL.quadros[0], slug: 'forge-010', spec: null, completo: true, em_voo: [], bloqueadas: [] },
+    { ...PAINEL.quadros[0], slug: 'forge-011', spec: null, completo: false, em_voo: [], bloqueadas: [], gate_pulado: ['T4'] },
     { ...PAINEL.quadros[0], slug: 'forge-009', encerrado: true, completo: true, em_voo: [], bloqueadas: [] },
   ],
   telemetria: {},
@@ -383,6 +385,8 @@ test('o ciclo escalado, o encerrado e o quadro completo', async ($, on) => {
   expect(await pane.find({ type: 'Text', text: /^🔄 forge-010/ })).toBeDefined()
   expect(await pane.find({ type: 'Text', text: /^🏁 forge-009/ })).toBeDefined()
   expect((await pane.findAll({ type: 'Text', text: /completo — falta encerrar/ })).length).toBe(1)
+  // A tarefa concluída com o gate pulado, sem lacuna, é o que falta para encerrar (ADR-0036).
+  expect(await pane.find({ type: 'Text', text: /🚧 gate pulado, sem lacuna: T4/ })).toBeDefined()
   expect(await pane.find({ type: 'Text', text: /Nada para mostrar/ })).toBeUndefined()
   await pane.unmount()
 

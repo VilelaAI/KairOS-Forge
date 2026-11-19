@@ -425,6 +425,75 @@ class TesteExistente(ComCommit):
         self.assertEqual(self.escrita("tests/test_app.py", {"content": "x = 2\n"})[0], 0)
 
 
+class ArtefatoGerado(ComCommit):
+    """ADR-0037: a marca de gerado vale no cabeçalho, onde o sync a escreve. O script que
+    define a marca como constante (este guardrail, o sync, o tucano.py) não é gerado."""
+
+    REPO = RAIZ.parent
+    # Saídas reais do sync, que o CI mantém em dia: a marca na linha 1 (Codex) e logo
+    # depois do frontmatter (OpenCode e Cursor).
+    ESPELHOS = {".codex/agents/laura-tech-lead.toml": ".codex/agents/laura-tech-lead.toml",
+                ".opencode/agent/laura-tech-lead.md": ".opencode/agent/laura-tech-lead.md",
+                ".cursor/agents/laura-tech-lead.md": ".cursor/agents/laura-tech-lead.md"}
+    SCRIPTS = ("guardrail.py", "sync-multi-cli.py", "tucano.py")
+
+    def setUp(self) -> None:
+        super().setUp()
+        base = {f"scripts/{s}": (RAIZ / s).read_text(encoding="utf-8") for s in self.SCRIPTS}
+        base.update({rel: (self.REPO / origem).read_text(encoding="utf-8")
+                     for rel, origem in self.ESPELHOS.items()})
+        # Frontmatter longo: a marca continua logo depois dele, e continua valendo.
+        campos = "".join(f"campo{i}: valor {i}\n" for i in range(25))
+        base[".opencode/agent/longo.md"] = (f"---\nname: longo\n{campos}---\n\n"
+                                            f"<!-- {guardrail.MARCA_GERADO} — não edite aqui. -->\n"
+                                            "\n# Longo\n")
+        self.commitar(base)
+        self.base = base
+
+    def verificar(self) -> str:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            guardrail.verificar(self.raiz)
+        return out.getvalue()
+
+    def test_script_que_define_a_marca_nao_e_gerado_no_hook(self) -> None:
+        for s in self.SCRIPTS:
+            rel = f"scripts/{s}"
+            with self.subTest(rel=rel):
+                codigo, err = self.escrita(rel, {"content": self.base[rel] + "# mais uma linha\n"})
+                self.assertEqual(codigo, 0, err)
+        self.assertNotIn("gerado", [e.get("classe") for e in self.rastro()])
+
+    def test_script_que_define_a_marca_nao_e_gerado_no_verificar(self) -> None:
+        for s in self.SCRIPTS:
+            with (self.raiz / "scripts" / s).open("a", encoding="utf-8") as f:
+                f.write("# mais uma linha\n")
+        self.assertNotIn("artefato(s) gerado(s)", self.verificar())
+
+    def test_gerado_de_verdade_continua_acusado(self) -> None:
+        espelhos = [*self.ESPELHOS, ".opencode/agent/longo.md"]
+        for rel in espelhos:
+            with self.subTest(rel=rel):
+                codigo, err = self.escrita(rel, {"content": self.base[rel] + "x\n"})
+                self.assertEqual(codigo, 2)
+                self.assertIn("arquivo GERADO", err)
+        for rel in espelhos:
+            with (self.raiz / rel).open("a", encoding="utf-8") as f:
+                f.write("x\n")
+        saida = self.verificar()
+        self.assertIn(f"{len(espelhos)} artefato(s) gerado(s)", saida)
+        for rel in espelhos:
+            self.assertIn(rel, saida)
+
+    def test_marca_citada_no_meio_do_texto_nao_conta(self) -> None:
+        corpo = "".join(f"linha {i}\n" for i in range(10))
+        self.commitar({"docs/sobre.md": f"# Sobre\n\n{corpo}A marca é `{guardrail.MARCA_GERADO}`.\n"})
+        self.assertEqual(self.escrita("docs/sobre.md", {"content": "# Sobre\n"})[0], 0)
+        self.assertFalse(guardrail.carrega_marca_gerado(
+            f"# Sobre\n\n{corpo}A marca é `{guardrail.MARCA_GERADO}`.\n"))
+        self.assertTrue(guardrail.carrega_marca_gerado(f"# {guardrail.MARCA_GERADO}\nx = 1\n"))
+
+
 class Principal(Sandbox):
     """O `main`: uso, `verificar`, modo hook e a falha aberta, no mesmo processo."""
 

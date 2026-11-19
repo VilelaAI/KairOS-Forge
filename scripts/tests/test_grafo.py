@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -83,6 +84,21 @@ class SemGrafo(Base):
         self.assertNotEqual(codigo, 0)
         self.assertIn("não existe", saida)
 
+    def test_sem_grafo_o_processo_sai_1(self) -> None:
+        """O `/auditar` e o CI leem o código do processo: sem entidade nenhuma, o `validar`
+        sai 1, e não o 0 que um `sys.exit(None)` daria."""
+        casos = {"pasta vazia": [],
+                 "só a camada de código": [{"origem": "a.py", "predicado": "importa",
+                                            "destino": "b.py"}]}
+        for caso, camada in casos.items():
+            with self.subTest(caso=caso):
+                if camada:
+                    self.gravar("codigo.jsonl", camada)
+                p = subprocess.run([sys.executable, "-B", str(RAIZ / "grafo.py"), "validar",
+                                    "--dir", str(self.dir)], capture_output=True, text=True)
+                self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+                self.assertIn("sem grafo de conhecimento", p.stdout.lower())
+
     def test_relacao_sem_entidades_e_erro_de_contrato_e_nao_ausencia(self) -> None:
         self.gravar("relacoes.jsonl", [ARESTA])
         codigo, saida = self.validar()
@@ -135,6 +151,24 @@ class Proveniencia(Base):
                 redirect_stdout(out):
             grafo.main()
         self.assertIn("Fontes: src/api.py\n", out.getvalue())
+
+    def test_contexto_acha_a_entidade_que_cita_o_arquivo_por_outra_grafia(self) -> None:
+        """A ponte do `contexto` com o grafo de conhecimento vale para cada grafia do mesmo
+        arquivo: a que dá o mesmo caminho normalizado (separador do Windows) e a que termina
+        nele (caminho absoluto). A entidade que cita outro arquivo fica de fora."""
+        self.gravar("entidades.jsonl", [
+            {**API, "fontes": ["src\\api.py"]},
+            {**BANCO, "fontes": ["/srv/relatorio-vendas/src/api.py"]},
+            {"nome": "Camada de dados", "tipo": "COMPONENTE", "descricao": "Acesso ao banco",
+             "fontes": ["src/db.py"]}])
+        self.gravar("codigo.jsonl", [{"origem": "src/api.py", "predicado": "importa",
+                                      "destino": "src/db.py", "fonte": "src/api.py:1"}])
+        out = io.StringIO()
+        with mock.patch.object(sys, "argv", ["grafo.py", "contexto", "src/api.py", "--json",
+                                             "--dir", str(self.dir)]), redirect_stdout(out):
+            self.assertEqual(grafo.main(), 0)
+        self.assertEqual(json.loads(out.getvalue())["entidades_de_conhecimento"],
+                         ["API de relatórios", "PostgreSQL"])
 
     def test_relacao_com_fonte_em_branco_reprova(self) -> None:
         self.gravar("entidades.jsonl", [API, BANCO])

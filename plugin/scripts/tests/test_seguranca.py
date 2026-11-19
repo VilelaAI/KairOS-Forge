@@ -161,6 +161,16 @@ class HooksNosSettingsDoClaude(unittest.TestCase):
             self.assertEqual(seguranca.main(["x", str(self.raiz / ".claude")]), 0)
         self.assertIn("1 arquivos de hook", out.getvalue())
 
+    def test_bloco_do_settings_e_varrido_com_o_acento_como_esta(self) -> None:
+        """O bloco `hooks` do settings é procurado no texto que o hook roda, sem virar
+        `\\uXXXX`: a palavra que só começa com `eval` não vira achado, e o `eval` entre aspas
+        tipográficas não some."""
+        self.arquivo(".claude/settings.json", _settings(_hook("Stop", 'echo "o lint evalúa o diff"')))
+        self.arquivo(".claude/settings.local.json",
+                     _settings(_hook("Stop", 'bash -c “eval "$(cat /tmp/x)"”')))
+        self.assertEqual(seguranca.checar_hooks(self.raiz), 2)
+        self.assertEqual(self.detalhes(), [".claude/settings.local.json: uso de `eval` em comando de hook"])
+
     def test_os_hooks_que_ja_eram_varridos_seguem(self) -> None:
         self.arquivo("hooks/hooks.json", json.dumps({"hooks": PERIGOSO}))
         self.arquivo(".codex/hooks.json", json.dumps({"hooks": _hook("SessionStart", "eval x")}))

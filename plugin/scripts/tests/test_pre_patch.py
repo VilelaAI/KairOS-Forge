@@ -304,6 +304,36 @@ class ConftestQueNaoCarregaNaBase(Repo):
                         "tests/test_soma.py")
         self.assertEqual(t["veredicto"], "erro_na_base", t["motivo"])
 
+    def test_segunda_rodada_que_nao_coleta_nada_nao_decide(self) -> None:
+        """A coleta depende do conftest do diff: sem ele, o runner sai 5 sem dizer nada. A
+        segunda rodada não diz nada sobre o teste, e vale o veredicto da primeira."""
+        runner = self.falso.with_name("coleta_pelo_conftest.py")
+        runner.write_text("import sys\nfrom pathlib import Path\n"
+                          "if Path('conftest.py').is_file():\n"
+                          "    print(\"ImportError while loading conftest 'conftest.py'.\")\n"
+                          "    print(\"E   ModuleNotFoundError: No module named 'app.novo'\")\n"
+                          "    sys.exit(4)\n"
+                          "sys.exit(5)\n", encoding="utf-8")
+        self.escrever({"app/novo.py": "def tres():\n    return 3\n",
+                       "conftest.py": "from app.novo import tres\n",
+                       "tests/test_tres.py": "def test_tres():\n    assert True\n"})
+        t = self.item(self.pre_patch(f"{sys.executable} {runner} {{arquivo}}"),
+                      "tests/test_tres.py")
+        self.assertEqual((t["veredicto"], t["motivo"]),
+                         ("falhou_na_base",
+                          "exit 4 na base: falta o módulo `app.novo`, que o diff acrescenta"))
+
+    def test_sem_o_conftest_o_teste_que_ainda_nao_carrega_por_outra_falta_nao_prova(self) -> None:
+        """A segunda rodada decide: sem o conftest do diff, o teste não carrega na base por uma
+        dependência que o diff não acrescenta, e a falta do conftest não vira prova."""
+        t = self.julgar({"app/novo.py": "def tres():\n    return 3\n",
+                         "conftest.py": "from app.novo import tres\n",
+                         "tests/test_dep.py": "import pacote_que_ninguem_instalou\n\n\n"
+                                              "def test_dep():\n    assert True\n"},
+                        "tests/test_dep.py")
+        self.assertEqual(t["veredicto"], "erro_na_base", t["motivo"])
+        self.assertIn("falta o módulo `pacote_que_ninguem_instalou`", t["motivo"])
+
     def test_conftest_que_carrega_nao_faz_rodar_de_novo(self) -> None:
         """Sem `Error while loading conftest`, a primeira rodada decide, como antes."""
         t = self.julgar({"app/novo.py": "def tres():\n    return 3\n",
@@ -636,6 +666,20 @@ class ExecutorQueNaoRoda(Repo):
         self.assertIn("exit 127 na base: o comando do teste nem rodou", t["motivo"])
 
 
+class NadaColetadoNaBase(Repo):
+    """O runner que não coletou nada na base não diz nada sobre o teste: nem prova quando sai 5
+    calado, nem passa sem a mudança quando diz que não rodou nada e sai 0."""
+
+    def test_saida_5_sem_texto_e_texto_de_nada_coletado_com_saida_0(self) -> None:
+        self.escrever({"tests/test_n.py": teste("from app.calc import soma")})
+        for comando in (f"{sys.executable} -c 'import sys; sys.exit(5)' {{arquivo}}",
+                        "echo 'no tests ran in 0.01s' {arquivo}"):
+            with self.subTest(comando=comando):
+                t = self.item(self.pre_patch(comando), "tests/test_n.py")
+                self.assertEqual((t["veredicto"], t["motivo"]),
+                                 ("nao_executado", "nenhum teste coletado no worktree da base"))
+
+
 class FaltasNaSaida(unittest.TestCase):
     """A falta lida da saída e explicada, ou não, pelo que o diff acrescenta em produção."""
 
@@ -683,6 +727,13 @@ class FaltasNaSaida(unittest.TestCase):
         self.assertEqual(self.veredicto(PYTEST_COLETA_SEM_IMPORT, {"app/x.py": ["def calcular()"]}),
                          "erro_na_base")
 
+    def test_coleta_sem_causa_conhecida_diz_que_o_arquivo_nao_carregou(self) -> None:
+        """Sem falta que as regras reconheçam, o motivo diz que o arquivo de teste não carregou."""
+        saida = PYTEST_COLETA_SEM_IMPORT.format(wt=WT)
+        self.assertEqual(prova.veredicto_da_falha(saida, 2, lambda: {}, self.raiz, WT),
+                         ("erro_na_base", "não carregou na base: o arquivo de teste não carregou, "
+                                          "e o diff não o acrescenta — não prova a mudança"))
+
     def test_falha_comum_nao_e_falta(self) -> None:
         for saida in (UNITTEST_ASSERCAO, VITEST_TYPEERROR, GO_ASSERCAO, JEST_JSON, VITEST_JSON):
             self.assertEqual(prova.faltas_na_carga(saida, WT), [])
@@ -711,6 +762,14 @@ class FaltasNaSaida(unittest.TestCase):
         self.assertEqual(self.veredicto(JEST_MODULO, indice, spec="../src/novo"), "falhou_na_base")
         self.assertEqual(self.veredicto(JEST_MODULO, indice, spec="pacote-que-nao-existe"),
                          "erro_na_base")
+
+    def test_modulo_js_por_caminho_absoluto(self) -> None:
+        """O caminho absoluto fora do worktree da base não é o arquivo que o diff acrescenta,
+        mesmo terminando como ele; o absoluto dentro do worktree é."""
+        ts = {"src/novo.ts": ["export function novo() { return 1 }"]}
+        self.assertEqual(self.veredicto(JEST_MODULO, ts, spec="/opt/outro/src/novo"),
+                         "erro_na_base")
+        self.assertEqual(self.veredicto(JEST_MODULO, ts, spec=f"{WT}/src/novo"), "falhou_na_base")
 
     def test_export_que_falta_no_esm(self) -> None:
         soma = {"src/soma.js": ["export function dobro(x) { return 2 * x }"]}

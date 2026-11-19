@@ -150,7 +150,7 @@ sai 1. O `proximo_passo` do `estado --json` já diz o comando com o `--pr`.
 
 ## Prova
 
-- **Testes.** 912 testes stdlib passam. Cada defeito tem um teste que falhava antes do conserto,
+- **Testes.** 965 testes stdlib passam. Cada defeito tem um teste que falhava antes do conserto,
   e o cético da frente desfez o conserto parte por parte para ver o teste cair. Entre eles:
   - o `pr_aberto` com um `gh` falso;
   - o `pre-patch` com um pytest mínimo para o CI e com o pytest 9.2 de verdade, inclusive o
@@ -169,6 +169,18 @@ sai 1. O `proximo_passo` do `estado --json` já diz o comando com o `--pr`.
   - o `--gate-pulado` da tarefa só de leitura, que virava lacuna falsa;
   - a revisão incompleta sem nenhum revisor que rodou;
   - a recusa no ataque da escalação, que prometia uma correção que não vem.
+- **CRAP.** A primeira medição pegou 17 funções tocadas no limite ou acima, em parte legado
+  que piorou com os desvios novos. Cinco frentes extraíram funções e cobriram o que faltava,
+  conferindo que a saída não mudou. Ficaram 126 funções tocadas, nenhuma no limite, e 7 de
+  legado que não piorou.
+- **Mutação.** Rodou em 160 dos 314 sítios do diff, espalhados, e não nos outros 154. Dos 160,
+  142 mutantes morreram e 18 sobreviveram. A triagem dos 18, com analista e cético em
+  worktrees próprios, deu:
+  - 2 já morriam em testes de fora da suíte usada na medição;
+  - 13 eram testes que faltavam, quase todos no leitor de shell do `corroborar` e na nova
+    rodada sem o conftest;
+  - 3 eram equivalentes: dois viraram uma forma sem o sítio, e o terceiro (o `return 0` que o
+    `sys.exit` trata como `None`) ficou.
 - **Os dois achados que ficaram de fora dos céticos** foram consertados depois:
   - o conftest que não carrega na base;
   - a escalação com orçamento maior, que não levava a premissa.

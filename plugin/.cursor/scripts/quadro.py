@@ -594,9 +594,8 @@ def gate_pulado(t: dict) -> bool:
 
     A tarefa `--leitura` sem gate declarado não tem gate a pular: o `--gate-pulado` dela
     não esconde nada, e cobrar lacuna ali seria lacuna falsa no relatório."""
-    if t["estado"] != "concluida" or t.get("gate_resultado") == "ok":
-        return False
-    return not (t.get("leitura") and not t.get("gate"))
+    return (t["estado"] == "concluida" and t.get("gate_resultado") != "ok"
+            and not (t.get("leitura") and not t.get("gate")))
 
 
 def motivo_do_pulo(t: dict) -> str:

@@ -305,6 +305,18 @@ class CustoPorVersao(unittest.TestCase):
         self.assertIn("vazia: não medido — nenhum caso medido; não dá para provar que ficou "
                       "dentro da baseline + 80%", out.getvalue())
 
+    def test_baseline_com_zero_token_novo_e_nao_medido_com_o_motivo(self) -> None:
+        """A baseline com caso medido e zero token novo não dá variação (não se divide por
+        zero): a versão fica não medida no teto, e o motivo é dito, nunca em branco."""
+        self.caso("baseline", "c1.json", json.dumps({"type": "result", "usage": {}}))
+        self.caso("candidata", "c1.json", json.dumps(resultado(1000, 500, 4, 30000)))
+        r = telemetria.custo_por_versao(self.pasta)
+        self.assertEqual(telemetria.nao_medido_no_teto(r, 80), ["candidata"])
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            telemetria.imprimir_custo_eval({**r, "pasta": "evals/x/execucoes"}, 80)
+        self.assertIn("candidata: não medido — sem variação contra a baseline; não dá para "
+                      "provar", out.getvalue())
+
     def test_baseline_sem_caso_medido_nenhuma_versao_passa_no_teto(self) -> None:
         self.caso("baseline", "c1.json", "não é json")
         self.caso("candidata", "c1.json", json.dumps(resultado(1000, 500, 4, 30000)))
@@ -436,6 +448,50 @@ class CorroborarSoOQueRodou(unittest.TestCase):
                          "corroborado")
         self.assertEqual(self.veredicto("pytest tests/", gravado("cat <<EOF\npytest tests/")),
                          "nao_corroborado")
+
+    def test_a_aspa_fecha_onde_o_shell_a_fecha(self) -> None:
+        """Dentro de aspas duplas, `\\"` é letra e não fecha a aspa; dentro de aspas simples,
+        a barra é letra e o `'` seguinte fecha. Lida fora do lugar, a aspa fica aberta até o
+        fim da linha, e o comentário depois dela passa a contar como execução."""
+        for citou in ('echo "a" # pytest tests/',
+                      'echo "a\\"b" # pytest tests/',
+                      "echo 'a\\' # pytest tests/"):
+            self.assertEqual(self.veredicto("pytest tests/", gravado(citou)), "nao_corroborado",
+                             citou)
+
+    def test_o_texto_entre_aspas_entra_na_comparacao(self) -> None:
+        """O que está entre aspas é argumento do comando: `-k "lento"` não roda o
+        `-k "rapido"` alegado, e só o mesmo texto corrobora."""
+        self.assertEqual(self.veredicto('pytest -k "rapido"', gravado('pytest -k "lento"')),
+                         "nao_corroborado")
+        self.assertEqual(self.veredicto('pytest -k "rapido"', gravado('pytest -k "rapido"')),
+                         "corroborado")
+
+    def test_o_separador_depois_da_barra_e_argumento(self) -> None:
+        """`\\;` é o `;` passado como argumento (o do `find -exec`), não o fim do comando:
+        o gravado tem um argumento a mais que o alegado e não o corrobora."""
+        self.assertEqual(self.veredicto("pytest tests/", gravado("pytest tests/ \\;")),
+                         "nao_corroborado")
+
+    def test_here_string_nao_engole_a_linha_seguinte(self) -> None:
+        """No `<<<` a palavra seguinte é a entrada, não o delimitador de um heredoc: a linha
+        de baixo roda."""
+        self.assertEqual(self.veredicto("pytest tests/",
+                                        gravado("cat <<< entrada\npytest tests/")), "corroborado")
+
+    def test_a_linha_lida_tem_o_heredoc_uma_vez_e_sem_o_corpo(self) -> None:
+        """A linha como o shell a lê: o operador do heredoc e o delimitador ficam uma vez, o
+        corpo sai, e a linha depois do delimitador é outro comando."""
+        self.assertEqual(telemetria._o_que_o_shell_roda(
+            "cat <<'EOF' > notas.md\nresumo\nEOF\npytest tests/"),
+            "cat <<'EOF' > notas.md ; pytest tests/")
+
+    def test_o_corpo_do_heredoc_vai_ate_a_linha_do_delimitador(self) -> None:
+        """O corpo do heredoc acaba na linha do delimitador, não na primeira linha do corpo:
+        o comando citado mais abaixo no corpo também não roda."""
+        self.assertEqual(self.veredicto("pytest tests/", gravado(
+            "cat > notas.md <<EOF\nresumo\nverificado: pytest tests/\nEOF\necho ok")),
+            "nao_corroborado")
 
     def test_alegado_vazio_nao_corrobora_nada(self) -> None:
         for alegado in ("", "   "):

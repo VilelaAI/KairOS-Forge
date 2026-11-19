@@ -699,8 +699,7 @@ def _comentario(lido: _Leitura, i: int) -> int | None:
     """Só começa comentário o `#` no início de palavra; vai até o fim da linha."""
     if lido.out and lido.out[-1][-1] not in " \t;|&()<>":
         return None
-    fim = lido.cmd.find("\n", i)
-    return len(lido.cmd) if fim < 0 else fim
+    return (lido.cmd + "\n").index("\n", i)          # sem quebra depois, vai até o fim do texto
 
 
 def _fim_do_corpo(cmd: str, i: int, delim: str) -> int:

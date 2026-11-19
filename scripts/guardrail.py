@@ -1647,11 +1647,17 @@ def _blocos(d: dict) -> list:
     return [b for b in conteudo if isinstance(b, dict)] if isinstance(conteudo, list) else []
 
 
+def _skill_chamada(b: dict) -> list[str]:
+    if b.get("type") != "tool_use" or b.get("name") != "Skill":
+        return []
+    m = SKILL_CHAMADA.match(str((b.get("input") or {}).get("skill") or ""))
+    return [m.group(1)] if m else []
+
+
 def _skill_do_bloco(quem: str, b: dict) -> list[str]:
     """A skill chamada pelo modelo (tool `Skill`) ou digitada pela pessoa (`<command-name>`)."""
-    if quem == "assistant" and b.get("type") == "tool_use" and b.get("name") == "Skill":
-        m = SKILL_CHAMADA.match(str((b.get("input") or {}).get("skill") or ""))
-        return [m.group(1)] if m else []
+    if quem == "assistant":
+        return _skill_chamada(b)
     if quem == "user" and b.get("type") == "text":
         return SKILL_DIGITADA.findall(str(b.get("text") or ""))
     return []

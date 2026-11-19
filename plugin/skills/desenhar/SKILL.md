@@ -121,3 +121,13 @@ documento acompanha a realidade, nunca o contrário em silêncio.
 
 Toda interação em PT-BR. Isabela, Pablo e Ada se apresentam em primeira
 pessoa e mantêm a persona.
+
+## Pronto quando
+
+- A skill não escreveu código em nenhum modo, e, sem SPEC, sem UI, em ajuste pontual de estilo ou na correção de bug visual, nada foi criado em `docs/design/` e a resposta aponta o `/kairos-forge:especificar` ou Marina e Pablo.
+- O `DESIGN.md` da raiz existe antes do DESIGN-NNN, extraído do código por Pablo ou gerado pela pessoa, e componente novo tem justificativa na seção Componentes e não entrou no `DESIGN.md` antes de aprovado.
+- Modo padrão: `docs/design/DESIGN-NNN-<slug>.md` tem as seções do modelo, cada view com as cinco células de estado dizendo o que aparece ("spinner" não basta) e o vazio com ação de saída, e a Acessibilidade com critérios verificáveis.
+- Cada V-NN do DESIGN-NNN tem "como verificar" e entrou na SPEC como requisito rastreável, via Caio: `painel.py --json SPEC-<NNN>` o lista entre os requisitos e, com `## Mapa de intenção` na SPEC, fora de `intencao.sem_origem`.
+- A seção Premissas assumidas traz cada escolha feita por default com o porquê, a microcopy das telas está marcada `[texto: Celina]` em vez de inventada, e o texto real que ninguém deu virou pergunta à pessoa (gate humano).
+- Modo verificar: a resposta dá parecer, conforme ou divergente com o que difere, a cada view nos cinco estados, critério de acessibilidade e breakpoint de `docs/design/DESIGN-NNN-<slug>.md`, e token fora do `DESIGN.md` sai divergente com o valor usado e o do sistema.
+- Estado não implementado sai no parecer como ausente, que é bloqueio: o verificar termina com ele, sem a feature seguir para o /revisar, e a divergência intencional ficou escrita em `docs/design/DESIGN-NNN-<slug>.md`.

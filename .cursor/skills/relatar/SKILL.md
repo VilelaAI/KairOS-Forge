@@ -120,10 +120,10 @@ não grava arquivo de progresso.
 
 ## Pronto quando
 
-- Cada número tem ao lado o comando da tabela que o gerou, e a variação entre períodos é a que `telemetria.py periodo --dias N` calculou, sem conta feita à mão; no status do período, a seção "Fontes" lista cada comando rodado, com a data.
-- Onde `telemetria.py periodo` ou `telemetria.py comparar` escreveu "não medido", "amostra pequena" ou "não comparável", a resposta diz o mesmo, com os N, sem 0, estimativa nem conclusão.
-- O custo vem de `telemetria.py por-spec --dias N`, `telemetria.py tokens` ou `quadro.py ledger <slug>`, em tokens e nunca em dinheiro, e fica "não medido" onde não há hook.
+- Relatório pedido: salvo em `decisoes/gestao/STATUS-<slug>-AAAA-MM-DD.md`. Status só perguntado: respondido na conversa, com a oferta de salvar. Pergunta única: só o comando dela rodou, e a resposta cabe em poucas linhas.
+- No status, as seções do modelo vêm na ordem e nenhuma foi removida (sem dado, uma linha dizendo isso): "Esperando alguém" é a primeira, com o que o `painel.py --caixa` mostra e o comando de cada um, e "Fontes" lista cada comando rodado, com a data.
+- Cada número tem ao lado o comando ou o arquivo de onde saiu; a variação entre períodos é a do `telemetria.py periodo --dias N`, sem conta à mão; o custo vem de `telemetria.py por-spec --dias N`, `telemetria.py tokens` ou `quadro.py ledger <slug>`, em tokens, nunca em dinheiro.
+- Sem dado, a resposta diz "não medido", nunca 0 nem estimativa; a "amostra pequena" do `telemetria.py periodo` e o "não comparável" do `telemetria.py comparar`, este com os N, aparecem como tais, sem conclusão.
 - Requisito só aparece como entregue com `verificado:`, e o que o `painel.py --json` lista em `sem_prova` aparece em andamento.
-- No status do período, o que o `painel.py --caixa` mostra esperando alguém está em "Esperando alguém", antes de "Entregue", e nenhuma seção do modelo foi removida: a que não tem dado traz uma linha dizendo isso.
-- Toda decisão citada traz `arquivo:linha` de `docs/adr/`, `decisoes/` ou `docs/specs/`, achado pelo grep da tabela ou por `grafo.py subgrafo <entidade>`; sem registro, a resposta diz "decisão não registrada" e sugere um ADR.
-- O arquivo `decisoes/gestao/STATUS-<slug>-AAAA-MM-DD.md` só existe se a pessoa pediu o relatório, e o `painel.py --caixa --github` só rodou com o `gh` autorizado por ela (gate humano).
+- Decisão do período sai do `git log` de `docs/adr` e `decisoes`; "por que decidimos" cita `arquivo:linha` achado pelo grep da tabela ou por `grafo.py subgrafo <entidade>` e, sem registro, diz "decisão não registrada" e sugere um ADR.
+- Só leitura: nenhum gate rodou, o `git status --porcelain` não ganhou mudança em SPEC, ciclo nem quadro, nenhum número vai por nome de pessoa, e o `painel.py --caixa --github` só rodou com o `gh` autorizado pela pessoa (gate humano).

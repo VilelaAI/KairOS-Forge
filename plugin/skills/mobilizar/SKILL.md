@@ -196,6 +196,14 @@ tarefa irreversível, e irreversível para no usuário. O quadro avisa quando fa
 
 Tudo em PT-BR: prompts dos teammates, mensagens aos workers, quadro e relatório final.
 
+## Pronto quando
+
+- Encerrado: `quadro.py estado forge-<slug> --json` mostra `encerrado` como `true`, e o `quadro.py encerrar` só fecha com toda tarefa concluída ou com lacuna declarada em `--lacuna "Tn: motivo"`.
+- Cada tarefa concluída tem no `quadro.py estado forge-<slug> --json` evidência, `gate_resultado` (`ok` ou `pulado: motivo`) e `posse_exercida` conferida no git; o que saiu da posse passou com `--fora-da-posse "motivo"` e aparece no `quadro.py ledger forge-<slug>`.
+- No fim, os workers foram encerrados e o relatório final segue o modelo de `references/coordenacao.md`: a saída do ledger, cada lacuna com o motivo e as pendências (validar, revisar, `mapear-conhecimento atualizar` e PR).
+- Pausado para a pessoa: a 100% de um limite do orçamento declarado, nada novo foi lançado até ela escolher entre encerrar com lacunas e ampliar, e tarefa sem `--reverter` (o quadro só avisa) esperou o aval dela (gate humano).
+- Sem quadro: parou antes de mobilizar para a pessoa decidir a pergunta aberta que bloqueia requisito P1, ou, num CLI sem lançamento paralelo, ela escolheu o `/kairos-forge:rodar` (gate humano).
+
 ## Referências
 
 Em `${CLAUDE_PLUGIN_ROOT}/skills/mobilizar/references/` — leia só quando o passo pedir.

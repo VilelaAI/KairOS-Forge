@@ -243,9 +243,9 @@ Outros candidatos ficaram registrados para os próximos ciclos.
 
 ## Pronto quando
 
-- A evidência da entrevista saiu de `telemetria.py resumo --dias 7` e `telemetria.py prs --correcoes --dias 30`, rodados antes da primeira pergunta, e a falta de trajetória ou o aviso de squash da fonte git foram ditos à pessoa, sem tendência inventada.
-- O registro está em `decisoes/evolucoes/EVOL-YYYY-MM-DD.md`, também na semana sem novidade, com as seções do passo 3, no máximo um item escolhido e os candidatos descartados com o motivo.
-- A "Linha de base" do EVOL traz o número medido hoje por `telemetria.py resumo` ou `telemetria.py prs --correcoes`, uma contagem ou uma ocorrência, ou diz como vai observar sem trajetória, e o "Critério de pronto" diz o que muda em relação a ela.
-- O "Veredicto da evolução anterior" em `decisoes/evolucoes/EVOL-YYYY-MM-DD.md` traz `ajudou`, `piorou`, `sem efeito observado` ou `confundido` com o contraste da linha de base para agora, ou diz que não havia EVOL anterior com linha de base.
-- A lição está em `.agents/memory/<slug>.md`, com os quatro campos, só quando o veredicto é `ajudou` ou `piorou` com contraste; nos outros casos, o EVOL diz "sem lição".
-- A pessoa escolheu o item da semana entre os candidatos, ou nenhum, e confirmou o escopo de qualquer fonte nova a ligar; nada foi construído nesta execução, e o próximo passo é o /kairos-forge:especificar (gate humano).
+- `telemetria.py resumo --dias 7` e `telemetria.py prs --correcoes --dias 30` rodaram antes da primeira das 5 perguntas, feitas uma por vez, e a pessoa soube quando não havia trajetória ou quando a fonte `git` não mostra squash nem rebase, sem tendência inventada.
+- O EVOL traz o veredicto anterior, dado antes da escolha (`ajudou`, `piorou`, `sem efeito observado` ou `confundido`, com o contraste), ou diz que não havia EVOL com linha de base; lição em `.agents/memory/<slug>.md` só com `ajudou` ou `piorou` e contraste, senão `sem lição`.
+- Com item escolhido: `decisoes/evolucoes/EVOL-YYYY-MM-DD.md` tem as seções do passo 3, um item só, os candidatos descartados com o motivo, a "Linha de base" medida hoje (ou como vai observar) e o "Critério de pronto" dizendo o que muda em relação a ela.
+- Sem item (nada emergiu ou a pessoa não quis nenhum): o `decisoes/evolucoes/EVOL-YYYY-MM-DD.md` foi salvo mesmo assim, dizendo que a semana veio sem novidade, com os candidatos descartados, se houve.
+- Com candidatos, a fábrica recomendou um só, com o critério explícito, e a pessoa escolheu o item da semana, ou nenhum, e confirmou o escopo de qualquer fonte nova a ligar (gate humano).
+- Nada foi construído: a execução só escreveu o EVOL e, com lição, `.agents/memory/<slug>.md`; com item, o próximo passo dito é o `/kairos-forge:especificar`, ou o `/kairos-forge:otimizar` quando a dor é métrica que não melhora.

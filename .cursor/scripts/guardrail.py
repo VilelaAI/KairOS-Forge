@@ -1636,7 +1636,7 @@ CONFERENCIA = (
 SKILL_CHAMADA = re.compile(r"^(?:kairos-forge:)?([a-z][a-z-]*)$")
 SKILL_DIGITADA = re.compile(r"<command-name>/?(?:kairos-forge:)?([a-z][a-z-]*)</command-name>")
 PASTA_SKILLS = Path(__file__).resolve().parent.parent / "skills"
-MAX_PRONTO = 2500
+MAX_PRONTO = 8000   # com a conferência, abaixo dos 10.000 do `additionalContext` (docs/pesquisa/)
 
 
 def _blocos(d: dict) -> list:
@@ -1647,6 +1647,16 @@ def _blocos(d: dict) -> list:
     return [b for b in conteudo if isinstance(b, dict)] if isinstance(conteudo, list) else []
 
 
+def _skill_do_bloco(quem: str, b: dict) -> list[str]:
+    """A skill chamada pelo modelo (tool `Skill`) ou digitada pela pessoa (`<command-name>`)."""
+    if quem == "assistant" and b.get("type") == "tool_use" and b.get("name") == "Skill":
+        m = SKILL_CHAMADA.match(str((b.get("input") or {}).get("skill") or ""))
+        return [m.group(1)] if m else []
+    if quem == "user" and b.get("type") == "text":
+        return SKILL_DIGITADA.findall(str(b.get("text") or ""))
+    return []
+
+
 def _skills_da_linha(linha: str) -> list[str]:
     try:
         d = json.loads(linha)
@@ -1654,14 +1664,7 @@ def _skills_da_linha(linha: str) -> list[str]:
         return []
     if not isinstance(d, dict):
         return []
-    nomes: list[str] = []
-    for b in _blocos(d):
-        if d.get("type") == "assistant" and b.get("type") == "tool_use" and b.get("name") == "Skill":
-            m = SKILL_CHAMADA.match(str((b.get("input") or {}).get("skill") or ""))
-            nomes += [m.group(1)] if m else []
-        elif d.get("type") == "user" and b.get("type") == "text":
-            nomes += SKILL_DIGITADA.findall(str(b.get("text") or ""))
-    return nomes
+    return [nome for b in _blocos(d) for nome in _skill_do_bloco(str(d.get("type")), b)]
 
 
 def skills_da_sessao(caminho: str, pasta: Path = PASTA_SKILLS) -> list[str]:

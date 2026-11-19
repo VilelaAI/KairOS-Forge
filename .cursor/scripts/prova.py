@@ -716,6 +716,30 @@ def _sintoma(sintoma: str | None) -> tuple[re.Pattern | None, str | None]:
         return None, f"o sintoma não é uma regex válida: {e}"
 
 
+def base_e_ponto(raiz: Path, base: str | None) -> tuple[str | None, str | None, str | None]:
+    """(base, ponto, erro): a base pedida ou a padrão, e o merge-base dela com o HEAD."""
+    base = base or base_padrao(raiz)
+    ponto = ponto_de_partida(raiz, base) if base else None
+    erro = None if ponto else f"sem base para o diff ({base or 'nenhuma ref'}) — passe --base"
+    return base, ponto, erro
+
+
+def _so_aqui(raiz: Path, comando: str, rx: re.Pattern | None, tempo_limite: int) -> dict:
+    aqui = _rodar(comando, raiz, tempo_limite)
+    return {"veredicto": veredicto_da_reproducao(_estado_do_laco(aqui, rx), None),
+            "antes": _final(aqui["saida"])}
+
+
+def _na_base(raiz: Path, ponto: str, comando: str, tempo_limite: int) -> tuple[dict | None, list[str]]:
+    """A rodada do laço no worktree da base, com os testes do diff copiados para lá."""
+    with arvore_na_base(raiz, ponto) as worktree:
+        if worktree is None:
+            return None, []
+        ligar_dependencias(raiz, worktree)
+        copiados = _copiar(raiz, worktree, testes_do_diff(raiz, ponto))
+        return _rodar(comando, worktree, tempo_limite), copiados
+
+
 def reproduzir(raiz: Path, base: str | None, comando: str | None, sintoma: str | None,
                tempo_limite: int, antes: bool = False) -> dict:
     """Roda o laço na base do diff (com os testes do diff copiados) e na árvore de trabalho.
@@ -725,19 +749,13 @@ def reproduzir(raiz: Path, base: str | None, comando: str | None, sintoma: str |
         return {"erro": erro or 'diga o laço: --comando "o que mostra o problema"'}
     r = {"comando": comando, "sintoma": sintoma}
     if antes:
-        aqui = _rodar(comando, raiz, tempo_limite)
-        return {**r, "veredicto": veredicto_da_reproducao(_estado_do_laco(aqui, rx), None),
-                "antes": _final(aqui["saida"])}
-    base = base or base_padrao(raiz)
-    ponto = ponto_de_partida(raiz, base) if base else None
-    if not ponto:
-        return {"erro": f"sem base para o diff ({base or 'nenhuma ref'}) — passe --base"}
-    with arvore_na_base(raiz, ponto) as worktree:
-        if worktree is None:
-            return {"erro": "não consegui criar o worktree na base"}
-        ligar_dependencias(raiz, worktree)
-        copiados = _copiar(raiz, worktree, testes_do_diff(raiz, ponto))
-        na_base = _rodar(comando, worktree, tempo_limite)
+        return {**r, **_so_aqui(raiz, comando, rx, tempo_limite)}
+    base, ponto, erro = base_e_ponto(raiz, base)
+    if erro:
+        return {"erro": erro}
+    na_base, copiados = _na_base(raiz, ponto, comando, tempo_limite)
+    if na_base is None:
+        return {"erro": "não consegui criar o worktree na base"}
     depois = _rodar(comando, raiz, tempo_limite)
     return {**r, "base": base, "ponto": ponto[:12], "copiados": copiados,
             "veredicto": veredicto_da_reproducao(_estado_do_laco(na_base, rx),
@@ -763,11 +781,9 @@ def gerados(raiz: Path, rels: list[str]) -> set[str]:
 def marcas(raiz: Path, base: str | None) -> dict:
     """Linha nova com a marca de depuração: log que era para sair antes de terminar. O que
     o `.gitattributes` marca como gerado ou de terceiro fica de fora."""
-    base = base or base_padrao(raiz)
-    ponto = ponto_de_partida(raiz, base) if base else None
-    if not ponto:
-        return {"erro": f"sem base para o diff ({base or 'nenhuma ref'}) — passe --base",
-                "marcas": []}
+    base, ponto, erro = base_e_ponto(raiz, base)
+    if erro:
+        return {"erro": erro, "marcas": []}
     com_marca = [(rel, n, linha) for rel, n, linha in linhas_acrescentadas(raiz, ponto)
                  if Path(rel).suffix.lower() not in SEM_MARCA and MARCA_DEPURACAO.search(linha)]
     fora = gerados(raiz, sorted({rel for rel, _, _ in com_marca}))
@@ -814,9 +830,13 @@ def linhas_da_tabela(corpo: str) -> list[list[str]]:
     return linhas
 
 
+MARCADOR_DO_MODELO = re.compile(r"^\s*(?:[-*]\s+)?<[^>]*>\.?\s*$")
+
+
 def _preenchido(texto: str | None, minimo: int = 1) -> bool:
-    t = (texto or "").strip()
-    return len(t) >= minimo and not re.fullmatch(r"<[^>]*>\.?", t)
+    """Texto de verdade: sem as linhas que são só o `<…>` do modelo, com ou sem marcador."""
+    t = "\n".join(l for l in (texto or "").splitlines() if not MARCADOR_DO_MODELO.match(l)).strip()
+    return len(t) >= minimo
 
 
 def resultado_da_hipotese(celula: str) -> str:
@@ -1172,7 +1192,7 @@ LINK = re.compile(r"https?://[^\s)>\]]+")
 CAMINHO_NA_FONTE = re.compile(r"([\w.-]+/[\w./-]*[\w-]|[\w-]+\.[A-Za-z0-9]+)(?::\d+(?:-\d+)?)?")
 DATA_DA_FONTE = re.compile(r"^\d{4}-\d{2}(-\d{2})?$")
 TITULO_H1 = re.compile(r"^#\s+\S", re.M)
-NAO_ENCONTRADA = re.compile(r"n[ãa]o encontrad", re.I)
+NAO_ENCONTRADA = re.compile(r"^\W*n[ãa]o encontrad", re.I)   # a resposta é essa, não a cita
 IDADE_MAX_PADRAO = 180
 try:
     from segredos import ocultar_segredos
@@ -1213,7 +1233,7 @@ def problemas_da_pesquisa(texto: str, raiz: Path, hoje: date) -> tuple[list[str]
     data = _data(campos.get("data da pesquisa"))
     resposta = campos.get("resposta")
     fatos = linhas_da_tabela(secoes.get("fatos", ""))
-    nao_achou = bool(NAO_ENCONTRADA.search(resposta or ""))
+    nao_achou = bool(NAO_ENCONTRADA.match(resposta or ""))
     problemas = [msg for ok, msg in (
         (TITULO_H1.search(texto), "sem título `# <pergunta>`"),
         (data, "sem **Data da pesquisa:** AAAA-MM-DD"),
@@ -1715,19 +1735,22 @@ def imprimir_investigacao(r: dict) -> None:
         print(f"     ✗ {problema}")
 
 
+def _imprimir_pesquisa(p: dict) -> None:
+    marca = "❌" if p["problemas"] else ("⚠️ " if p["avisos"] else "✅")
+    print(f"   {marca} {p['arquivo']} ({p['data'] or 'sem data'})")
+    for item in p["problemas"] + p["avisos"]:
+        print(f"      · {item}")
+
+
 def imprimir_fontes(r: dict) -> None:
     pesquisas, quebradas = r["pesquisas"], r["citacoes_quebradas"]
     print(f"📚 Fontes salvas — {len(pesquisas)} pesquisa(s) em {PASTA_PESQUISA}/")
     for p in pesquisas:
-        marca = "❌" if p["problemas"] else ("⚠️ " if p["avisos"] else "✅")
-        print(f"   {marca} {p['arquivo']} ({p['data'] or 'sem data'})")
-        for item in p["problemas"] + p["avisos"]:
-            print(f"      · {item}")
+        _imprimir_pesquisa(p)
     for c in quebradas:
         print(f"   ❌ {c['arquivo']}:{c['linha']} cita {c['alvo']}, que não existe")
-    spec = r.get("spec")
-    if spec:
-        _imprimir_fontes_da_spec(spec)
+    if r.get("spec"):
+        _imprimir_fontes_da_spec(r["spec"])
     if not pesquisas and not quebradas:
         print("   nada a conferir")
 
@@ -1743,11 +1766,63 @@ def _imprimir_fontes_da_spec(spec: dict) -> None:
         print(f"      {'✅' if c['existe'] else '❌'} {c['pesquisa']}{mudou}")
 
 
+def _mostrar(r: dict, como_json: bool, imprimir) -> None:
+    if como_json:
+        print(json.dumps(r, ensure_ascii=False, indent=2))
+    else:
+        imprimir(r)
+
+
+def _raiz_pedida(opcao) -> Path:
+    alvo = opcao("--raiz")
+    return Path(alvo).resolve() if alvo else (raiz_git() or Path.cwd())
+
+
+def _cli_colher(args: list[str], opcao, como_json: bool, template: str | None, tempo: int) -> int:
+    raiz = raiz_git()
+    if raiz is None:
+        print("🚫 fora de um repositório git — sem histórico não há o que colher",
+              file=sys.stderr)
+        return 1
+    try:
+        dias = int(opcao("--dias")) if opcao("--dias") else None
+    except ValueError:
+        print("erro: --dias precisa de um número", file=sys.stderr)
+        return 1
+    fonte = opcao("--fonte")
+    if fonte not in (None, "gh", "git"):
+        print("erro: --fonte é gh ou git", file=sys.stderr)
+        return 1
+    r = colher(raiz, dias, opcao("--saida"), "--validar" in args, template, tempo, fonte)
+    _mostrar(r, como_json, imprimir_colher)
+    return 0
+
+
+def _cli_fontes(args: list[str], opcao, como_json: bool, *_) -> int:
+    try:
+        idade = int(opcao("--idade-max") or IDADE_MAX_PADRAO)
+    except ValueError:
+        print("erro: --idade-max precisa de um número de dias", file=sys.stderr)
+        return 1
+    r = fontes(_raiz_pedida(opcao), next((a for a in args[1:] if ID_SPEC.match(a)), None), idade)
+    _mostrar(r, como_json, imprimir_fontes)
+    quebrado = r["citacoes_quebradas"] or any(p["problemas"] for p in r["pesquisas"])
+    return 1 if quebrado or (r["spec"] or {}).get("erro") else 0
+
+
+def _cli_selado(args: list[str], opcao, como_json: bool, *_) -> int:
+    r = selado(_raiz_pedida(opcao))
+    _mostrar(r, como_json, imprimir_selado)
+    return 1 if (r["vazamentos"] or r["no_visivel"] or r["ilegiveis"]) else 0
+
+
+# Os comandos que não medem o diff: cada um com a sua leitura dos argumentos.
+FORA_DO_DIFF = {"colher": _cli_colher, "fontes": _cli_fontes, "selado": _cli_selado}
+
+
 def main() -> int:
     args = sys.argv[1:]
-    if not args or args[0] not in ("pre-patch", "testes-alterados", "atalhos", "decisoes",
-                                   "origem", "selado", "colher", "reproduzir", "marcas",
-                                   "investigacao", "fontes"):
+    if not args or args[0] not in (*SOBRE_O_DIFF, *FORA_DO_DIFF):
         print(__doc__.strip())
         return 1
     comando = args[0]
@@ -1768,50 +1843,8 @@ def main() -> int:
     except ValueError:
         print("erro: --tempo-limite precisa de um número de segundos", file=sys.stderr)
         return 1
-
-    if comando == "colher":
-        raiz = raiz_git()
-        if raiz is None:
-            print("🚫 fora de um repositório git — sem histórico não há o que colher",
-                  file=sys.stderr)
-            return 1
-        try:
-            dias = int(opcao("--dias")) if opcao("--dias") else None
-        except ValueError:
-            print("erro: --dias precisa de um número", file=sys.stderr)
-            return 1
-        fonte = opcao("--fonte")
-        if fonte not in (None, "gh", "git"):
-            print("erro: --fonte é gh ou git", file=sys.stderr)
-            return 1
-        r = colher(raiz, dias, opcao("--saida"), "--validar" in args, template, tempo, fonte)
-        if como_json:
-            print(json.dumps(r, ensure_ascii=False, indent=2))
-        else:
-            imprimir_colher(r)
-        return 0
-
-    if comando == "fontes":
-        alvo = opcao("--raiz")
-        raiz = Path(alvo).resolve() if alvo else (raiz_git() or Path.cwd())
-        try:
-            idade = int(opcao("--idade-max") or IDADE_MAX_PADRAO)
-        except ValueError:
-            print("erro: --idade-max precisa de um número de dias", file=sys.stderr)
-            return 1
-        r = fontes(raiz, next((a for a in args[1:] if ID_SPEC.match(a)), None), idade)
-        print(json.dumps(r, ensure_ascii=False, indent=2)) if como_json else imprimir_fontes(r)
-        return 1 if r["citacoes_quebradas"] or any(p["problemas"] for p in r["pesquisas"]) else 0
-
-    if comando == "selado":
-        alvo = opcao("--raiz")
-        raiz = Path(alvo).resolve() if alvo else (raiz_git() or Path.cwd())
-        r = selado(raiz)
-        if como_json:
-            print(json.dumps(r, ensure_ascii=False, indent=2))
-        else:
-            imprimir_selado(r)
-        return 1 if (r["vazamentos"] or r["no_visivel"] or r["ilegiveis"]) else 0
+    if comando in FORA_DO_DIFF:
+        return FORA_DO_DIFF[comando](args, opcao, como_json, template, tempo)
 
     raiz = raiz_git()
     if raiz is None:
@@ -1819,10 +1852,7 @@ def main() -> int:
         return 1
     calcular, imprimir, reprova = SOBRE_O_DIFF[comando]
     r = calcular(raiz, base, template, tempo, args)
-    if como_json:
-        print(json.dumps(r, ensure_ascii=False, indent=2))
-    else:
-        imprimir(r)
+    _mostrar(r, como_json, imprimir)
     return 1 if r.get("erro") else int(reprova(r))
 
 

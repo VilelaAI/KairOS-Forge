@@ -107,6 +107,10 @@ Por path, registrar:
 - Que controle existente (se houver) impede
 - Que controle **deveria** existir
 
+Path que depende de vulnerabilidade conhecida de uma dependência, ou do comportamento de uma
+biblioteca de autenticação ou de criptografia, cita a fonte primária salva em
+`docs/pesquisa/<assunto>.md` (skill `/pesquisar`, ADR-0060), com a versão que o projeto usa.
+
 ### 7. Mitigação por componente
 
 Para cada abuse path com controle insuficiente, propor mitigação na **camada mais barata e mais perto da origem**:
@@ -223,9 +227,10 @@ Próximo passo: <atualizar SPEC-NNN | abrir SPEC | aceitar risco>.
 
 ## Pronto quando
 
-- O modelo está salvo em `docs/seguranca/AMEACAS-<feature-slug>-YYYY-MM-DD.md`, com o cabeçalho que diz quem coordenou, a SPEC relacionada (ou "não há ainda") e o escopo.
-- O modelo em `docs/seguranca/AMEACAS-*.md` tem todas as seções do template, de "Resumo executivo" a "Próximo passo", com 2 a 3 perfis de atacante relevantes para a feature.
-- Cada abuse path AP-NN do modelo em `docs/seguranca/AMEACAS-*.md` traz os ativos atingidos, o controle atual e a severidade, e o de controle parcial ou inexistente tem mitigação numa camada que não é a UI.
-- Todo risco que fica sem mitigação está em "Decisões aceitas" do modelo em `docs/seguranca/AMEACAS-*.md`, com data e justificativa.
-- O "Próximo passo" do modelo em `docs/seguranca/AMEACAS-*.md` diz o que vira tarefa na SPEC, o que vai como ressalva na revisão e os gatilhos para reavaliar o modelo.
-- A resposta dá o caminho do modelo, a ameaça principal e as três mitigações de maior alavancagem, e a pessoa escolhe entre atualizar a SPEC, abrir uma SPEC ou aceitar o risco (gate humano).
+- Sem modelo: em feature trivial (cor, label) ou com o código já escrito, nenhum `docs/seguranca/AMEACAS-*.md` é criado, e a resposta diz por quê e aponta o `/kairos-forge:revisar` para o código já escrito.
+- Com modelo: ele está em `docs/seguranca/AMEACAS-<feature-slug>-YYYY-MM-DD.md`, com o cabeçalho (quem coordenou, a SPEC ou "não há ainda", o escopo dado pela pessoa no passo 1) e todas as seções do template, de "Resumo executivo" a "Próximo passo".
+- No modelo em `docs/seguranca/AMEACAS-*.md`, cada um dos 2 a 3 perfis de atacante tem um AP-NN com objetivo, caminho em passos numerados, ativos atingidos, controle atual e severidade, e o de controle parcial ou inexistente tem mitigação com camada que não é a UI e ação concreta.
+- Nenhum risco levantado some: o que não terá mitigação está em "Decisões aceitas" de `docs/seguranca/AMEACAS-*.md`, aceito explicitamente, com data e justificativa.
+- O "Próximo passo" de `docs/seguranca/AMEACAS-*.md` diz que mitigação vira tarefa na SPEC (ou que é preciso abrir uma, quando não há), qual vai como ressalva no `/kairos-forge:revisar` e os gatilhos para reavaliar o modelo.
+- Com modelo, a resposta dá o caminho `docs/seguranca/AMEACAS-<slug>-YYYY-MM-DD.md`, a ameaça principal, as três mitigações de maior alavancagem e o próximo passo sugerido: atualizar a SPEC, abrir uma SPEC ou aceitar o risco.
+- Nas duas saídas, nada além do `docs/seguranca/AMEACAS-*.md` foi criado ou alterado, sem patch, migration ou mudança de config, o que o `git status --short` mostra.

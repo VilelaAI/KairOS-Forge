@@ -705,6 +705,8 @@ def _copiar(raiz: Path, destino: Path, arquivos: list[str]) -> list[str]:
             shutil.copy2(raiz / rel, destino / rel)
             copiados.append(rel)
         except OSError:
+            # Quem não copia fica fora de `copiados`, que vai no resultado: a falta aparece ali,
+            # e o laço na base diz o resto (`sintoma_diferente` ou `nao_reproduz`).
             pass
     return copiados
 

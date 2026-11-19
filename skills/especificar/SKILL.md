@@ -71,6 +71,8 @@ Decisões, dependências e restrições já registradas (com fonte) entram na SP
 
 **Se houver MCPs de dados do projeto** — banco, métricas, tracker (ADR-0040) — consulte antes de perguntar ao humano o que a máquina já responde: volume real da tabela, uso atual da tela, a issue de origem e seus comentários. Pergunta cuja resposta está numa query é pergunta que custa a paciência do usuário à toa. Sem a fonte ligada, pergunte, e ponha na pergunta uma linha `falta-fonte: <fonte>` (o nome do serviço numa palavra): o hook conta, e o `/kairos-forge:evoluir` propõe ligar a que mais faltou.
 
+**Premissa sobre o que está fora do projeto** — o comportamento de uma biblioteca, de uma API de terceiro, de uma versão — sai da fonte primária, não da memória: `/kairos-forge:pesquisar` salva o que a fonte diz em `docs/pesquisa/<assunto>.md` (ADR-0060), e a SPEC cita o caminho em Contexto, em `## Confiado, não provado` ou como origem no Mapa de intenção.
+
 ### 3. Arquiteto(s) interrogam em primeira pessoa
 
 Cada arquiteto pergunta no seu eixo — repertório por persona em `references/perguntas-arquitetos.md`. Duas regras valem em toda interrogação:
@@ -187,13 +189,13 @@ NÃO pule pra:
 
 ## Pronto quando
 
-- Na feature Trivial, nada foi criado em `docs/specs/` e a resposta diz por que a SPEC não compensa.
-- A pessoa confirmou o entendimento em 3 bullets com o Working Backwards e escolheu a abordagem, numa mensagem só na feature Pequena; a mudança Complexa, de 2+ times ou de reversibilidade baixa passou antes por `docs/rfcs/RFC-<NNN>-<slug>.md` (gate humano).
-- A SPEC está em `docs/specs/SPEC-<NNN>-<slug>.md` com as seções obrigatórias de `references/modelo-spec.md`, e cada P1 tem critério de aceite com valor, nos dois sentidos ou com o porquê de um só, e comando entre crases na Matriz de testes ou `<a definir>`.
-- Cada requisito tem origem no `## Mapa de intenção`, com o deduzido marcado `inferido`, e `painel.py --json SPEC-<NNN>` dá `intencao.sem_origem` vazio.
-- A crítica mais recente está em `docs/specs/criticas/CRITICA-SPEC-<NNN>-YYYY-MM-DD.md`, `contrato.py criticar <relatório>` sai 0, com dois críticos distintos em `criticado_por`, e o veredicto não é `bloqueado`.
-- Cada achado da crítica foi corrigido ou tem na SPEC o porquê de não, e a pessoa aprovou a SPEC no gate 3/3 depois de ver os `inferido`, `## Confiado, não provado` e `## Não prometido` (gate humano).
-- No arco, depois de `ciclo.py registrar aprovada`, `ciclo.py estado --json SPEC-<NNN>` mostra `construindo` com `spec_digest` preenchido.
+- Em qualquer saída, esta skill não escreveu código nem chamou teammate de implementação; o que escreve é texto: a SPEC e a crítica em `docs/specs/` e, na mudança Complexa, de 2+ times, de reversibilidade baixa ou pedida com `especificar rfc`, o RFC em `docs/rfcs/` antes da SPEC.
+- Trivial: nada em `docs/specs/`, e a resposta diz por que a SPEC não compensa e encaminha a execução direta; Pequena com plano inline: o plano, com gate de teste, está na resposta e a pessoa o aprovou (gate humano).
+- Saída sem aprovação: a pergunta que faltava foi feita à pessoa (havendo SPEC, em `## Perguntas abertas`), sem requisito inventado; ou a pessoa recusou a SPEC; ou, no arco, `ciclo.py estado --json SPEC-<NNN>` mostra `encerrado` ou `escalado`.
+- Com SPEC, a pessoa viu antes o entendimento em 3 bullets com o Working Backwards e a abordagem: na Pequena em sessão, numa mensagem só, com a recomendada como premissa; senão confirmou o entendimento e escolheu entre 2-3 abordagens (gate humano).
+- SPEC no gate 3/3: `docs/specs/SPEC-<NNN>-<slug>.md` tem as seções de `references/modelo-spec.md`, critério com valor e nos dois sentidos (ou o porquê de um só), Matriz com comando entre crases ou `<a definir>`, e `painel.py --json SPEC-<NNN>` com `intencao.sem_origem` vazio.
+- A SPEC só foi ao gate 3/3 com `contrato.py criticar <relatório>` saindo 0 na crítica mais recente em `docs/specs/criticas/`, de dois críticos que não a escreveram, veredicto diferente de `bloqueado`, e cada achado corrigido ou com o porquê de não na SPEC.
+- SPEC aprovada: a pessoa disse SIM no gate 3/3 depois de ver os `inferido`, `## Confiado, não provado` e `## Não prometido`, e no arco `ciclo.py estado --json SPEC-<NNN>` mostra `construindo` com `spec_digest` preenchido (gate humano).
 
 ## Referências
 

@@ -113,9 +113,8 @@ pessoa e mantêm a persona.
 
 ## Pronto quando
 
-- O relatório de validação mais recente em `docs/specs/validacoes/` passa em `contrato.py validar <relatório>` com veredicto diferente de `bloqueado`, ou seja, sem bloqueio em P1.
-- O relatório de revisão mais recente em `docs/specs/revisoes/` passa em `contrato.py revisar <relatório>` com `criticos` 0.
-- O registro do checklist pré-deploy está em `docs/lancamentos/RELEASE-<data>.md`, com a evidência de cada item da tabela e nenhum item sem evidência.
-- A pessoa disse SIM explícito, sem default, depois de ver o que muda, o commit ou a tag do release, o comando de rollback já anotado e o gatilho, e acordou a janela e quem comunica quando há indisponibilidade (gate humano).
-- O health check passou nas três camadas (aplicação, dados pela aplicação e logs contra o baseline), e a URL e a latência medida estão em `docs/lancamentos/RELEASE-<data>.md`.
-- O handoff para a Renata, com os números a observar, a taxa de erro esperada e o que é falso alarme, está em `docs/lancamentos/RELEASE-<data>.md`, e a pessoa recebeu o resumo do lançamento.
+- `contrato.py validar <relatório>` sai 0 com `bloqueios` 0 no relatório mais recente de `docs/specs/validacoes/`, e `contrato.py revisar <relatório>` sai 0 com `criticos` 0 no mais recente de `docs/specs/revisoes/`.
+- O checklist pré-deploy está registrado em `docs/lancamentos/` com a evidência de cada item da tabela; item sem evidência para o lançamento ali, vira pendência com dono e nada vai para produção.
+- A pessoa disse SIM explícito, sem default, depois de ver o que muda, o commit ou a tag do release, o comando de rollback já anotado e o gatilho; sem esse SIM nada é lançado, nem em fluxo autônomo (gate humano).
+- Lançado: o health check passou nas três camadas (aplicação, dados pela aplicação e logs contra o baseline), a pessoa recebeu o resumo e `docs/lancamentos/RELEASE-<data>.md` traz a URL, a latência medida e o handoff para a Renata.
+- Com rollback: a falha persistiu na nova tentativa após 60s, Sérgio identificou a camada e rodou o rollback anotado avisando a pessoa, sem terceira tentativa, e `docs/lancamentos/` registra a decisão e o pós-mortem curto como pendência.

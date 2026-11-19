@@ -88,11 +88,18 @@ EH_TESTE = re.compile(r"(^|/)(tests?|specs?|__tests__|e2e|playwright)/|\.(test|s
 def eh_producao(arquivo: str) -> bool:
     return bool(EXT_PRODUCAO.search(arquivo)) and not EH_TESTE.search(arquivo)
 
-SKILLS = re.compile(
-    r"/(?:kairos-forge:)?(onboardar|mapear-arquitetura|especificar|analisar-ameacas"
-    r"|desenhar|mobilizar|rodar|validar|revisar|lancar|entregar|avaliar"
-    r"|mapear-conhecimento|otimizar|migrar|auditar|evoluir)\b"
-)
+def regex_das_skills(pasta: Path) -> re.Pattern:
+    """As skills citadas no prompt, pelos nomes da pasta `skills/` ao lado dos scripts (a
+    lista escrita à mão ficava para trás a cada skill nova). Sem a pasta, como na cópia do
+    Tucano, só o nome com o prefixo da fábrica conta."""
+    nomes = sorted((p.parent.name for p in pasta.glob("*/SKILL.md")), key=len, reverse=True) \
+        if pasta.is_dir() else []
+    if not nomes:
+        return re.compile(r"/kairos-forge:([a-z][a-z-]*)\b")
+    return re.compile(r"/(?:kairos-forge:)?(" + "|".join(map(re.escape, nomes)) + r")\b")
+
+
+SKILLS = regex_das_skills(Path(__file__).resolve().parent.parent / "skills")
 
 
 def redigir(texto: str) -> str:

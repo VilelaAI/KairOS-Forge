@@ -147,12 +147,13 @@ Template completo em `references/relatorio.md`. Seções, nesta ordem:
 
 ## Pronto quando
 
-- O relatório está em `decisoes/auditorias/AUDIT-YYYY-MM-DD.md`, com as cinco seções de "Formato do relatório" na ordem, o total NN/120 (NN%) e a dimensão que limita marcada, com os cruzamentos verdadeiros abaixo.
-- A segurança do setup e o grafo contam pelo código de saída de `check-agent-security.py .claude` e `grafo.py validar`, e o critério que não se verificou vale 0 com "não foi possível verificar".
-- A Autonomia sai de `telemetria.py resumo --dias 30`, com −2 por sessão com produção sem gate; sem telemetria, vale 0 e cada linha diz "não medida", sem estimativa.
-- Autonomia de PR, espera e entrega da fábrica × humana vêm de `telemetria.py prs --dias 30`, `telemetria.py espera --dias 30` e `telemetria.py comparar --dias 90`, ou dizem "não medida" ou "não comparável" com o N de cada grupo.
-- O Histórico lista as auditorias anteriores de `decisoes/auditorias/` e compara pelo percentual, com as de antes da v0.17 (total /100) marcadas.
-- A pessoa confirmou a raiz auditada no passo 1 e recebeu o relatório com as 3 lacunas ranqueadas por alavancagem, cada uma com dimensão, esforço e como fechar (gate humano).
+- O único arquivo escrito é `decisoes/auditorias/AUDIT-YYYY-MM-DD.md`, com as cinco seções de "Formato do relatório" na ordem e o Histórico pelo percentual (antes da v0.17 com `*`) ou "primeira auditoria"; no gatilho de CI, sem escrita, ele sai na resposta.
+- Cada dimensão pontua pela tabela de `references/rubrica.md`, com o total NN/120 (NN%), a dimensão que limita marcada e os cruzamentos verdadeiros abaixo, ou "nenhum"; critério não verificado vale 0 com "não foi possível verificar".
+- A segurança do setup só leva os 4 pontos sem achado ALTA nem MEDIA de `check-agent-security.py .claude`; no grafo, os três arquivos valem 2, o exit 0 de `grafo.py validar` +2 e o frescor em `GRAFO.md` +1.
+- A Autonomia pontua com `telemetria.py resumo --dias 30`, lendo hooks e `.github/workflows/`, −2 por sessão com produção sem gate, falhas do guardrail no relatório e nível L<N> o menor que os números descrevem; sem telemetria, vale 0 e as linhas do `resumo` dizem "não medida".
+- Autonomia de PR com taxa, N e fonte (gh ou git), espera e entrega da fábrica × humana vêm de `telemetria.py prs --dias 30`, `telemetria.py espera --dias 30` e `telemetria.py comparar --dias 90`, ou dizem "não medida" ou "não comparável" com os N.
+- Em "Top 3 lacunas" do `AUDIT-YYYY-MM-DD.md`, cada uma tem dimensão, esforço, por que esta primeiro e como fechar, ranqueadas por alavancagem, e em Autonomia instrumentar vem antes de conter, e conter antes de disparar.
+- Em sessão, a pessoa confirmou no passo 1 a raiz auditada (gate humano).
 
 ## Referências
 

@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from contextlib import redirect_stdout
 from datetime import date
 from pathlib import Path
@@ -251,6 +252,48 @@ class AImpressaoEOComando(NaSpec):
         self.assertEqual(self.rodar().returncode, 1)
         self.escrever({"docs/adr/0001.md": "nada\n", "docs/pesquisa/ruim.md": "# x\n"})
         self.assertEqual(self.rodar().returncode, 1)
+
+
+class OMainNoProcesso(unittest.TestCase):
+    """Os comandos fora do diff (`fontes`, `selado`, `colher`) pelo `main`, no mesmo processo."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="kairos-forge-main-")
+        self.addCleanup(self._tmp.cleanup)
+        self.raiz = Path(self._tmp.name)
+        self._cwd = os.getcwd()
+        os.chdir(self.raiz)
+        self.addCleanup(os.chdir, self._cwd)
+
+    def main(self, *args: str) -> tuple[int, str]:
+        saida, erro = io.StringIO(), io.StringIO()
+        with redirect_stdout(saida), unittest.mock.patch.object(sys, "argv", ["prova.py", *args]), \
+                unittest.mock.patch.object(sys, "stderr", erro):
+            codigo = prova.main()
+        return codigo, saida.getvalue() + erro.getvalue()
+
+    def test_fontes(self) -> None:
+        self.assertEqual(self.main("fontes", "--raiz", str(self.raiz)), (0, f"📚 Fontes salvas — 0 pesquisa(s) em docs/pesquisa/\n   nada a conferir\n"))
+        codigo, texto = self.main("fontes", "--json", "--raiz", str(self.raiz))
+        self.assertEqual((codigo, json.loads(texto)["pesquisas"]), (0, []))
+        self.assertEqual(self.main("fontes", "--idade-max", "x")[0], 1)
+        self.assertEqual(self.main("fontes", "SPEC-001", "--raiz", str(self.raiz))[0], 1)
+
+    def test_selado(self) -> None:
+        self.assertEqual(self.main("selado", "--raiz", str(self.raiz))[0], 0)
+        self.assertIn('"selados": []', self.main("selado", "--json", "--raiz", str(self.raiz))[1])
+
+    def test_colher_e_os_erros_de_argumento(self) -> None:
+        self.assertIn("fora de um repositório git", self.main("colher")[1])
+        subprocess.run(["git", "init", "-q"], cwd=self.raiz, check=True)
+        self.assertEqual(self.main("colher", "--dias", "x")[0], 1)
+        self.assertIn("--fonte é gh ou git", self.main("colher", "--fonte", "svn")[1])
+        self.assertEqual(self.main("colher", "--fonte", "git", "--saida", str(self.raiz / "c.jsonl"))[0], 0)
+        self.assertEqual(self.main("colher", "--json", "--fonte", "git",
+                                   "--saida", str(self.raiz / "c.jsonl"))[0], 0)
+        self.assertEqual(self.main("pre-patch", "--tempo-limite", "x")[0], 1)
+        codigo, texto = self.main("nada")
+        self.assertEqual((codigo, texto.splitlines()[0]), (1, prova.__doc__.strip().splitlines()[0]))
 
 
 if __name__ == "__main__":

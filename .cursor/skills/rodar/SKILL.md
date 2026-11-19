@@ -165,10 +165,10 @@ Toda interação em PT-BR. Sem exceção. Os agentes têm nomes em PT-BR e compo
 
 ## Pronto quando
 
-- Modo Laura: o código de produção escrito tem gate verde rodado depois da última escrita, e, no Claude Code e no Cursor, o `guardrail.py parada` do `Stop` não aponta arquivo pendente.
-- Modo Laura: com SPEC, todo requisito dado como pronto aparece em Pronto no `painel.py --json SPEC-NNN`, com `verificado:`, e não em `sem_prova`.
-- Modo Laura: antes de declarar pronto, a Laura cobrou revisão de segurança se tocou auth ou input, doc e CI verde, e quem confere cada um é a pessoa (gate humano).
-- Squad de apoio: só saiu artefato textual, sem código, e a tarefa que pediu implementação voltou para a Laura acionar a fábrica core (gate humano).
+- Com código de produção escrito fora do explorar, um gate verde rodou depois da última escrita (no Claude Code e no Cursor, o `guardrail.py parada` do `Stop` não aponta pendência) e, com SPEC, todo requisito dado como pronto está em `Pronto` no `painel.py --json SPEC-NNN`.
+- Com código, no modo Laura: além do gate, ela só declarou pronto com doc, CI verde no `gh run list --branch <branch>` e revisão de segurança quando tocou auth ou input; faltando um, a resposta diz qual e não declara pronto.
+- Nenhuma SPEC nova em `docs/specs/` saiu daqui (o rascunho do modo guiado foi para o `/kairos-forge:especificar`), e a discussão ou o brainstorm sem código terminou em artefato concreto, como análise ou checklist.
+- Squad de apoio: só saiu texto (markdown, lista, plano, glossário, relatório), o `git status --porcelain` não mostra código mudado pelo squad e, se a tarefa pedia implementação, ela voltou para a Laura acionar a fábrica core.
 - Modo debate: a síntese está em `docs/decisoes/DEBATE-<slug>.md` ou na seção de alternativas do RFC de origem, com a opção escolhida e o porquê, o dissenso registrado, as condições de reversão e o próximo passo.
-- Modo explorar: as notas estão em `docs/pocs/POC-<slug>.md`, com o que funcionou, o que não funcionou e por quê, as decisões reveladas, o custo contra o tempo-box e o que jogar fora; se o tempo-box estourou, também até onde chegou e o que travou.
+- Modo explorar: as notas estão em `docs/pocs/POC-<slug>.md`, com o que funcionou, o que não funcionou e por quê, as decisões reveladas, o custo contra o tempo-box declarado antes de começar e o que jogar fora; estourado o tempo-box, até onde chegou e o que travou.
 - Modo explorar: a POC não virou PR (`gh pr list --head poc/<slug> --state all` vem vazio) e, terminado, `git worktree list` não mostra mais `.worktrees/poc-<slug>`.

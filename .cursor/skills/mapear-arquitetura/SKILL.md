@@ -237,10 +237,10 @@ Próximo passo sugerido: <ADR / SPEC / nada por agora>.
 
 ## Pronto quando
 
-- A pessoa delimitou no passo 1 o escopo, as áreas fora e a hipótese, e acima de 50 mil linhas a skill não segue sem escopo (gate humano).
-- O mapa está em `docs/arquitetura/MAPA-YYYY-MM-DD.md` com as seções do modelo do passo 5, o escopo combinado e a base analisada com branch ou commit.
-- O `grafo.py codigo` rodou, e o acoplamento dos módulos grandes saiu de `grafo.py contexto <arquivo>` ou de grep nas linguagens que a camada não cobre, com os pares bidirecionais na tabela de imports do mapa.
+- A pessoa respondeu no passo 1 o escopo, as áreas fora e se há hipótese ou é exploração aberta; sem escopo delimitado, e acima de 50 mil linhas o repo inteiro não serve, a skill parou sem mapa e pediu o escopo (gate humano).
+- Com mapa, ele está em `docs/arquitetura/MAPA-YYYY-MM-DD.md` com as seções do modelo do passo 5, o escopo combinado sem as áreas excluídas e a base analisada com branch ou commit.
+- Com mapa, o acoplamento dos módulos grandes saiu de `grafo.py contexto <arquivo>`, depois do `grafo.py codigo`, ou de grep nas linguagens fora de Python, JS/TS e Go, com os pares bidirecionais marcados na tabela de imports.
 - Cada afirmação do mapa em `docs/arquitetura/MAPA-*.md` traz arquivo:linha, comando rodado ou métrica, e o que não foi medido está marcado como hipótese a validar, ou como indício na duplicação sem ferramenta.
-- O mapa em `docs/arquitetura/MAPA-*.md` tem de 3 a 7 bounded contexts, cada movimento do plano tem pré-condição, critério de sucesso e rollback, e reescrita só aparece em ADRs sugeridas.
-- Nenhum código foi editado, movido ou apagado, e nenhum comando destrutivo rodou durante o mapa (gate humano).
-- A resposta dá em até 10 linhas o caminho do mapa, os achados principais, o movimento mais barato, o maior risco e o próximo passo sugerido entre ADR, SPEC ou nada por agora (gate humano).
+- No mapa em `docs/arquitetura/MAPA-*.md`, há no máximo 7 bounded contexts (menos de 3 dito como projeto que ainda não diferencia domínios), cada movimento do plano tem pré-condição, critério de sucesso e rollback, e reescrita só aparece em ADRs sugeridas.
+- Fora o mapa e a camada de código em `.agents/grafo/`, o `git status --porcelain` não mostra nada que a skill tenha mudado, e nenhum ticket foi aberto nem `git clean`, `rm` ou migration rodou.
+- Com mapa, a resposta dá em até 10 linhas `docs/arquitetura/MAPA-YYYY-MM-DD.md`, os achados, o movimento mais barato e o maior risco, e o próximo passo entre ADR, SPEC ou nada por agora fica com a pessoa, sem a skill abrir nenhum (gate humano).

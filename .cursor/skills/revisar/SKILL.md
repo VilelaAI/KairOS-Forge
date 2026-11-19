@@ -136,7 +136,9 @@ falso negativo vai para produção. Em 🟠, 🟡 e 🔵 vale a regra de cima: n
 **Afirmação sobre o que está fora do repositório leva fonte.** Comportamento de biblioteca,
 API, framework, versão, depreciação ou vulnerabilidade só vira achado com a documentação
 oficial, o changelog ou o aviso de segurança consultado **nesta revisão** (pelo MCP de
-documentação, como o Context7, ou pela web), e a URL vai na linha do achado. Sem fonte, o
+documentação, como o Context7, ou pela web), e a URL vai na linha do achado. A pesquisa
+salva em `docs/pesquisa/<assunto>.md` (skill `/pesquisar`, ADR-0060) também é fonte, citada
+pelo caminho no lugar da URL; no gatilho de CI, sem web, é a única que vale. Sem fonte, o
 achado vira pergunta ou sai: o que o modelo lembra de uma biblioteca é boato; o changelog é
 fonte. Regra da skill the-judge (Felipe Rodrigues, CC-BY-4.0).
 
@@ -296,9 +298,10 @@ mais barata que a anterior.
 
 ## Pronto quando
 
-- O relatório está em `docs/specs/revisoes/REVISAO-<SPEC-NNN ou slug da branch>-YYYY-MM-DD.md`, com faixa, escopo, revisores acionados e veredicto agregado no topo; no gatilho de CI, é o comentário no PR.
-- `contrato.py revisar <relatório>` sai 0: `faixa` de 1 a 3, `bloqueado` se e só se `criticos` passa de 0, `examinado` preenchido sem crítico, um id por crítico em `achados` e, com `incompletos` preenchido, veredicto `bloqueado`.
-- Helena e Patrícia deram parecer, com Vinícius, Marcos, Carlos e Ada conforme as áreas que o diff toca (gate humano).
-- `prova.py origem <relatório>` sai 0: crítico ou alto numa linha que o PR não tocou traz `· o PR depende:` ou `· o PR piora:`, e nenhuma linha que o PR escreveu está em "Fora deste PR".
-- Na re-revisão, cada crítico pendente está em `anteriores` como `resolvido` ou `nao_resolvido`, e no arco o `ciclo.py registrar limpo` recusa enquanto algum não estiver `resolvido`.
+- Diff acima de 500 linhas adicionadas em `git diff --stat <base>...HEAD`: parou antes de acionar revisores e recomendou fatiar, sem relatório; os itens abaixo valem para o diff até 500.
+- O relatório está em `docs/specs/revisoes/REVISAO-<SPEC-NNN ou slug da branch>-YYYY-MM-DD.md` (no gatilho de CI, o comentário no PR), com faixa, escopo, revisores acionados e veredicto agregado no topo.
+- Helena e Patrícia deram parecer, mais Vinícius, Marcos, Carlos e Ada conforme as áreas de `git diff --name-only`, e Patrícia rodou `prova.py testes-alterados` e `prova.py atalhos` antes de opinar; a skill não revisa no lugar deles.
+- `contrato.py revisar <relatório>` sai 0: `faixa` de 1 a 3, `bloqueado` se e só se `criticos` passa de 0, `examinado` preenchido sem crítico, `incompletos` só com `bloqueado`; cada crítico tem id na linha e em `achados`, que o contrato só confere preenchido.
+- `prova.py origem <relatório>` sai 0, com `arquivo:linha` em cada achado crítico, alto e de "Fora deste PR": crítico ou alto numa linha que o PR não tocou traz `· o PR depende:` ou `· o PR piora:`, e nenhuma linha que o PR escreveu está em "Fora deste PR".
+- Na re-revisão, cada crítico da rodada anterior (no arco, `pendentes_revisao` em `ciclo.py estado --json`) está em `anteriores` como `resolvido` ou `nao_resolvido`, este com `bloqueado`, sem alto, médio ou baixo novo em código que já estava no diff da primeira rodada.
 - Na faixa 3, o merge fica com a pessoa mesmo com veredicto `aprovado`, gates verdes e histórico limpo (gate humano).

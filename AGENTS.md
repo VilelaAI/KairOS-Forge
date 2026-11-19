@@ -20,7 +20,7 @@ The two plugins are independent — one does not import from the other. The core
 - `.claude-plugin/plugin.json` — Plugin manifest (Claude Code)
 - `.claude-plugin/ativos.manifest.json` — **Generated** consolidated AI-asset manifest: identity (`chave`, `versao`, `origem`) plus the declared tool allow-list of every agent/skill, derived from the canonical sources by the sync script. Feeds the KairOS ecosystem asset-catalog seed (SPEC-E006) — the direction adopted in ADR-0032. Never edited by hand
 - `agents/` — 71 subagents as `<id>.md` files (Claude Code format)
-- `skills/<name>/SKILL.md` — 19 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
+- `skills/<name>/SKILL.md` — 21 skills, invoked as `/kairos-forge:<name>` (Claude Code format)
 - `hooks/hooks.json` — Claude Code hooks: SessionStart banner; the deterministic execution recorder at four lifecycle points (ADR-0021); guardrails that block on `PreToolUse`/`PostToolUse` (ADR-0022); secret reads through the `Read` tool and the **stop gate** on `Stop` (ADR-0042), with the **unproven claim** check before it and the item-by-item check when the person asks whether anything is missing, on `UserPromptSubmit` (ADR-0058); the in-flight spinning alert (ADR-0030); and a once-per-session Definition-of-Done reminder on the first production file edited (ADR-0038); and, under the `modules` key, the factory's mods (`hooks/mod.ts`: the arc panel — ADR-0051 —, the band-3 pause — ADR-0052 — and the secret hidden in tool output — ADR-0056), which a CLI without mods ignores
 - `hooks/painel.tsx`, `hooks/vista.ts` — The arc-panel mod (ADR-0051), Claude Code only: `/forge-painel` opens beside the conversation the specify → build → validate → review → PR rail with the current phase marked, the budget tokens, the verdicts, the board's mobilizations and the inbox on top; a band above the prompt shows up when something waits on a person, with a toast for each new human gate; `/forge-caixa` answers at once; the status line names the cycle in flight. Read-only: the numbers come from `painel.py`, and the `tool.call` hooks let the call through whole, even when they fail
 - `hooks/mod.ts`, `hooks/pausa.ts` — The entry that wires both mods, and the **band-3 pause at execution time** (ADR-0052), Claude Code only: inside the `/entregar` arc, a call whose effect a revert can't undo stops for a person at `tool.check`, even in auto mode or under a saved allow rule — a mod's `ask` is a person's, and with nobody to ask it becomes a denial carrying the card. The rule is `guardrail.py faixa3`; a denial from below stays a denial, and no mod ever answers `allow`
@@ -96,7 +96,7 @@ The two plugins are independent — one does not import from the other. The core
 
 ### Skill availability per CLI
 
-All 19 skills live in `skills/` and are accessible to both Claude Code and Codex.
+All 21 skills live in `skills/` and are accessible to both Claude Code and Codex.
 
 | Skill | Claude Code | Codex CLI | OpenCode | Cursor |
 |---|---|---|---|---|
@@ -215,7 +215,7 @@ mkdir -p /path/to/project/.cursor && cp -R kairos-forge/plugin/.cursor/. /path/t
 mkdir -p ~/.cursor && cp -R kairos-forge/plugin/.cursor/{agents,skills,rules,scripts,templates} ~/.cursor/
 ```
 
-This delivers the 71 subagents (`.cursor/agents/`), the 19 skills in the `/` menu (`.cursor/skills/`), an `alwaysApply` rule with the factory banner and `${CLAUDE_PLUGIN_ROOT}` path resolution, the support scripts and `templates/`, and `hooks.json`, which wires telemetry and guardrails to Cursor's lifecycle events (ADR-0042). The global copy leaves `hooks.json` out on purpose: it calls `.cursor/scripts/` relative to the project root, so telemetry and guardrails need the per-project install. To refresh only the personas later: `python3 kairos-forge/scripts/sync-multi-cli.py instalar --cli cursor [--escopo global]`. Project instructions: Cursor reads `AGENTS.md` — `/kairos-forge:onboardar` offers to generate it alongside `CLAUDE.md`. `mobilizar` runs on Cursor too: the main agent orchestrates the subagents in parallel while `quadro.py` holds the dependency graph, ownership and counts.
+This delivers the 71 subagents (`.cursor/agents/`), the 21 skills in the `/` menu (`.cursor/skills/`), an `alwaysApply` rule with the factory banner and `${CLAUDE_PLUGIN_ROOT}` path resolution, the support scripts and `templates/`, and `hooks.json`, which wires telemetry and guardrails to Cursor's lifecycle events (ADR-0042). The global copy leaves `hooks.json` out on purpose: it calls `.cursor/scripts/` relative to the project root, so telemetry and guardrails need the per-project install. To refresh only the personas later: `python3 kairos-forge/scripts/sync-multi-cli.py instalar --cli cursor [--escopo global]`. Project instructions: Cursor reads `AGENTS.md` — `/kairos-forge:onboardar` offers to generate it alongside `CLAUDE.md`. `mobilizar` runs on Cursor too: the main agent orchestrates the subagents in parallel while `quadro.py` holds the dependency graph, ownership and counts.
 
 ### OpenCode
 

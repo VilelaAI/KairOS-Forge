@@ -193,6 +193,16 @@ Falha nova em produção **vira caso no gold set** antes de ser corrigida.
 - **Falha de produção vira caso no gold set** antes da correção.
 - **PT-BR em tudo** — rubrica, relatório, causas, conversa.
 
+## Pronto quando
+
+- O gold set está em `evals/<slug>/gold.jsonl` e o selado em `evals/<slug>/selado.jsonl`, com fronteira marcada, adversarial e "deve recusar", roda em menos de ~5 minutos, e o relatório dá o N, a versão e se é sinal (~30 casos) ou confiança no agregado (~500).
+- `prova.py selado` sai 0 (nenhum trecho de 6+ palavras de caso selado no repositório fora de `evals/` nem no `gold.jsonl`), o relatório traz o resultado e os casos curtos não comparados, e o CI do projeto roda o eval e ele junto dos testes, pela regra de regressão escrita.
+- `evals/<slug>/RELATORIO-YYYY-MM-DD.md` dá o veredicto do selado contra o limiar com qualquer resultado, inclusive "a mudança volta", baseline → atual, visível, selado e divergência, cada eixo com o N, todos os casos e as falhas agrupadas por causa raiz.
+- O digest no relatório é igual ao de `sha256sum <artefato> | cut -c1-16` agora, e o relatório declara o juiz-LLM com versão pinada, critério escrito e amostra conferida à mão (ou que não houve), de família diferente da do gerador ou com a limitação como piso de confiança.
+- O relatório diz se houve painel, o juiz cego com `evals/<slug>/mapa-YYYY-MM-DD.tsv` ou o porquê de não, e os eixos avaliados e descartados; quem avaliou não construiu o que avaliou, e o sistema com ferramenta de escrita rodou em modo seco.
+- Comparando versões, o relatório traz a saída de `telemetria.py custo-eval evals/<slug>/execucoes --teto N` contra a `baseline/`, com os medidos de cada versão (sem caso medido é "não medido", nunca dentro do teto) e a ressalva do `usage` se houver subagente em segundo plano.
+- Acima do teto de custo, a mudança só segue com a exceção escrita no relatório, com o ganho que paga o custo, e decidida pela pessoa (gate humano).
+
 ## Referências
 
 Em `${CLAUDE_PLUGIN_ROOT}/skills/avaliar/references/`:

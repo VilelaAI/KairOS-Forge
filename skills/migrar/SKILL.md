@@ -75,6 +75,10 @@ Condições de parada específicas — se cair numa delas, Ivan para e pergunta:
 | Integração de terceiro sem documentação nem sandbox | "Como descubro o contrato real sem derrubar o parceiro?" |
 | Janela de corte exige indisponibilidade | "Qual a janela aceitável? Quem comunica?" — decisão de negócio, não técnica |
 
+Integração de terceiro que tem documentação, changelog ou especificação pública não para: o
+contrato real sai da fonte primária pela `/kairos-forge:pesquisar`, salvo em
+`docs/pesquisa/<assunto>.md` (ADR-0060) e citado na SPEC da fatia.
+
 ### 5. Por fatia: o ciclo
 
 Cada fatia roda o mesmo ciclo — e uma fatia só começa quando a anterior foi
@@ -167,10 +171,10 @@ persona durante todo o programa.
 
 ## Pronto quando
 
-- Antes de fatiar, existe o ADR do porquê, a pessoa respondeu dor, invariante de operação e apetite, e o degrau da escada de prontidão está declarado com evidência, sem pular degrau (gate humano).
-- O documento do programa está em `docs/migracoes/MIGRACAO-<slug>.md` com o diagrama Mermaid do estado atual (`grafo.py mermaid "<sistema legado>" --saltos 2` quando há grafo), as capacidades, as dependências, os pontos de entrada e os não-objetivos.
-- Cada fatia tem a SPEC em `docs/specs/SPEC-<NNN>-<slug>.md` com a rota de corte e o rollback como P1, o bug antigo que a pessoa mandou corrigir como mudança intencional e, sem sombra possível, a ausência declarada.
-- Os testes de caracterização da fatia passaram no legado antes de a rota mudar e passam contra a rota nova, e preservar ou corrigir cada bug antigo que eles reproduzem foi decisão da pessoa (gate humano).
-- A rota nova só recebeu tráfego real com o rollback já ensaiado, o ensaio de restauração testado se a migração de dados é irreversível e, com sombra, divergência zero pelo tempo declarado na fatia, cada divergência decidida pela pessoa ou com fonte (gate humano).
-- O quadro em `docs/migracoes/MIGRACAO-<slug>.md` tem no máximo uma fatia em corte, cada fatia encerrada marcada como mantida ou revertida e o diagrama antes e depois de cada fatia mantida.
-- Na fatia mantida, o código morto foi removido e a rota antiga foi desligada (gate humano).
+- Antes de fatiar existem o mapa em `docs/arquitetura/MAPA-*.md` (sem ele, a skill parou e mandou rodar o mapear-arquitetura) e o ADR do porquê em `docs/adr/`, e o degrau da escada de prontidão está declarado com evidência, do diagnóstico ou pelo Ivan, sem pular degrau.
+- O `docs/migracoes/MIGRACAO-<slug>.md` tem o diagrama Mermaid do estado atual e do alvo, as capacidades, as dependências de cada uma, os pontos de entrada, os não-objetivos e o quadro com no máximo uma fatia aberta, entre caracterizar e manter ou reverter.
+- As fatias em `docs/migracoes/MIGRACAO-<slug>.md` são por capacidade com ponto de entrada, nunca por camada técnica, e cada uma tem pré-condição, critério de sucesso mensurável, rollback descrito e estimativa dentro do apetite.
+- Cada fatia iniciada teve testes de caracterização verdes no legado antes de mudar de rota, e verdes também na rota nova ao cortar, e a SPEC em `docs/specs/SPEC-<NNN>-<slug>.md` com rota de corte e rollback como P1 e o bug mandado corrigir como mudança intencional.
+- Ao cortar, o rollback já estava ensaiado e, com dado irreversível, a restauração também; o tráfego real só veio após divergência zero na sombra pelo tempo declarado ou, sem sombra possível, com a ausência declarada em `docs/specs/SPEC-<NNN>-<slug>.md` e caracterização reforçada.
+- Cada fatia encerrada tem em `docs/migracoes/MIGRACAO-<slug>.md` a decisão pela métrica comparada ao legado: mantida, com o código morto removido, a rota antiga desligada e o diagrama atualizado, ou revertida, com a flag de volta, o aprendizado registrado e a fatia replanejada.
+- A pessoa respondeu dor, invariante de operação e apetite antes do inventário e decidiu preservar ou corrigir cada bug antigo, cada exceção ao congelamento do legado e cada divergência sem fonte, e numa condição do passo 4 Ivan parou e só seguiu com a resposta dela (gate humano).

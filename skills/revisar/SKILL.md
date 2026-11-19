@@ -136,7 +136,9 @@ falso negativo vai para produção. Em 🟠, 🟡 e 🔵 vale a regra de cima: n
 **Afirmação sobre o que está fora do repositório leva fonte.** Comportamento de biblioteca,
 API, framework, versão, depreciação ou vulnerabilidade só vira achado com a documentação
 oficial, o changelog ou o aviso de segurança consultado **nesta revisão** (pelo MCP de
-documentação, como o Context7, ou pela web), e a URL vai na linha do achado. Sem fonte, o
+documentação, como o Context7, ou pela web), e a URL vai na linha do achado. A pesquisa
+salva em `docs/pesquisa/<assunto>.md` (skill `/pesquisar`, ADR-0060) também é fonte, citada
+pelo caminho no lugar da URL; no gatilho de CI, sem web, é a única que vale. Sem fonte, o
 achado vira pergunta ou sai: o que o modelo lembra de uma biblioteca é boato; o changelog é
 fonte. Regra da skill the-judge (Felipe Rodrigues, CC-BY-4.0).
 

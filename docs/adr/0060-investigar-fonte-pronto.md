@@ -118,7 +118,8 @@ A primeira pesquisa da fábrica é a desta decisão: `docs/pesquisa/claude-code-
 - **O `guardrail.py conferir` passa a ler o transcript** quando a pessoa pergunta se falta
   algo:
   - acha as skills da fábrica usadas na sessão, pela tool `Skill` ou pelo `<command-name>`;
-  - acrescenta o `## Pronto quando` delas à conferência, com teto de 2.500 caracteres;
+  - acrescenta o `## Pronto quando` delas à conferência, com teto de 8.000 caracteres, que
+    somado à conferência fica abaixo dos 10.000 do `additionalContext`;
   - só aceita nome que existe em `skills/`.
 - **A lista de skills da trajetória (`execucao.py`) sai da pasta.** A escrita à mão já não
   tinha o `diagnosticar` nem o `relatar`.

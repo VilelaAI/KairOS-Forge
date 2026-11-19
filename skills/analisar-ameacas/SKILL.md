@@ -107,6 +107,10 @@ Por path, registrar:
 - Que controle existente (se houver) impede
 - Que controle **deveria** existir
 
+Path que depende de vulnerabilidade conhecida de uma dependência, ou do comportamento de uma
+biblioteca de autenticação ou de criptografia, cita a fonte primária salva em
+`docs/pesquisa/<assunto>.md` (skill `/pesquisar`, ADR-0060), com a versão que o projeto usa.
+
 ### 7. Mitigação por componente
 
 Para cada abuse path com controle insuficiente, propor mitigação na **camada mais barata e mais perto da origem**:

@@ -26,7 +26,7 @@ no arquivo quando a pessoa manda o prompt seguinte. A skill chamada pelo modelo 
   "faltou algo?"; só uma skill chamada no mesmo prompt da pergunta poderia não estar, e ela ainda
   não teria trabalho a conferir.
 - Pelos fatos 4 e 5, ler o transcript linha a linha cabe nos 30 segundos, e a conferência com o
-  teto de 2.500 caracteres do `## Pronto quando` fica bem abaixo dos 10.000.
+  teto de 8.000 caracteres do `## Pronto quando` fica abaixo dos 10.000.
 - Pelo fato 6, o leitor precisa das duas formas, e só aceita o nome que existe em `skills/`.
 
 ## Em aberto

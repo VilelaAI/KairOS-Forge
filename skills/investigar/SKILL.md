@@ -18,7 +18,7 @@ conserto só esconde o sintoma. A ideia vem do corno-skills (sem licença: a ide
 
 - **Use** quando a causa é desconhecida: gate vermelho sem achado que aponte o lugar, teste
   que falha às vezes, "funcionava ontem", erro que só a pessoa viu, o `/entregar` em
-  `atacando_premissa_*` (ADR-0045).
+  `atacando_premissa_validacao` ou `atacando_premissa_revisao` (ADR-0045).
 - **Não use** quando o achado já traz `arquivo:linha` e a causa (o `/validar` e o `/revisar`
   costumam trazer): corrija direto pelo `/rodar` ou pelo loop do `/entregar`. Feature nova é
   o `/especificar`; métrica que se melhora em rodadas é o `/otimizar`.
@@ -90,8 +90,8 @@ na ficha **antes** do conserto.
 ## 5. Corrija na raiz e trave
 
 - O conserto vai onde a causa está, não onde o sintoma aparece. Guarda em volta do ponto que
-  quebra (`try` vazio, valor padrão que esconde o erro) não é conserto: é o `erro-engolido`
-  do `prova.py atalhos`.
+  quebra não é conserto. O `try` vazio o `prova.py atalhos` acha (`erro-engolido`); o valor
+  padrão que esconde o erro nenhum script acha, e quem revisa olha.
 - A reprodução mínima vira teste, no arquivo de teste que já existe se for o caso, e o laço
   da ficha passa a rodá-lo. Então:
 
@@ -99,8 +99,10 @@ na ficha **antes** do conserto.
 prova.py reproduzir --comando "<laço>" --sintoma "<regex do sintoma>"
 ```
 
-  Tem de dar `reproduz_e_corrige`: falha na base do diff com o sintoma e passa agora. Os
-  testes do diff são copiados para a base antes de rodar.
+  Tem de dar `reproduz_e_corrige`: falha na base do diff com o sintoma e passa agora. Só os
+  testes do diff são copiados para a base antes de rodar, então o laço da ficha é o teste, ou
+  um comando que já existe na base (a CLI, um endpoint). Script novo fora da pasta de testes
+  não existe lá e dá `sintoma_diferente`.
 - Sem lugar certo para o teste (só daria um teste raso demais), isso é um achado: diga na
   `## Trava` por quê.
 
@@ -113,31 +115,37 @@ número antes e depois, não houve melhora. Melhoria contínua por métrica é o
 ## No arco e no CI
 
 - **`/entregar`**: no `corrigindo_validacao` ou no `corrigindo_revisao` sem lugar apontado, e
-  sempre em `atacando_premissa_*`, a correção passa por esta skill; a premissa que o
-  `ciclo.py` pede é a hipótese confirmada.
-- **`kairos-forge-corrigir.yml`**: o gate vermelho é o laço. O workflow o roda antes do agente
-  (se passa, não há o que corrigir) e depois (se ainda falha, não abre PR), e a causa vai no
-  topo do PR.
+  sempre em `atacando_premissa_validacao` ou `atacando_premissa_revisao`, a correção passa por
+  esta skill. A premissa que o `ciclo.py` pede é a suposição que as correções que falharam
+  compartilharam: ela entra na ficha como a primeira hipótese a testar.
+- **`kairos-forge-corrigir.yml`**: o gate vermelho é o laço. Lá o agente não roda o `prova.py`
+  (só o gate e git de leitura): o workflow roda o gate antes do agente (se passa, não há o que
+  corrigir) e depois (se ainda falha, não abre PR), e as linhas `**Causa:**` e `**Prova:**` da
+  resposta vão para o commit e para o topo do PR.
 
 ## Cuidado
 
-Tire segredo e dado pessoal do log e da ficha antes de salvar (`guardrail.py ocultar
-<arquivo>`). O commit diz a causa, o que mudou e como foi provado (`templates/anti-drift.md`).
+Não copie dado pessoal para o log nem para a ficha: nenhum script o reconhece. Antes do
+commit, `guardrail.py ocultar <arquivo>` troca pela marca o segredo que a regra do
+`segredos.py` reconhece. O commit diz a causa, o que mudou e como foi provado (`templates/anti-drift.md`).
 
 ## Resposta
 
-1. **Causa** em uma frase, com `arquivo:linha`.
-2. **Prova**: o que ligava e desligava o problema.
-3. **Conserto**: o que mudou e onde.
-4. **Trava**: o teste novo e a saída do `prova.py reproduzir` com `reproduz_e_corrige`.
+Uma linha para cada, nesta forma (o gatilho de CI lê a `Causa:` e a `Prova:`):
+
+- **Causa:** em uma frase, com `arquivo:linha`.
+- **Prova:** o que ligava e desligava o problema.
+- **Conserto:** o que mudou e onde.
+- **Trava:** o teste novo e a saída do `prova.py reproduzir` com `reproduz_e_corrige`.
 
 ## Pronto quando
 
-- A ficha `docs/investigacoes/INV-<slug>.md` tem sintoma, laço, hipóteses, causa, prova e trava, e `prova.py investigacao docs/investigacoes/INV-<slug>.md` sai 0.
-- `prova.py reproduzir --comando "<laço>" --sintoma "<regex>"` dá `reproduz_e_corrige`: o laço falha na base com o sintoma e passa agora.
-- `prova.py marcas` sai 0: nenhum log com a marca de depuração sobrou no diff.
-- A causa, em uma frase, está no corpo do commit (`git log -1`) e no PR, quando houver.
-- Com três hipóteses descartadas e nenhuma confirmada, `prova.py investigacao` saiu 2 e a pessoa recebeu o laço e o que foi descartado (gate humano).
+- Com a causa achada, a ficha `docs/investigacoes/INV-<slug>.md` tem sintoma, laço, hipóteses, `## Causa` com `arquivo:linha`, prova e trava, e `prova.py investigacao docs/investigacoes/INV-<slug>.md` sai 0.
+- A resposta dá causa, prova, conserto e trava, com a saída de `prova.py reproduzir --comando "<laço>" --sintoma "<regex>"` em `reproduz_e_corrige`; na lentidão, com o tempo antes e depois.
+- O conserto está onde a causa está: nenhum `erro-engolido` de `prova.py atalhos` nas linhas que ele acrescentou, nem valor padrão que esconda o erro.
+- O commit do conserto diz a causa, o que mudou e como foi provado (`git log -1`); no CI, onde o agente não roda o `prova.py`, o `kairos-forge-corrigir.yml` roda o gate antes e depois e a resposta termina nas linhas `Causa:` (com `arquivo:linha`) e `Prova:`.
+- Em qualquer saída, `prova.py marcas` sai 0: nenhum log com a marca `forge-depura-<id>` sobrou no diff.
+- Sem causa, a parada: nenhum laço deu `reproduz` em `prova.py reproduzir --antes`, ou `prova.py investigacao` saiu 2 (três descartadas, nenhuma confirmada); a ficha guarda o que se tentou e a pessoa recebeu o laço tentado, o descartado e por quê, e o pedido do que falta.
 
 ## Referências
 

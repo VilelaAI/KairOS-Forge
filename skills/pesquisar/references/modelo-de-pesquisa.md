@@ -1,7 +1,8 @@
 # Modelo da pesquisa
 
-Salve em `docs/pesquisa/<assunto>.md`. O `prova.py fontes` lê os campos e as seções pelo nome,
-então mantenha os títulos e a ordem das colunas da tabela de fatos.
+Salve em `docs/pesquisa/<assunto>.md`. O `prova.py fontes` lê a data, a resposta e as seções
+pelo nome, então mantenha os títulos e a ordem das colunas da tabela de fatos. Os campos
+**Para** e **Versão no projeto** são para quem lê: o verificador não os confere.
 
 ```markdown
 # <a pergunta, em uma frase>
@@ -32,7 +33,7 @@ então mantenha os títulos e a ordem das colunas da tabela de fatos.
 
 | Parte | Regra |
 |---|---|
-| título | `# ` na primeira linha de título |
+| título | um título `# ` |
 | **Data da pesquisa** | AAAA-MM-DD, nunca no futuro |
 | **Resposta** | preenchida; "não encontrada" exige `## Em aberto` preenchida |
 | `## Fatos` | ao menos uma linha, menos quando a resposta é "não encontrada" |

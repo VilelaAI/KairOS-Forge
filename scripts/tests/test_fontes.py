@@ -119,6 +119,21 @@ class AForma(Pasta):
         self.assertEqual(self.problemas(cabeca + "\n## Em aberto\n\n- A doc da 2.x saiu do ar.\n"), [])
         self.assertEqual(self.problemas(cabeca), ['resposta "não encontrada" sem `## Em aberto`'])
 
+    def test_o_marcador_do_modelo_nao_preenche(self) -> None:
+        cabeca = PESQUISA.split("**Resposta:**")[0] + "**Resposta:** não encontrada.\n"
+        self.assertEqual(self.problemas(cabeca + "\n## Em aberto\n\n- <o que não deu para confirmar>\n"),
+                         ['resposta "não encontrada" sem `## Em aberto`'])
+        self.assertEqual(self.problemas(PESQUISA.replace(
+            "**Resposta:** Sim, desde a 2.1, pelo parâmetro `delimiter`.", "**Resposta:** <uma frase>")),
+            ["sem **Resposta:**"])
+
+    def test_nao_encontrada_de_passagem_nao_dispensa_os_fatos(self) -> None:
+        texto = (PESQUISA.split("## Fatos")[0].replace(
+            "Sim, desde a 2.1", "Sim; a opção antiga foi não encontrada na 3.0, mas a 2.1")
+            + "## Fatos\n\n## Em aberto\n\n- Nada.\n")
+        self.assertEqual(self.problemas(texto), ["`## Fatos` sem nenhuma linha"])
+        self.assertEqual(self.problemas(texto.replace("**Resposta:** Sim;", "**Resposta:** Não encontrada;")), [])
+
     def test_segredo_no_texto(self) -> None:
         texto = PESQUISA.replace("- Nada.", f"- O exemplo da doc usa `{TOKEN}`.")
         self.assertEqual(self.problemas(texto),
@@ -231,6 +246,7 @@ class AImpressaoEOComando(NaSpec):
         self.assertEqual(json.loads(r.stdout)["spec"]["citadas"][0]["pesquisa"], "docs/pesquisa/csv.md")
         self.assertEqual(self.rodar("--raiz", str(self.raiz)).returncode, 0)
         self.assertEqual(self.rodar("--idade-max", "x").returncode, 1)
+        self.assertEqual(self.rodar("SPEC-099").returncode, 1)   # SPEC que não existe não passa calada
         self.escrever({"docs/adr/0001.md": "docs/pesquisa/sumiu.md\n"})
         self.assertEqual(self.rodar().returncode, 1)
         self.escrever({"docs/adr/0001.md": "nada\n", "docs/pesquisa/ruim.md": "# x\n"})

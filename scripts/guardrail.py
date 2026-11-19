@@ -1636,7 +1636,7 @@ CONFERENCIA = (
 SKILL_CHAMADA = re.compile(r"^(?:kairos-forge:)?([a-z][a-z-]*)$")
 SKILL_DIGITADA = re.compile(r"<command-name>/?(?:kairos-forge:)?([a-z][a-z-]*)</command-name>")
 PASTA_SKILLS = Path(__file__).resolve().parent.parent / "skills"
-MAX_PRONTO = 2500
+MAX_PRONTO = 8000   # com a conferência, abaixo dos 10.000 do `additionalContext` (docs/pesquisa/)
 
 
 def _blocos(d: dict) -> list:

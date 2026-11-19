@@ -90,7 +90,7 @@ Se `.agents/grafo/esquema.md` não existir, crie a partir do modelo em `referenc
 
 Para cada documento, extraia com o prompt de extração de `references/playbook-grafo.md`. As quatro regras que controlam a qualidade:
 
-1. **Só entidades centrais** ao documento — mencões incidentais ficam de fora (controla precisão).
+1. **Só entidades centrais** ao documento — menções incidentais ficam de fora (controla precisão).
 2. **Descrição de uma frase por entidade, ancorada neste documento** — é o sinal de desambiguação da resolução, não metadado opcional.
 3. **Predicados são verbos curtos** ("implementa", "depende de", "decidiu usar") — predicado vago ("está relacionado a") não é raciocinável.
 4. **Toda relação conecta duas entidades extraídas** — nada de aresta apontando pra nó que não existe.

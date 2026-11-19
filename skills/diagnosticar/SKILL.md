@@ -108,7 +108,7 @@ julgamento — e o julgamento é seu, rotulado como `inferido`.
 |---|---|---|---|
 | **Performance** | Vinícius (+ Carlos em query) | Latência, N+1, ausência de paginação, cache | Nível 2+: tempo real por endpoint, `EXPLAIN ANALYZE` |
 | **Confiabilidade** | Sérgio (+ Ricardo) | Cobertura de caminho de erro, retry, timeout, idempotência | Suíte executada, taxa de falha, teste de regressão |
-| **Segurança** | Helena | Auth, input externo, segredo em repo, dependência vulnerável | `check-agent-security.py`, varredura de segredo, versão de dep |
+| **Segurança** | Helena | Auth, input externo, segredo em repo, dependência vulnerável | `check-agent-security.py`, varredura de segredo, versão de dep; fim de vida e aviso de segurança pela `/pesquisar`, salvos em `docs/pesquisa/` |
 | **Manutenibilidade** | Rafael + Diego | Acoplamento, duplicação de domínio, tamanho, bus factor, **scope creep** | Nível 1 (churn, autoria, tamanho, revisão de SPEC) + leitura de estrutura |
 | **Observabilidade** | Renata | Log estruturado, correlação de request, métrica de negócio, alerta | Existência e formato verificados no código; nível 3 confirma uso |
 | **Custo** | Elisa | Recurso ocioso, consulta cara, egress, tier errado | Nível 3, ou fatura quando o usuário fornecer |

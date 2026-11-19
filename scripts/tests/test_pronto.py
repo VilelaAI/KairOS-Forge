@@ -174,13 +174,17 @@ class AConferencia(unittest.TestCase):
 
     def test_o_texto_tem_teto(self) -> None:
         longo = "".join(f"- `item {i} " + "x" * 200 + "`\n" for i in range(7))
-        (self.pasta / "revisar" / "SKILL.md").write_text(f"## Pronto quando\n\n{longo}", encoding="utf-8")
-        (self.pasta / "validar" / "SKILL.md").write_text(f"## Pronto quando\n\n{longo}", encoding="utf-8")
-        caminho = transcript([chamada("kairos-forge:revisar"), chamada("kairos-forge:validar")])
+        nomes = ["um", "dois", "tres", "quatro", "cinco", "seis"]
+        for nome in nomes:
+            (self.pasta / nome).mkdir(exist_ok=True)
+            (self.pasta / nome / "SKILL.md").write_text(f"## Pronto quando\n\n{longo}", encoding="utf-8")
+        caminho = transcript([chamada(f"kairos-forge:{nome}") for nome in nomes])
         self.addCleanup(os.unlink, caminho)
         texto = guardrail.pronto_das_skills({"transcript_path": caminho}, self.pasta)
         self.assertTrue(texto.endswith(" […]"))
         self.assertLess(len(texto), guardrail.MAX_PRONTO + 400)
+        # A conferência inteira cabe no teto do `additionalContext` do Claude Code.
+        self.assertLess(len(guardrail.CONFERENCIA) + len(texto), 10_000)
 
     def test_pelo_hook_com_as_skills_da_fabrica(self) -> None:
         caminho = transcript([chamada("kairos-forge:revisar")])

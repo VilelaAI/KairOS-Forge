@@ -57,8 +57,10 @@ no cliente"), diga quais agentes ou componentes sustentam essa suposição e o q
 atribuição. Depois, `registrar premissa_escrita --nota "<a premissa>"`; a correção seguinte
 parte de outra premissa. Premissa repetida na mesma sequência é recusada.
 
-A correção seguinte segue o método da skill `investigar` (ADR-0060): a premissa escrita é a
-hipótese, o laço é o gate que falhou, e só se corrige com a causa provada na ficha.
+A correção seguinte segue o método da skill `investigar` (ADR-0060): a premissa escrita entra
+na ficha como a primeira hipótese a testar, o laço é o gate que falhou, e só se corrige com a
+causa provada. Vale no `atacando_premissa_validacao` e no `atacando_premissa_revisao`; o
+`atacando_premissa_spec` é da crítica da SPEC, sem bug a investigar.
 
 ### 7. `revisando` / `corrigindo_revisao` — o segundo loop
 

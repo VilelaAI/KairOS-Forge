@@ -221,13 +221,13 @@ Etapa isolada (chame a skill direto); deploy (`/kairos-forge:lancar`); exploraç
 
 ## Pronto quando
 
-- A pessoa confirmou o entendimento, escolheu a abordagem e respondeu SIM à SPEC nos gates 1/3, 2/3 e 3/3, e nenhum deles foi respondido por você (gate humano).
-- `ciclo.py estado --json` mostra `spec_alterada` como `false`: o contrato da SPEC não mudou desde a aprovação, ou a pessoa aceitou a versão nova com `ciclo.py reaprovar`.
-- O relatório de validação mais recente em `docs/specs/validacoes/` passa em `contrato.py validar <relatório>` com `bloqueios` 0, e `guardrail.py verificar` não acusa requisito Concluído sem `verificado:`.
-- O relatório de revisão mais recente em `docs/specs/revisoes/` passa em `contrato.py revisar <relatório>` com `criticos` 0 e nada em `incompletos`, e `ciclo.py estado --json` mostra `pendentes_revisao` vazio.
-- O PR foi aberto com o corpo de `painel.py --pr SPEC-NNN` e registrado com `ciclo.py registrar pr_aberto`; o merge fica com a pessoa (gate humano).
-- O relatório de entrega está em `docs/specs/entregas/ENTREGA-SPEC-NNN-YYYY-MM-DD.md`, com desfecho, evidência, ressalvas e as rodadas do `historico` do ciclo, inclusive as que falharam.
-- Se o arco parou antes do PR (orçamento esgotado ou escalação manual), `ciclo.py estado --json` mostra `escalado`, nenhum PR foi aberto e quem destrava é a pessoa (gate humano).
+- Os gates 1/3, 2/3 e 3/3 que o arco percorreu (o 3/3 com o que a crítica achou), cada Pare e Pergunte e a SPEC alterada aceita com `ciclo.py reaprovar` foram decisão da pessoa, e merge e deploy ficaram com ela; com `--spec-aprovada`, a SPEC já vinha aprovada (gate humano).
+- Com PR: a validação mais recente, `docs/specs/validacoes/VALIDACAO-SPEC-NNN-*.md`, passa em `contrato.py validar` com `bloqueios` 0, e `guardrail.py verificar docs/specs/SPEC-NNN-<slug>.md` não acusa requisito Concluído sem `verificado:`.
+- Com PR: a revisão mais recente, `docs/specs/revisoes/REVISAO-SPEC-NNN-*.md`, passa em `contrato.py revisar` com `criticos` 0 e, na re-revisão, cada crítico da rodada anterior está em `anteriores` como `resolvido`.
+- Com PR: título `<tipo>(<escopo>): <o que muda>`, corpo de `painel.py --pr SPEC-NNN` com os altos e médios da revisão como follow-up, e `ciclo.py estado --json` em `encerrado`, com `pr_aberto` no `historico` e `spec_alterada` diferente de `true`.
+- Sem PR por escalação (orçamento, teto, faixa 3, pausa recusada que você não contornou, ou à mão): `ciclo.py estado --json` mostra `escalado`, a pessoa recebeu a mensagem de `references/escalacao.md` e só ela destrava (gate humano).
+- Sem PR por outra saída: a SPEC recusada no 3/3 deixa `ciclo.py estado --json` em `encerrado` com `recusada` no `historico`; git sujo ou branch `main` no Passo 0 não abre ciclo, e a pessoa ouviu o que falta.
+- Com PR ou escalado, `docs/specs/entregas/ENTREGA-SPEC-NNN-YYYY-MM-DD.md` traz desfecho, rodadas do `historico` inclusive as que falharam, evidência, ressalvas e o que ficou de fora; sem `ciclo.py`, a pessoa soube que o orçamento foi contado por você.
 
 ## Referências
 

@@ -830,9 +830,13 @@ def linhas_da_tabela(corpo: str) -> list[list[str]]:
     return linhas
 
 
+MARCADOR_DO_MODELO = re.compile(r"^\s*(?:[-*]\s+)?<[^>]*>\.?\s*$")
+
+
 def _preenchido(texto: str | None, minimo: int = 1) -> bool:
-    t = (texto or "").strip()
-    return len(t) >= minimo and not re.fullmatch(r"<[^>]*>\.?", t)
+    """Texto de verdade: sem as linhas que são só o `<…>` do modelo, com ou sem marcador."""
+    t = "\n".join(l for l in (texto or "").splitlines() if not MARCADOR_DO_MODELO.match(l)).strip()
+    return len(t) >= minimo
 
 
 def resultado_da_hipotese(celula: str) -> str:
@@ -1188,7 +1192,7 @@ LINK = re.compile(r"https?://[^\s)>\]]+")
 CAMINHO_NA_FONTE = re.compile(r"([\w.-]+/[\w./-]*[\w-]|[\w-]+\.[A-Za-z0-9]+)(?::\d+(?:-\d+)?)?")
 DATA_DA_FONTE = re.compile(r"^\d{4}-\d{2}(-\d{2})?$")
 TITULO_H1 = re.compile(r"^#\s+\S", re.M)
-NAO_ENCONTRADA = re.compile(r"n[ãa]o encontrad", re.I)
+NAO_ENCONTRADA = re.compile(r"^\W*n[ãa]o encontrad", re.I)   # a resposta é essa, não a cita
 IDADE_MAX_PADRAO = 180
 try:
     from segredos import ocultar_segredos
@@ -1229,7 +1233,7 @@ def problemas_da_pesquisa(texto: str, raiz: Path, hoje: date) -> tuple[list[str]
     data = _data(campos.get("data da pesquisa"))
     resposta = campos.get("resposta")
     fatos = linhas_da_tabela(secoes.get("fatos", ""))
-    nao_achou = bool(NAO_ENCONTRADA.search(resposta or ""))
+    nao_achou = bool(NAO_ENCONTRADA.match(resposta or ""))
     problemas = [msg for ok, msg in (
         (TITULO_H1.search(texto), "sem título `# <pergunta>`"),
         (data, "sem **Data da pesquisa:** AAAA-MM-DD"),
@@ -1802,7 +1806,8 @@ def _cli_fontes(args: list[str], opcao, como_json: bool, *_) -> int:
         return 1
     r = fontes(_raiz_pedida(opcao), next((a for a in args[1:] if ID_SPEC.match(a)), None), idade)
     _mostrar(r, como_json, imprimir_fontes)
-    return 1 if r["citacoes_quebradas"] or any(p["problemas"] for p in r["pesquisas"]) else 0
+    quebrado = r["citacoes_quebradas"] or any(p["problemas"] for p in r["pesquisas"])
+    return 1 if quebrado or (r["spec"] or {}).get("erro") else 0
 
 
 def _cli_selado(args: list[str], opcao, como_json: bool, *_) -> int:

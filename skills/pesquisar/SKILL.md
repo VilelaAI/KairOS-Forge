@@ -95,11 +95,11 @@ o que ficou em aberto. Fontes que discordam: as duas, qual pesa mais e por quê.
 
 ## Pronto quando
 
-- `docs/pesquisa/<assunto>.md` tem pergunta, data, resposta e cada fato com fonte, versão e data, e `prova.py fontes` sai 0.
-- A versão que o projeto usa foi lida no lockfile ou no manifesto e está na linha de cada fato, ou o fato diz `sem versão`.
-- O que se decidiu a partir da pesquisa cita o caminho dela, e `prova.py fontes SPEC-NNN` a lista entre as citadas quando há SPEC.
-- A resposta na conversa começa pela resposta e cita `docs/pesquisa/<assunto>.md`.
-- Fonte que não se achou ou que discorda está em `## Em aberto`, e a escolha entre fontes que discordam fica com a pessoa (gate humano).
+- `docs/pesquisa/<assunto>.md` (nova, ou a que já existia com a data nova) segue o modelo da skill, fora de `contextos/`, e `prova.py fontes` sai 0: título, data, resposta, cada fato com fonte, versão e data, nenhum segredo e nenhuma citação a pesquisa que não existe.
+- Em `docs/pesquisa/<assunto>.md`, a versão no projeto foi lida no lockfile, no manifesto ou na imagem, cada fato vem de fonte primária ou diz que só o fórum o sustenta, cada inferência cita os fatos, e não há página inteira copiada nem dado pessoal; nenhum script confere isso.
+- Sem fonte que confirme, a resposta é "não encontrada" e `## Em aberto` diz onde se procurou, sem palpite no buraco; `prova.py fontes` sai 1 se essa seção faltar.
+- A resposta na conversa começa pela resposta em uma ou duas frases, depois `docs/pesquisa/<assunto>.md`, os fatos com link e o que ficou em aberto; fontes que discordam aparecem as duas, com qual pesa mais e por quê.
+- Se já há decisão a partir da pesquisa (SPEC, ADR, `decisoes/log.md`, achado do `/revisar`), ela cita o caminho da pesquisa; com SPEC, `prova.py fontes SPEC-NNN` lista a pesquisa entre as citadas.
 
 ## Referências
 

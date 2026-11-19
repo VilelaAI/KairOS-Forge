@@ -12,9 +12,11 @@ manualmente (`ciclo.py escalar --motivo "..."`) quando:
 
 - **Duas falhas materialmente iguais** na mesma etapa. Insistir na terceira é
   gastar orçamento em ruído. Se o gate falha pelo mesmo motivo depois de uma
-  correção, o problema não é a correção — é o entendimento. Com orçamento de 3 ou
-  mais, o `ciclo.py` já força isso (ADR-0045): a terceira falha seguida vai para
-  `atacando_premissa_*`, e a correção seguinte só começa com a premissa escrita.
+  correção, o problema não é a correção — é o entendimento. Com orçamento de 2 ou
+  mais, o `ciclo.py` já força isso (ADR-0045, ADR-0061): a terceira falha seguida,
+  abaixo do teto, vai para `atacando_premissa_*`. Com orçamento sobrando, a correção
+  seguinte só começa com a premissa escrita. Com o padrão (2), a terceira falha esgota
+  o orçamento, e a premissa escrita segue com a escalação, no `motivo_escalacao`.
 - **Orçamento esgotado** em qualquer loop.
 - **Achado exige decisão fora da SPEC** — trade-off arquitetural, mudança de
   escopo, requisito que se revelou impossível.
@@ -29,10 +31,11 @@ Formato da escalação — específica, com o que você já tentou (o `historico
 ```
 ⏸️ Entrega pausada na etapa <N> (<etapa>).
 
-Motivo: <duas falhas iguais | orçamento | decisão fora da SPEC>
+Motivo: <duas falhas iguais | orçamento | faixa 3 | decisão fora da SPEC>
 Achado: <o achado exato, com arquivo:linha>
 Já tentei: <as rodadas consumidas e o que cada uma mudou>
 Premissa: <a suposição que as tentativas compartilharam, em uma frase>
+          (quando o motivo_escalacao traz "premissa das correções:", é a frase dele)
 Preciso de: <a decisão específica que destrava>
 falta-fonte: <fonte>   (só se o que destrava é um dado de uma ferramenta que a fábrica não alcança)
 

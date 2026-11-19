@@ -29,6 +29,8 @@ Regras do contrato:
 - `origem`/`destino` de toda relação precisam resolver (direto ou via alias) para um `nome` de `entidades.jsonl` — aresta órfã é erro.
 - Um alias aponta para exatamente um canônico — alias ambíguo é erro.
 - `fonte` é path relativo ao repo do projeto. Aresta sem fonte é erro.
+- Toda entidade cita ao menos uma fonte: `fontes` vazio (`[]`) ou só com texto em branco é erro, como a aresta sem fonte.
+- Sem nenhuma entidade, não há grafo: o `validar` sai 1, com "Sem grafo de conhecimento" quando não há outro erro a listar (relação sem entidade sai como aresta órfã). O `codigo.jsonl` sozinho não é grafo de conhecimento (ADR-0061).
 - Grafo é dirigido e multi-aresta: dois nós podem ter várias arestas com predicados distintos; direção importa ("Laura coordena mobilização" ≠ "mobilização coordena Laura").
 
 ## 2. Modelo de `esquema.md`
@@ -193,7 +195,7 @@ Cada item mapeia um modo de falha com nome. Grafo com os 10 está pronto; sem qu
 | 3 | Esquema versionado | `esquema.md` tem versão e histórico? | Entidades incompatíveis entre versões de prompt |
 | 4 | Cap de extração | Há limite de documentos por rodada (default 30)? | Custo sem teto em erro de ingestão |
 | 5 | Fallback de resolução | Nome sem cluster vira cluster unitário? | Perda silenciosa de nós |
-| 6 | Proveniência | Toda aresta carrega fonte? | Resposta sem fundamento; `/validar` não checa nada |
+| 6 | Proveniência | Toda aresta e toda entidade carregam fonte (`grafo.py validar` cobra)? | Resposta sem fundamento; `/validar` não checa nada |
 | 7 | Atualização incremental | Documento novo entra sem reconstruir o grafo? | Custo de rebuild cresce com o corpus, não com o delta |
 | 8 | Monitor de conectividade | Componentes conexos conferidos após cada resolução? | Grafo fragmentado — elos entre documentos perdidos |
 | 9 | Gatilho de re-sumarização | Perfil só re-sintetiza quando as fontes mudam? | Custo desperdiçado em entidade inalterada |

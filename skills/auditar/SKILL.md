@@ -46,8 +46,12 @@ verificam lendo os caminhos citados na rubrica. Detalhe de cada coleta em `refer
 python3 <plugin>/scripts/check-agent-security.py .claude   # varre .claude/agents/, hooks, segredos e workflows da fábrica
 ```
 
-Exit 0 = pontue cheio (4). Achados ALTA (allow-list ausente/curinga, segredo hardcoded) = 0 e liste
-no relatório. Projeto sem agentes/hooks customizados em `.claude/` = pontue cheio.
+Nos hooks, ele lê o bloco `hooks` de `.claude/settings.json` e `.claude/settings.local.json` e o
+`.codex/hooks.json` e o `.cursor/hooks.json` da pasta do projeto (ADR-0061). Nenhum achado =
+pontue cheio (4). Achado ALTA (allow-list ausente/curinga, segredo hardcoded, sai 1) ou MEDIA
+(injeção em hook, token de pessoa em workflow, sai 0 — leia a saída, não só o exit) = 0 e liste
+no relatório. Projeto sem agentes nem hooks customizados (em `.claude/`, `.codex/` ou
+`.cursor/`) = pontue cheio; o comando roda também sem a pasta `.claude/`.
 
 **Conhecimento — grafo** (critério 0-5):
 
@@ -55,6 +59,10 @@ no relatório. Projeto sem agentes/hooks customizados em `.claude/` = pontue che
 ls .agents/grafo/entidades.jsonl .agents/grafo/relacoes.jsonl .agents/grafo/esquema.md 2>/dev/null
 python3 <plugin>/scripts/grafo.py validar   # exit 0 = +2 pts; erros = 0 no subcritério, liste os 3 primeiros
 ```
+
+Sem grafo, o `validar` sai 1 e o subcritério vale 0: sem a pasta, diz que ela não existe; sem
+nenhuma entidade (a pasta só com `codigo.jsonl`, por exemplo), diz "Sem grafo de conhecimento", ou
+lista as arestas órfãs se houver relação. Até a v0.53.0, a pasta só com `codigo.jsonl` saía 0 (ADR-0061).
 
 Frescor: "Última construção" em `.agents/grafo/GRAFO.md` ≤ 30 dias = +1 pt. Bônus que não pontua
 mas entra no relatório: `grafo.py diagnosticar` (mais de 1 componente conexo ou densidade < 0.5 são

@@ -54,18 +54,28 @@ loop ou nos outros dois —, duas correções seguidas falharam sem baixar os ac
 embalo, repetiria a mesma suposição. Antes de acionar agente: escreva em uma frase a
 premissa que as duas correções compartilharam ("o saldo vem do cache", "a validação roda
 no cliente"), diga quais agentes ou componentes sustentam essa suposição e o que muda na
-atribuição. Depois, `registrar premissa_escrita --nota "<a premissa>"`; a correção seguinte
-parte de outra premissa. Premissa repetida na mesma sequência é recusada.
+atribuição. Depois, `registrar premissa_escrita --nota "<a premissa>"`. Premissa repetida na
+mesma sequência é recusada.
 
-A correção seguinte segue o método da skill `investigar` (ADR-0060): a premissa escrita entra
-na ficha como a primeira hipótese a testar, o laço é o gate que falhou, e só se corrige com a
-causa provada. Vale no `atacando_premissa_validacao` e no `atacando_premissa_revisao`; o
-`atacando_premissa_spec` é da crítica da SPEC, sem bug a investigar.
+O que vem depois depende do orçamento, e o `proximo_passo` diz qual é. Com orçamento sobrando,
+a correção seguinte parte de outra premissa. Com o orçamento esgotado, que é o caso do padrão
+(2) na terceira falha, não há correção: a premissa escrita leva a `escalado` e vai no
+`motivo_escalacao`, para a pessoa decidir com ela em mãos (ADR-0061).
+
+Quando há correção seguinte, ela segue o método da skill `investigar` (ADR-0060): a premissa
+escrita entra na ficha como a primeira hipótese a testar, o laço é o gate que falhou, e só se
+corrige com a causa provada. Vale no `atacando_premissa_validacao` e no
+`atacando_premissa_revisao`; o `atacando_premissa_spec` é da crítica da SPEC, sem bug a
+investigar.
 
 ### 7. `revisando` / `corrigindo_revisao` — o segundo loop
 
 Rode `/kairos-forge:revisar`. Depois: `registrar limpo` (zero 🔴) ou
 `registrar critico`. Achados 🟠 e 🟡 viram follow-up no corpo do PR.
+
+Revisor que não entregou parecer entra em `incompletos`, e o bloco sai `bloqueado` mesmo
+sem 🔴: registre `critico`. A contagem dessa rodada não vale como progresso, então ela
+queima ficha; acione de novo quem faltou (ADR-0061).
 
 Correção de segurança **nunca vira workaround** — se o único caminho for
 contornar em vez de corrigir, use `ciclo.py escalar --motivo "..."`.
@@ -90,7 +100,9 @@ O `/revisar` classificou o diff em faixa de raio de explosão. A faixa decide o 
   de guardrail registrada, `verificado:` corroborado (`telemetria.py`).
 - **Faixa 3** — **para e pergunta.** Escale com `ciclo.py escalar --motivo "faixa 3:
   <o que é irreversível>"`. Não existe pontuação que abra essa faixa; é a mesma fronteira
-  do ADR-0024.
+  do ADR-0024. O `ciclo.py` cobra: com `faixa` 3 no bloco `kairos-revisao`, o `registrar
+  limpo` sai 1 e a mensagem manda escalar (ADR-0061). A faixa escrita só na prosa ele não
+  lê; ali, escalar é com você.
 
 A faixa 3 também vale na hora de executar (ADR-0052). No Claude Code, o mod da fábrica faz
 a chamada irreversível parar por uma pessoa enquanto o ciclo está aberto, mesmo em modo

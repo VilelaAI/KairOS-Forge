@@ -111,6 +111,46 @@ class Leitura(unittest.TestCase):
         self.assertEqual(painel.confiado_da_spec(REQUISITOS), [])
         self.assertEqual(painel.itens_da_secao(REQUISITOS, "Não prometido"), [])
 
+    def test_titulo_dentro_de_bloco_de_codigo_nao_abre_secao(self) -> None:
+        # A SPEC que mostra o formato num exemplo não ganha o mapa nem o "não prometido"
+        # do exemplo: o que está dentro da cerca não é da SPEC (mesma regra do pronto.py).
+        exemplo = ("\n## Objetivo\n\nO relatório sai assim:\n\n```markdown\n"
+                   "## Mapa de intenção\n\n| Requisito | De onde veio |\n|---|---|\n"
+                   "| LOG-01, LOG-02, LOG-03 | issue #7 |\n\n"
+                   "## Não prometido\n\n- o exemplo não promete nada\n```\n")
+        i = painel.intencao_da_spec(REQUISITOS + exemplo)
+        self.assertFalse(i["tem_mapa"])
+        self.assertEqual(i["sem_origem"], ["LOG-01", "LOG-02", "LOG-03"])
+        self.assertEqual(painel.itens_da_secao(REQUISITOS + exemplo, "Não prometido"), [])
+        til = exemplo.replace("```markdown", "~~~~").replace("```", "~~~~")
+        self.assertFalse(painel.intencao_da_spec(REQUISITOS + til)["tem_mapa"])
+
+    def test_titulo_dentro_de_bloco_de_codigo_nao_fecha_a_secao(self) -> None:
+        # O `## ` do exemplo no meio da seção não a corta: a tabela depois dele ainda é dela.
+        fronteira = FRONTEIRA.replace(
+            "## Confiado, não provado\n",
+            "## Confiado, não provado\n\nA saída do teste:\n\n```text\n## Resultado\nok\n```\n")
+        self.assertEqual([p["assume"] for p in painel.confiado_da_spec(REQUISITOS + fronteira)],
+                         ["bcrypt diz sim só para a senha certa", "o banco devolve a conta gravada"])
+
+    def test_requisito_de_exemplo_dentro_de_bloco_de_codigo_nao_pede_origem(self) -> None:
+        # A linha de requisito de um exemplo cercado não é requisito da SPEC: não entra nos
+        # ids do mapa nem vira "sem origem" para o guardrail e o corpo do PR.
+        exemplo = ("\n## Como escrever um requisito\n\n```markdown\n"
+                   "| ID | Requisito | Prioridade | Critério | Status | Verificação |\n"
+                   "|---|---|---|---|---|---|\n"
+                   "| EX-01 | Exemplo | P1 | WHEN a THEN b | Pendente | — |\n```\n")
+        i = painel.intencao_da_spec(REQUISITOS + MAPA_COMPLETO + exemplo)
+        self.assertEqual(i["ids"], ["LOG-01", "LOG-02", "LOG-03"])
+        self.assertEqual(i["sem_origem"], [])
+
+    def test_cerca_que_nao_fecha_vai_ate_o_fim(self) -> None:
+        # CommonMark: a cerca sem fechamento engole o resto; a crase mais curta não fecha.
+        texto = REQUISITOS + "\n````\n```\n## Não prometido\n\n- não vale\n"
+        self.assertEqual(painel.itens_da_secao(texto, "Não prometido"), [])
+        self.assertEqual(painel.itens_da_secao(REQUISITOS + FRONTEIRA, "Não prometido"),
+                         ["o tempo de resposta sob carga", "a ordem entre dois logins simultâneos"])
+
 
 class CorpoDoPR(unittest.TestCase):
     def setUp(self) -> None:

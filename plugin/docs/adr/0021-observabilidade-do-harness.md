@@ -145,3 +145,16 @@ O efeito colateral prático é bem-vindo: nenhum PR fica poluído por log de tel
 | Parsear o transcript da sessão em vez de usar hooks | Formato instável entre versões, e não funciona em tempo real. Hook é a interface pública para isso |
 | Commitar `.agents/execucoes/` | Polui todo PR com log de sessão e cria conflito em qualquer trabalho paralelo. O agregado versionado entrega o mesmo valor sem o custo |
 | Manter o total do `/auditar` em 100 redistribuindo pontos | Mexeria na pontuação de cinco dimensões estáveis só para caber uma sexta. Mudar a escala e comparar por percentual é mais honesto que reescrever a régua |
+
+## Emenda (v0.54.0): corrobora só a execução do comando alegado
+
+O `corroborar` comparava o alegado e o comando gravado por trecho, nos dois sentidos. A
+alegação era corroborada pelo comando mais curto (`pytest` para `pytest tests/`), pelo mais
+estreito (`-k um`, `::teste`) e pelo só citado (`echo "pytest tests/"`). Agora só corrobora a
+execução que roda o alegado: as palavras dele inteiras e em sequência, e o comando acaba ali
+(ADR-0061). O prefixo é livre: o que prepara (`cd x &&`, `timeout`, `python3 -m`, variável de
+ambiente) e também o que não prepara, como um `echo` sem aspas. Depois, só redirecionamento ou
+o separador que fecha o comando, como `| tail` ou `&&`. Cada linha de um comando em várias
+linhas conta como um comando, e o texto entre aspas, o corpo de heredoc e o comentário não
+contam como execução. Por isso o `verificado:` cita o comando como ele rodou. O que a regra
+ainda deixa passar, como o `;` dentro de aspas, está nos limites do ADR-0061.

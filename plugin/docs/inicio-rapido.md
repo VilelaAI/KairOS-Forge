@@ -36,7 +36,7 @@ claude --plugin-dir ../kairos-forge
 Após instalar, no início da sessão você deve ver (lista de skills abreviada aqui):
 
 ```
-🔥 kairos-forge v0.53 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+🔥 kairos-forge v0.54 ativo — 71 agentes (40 core + 31 apoio em 10 squads) | skills: /kairos-forge:onboardar mapear-arquitetura … evoluir | Para mobilizar paralelo: export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 ```
 
 ## Passo 2 — onboarding do projeto
@@ -79,8 +79,9 @@ revisão volta ao agente responsável — não a você. Quem decide o próximo p
 
 O orçamento é por gate — crítica, validação e revisão, cada um com o seu — e conta
 **rodadas sem progresso**, não rodadas (ADR-0032): se os achados
-bloqueantes caem de 5 para 2, a rodada não é cobrada; se continuam 5, é. Convergir não
-é patinar, e a contagem vem do relatório em disco, não da alegação do agente. Um teto
+bloqueantes caem de 5 para 2, a rodada não é cobrada; se continuam 5, é, e também se
+caem porque um revisor não rodou (ADR-0061). Convergir não é patinar, e a contagem
+vem do relatório em disco, não da alegação do agente. Um teto
 absoluto vale por cima, porque progresso lento demais também é motivo para chamar você.
 
 É o modo recomendado quando você confia no fluxo e quer o resultado. As seções
@@ -172,7 +173,7 @@ Os agentes do plano da SPEC entram em sequência, cada um se apresentando, colab
 
 Laura abre um quadro de tarefas (`quadro.py`, estado em `.agents/quadro/`), registra cada tarefa da SPEC com dono, posse de arquivo, gate e dependências, e lança em ondas o que o quadro libera. Paralelo não é tudo ao mesmo tempo: o endpoint do Lucas espera a migration do Carlos se lê a saída dela (`--depende`), enquanto um componente da Marina que não depende de nenhum dos dois entra na mesma onda.
 
-Quem decide é código, não prosa (ADR-0035/0036): o quadro solta no máximo 6 tarefas por onda, serializa posse de arquivo sobreposta, bloqueia por tempo limite o worker que sumiu e devolve a vaga (`varrer`), desfaz em ordem inversa a tarefa que se revelou inválida e só o que foi construído sobre ela (`compensar`), e recusa `encerrar` com tarefa aberta sem lacuna declarada.
+Quem decide é código, não prosa (ADR-0035/0036): o quadro solta no máximo 6 tarefas por onda, serializa posse de arquivo sobreposta, bloqueia por tempo limite o worker que sumiu e devolve a vaga (`varrer`), desfaz em ordem inversa a tarefa que se revelou inválida e só o que foi construído sobre ela (`compensar`), e recusa `encerrar` com tarefa aberta ou com o gate pulado sem lacuna declarada, ou com o quadro sem tarefa (ADR-0061).
 
 O isolamento é proporcional à supervisão (ADR-0024): com humano revisando o PR, o ownership declarado no prompt basta. Em execução autônoma — ninguém lendo o diff — a Laura usa **worktree por teammate**, e aí o conflito deixa de ser questão de disciplina e vira impossibilidade física.
 
@@ -220,7 +221,7 @@ No Cursor, a mesma chamada é recusada com o cartão em vez de perguntada (ADR-0
 
 E o segredo que aparece na saída de um comando não vai à API (ADR-0056). No Claude Code, quando o `env`, um teste vermelho ou uma ferramenta de MCP devolve um token, uma senha ou uma chave, o valor vira `«segredo ocultado pelo kairos-forge: <tipo>»` antes de o modelo ler. O resto da saída fica, e o modelo é avisado de que o valor apareceu no terminal e pode ter de ser trocado. Para só avisar sem ocultar, ponha `"modos": {"saida": "aviso"}` em `.agents/guardrails.json`.
 
-O relatório é salvo em `docs/specs/revisoes/` com um bloco de contrato (ADR-0032) que o `/kairos-forge:entregar` lê do disco. Duas regras nele valem saber: **zero 🔴 exige a lista do que foi lido** — "não achei nada" sem dizer onde procurou é ausência de busca, não ausência de defeito; e a fence é própria da revisão, nunca a mesma da validação.
+O relatório é salvo em `docs/specs/revisoes/` com um bloco de contrato (ADR-0032) que o `/kairos-forge:entregar` lê do disco. Duas regras nele valem saber: **zero 🔴 só passa com a lista do que foi lido** — "não achei nada" sem dizer onde procurou é ausência de busca, não ausência de defeito; e a fence é própria da revisão, nunca a mesma da validação.
 
 ### 3g. (Depois do merge) Lançar com gates
 
@@ -241,9 +242,9 @@ python3 <plugin>/scripts/painel.py --html quadro.html   # página pra mandar pra
 python3 <plugin>/scripts/painel.py --caixa              # só o que espera por você
 ```
 
-Sai o quadro vivo: requisitos por coluna (A fazer / Em progresso / Pronto), progresso da SPEC, estado do arco com as fichas de orçamento, veredicto dos três gates (crítica, validação, revisão) com a cobertura declarada, as mobilizações do quadro (onda, em voo, o que pode lançar, o que venceu o prazo) e a trajetória dos últimos 14 dias. O HTML é autocontido — abre sem rede.
+Sai o quadro vivo: requisitos por coluna (A fazer / Em progresso / Pronto), progresso da SPEC, estado do arco com as fichas de orçamento, veredicto dos três gates (crítica, validação, revisão) com a cobertura declarada, as mobilizações do quadro (onda, em voo, o que pode lançar, o que venceu o prazo, o que concluiu com o gate pulado e ainda não tem lacuna) e a trajetória dos últimos 14 dias. O HTML é autocontido — abre sem rede.
 
-A `--caixa` é a caixa de entrada (ADR-0044): o gate do planejamento que espera sua resposta, a SPEC que mudou depois de aprovada, o ciclo escalado com o motivo, a tarefa bloqueada ou vencida no quadro — cada item com o comando que resolve. Com `--caixa --github` entram também as issues `forge:falta-informacao` da triagem e os PRs abertos pela fábrica; sem o `--github`, nada sai da máquina.
+A `--caixa` é a caixa de entrada (ADR-0044): o gate do planejamento que espera sua resposta, a SPEC que mudou depois de aprovada, o ciclo escalado com o motivo, a tarefa bloqueada ou vencida no quadro, a concluída com o gate pulado sem lacuna declarada (ADR-0061) — cada item com o comando que resolve. Com `--caixa --github` entram também as issues `forge:falta-informacao` da triagem e os PRs abertos pela fábrica; sem o `--github`, nada sai da máquina.
 
 Duas coisas que ele **não** faz, de propósito: não escreve nada (é renderização do estado canônico, nunca planilha paralela — ADR-0013), e não conta como "Pronto" requisito marcado `Concluído` sem `verificado:` — esse cai para "Em progresso" e aparece no aviso. Um quadro que somasse a palavra mostraria progresso que a própria `/validar` recusaria.
 

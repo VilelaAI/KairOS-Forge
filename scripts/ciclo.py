@@ -149,7 +149,7 @@ CONTRATO_VERSAO = "1.4"   # 1.1: campo `spec_alterada` (digest do contrato da SP
                           # 1.2: estados `atacando_premissa_*` (ADR-0045)
                           # 1.3: estado `provando` e campo `pendentes_revisao` (ADR-0048)
                           # 1.4: `premissa_escrita` com destino calculado — a correção, ou
-                          #      `escalado` quando o orçamento acabou (ADR-0045)
+                          #      `escalado` quando o orçamento acabou (ADR-0045/0061)
 
 # Gates com orçamento próprio. Cada um conta rodadas SEM progresso, tem teto absoluto
 # e guarda a melhor marca já atingida (ADR-0032).

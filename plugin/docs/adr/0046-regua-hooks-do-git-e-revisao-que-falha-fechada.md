@@ -123,3 +123,12 @@ número e o considera para o top 3 — naquelas chamadas, o guardrail não guard
   é perguntado — é o que vale, e fica para um ADR próprio sobre o `/avaliar` e o `/evoluir`.
 - **Trazer os "instincts"** (lições extraídas da sessão e injetadas no SessionStart com a
   confiança que o próprio modelo atribuiu). Recusada: é o auto-enxerto dos ADRs 0037 e 0043.
+
+## Emenda (v0.54.0): a revisão incompleta sem 🔴
+
+O item 4 manda registrar a revisão com revisor que não rodou como `bloqueado` com
+`incompletos`, mas a coerência exigia `criticos` de 1 para cima: sem 🔴 de quem rodou, o bloco
+era recusado. Desde o contrato 1.3, o `bloqueado` com `criticos` 0 vale quando `incompletos`
+não está vazio, também com `examinado` vazio, que é a lista honesta quando nenhum revisor rodou
+(ADR-0061). E o `ciclo.py` não conta a revisão incompleta como progresso: o 🔴 que caiu porque
+alguém não rodou não devolve a ficha.

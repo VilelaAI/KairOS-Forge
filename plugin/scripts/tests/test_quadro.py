@@ -1,4 +1,6 @@
-"""Testes do `quadro.py` — a posse exercida, conferida no git (ADR-0048).
+"""Testes do `quadro.py` — a posse exercida, conferida no git, e a recusa de concluir sem
+a foto que a confere (ADR-0048); o gate pulado que não conta como pronto e o quadro vazio
+que não encerra (ADR-0036).
 
 Cada teste roda num repositório git de verdade, num diretório temporário, porque o
 `quadro.py` trabalha relativo ao cwd e a conferência lê o `git status` e o HEAD.
@@ -283,7 +285,7 @@ class Vincular(ComRepositorio):
 
 
 class ForaDoGit(unittest.TestCase):
-    def test_sem_git_conclui_sem_conferir_e_avisa(self) -> None:
+    def test_sem_git_so_conclui_com_o_motivo_de_nao_conferir(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             antes = os.getcwd()
             os.chdir(tmp)
@@ -293,11 +295,192 @@ class ForaDoGit(unittest.TestCase):
                       "--posse", "src/**", "--pronto-quando", "ok")
                 _, saida = rodar("iniciar", "q", "T1")
                 self.assertIn("sem foto", saida)
+                self.assertIn("--sem-foto", saida)
                 codigo, saida = rodar("concluir", "q", "T1", "--evidencia", "e", "--gate-ok")
-                self.assertEqual(codigo, 0)
+                self.assertEqual(codigo, 1, saida)
                 self.assertIn("não conferida", saida)
+                self.assertIn("--sem-foto", saida)
+                q = json.loads(Path(".agents/quadro/q.json").read_text(encoding="utf-8"))
+                self.assertEqual(q["tasks"]["T1"]["estado"], "em_progresso")
+                codigo, saida = rodar("concluir", "q", "T1", "--evidencia", "e", "--gate-ok",
+                                      "--sem-foto", "projeto fora do git")
+                self.assertEqual(codigo, 0, saida)
+                self.assertIn("não conferida", saida)
+                q = json.loads(Path(".agents/quadro/q.json").read_text(encoding="utf-8"))
+                exercida = q["tasks"]["T1"]["posse_exercida"]
+                self.assertFalse(exercida["conferida"])
+                self.assertEqual(exercida["sem_foto"], "projeto fora do git")
+                concluiu = [ev for ev in q["historico"] if ev["evento"] == "concluiu"][-1]
+                self.assertIs(concluiu["posse_conferida"], False)
+                _, ledger = rodar("ledger", "q")
+                self.assertIn("T1 (projeto fora do git)", ledger)
             finally:
                 os.chdir(antes)
+
+
+class SemFoto(ComRepositorio):
+    """Sem a foto do `iniciar`, a posse não é conferida — e isso não passa calado (ADR-0048)."""
+
+    def test_foto_perdida_recusa_sem_o_motivo(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        rodar("iniciar", "q", "T1")
+        quadro.caminho_da_foto("q", "T1").unlink()      # tarefa iniciada antes da v0.41
+        Path("README.md").write_text("# fora da posse e ninguém vê\n", encoding="utf-8")
+        codigo, saida = self.concluir("T1")
+        self.assertEqual(codigo, 1, saida)
+        self.assertIn("não conferida", saida)
+        self.assertEqual(self.tarefa("T1")["estado"], "em_progresso")
+
+    def test_motivo_em_branco_nao_libera(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        rodar("iniciar", "q", "T1")
+        quadro.caminho_da_foto("q", "T1").unlink()
+        self.assertEqual(self.concluir("T1", "--sem-foto", "  ")[0], 1)
+
+    def test_checkout_que_sumiu_tambem_nao_confere(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        with tempfile.TemporaryDirectory() as fora:
+            wt = Path(fora) / "wt"
+            git("worktree", "add", "-q", str(wt), "-b", "wt")
+            rodar("iniciar", "q", "T1", "--checkout", str(wt))
+            git("worktree", "remove", "--force", str(wt))
+            codigo, saida = self.concluir("T1")
+            self.assertEqual(codigo, 1, saida)
+            self.assertIn("não conferida", saida)
+            codigo, _ = self.concluir("T1", "--sem-foto", "worktree descartado antes do concluir")
+        self.assertEqual(codigo, 0)
+        self.assertEqual(self.tarefa("T1")["posse_exercida"]["sem_foto"],
+                         "worktree descartado antes do concluir")
+
+    def test_com_foto_o_motivo_nao_e_pedido_nem_gravado(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        rodar("iniciar", "q", "T1")
+        codigo, _ = self.concluir("T1", "--sem-foto", "à toa")
+        self.assertEqual(codigo, 0)
+        exercida = self.tarefa("T1")["posse_exercida"]
+        self.assertTrue(exercida["conferida"])
+        self.assertIsNone(exercida["sem_foto"])
+
+
+class GatePulado(ComRepositorio):
+    """Pronto só com gate rodado: o gate pulado é lacuna, e lacuna não se esconde (ADR-0036)."""
+
+    def pular(self, tid: str, motivo: str = "sem ambiente de banco") -> tuple[int, str]:
+        self.adicionar(tid, "--posse", "src/**")
+        rodar("iniciar", "q", tid)
+        return rodar("concluir", "q", tid, "--evidencia", "feito", "--gate-pulado", motivo)
+
+    def vista(self) -> dict:
+        return json.loads(rodar("estado", "q", "--json")[1])
+
+    def test_fica_marcado_com_o_motivo_e_nao_conta_como_pronto(self) -> None:
+        codigo, saida = self.pular("T1")
+        self.assertEqual(codigo, 0, saida)
+        self.assertEqual(self.tarefa("T1")["gate_resultado"], "pulado: sem ambiente de banco")
+        self.assertNotIn("quadro completo", saida)
+        self.assertIn('--lacuna "T1: gate pulado — sem ambiente de banco"', saida)
+        self.assertIn("nem todas com o gate rodado", saida)
+        vista = self.vista()
+        self.assertFalse(vista["completo"])
+        self.assertFalse(vista["pode_encerrar"])
+
+    def test_encerrar_recusa_sem_a_lacuna_declarada(self) -> None:
+        self.pular("T1")
+        codigo, saida = rodar("encerrar", "q")
+        self.assertEqual(codigo, 1, saida)
+        self.assertIn("T1", saida)
+        self.assertIn("gate pulado", saida)
+        self.assertIn("sem ambiente de banco", saida)
+        self.assertFalse(self.vista()["encerrado"])
+
+    def test_com_a_lacuna_declarada_encerra_e_a_lacuna_aparece(self) -> None:
+        self.pular("T1")
+        codigo, saida = rodar("encerrar", "q", "--lacuna", "T1: gate pulado — sem ambiente de banco")
+        self.assertEqual(codigo, 0, saida)
+        self.assertIn("lacuna: T1: gate pulado — sem ambiente de banco", saida)
+        vista = self.vista()
+        self.assertTrue(vista["encerrado"])
+        self.assertFalse(vista["completo"])
+
+    def test_motivo_em_branco_recusa(self) -> None:
+        codigo, saida = self.pular("T1", motivo="   ")
+        self.assertEqual(codigo, 1, saida)
+        self.assertEqual(self.tarefa("T1")["estado"], "em_progresso")
+
+    def test_ok_e_pulado_juntos_recusam(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        rodar("iniciar", "q", "T1")
+        codigo, _ = self.concluir("T1", "--gate-pulado", "não rodei")
+        self.assertEqual(codigo, 1)
+        self.assertEqual(self.tarefa("T1")["estado"], "em_progresso")
+
+    def test_ledger_e_estado_apontam_o_gate_pulado(self) -> None:
+        self.pular("T1")
+        _, ledger = rodar("ledger", "q")
+        self.assertIn("Gate pulado: T1 (sem ambiente de banco)", ledger)
+        self.assertIn("Lacunas: T1", ledger)
+        _, estado = rodar("estado", "q")
+        self.assertIn("T1 ⚠gate pulado", estado)
+        _, prontas = rodar("prontas", "q")
+        self.assertIn("lacuna de cada gate pulado", prontas)
+
+    def test_dependente_segue_liberada(self) -> None:
+        self.pular("T1")
+        self.adicionar("T2", "--posse", "docs/**", "--depende", "T1")
+        self.assertEqual(self.vista()["prontas"], ["T2"])
+
+    def test_leitura_sem_gate_declarado_nao_tem_gate_a_pular(self) -> None:
+        # A pesquisa e a crítica declaram `--leitura` e nenhum gate (o /mobilizar, Passo 4).
+        # O `--gate-pulado "sem gate"` dela não esconde nada: virar lacuna seria lacuna falsa
+        # no relatório, e o caminho honesto ficaria mais caro que o `--gate-ok` sem gate.
+        self.adicionar("T1", "--leitura")
+        rodar("iniciar", "q", "T1")
+        codigo, saida = rodar("concluir", "q", "T1", "--evidencia", "relatório entregue",
+                              "--gate-pulado", "tarefa de leitura, sem gate")
+        self.assertEqual(codigo, 0, saida)
+        self.assertNotIn("não conta como pronta", saida)
+        vista = self.vista()
+        self.assertTrue(vista["completo"])
+        self.assertTrue(vista["pode_encerrar"])
+        codigo, saida = rodar("encerrar", "q")
+        self.assertEqual(codigo, 0, saida)
+        self.assertNotIn("gate pulado", saida)
+
+    def test_leitura_com_gate_declarado_e_pulado_e_lacuna(self) -> None:
+        self.adicionar("T1", "--leitura", "--gate", "python3 conferir_fontes.py")
+        rodar("iniciar", "q", "T1")
+        codigo, _ = rodar("concluir", "q", "T1", "--evidencia", "e", "--gate-pulado", "sem rede")
+        self.assertEqual(codigo, 0)
+        self.assertFalse(self.vista()["completo"])
+        self.assertEqual(rodar("encerrar", "q")[0], 1)
+
+
+class Encerrar(ComRepositorio):
+    def test_quadro_vazio_nao_encerra(self) -> None:
+        codigo, saida = rodar("encerrar", "q")
+        self.assertEqual(codigo, 1, saida)
+        self.assertIn("nenhuma tarefa", saida)
+        vista = json.loads(rodar("estado", "q", "--json")[1])
+        self.assertFalse(vista["pode_encerrar"])
+        self.assertFalse(vista["encerrado"])
+
+    def test_quadro_vazio_nao_encerra_nem_com_lacuna(self) -> None:
+        self.assertEqual(rodar("encerrar", "q", "--lacuna", "T1: desisti")[0], 1)
+
+    def test_quadro_completo_encerra(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        rodar("iniciar", "q", "T1")
+        self.concluir("T1")
+        codigo, saida = rodar("encerrar", "q")
+        self.assertEqual(codigo, 0, saida)
+        self.assertIn("1 de 1", saida)
+
+    def test_tarefa_aberta_sem_lacuna_nao_encerra(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        codigo, saida = rodar("encerrar", "q")
+        self.assertEqual(codigo, 1)
+        self.assertIn("T1", saida)
+        self.assertEqual(rodar("encerrar", "q", "--lacuna", "T1: fora do apetite")[0], 0)
 
 
 class RegexDaPosse(unittest.TestCase):
@@ -330,8 +513,14 @@ class RegexDaPosse(unittest.TestCase):
 class Contrato(unittest.TestCase):
     def test_versao_e_regra_da_posse_exercida(self) -> None:
         decl = quadro.contrato_publico()
-        self.assertEqual(decl["versao"], "1.2")
+        self.assertEqual(decl["versao"], "1.3")
         self.assertTrue(any("--fora-da-posse" in r for r in decl["regras"]))
+
+    def test_regras_do_gate_pulado_da_foto_e_do_quadro_vazio(self) -> None:
+        regras = quadro.contrato_publico()["regras"]
+        self.assertTrue(any("--sem-foto" in r for r in regras))
+        self.assertTrue(any("gate pulado" in r and "lacuna" in r for r in regras))
+        self.assertTrue(any("sem tarefa" in r for r in regras))
 
 
 if __name__ == "__main__":

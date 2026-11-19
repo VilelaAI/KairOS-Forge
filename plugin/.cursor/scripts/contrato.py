@@ -79,9 +79,11 @@ ESTADOS_ANTERIOR = ("resolvido", "nao_resolvido")
 #
 # MENOR (1.x): campo opcional novo, fence nova, mensagem de erro diferente.
 # MAIOR (x.0): campo obrigatório novo ou removido, regra de aceitação mais estrita.
-CONTRATO_VERSAO = "1.2"   # 1.1: `incompletos` na revisão (ADR-0046)
+CONTRATO_VERSAO = "1.3"   # 1.1: `incompletos` na revisão (ADR-0046)
                           # 1.2: `sem_evidencia` na validação; `achados` e `anteriores`
                           #      na revisão (ADR-0048)
+                          # 1.3: `incompletos` sustenta `bloqueado` com criticos=0, também
+                          #      com `examinado` vazio (ADR-0046/0061)
 
 # Teto de itens nas listas de cobertura. Existe para o parser não virar vetor de
 # payload absurdo, não porque 200 seja um número especial.
@@ -252,16 +254,29 @@ def _falta_de_prova(dados: dict, bloqueios: int) -> tuple[dict | None, Resultado
 
 # --- contrato da revisão --------------------------------------------------------------
 
-def _coerencia_da_revisao(veredicto: str, criticos: int, examinado: list[str],
-                          incompletos: list[str]) -> Resultado | None:
-    """A falha de coerência, cobertura ou completude da revisão; None se o bloco se sustenta."""
-    if veredicto == "bloqueado" and criticos == 0:
+def _veredicto_contra_contagem(veredicto: str, criticos: int,
+                               incompletos: list[str]) -> Resultado | None:
+    """`bloqueado` ⟺ há 🔴 — ou revisor que não rodou, com ou sem 🔴 de quem rodou
+    (ADR-0046): sem isso a revisão incompleta sem 🔴 não tinha bloco válido."""
+    if veredicto == "bloqueado" and criticos == 0 and not incompletos:
         return _falha(ESTRUTURAL, "veredicto 'bloqueado' com criticos=0 — "
                                   "🔴 é o que bloqueia; sem 🔴 o veredicto é outro")
     if veredicto != "bloqueado" and criticos > 0:
         return _falha(ESTRUTURAL, f"veredicto '{veredicto}' com criticos={criticos} — "
                                   "🔴 não vira ressalva (regra 6 do /kairos-forge:revisar)")
-    if criticos == 0 and not examinado:
+    return None
+
+
+def _coerencia_da_revisao(veredicto: str, criticos: int, examinado: list[str],
+                          incompletos: list[str]) -> Resultado | None:
+    """A falha de coerência, cobertura ou completude da revisão; None se o bloco se sustenta."""
+    falha = _veredicto_contra_contagem(veredicto, criticos, incompletos)
+    if falha:
+        return falha
+    # A cobertura cobra o veredicto limpo. O `bloqueado` sem 🔴 só chega aqui com
+    # `incompletos` (acima), e não aprova nada: quando nenhum revisor rodou, a lista
+    # honesta é vazia, e exigi-la tirava de novo o bloco válido da revisão incompleta.
+    if criticos == 0 and not examinado and veredicto != "bloqueado":
         return _falha(SEM_COBERTURA, "revisão sem 🔴 precisa listar em 'examinado' o que "
                                      "foi lido — arquivo, dimensão ou revisor. Lista vazia "
                                      "com veredicto limpo é ausência de busca")
@@ -519,10 +534,16 @@ def contrato_publico() -> dict:
                 "opcionais": {"incompletos": "string[]", "achados": "string[]",
                               "anteriores": "object<string," + "|".join(ESTADOS_ANTERIOR) + ">"},
                 "regras": comum + [
-                    "cobertura: criticos=0 exige 'examinado' não-vazio",
+                    "cobertura: criticos=0 exige 'examinado' não-vazio — salvo no "
+                    "'bloqueado' da revisão incompleta, que não aprova nada (1.3)",
                     "completude: 'incompletos' não-vazio exige veredicto 'bloqueado' — "
                     "revisor que não rodou não aprovou (1.1)",
-                    "achados: um id por 🔴, sem repetição (1.2)",
+                    "completude: 'incompletos' não-vazio sustenta 'bloqueado' também com "
+                    "criticos=0 — exceção à coerência, para a revisão incompleta sem 🔴 "
+                    "ter bloco válido (1.3)",
+                    "achados: um id por 🔴, sem repetição (1.2) — conferido quando "
+                    "preenchido; vazio ou ausente é revisão sem ids, que não cria pendência "
+                    "no ciclo (ADR-0048)",
                     "anteriores: 'nao_resolvido' exige veredicto 'bloqueado' (1.2)",
                     "re-revisão: com 🔴 pendente da rodada anterior, fechar limpo exige cada "
                     "id em 'anteriores' como 'resolvido' — cobrado pelo ciclo.py (1.2)",

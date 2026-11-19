@@ -441,6 +441,25 @@ def escreve_na_fiacao(cmd: str) -> str | None:
 # usuário em `.agents/grafo/`, um agente próprio em `.cursor/agents/` e qualquer arquivo
 # novo continuam livres — nenhum deles tem a marca.
 MARCA_GERADO = "GERADO por scripts/sync-multi-cli.py (kairos-forge)"
+# A marca vale no CABEÇALHO, onde o sync a escreve: nas primeiras linhas (a 1 no Codex e no
+# Tucano, a 3 no `hooks.json` do Cursor) ou logo depois do frontmatter (OpenCode e agentes
+# do Cursor, duas linhas abaixo dele). A rule do Cursor, que a traz no fim, vale pelo
+# caminho, em `GERADOS_PADRAO`. Mais para baixo
+# é texto que FALA da marca — a constante deste script, a do sync e a do tucano.py —, e
+# não arquivo que o sync escreveu; contar ali fazia o guardrail acusar a si mesmo.
+LINHAS_DO_CABECALHO = 5
+
+
+def carrega_marca_gerado(texto: str) -> bool:
+    """A marca de gerado nas primeiras linhas do arquivo ou nas primeiras depois do
+    frontmatter YAML, qualquer que seja o tamanho dele."""
+    linhas = texto.splitlines()
+    inicio = 0
+    if linhas and linhas[0].strip() == "---":
+        fim = next((i for i, l in enumerate(linhas[1:], 1) if l.strip() == "---"), None)
+        inicio = fim + 1 if fim is not None else 0
+    return any(MARCA_GERADO in l for l in linhas[:inicio + LINHAS_DO_CABECALHO])
+
 
 # Dois sinais, e a divisão entre eles não é arbitrária — ela segue quem PODE ter
 # arquivo próprio ali:
@@ -787,8 +806,8 @@ def checar_escrita(payload: dict) -> int:
     if not any(casa(rel, lib) for lib in liberados):
         alvo = raiz / rel
         try:
-            ja_gerado = alvo.is_file() and MARCA_GERADO in alvo.read_text(
-                encoding="utf-8", errors="replace")
+            ja_gerado = alvo.is_file() and carrega_marca_gerado(alvo.read_text(
+                encoding="utf-8", errors="replace"))
         except OSError:
             ja_gerado = False
         if ja_gerado or any(casa(rel, g) for g in GERADOS_PADRAO):
@@ -1889,8 +1908,8 @@ def gerados_modificados(raiz: Path) -> list[str]:
             continue
         alvo = raiz / rel
         try:
-            if alvo.is_file() and MARCA_GERADO in alvo.read_text(
-                    encoding="utf-8", errors="replace"):
+            if alvo.is_file() and carrega_marca_gerado(alvo.read_text(
+                    encoding="utf-8", errors="replace")):
                 achados.append(rel)
         except OSError:
             continue

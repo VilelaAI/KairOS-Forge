@@ -96,3 +96,13 @@ Custos:
 2. **RAG/embeddings via André.** Rejeitado como substituto: similaridade resolve single-hop; falha exatamente nos casos multi-hop em que documentos não compartilham vocabulário. Complementar, não concorrente — a fronteira Olívia × André registra isso.
 3. **Banco de grafo real (Neo4j/Postgres) embarcado.** Rejeitado: viraria runtime com dependência de infraestrutura, contra ADR-0001. Arquivos JSONL cobrem a escala de um repo; a migração de persistência fica documentada para quem precisar.
 4. **Fazer da Fernanda ou do André o dono do grafo.** Rejeitado: acumularia dois papéis numa persona e esconderia a fronteira RAG × grafo / schema de produto × esquema de conhecimento que queremos explícita — mesmo racional do ADR-0008 (Aline × Renata).
+
+## Emenda (v0.54.0): a entidade sem fonte e o grafo que não existe
+
+O `grafo.py validar` cobrava a proveniência só na relação. Aceitava entidade com
+`"fontes": []` e saía 0 sem grafo nenhum, o que dava ao `/auditar` os pontos de um grafo que
+não existe. Agora a entidade sem fonte, de lista vazia ou só com texto em branco, é erro de
+contrato, como a relação sem fonte (ADR-0061). Sem nenhuma entidade, o `validar` diz "Sem
+grafo de conhecimento" e sai 1: o `codigo.jsonl` da camada de código (ADR-0041) sozinho não é
+grafo. O CI do plugin só roda o `validar` quando há `entidades.jsonl`, `relacoes.jsonl` ou
+`aliases.jsonl`.

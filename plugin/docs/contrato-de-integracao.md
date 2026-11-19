@@ -16,9 +16,9 @@ A regra que organiza tudo:
 
 | Contrato | Comando | Versão | Para quê |
 |---|---|---|---|
-| `kairos-forge/ciclo` | `ciclo.py estado <SPEC> --json` | 1.2 | Qual o próximo passo, precisa de humano, o que registrar, se a SPEC mudou |
-| `kairos-forge/contrato` | `contrato.py <gate> <arquivo>` | 1.1 | Ler o veredicto dos relatórios sem parsear prosa |
-| `kairos-forge/quadro` | `quadro.py estado <slug> --json` | 1.1 | O que o `/mobilizar` pode lançar agora, o que venceu o prazo, se o quadro pode encerrar (ADR-0035/0036) |
+| `kairos-forge/ciclo` | `ciclo.py estado <SPEC> --json` | 1.4 | Qual o próximo passo, precisa de humano, o que registrar, se a SPEC mudou |
+| `kairos-forge/contrato` | `contrato.py <gate> <arquivo>` | 1.3 | Ler o veredicto dos relatórios sem parsear prosa |
+| `kairos-forge/quadro` | `quadro.py estado <slug> --json` | 1.3 | O que o `/mobilizar` pode lançar agora, o que venceu o prazo, se o quadro pode encerrar (ADR-0035/0036) |
 
 A versão vigente de cada um é a de `contratos/ASSINATURA.json`. Os três se publicam
 sozinhos, legíveis por máquina:
@@ -57,7 +57,8 @@ Campos garantidos:
 | `orcamento`/`rodadas`/`rodadas_totais`/`teto`/`marca` | object | Fichas por gate |
 | `historico` | object[] | Toda transição, com horário e contagem (a forma de cada item não é contrato) |
 | `spec_alterada` | boolean\|null | **O contrato da SPEC mudou depois da aprovação** (requisito, critério, prioridade, plano — Status e Verificação não contam). `null` = sem digest (SPEC não encontrada, ou ciclo anterior à v1.1). `true` = resultado verde de gate será recusado até um humano rodar `ciclo.py reaprovar` (ou a SPEC voltar ao texto selado). Desde 1.1 |
-| `motivo_escalacao` | string, opcional | Por que escalou: orçamento esgotado sem progresso, teto absoluto ou `ciclo.py escalar --motivo`. Ausente até a primeira escalação |
+| `pendentes_revisao` | string[] | Os ids (`achados`) dos 🔴 da revisão bloqueada que a revisão seguinte ainda não marcou como resolvidos. Com algum pendente, `registrar limpo` exige cada um em `anteriores` como `resolvido`. Sai sempre, `[]` quando não há. Desde 1.3 |
+| `motivo_escalacao` | string, opcional | Por que escalou: orçamento esgotado sem progresso, teto absoluto ou `ciclo.py escalar --motivo`. Na escalação por orçamento, leva a premissa das correções quando a sequência de falhas teve uma (1.4). Ausente até a primeira escalação |
 | `motivo_encerramento` | string, opcional | O `--motivo` de `ciclo.py encerrar`. Encerramento por `registrar` (`pr_aberto`, `recusada`) não o preenche |
 
 Os quatro derivados no topo existem para você **não comparar string de estado**. Um
@@ -77,6 +78,8 @@ renomeado; `if aguardando_humano` não.
                           (`ciclo.py reaprovar <SPEC>`) ou desfaz a mudança
 5. senão               → invoque o CLI com `proximo_passo` e o nome da SPEC
 6. ciclo.py registrar <um de resultados_validos> <SPEC>
+                          `pr_aberto` leva `--pr <URL ou número>`;
+                          `premissa_escrita` leva `--nota "<a premissa>"`
    exit 1?             → releia `estado`: mudou = já registrado, siga;
                           não mudou = recusa real, motivo no stderr
 7. volte ao 1
@@ -99,13 +102,35 @@ Desde a 1.2 (ADR-0045) há três estados a mais: `atacando_premissa_spec`,
 terceira falha seguida do mesmo gate sem baixar a contagem de achados (duas correções
 frustradas) e só sai com `registrar premissa_escrita <SPEC> --nota "<a premissa>"`: a
 suposição que as correções compartilharam, em uma frase, diferente das já atacadas na
-mesma sequência. Sem `--nota`, ou com uma premissa repetida, o `registrar` sai 1. Um laço
-que segue `resultados_validos` e `proximo_passo` não muda nada: o agente lê a instrução
-e escreve a premissa. Com o orçamento padrão (2) a escalada chega antes desses estados;
-eles aparecem com `--orcamento-<gate>` de 3 ou mais.
+mesma sequência. Sem `--nota`, com nota de menos de 20 caracteres ou com uma premissa
+repetida, o `registrar` sai 1. Um laço que segue `resultados_validos` e `proximo_passo` não
+muda nada: o agente lê a instrução e escreve a premissa.
 
-E em `revisando`, antes de `registrar limpo`, leia a `faixa` do relatório: com `3`, o
-`/entregar` não registra `limpo`, escala (ver as regras do Contrato 2).
+Desde a 1.4 (ADR-0061), o destino de `premissa_escrita` é calculado, e a declaração o
+publica como `null`, como o do resultado negativo. Com orçamento sobrando, a premissa reabre
+a correção do gate. Quando a falha que trouxe até ali esgotou o orçamento, o ciclo vai para
+`escalado`, com a premissa no `motivo_escalacao`. É o caso do orçamento padrão (2): a
+terceira falha não paga correção, passa pelo `atacando_premissa_*` sem gastar ficha, e a
+premissa segue com a escalação. O `proximo_passo` diz qual dos dois caminhos vem. Com
+orçamento 1, a escalada chega na segunda falha, antes desses estados. E, com qualquer
+orçamento, a escalação por orçamento esgotado leva a última premissa atacada na sequência,
+quando houve uma.
+
+Em `revisando`, a revisão limpa na faixa 3 não fecha (ADR-0031). Desde a 1.4 (ADR-0061),
+`registrar limpo` com `faixa: 3` no bloco da revisão sai 1, e o caminho é `ciclo.py escalar
+<SPEC> --motivo "faixa 3: ..."`, como faz o `/entregar`. O `proximo_passo` de `revisando`
+diz isso. Relatório sem bloco não tem faixa lida, e a faixa não recusa o `limpo` dele: ali,
+leia a `faixa` na prosa antes de registrar (ver as regras do Contrato 2).
+
+Em `pronto_para_pr`, `registrar pr_aberto` exige `--pr` desde a 1.4 (ADR-0061): o número,
+com ou sem `#`, ou a URL `…/pull/N` que o `gh pr create` imprime. Sem ele, ou com algo que
+não é referência de PR, sai 1. Com o `gh` respondendo, o PR precisa existir e estar aberto
+ou mesclado; o inexistente e o fechado sem merge saem 1. Quando o `gh` falta ou falha por
+outro motivo (sem login, sem rede, fora de um repositório), o ciclo encerra assim mesmo,
+com aviso no stderr e `pr_conferido: false` no evento do `historico`: o `--pr` pega a
+omissão, não prova que o PR existe. PR de outra branch que não a do ciclo encerra com
+aviso. O `proximo_passo` já traz o `--pr`; o runner que monta o `registrar` sozinho precisa
+passar a URL ou o número.
 
 Duas coisas que a POC de um runner externo (`docs/pocs/POC-mhl-entregar.md`, na branch
 `poc/mhl-entregar`) mostrou que o consumidor precisa saber:
@@ -119,7 +144,9 @@ Duas coisas que a POC de um runner externo (`docs/pocs/POC-mhl-entregar.md`, na 
 
 **O `ciclo.py` já faz o que um runner precisaria fazer sozinho:** recusa resultado
 inválido no estado, cobra o veredicto do artefato, conta ficha com devolução por
-progresso, impõe teto absoluto e escala sozinho. Não reimplemente nada disso — chame.
+progresso, impõe teto absoluto e escala sozinho quando o orçamento acaba. Desde a 1.4
+(ADR-0061), também recusa o `limpo` da faixa 3 e o `pr_aberto` sem PR. Não reimplemente
+nada disso — chame.
 
 E o estado vive em `.agents/ciclo/<spec>.json`, atômico via `os.replace`: sobrevive a
 restart do seu daemon, troca de CLI e reset de contexto. Não guarde cópia.
@@ -132,7 +159,7 @@ um crash não avança dois estados — o resultado deixa de ser válido no estad
 recusado com exit 1.
 
 Mas exit 1 não quer dizer só "já registrei". O `registrar` sai com 1, stdout vazio e o
-motivo no **stderr** em sete casos:
+motivo no **stderr** nestes casos:
 
 - resultado fora de `resultados_validos` — a repetição, ou o agente registrou errado;
 - ciclo em estado terminal — inclusive quando a repetição cai num terminal
@@ -143,13 +170,22 @@ motivo no **stderr** em sete casos:
   (`json_invalido`, `estrutural`, `sem_cobertura` — o código vai entre colchetes);
 - resultado verde sem relatório do gate, ou com relatório legado (sem bloco) e sem linha
   `**Veredicto:**` reconhecível;
+- `limpo` com `pendentes_revisao` sem cada id em `anteriores` como `resolvido`, ou sem
+  bloco válido para dizê-lo (1.3);
+- `limpo` com `faixa: 3` no bloco da revisão (1.4);
+- `premissa_escrita` sem `--nota`, com nota de menos de 20 caracteres ou com premissa já
+  atacada na mesma sequência (1.2);
+- `pr_aberto` sem `--pr`, com referência que não é de PR, ou com PR que o `gh` diz não
+  existir ou estar fechado sem merge (1.4);
 - SPEC sem ciclo (`abrir` nunca rodou para ela).
 
 A regra: **depois de exit 1, releia `estado`.** Mudou desde a leitura que precedeu o
 `registrar`? A transição já tinha acontecido — siga. Não mudou? É recusa real: leve o
-stderr a quem resolve (o agente, se falta relatório ou ele diz `bloqueado`; o humano, se
-`spec_alterada`) e não repita o mesmo `registrar` sem mudar nada, porque isso é laço. O
-texto do stderr é para gente, não é contrato: repasse, não parseie.
+stderr a quem resolve (o agente, se falta relatório, se ele diz `bloqueado`, se falta a
+premissa ou o `--pr`, ou se o PR não existe ou foi fechado sem merge; o humano, se
+`spec_alterada`) e não repita o mesmo `registrar` sem mudar nada, porque isso é laço. Na
+faixa 3 não há o que repetir: o caminho é `ciclo.py escalar`. O texto do stderr é para
+gente, não é contrato: repasse, não parseie.
 
 ## Contrato 2 — os relatórios
 
@@ -168,8 +204,12 @@ As regras que o parser cobra, e que o seu lado deve cobrar igual se reimplementa
 
 1. **Coerência** — `veredicto` é `aprovado`, `aprovado_com_ressalvas` ou `bloqueado`
    (maiúscula e espaço normalizados), a contagem é inteiro ≥ 0, e `bloqueado` ⟺ contagem ≥ 1.
-2. **Prova de cobertura** — contagem 0 exige a lista de cobertura não-vazia: `verificado`
-   na validação, `examinado` na crítica e na revisão.
+   A exceção é a revisão incompleta: desde 1.3, `bloqueado` com `criticos: 0` vale quando
+   `incompletos` não está vazio (regra 4a).
+2. **Prova de cobertura** — contagem 0 com veredicto que não é `bloqueado` exige a lista de
+   cobertura não-vazia: `verificado` na validação, `examinado` na crítica e na revisão. O
+   `bloqueado` da revisão incompleta não aprova nada e não exige a lista (1.3): quando nenhum
+   revisor rodou, a lista honesta é vazia.
 3. **Independência** (só na crítica) — ao menos 2 nomes distintos em `criticado_por`,
    sem diferenciar maiúscula.
 4. **Faixa** (só na revisão) — `faixa` obrigatória: 1 (contida), 2 (ampla) ou 3 (difícil
@@ -177,7 +217,19 @@ As regras que o parser cobra, e que o seu lado deve cobrar igual se reimplementa
 4a. **Completude** (só na revisão, desde 1.1 — ADR-0046) — o campo opcional `incompletos`
    lista o revisor da faixa que não entregou parecer (erro, tempo, contexto estourado).
    Não-vazio exige `bloqueado`: revisor que não rodou não aprovou, e o código é
-   `sem_cobertura`. Relatório sem o campo continua valendo como antes.
+   `sem_cobertura`. Desde 1.3 (ADR-0061), sustenta o `bloqueado` também com `criticos: 0`
+   e `examinado` vazio, e o `ciclo.py` não conta a contagem dessa rodada como progresso: a
+   ficha queima. Relatório sem o campo continua valendo como antes.
+4b. **Falta de prova** (só na validação, desde 1.2 — ADR-0048) — o opcional `sem_evidencia`
+   conta os bloqueios que são requisito sem prova e não passa de `bloqueios` (`estrutural`).
+   Igual a `bloqueios`, acima de 0, a validação está bloqueada só por falta de prova: onde
+   o orçamento mandaria corrigir, o `ciclo.py` manda para `provando`.
+4c. **Ids dos 🔴** (só na revisão, desde 1.2 — ADR-0048) — os opcionais `achados` (um id
+   por 🔴) e `anteriores` (o que a re-revisão diz de cada 🔴 da rodada anterior:
+   `resolvido` ou `nao_resolvido`). Os ids em `achados` são conferidos só quando
+   preenchidos: tantos quanto `criticos`, sem repetição. Vazio ou ausente é aceito e não
+   cria pendência no ciclo. `nao_resolvido` em `anteriores` exige `bloqueado`. Os erros
+   são `estrutural`.
 5. **Último bloco fechado vence** — rascunho anterior é ignorado; bloco sem fence de
    fechamento não conta e vira `ausente` (tolera CRLF, fence colada no texto anterior e
    indentação até 3 espaços).
@@ -186,9 +238,11 @@ As regras que o parser cobra, e que o seu lado deve cobrar igual se reimplementa
 E duas que o parser não cobra, mas que mudam o que o runner faz:
 
 - **Faixa 3 nunca fecha por evidência** (ADR-0031). Está declarada no `esquema`, mas o
-  parser só confere o valor, e o `ciclo.py` aceita `registrar limpo` com `faixa: 3`.
-  Quem para é o `/entregar`, com `ciclo.py escalar <SPEC> --motivo "faixa 3: ..."`; um
-  runner deve fazer o mesmo.
+  parser só confere o valor. Quem cobra é o `ciclo.py`: desde a 1.4 (ADR-0061),
+  `registrar limpo` com `faixa: 3` no bloco sai 1. O caminho é `ciclo.py escalar <SPEC>
+  --motivo "faixa 3: ..."`, como faz o `/entregar`; um runner deve fazer o mesmo.
+  Relatório sem bloco não tem faixa lida, e a faixa não recusa o `limpo` dele: ali, quem
+  para é o runner, lendo a faixa na prosa.
 - **Qual relatório o `ciclo.py` lê** (comportamento atual, fora do `esquema`). Na pasta
   do gate, procura `<PREFIXO>-<SPEC>-*.md` (na SPEC, todo caractere fora de
   `[A-Za-z0-9_-]` vira `-`) e fica com o **maior nome em ordem lexicográfica**, não com o
@@ -203,7 +257,7 @@ Códigos de erro, e o que fazer com cada um:
 | `ausente` | Sem bloco fechado com a fence | Relatório legado — degrade, não falhe |
 | `json_invalido` | Bloco não é JSON | Cabe **1 retry** com a mensagem de erro |
 | `estrutural` | Campo/tipo/coerência/faixa/independência/teto | Cabe **1 retry** |
-| `sem_cobertura` | Limpo sem lista | **Achado**, não retry — o relatório está errado |
+| `sem_cobertura` | Limpo sem lista, ou limpo com revisor que não rodou | **Achado**, não retry — o relatório está errado |
 
 O `registrar` aplica esta tabela. Só `ausente` cai para a linha `**Veredicto:**` da prosa,
 sem contagem — é o relatório legado. Qualquer outro código recusa resultado verde, com o
@@ -233,8 +287,8 @@ Campos garantidos (`campos` da declaração):
 | `teto_onda` | integer | Máximo de tarefas em voo ao mesmo tempo |
 | `total` | integer | Tarefas no quadro |
 | `por_estado` | object<string,integer> | Contagem por estado de tarefa (`planejada`, `em_progresso`, `concluida`, `bloqueada`) |
-| `completo` | boolean | Toda tarefa concluída |
-| `pode_encerrar` | boolean | **O que `encerrar` aceita**: `completo`, ou toda tarefa aberta com lacuna declarada |
+| `completo` | boolean | Toda tarefa concluída com o gate rodado (a concluída com gate pulado não conta, desde 1.3; a `--leitura` sem gate declarado não tem gate a pular). Quadro sem tarefa não é completo |
+| `pode_encerrar` | boolean | **O que `encerrar` aceita**: quadro com tarefa, e toda tarefa aberta ou concluída com gate pulado com lacuna declarada. Desde 1.3; antes, o quadro vazio e o gate pulado passavam |
 | `em_voo` | string[] | Ids em progresso |
 | `prontas` | string[] | **O que lançar agora**: planejada, dependências concluídas, posse livre, vaga na onda |
 | `bloqueadas` | string[] | Ids bloqueados |
@@ -246,6 +300,15 @@ Campos garantidos (`campos` da declaração):
 runner não reimplementar "posso dizer que acabou?" e "esse worker morreu?". `iniciar`
 recusa tarefa fora de `prontas` e `encerrar` recusa quadro sem `pode_encerrar` — o
 quadro decide, o runner lança.
+
+O `concluir` também recusa: com `--evidencia` vazia, sem resultado de gate (`--gate-ok`,
+ou `--gate-pulado` com motivo não vazio; os dois juntos recusam desde 1.3), com arquivo
+mudado fora da posse (salvo `--fora-da-posse "motivo"`) e, desde 1.3 (ADR-0061), quando
+falta uma das duas fotos do checkout, a do `iniciar` ou a de agora (salvo `--sem-foto
+"motivo"`, que fica no `ledger`). Quem roda o teammate num worktree próprio passa
+`--checkout <worktree>` no `iniciar` e conclui antes de remover o worktree: sem ele, a foto
+de agora não sai. E a concluída com gate pulado pede uma lacuna no `encerrar`, como a
+tarefa aberta. O quadro sugere o texto: `--lacuna "Tn: gate pulado — motivo"`.
 
 Duas ressalvas de precisão. A saída também traz `contrato` (a versão), mas a declaração
 do quadro não o lista em `campos`: leia a versão em `quadro.py contrato --json`. E o
@@ -261,6 +324,39 @@ prefira o `prontas` do `estado --json`, que é o mesmo cálculo.
 
 A assimetria dos relatórios tem motivo: ali o consumidor também é **produtor** do
 bloco, e campo obrigatório novo faz ser recusado o bloco que ele já emite.
+
+No `ciclo` e no `quadro`, aceitação mais estrita sobe MENOR. Os precedentes são o `ciclo`
+1.1 (o verde recusado com a SPEC alterada), o `ciclo` 1.3 (a re-revisão que presta contas)
+e o `quadro` 1.2 (a posse exercida). As três versões da v0.54.0 são MENOR (ADR-0061):
+
+- **`ciclo` 1.4** — `premissa_escrita` passa a ter destino calculado (`null` na
+  declaração, como o do resultado negativo). Nenhuma aresta saiu: o resultado segue aceito
+  nos três `atacando_premissa_*`, e quem relê `estado` depois de cada `registrar`, como o
+  laço mínimo manda, não percebe a diferença. O `registrar` passa a recusar o `limpo` da
+  faixa 3 e o `pr_aberto` sem PR, e a revisão incompleta deixa de contar como progresso.
+- **`contrato` 1.3** — o `bloqueado` da revisão incompleta com `criticos: 0` passa a valer.
+  A regra afrouxou: todo bloco que valia segue valendo.
+- **`quadro` 1.3** — `completo` deixa de contar a concluída com gate pulado, `pode_encerrar`
+  passa a pedir tarefa no quadro e lacuna para o gate pulado, o `concluir` sem uma das
+  fotos do checkout pede `--sem-foto`, e o `concluir` com `--gate-ok` e `--gate-pulado`
+  juntos é recusado.
+
+A tabela chama de MAIOR a "semântica alterada" do quadro, e o `completo` mudou o que
+conta. Ainda assim é MENOR, porque é aceitação mais estrita e não semântica nova. Os dois
+campos respondem à mesma pergunta de antes: `completo`, se tudo ficou pronto; `pode_encerrar`,
+o que o `encerrar` aceita. Só dizem `true` em menos casos, e cada `false` novo é um `true`
+antigo que escondia um gate pulado ou um quadro sem tarefa. O consumidor que já os lia
+assim segue certo sem mudar uma linha, e a recusa do `encerrar` diz o que fazer. MAIOR seria
+o campo passar a responder outra pergunta.
+
+Quem dirige o arco por fora sente uma mudança: o `registrar pr_aberto` sem `--pr` sai 1, e
+um runner antigo o repetiria em laço. O `proximo_passo` já traz o `--pr`. Duas outras pesam
+menos. O `registrar limpo` com `faixa: 3` no bloco sai 1, e só muda algo para o runner que
+registrava `limpo` em vez de escalar, como o Contrato 2 já pedia. E, com o orçamento padrão,
+os estados `atacando_premissa_*` passam a aparecer, sem mudar nada para o laço que segue
+`resultados_validos` e `proximo_passo`. Quem dirige o quadro passa a ver recusados o
+`concluir` sem foto, o `concluir` com os dois resultados de gate, o `encerrar` com gate
+pulado sem lacuna e o `encerrar` de quadro vazio, e cada recusa diz o que fazer.
 
 `contratos/ASSINATURA.json` guarda versão + `sha256` de cada declaração, e o
 `release.py check` recalcula em todo PR. Mudou a forma sem reassinar → **CI vermelho**,
@@ -287,9 +383,9 @@ python3 scripts/release.py assinar-contratos   # depois de ajustar CONTRATO_VERS
 - A forma de cada item de `historico` (ciclo) e de `tasks` (quadro): o contrato declara o
   tipo (`object[]`, `object`), não os campos de dentro.
 - Campos que aparecem no `estado --json` sem estar em `campos` — `aberto_em`, `branch`,
-  `spec_digest` e afins. Saem porque a vista espalha o arquivo do ciclo, não porque são
-  promessa; o guardrail usa `branch` para julgar o `gh pr create` pelos ciclos da branch
-  atual.
+  `spec_digest`, `premissas`, `escalacao_apos_premissa` e afins. Saem porque a vista
+  espalha o arquivo do ciclo, não porque são promessa; o guardrail usa `branch` para julgar
+  o `gh pr create` pelos ciclos da branch atual.
 - Saída de terminal de qualquer script — é para humano. Inclui o texto das recusas no
   stderr.
 - Nomes de estado como string comparável — use os derivados. A única exceção é separar

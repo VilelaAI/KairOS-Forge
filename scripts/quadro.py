@@ -102,7 +102,9 @@ def pasta_do_estado() -> Path:
 #
 # MENOR (1.x): campo novo, estado novo. Consumidor antigo continua válido.
 # MAIOR (x.0): campo removido/renomeado, semântica alterada.
-CONTRATO_VERSAO = "1.3"
+CONTRATO_VERSAO = "1.3"   # 1.2: posse exercida conferida no git (ADR-0048)
+                          # 1.3: gate pulado é pendência (lacuna no encerrar), `--sem-foto`
+                          #      e quadro sem tarefa não encerra (ADR-0061)
 
 ESTADOS_TASK = ("planejada", "em_progresso", "concluida", "bloqueada")
 

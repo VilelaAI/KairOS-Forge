@@ -5,7 +5,9 @@ O pipeline do grafo segue o princípio: modelo só onde há julgamento (extrair,
 resolver, sintetizar, responder); lógica determinística pro resto. Este script
 é o "resto":
 
-    validar        contrato dos JSONL (arestas órfãs, aliases ambíguos) — usável como gate
+    validar        contrato dos JSONL (arestas órfãs, aliases ambíguos, entidade sem
+                   fontes, relação sem fonte) — usável como gate; sem entidade, não há
+                   grafo, e ele não sai 0
     diagnosticar   nós, arestas, componentes conexos, densidade, compressão, hubs
     subgrafo       serializa vizinhança k-hop de uma entidade como triplas
     amostrar       nó aleatório com arestas e perfil, pra amostra humana
@@ -49,6 +51,18 @@ from datetime import datetime, timezone
 CAMPOS_ENTIDADE = {"nome", "tipo", "descricao", "fontes"}
 CAMPOS_RELACAO = {"origem", "predicado", "destino", "fonte"}
 CAMPOS_ALIAS = {"alias", "canonico"}
+
+
+def fontes_de(valor) -> list[str]:
+    """Os caminhos não vazios da `fontes` da entidade ou da `fonte` da relação: a lista do
+    contrato, ou um caminho solto em texto, lido inteiro e não letra a letra."""
+    itens = [valor] if isinstance(valor, str) else valor if isinstance(valor, list) else []
+    return [i.strip() for i in itens if isinstance(i, str) and i.strip()]
+
+
+def tem_fonte(valor) -> bool:
+    """Ao menos um caminho não vazio: a lista de `fontes` da entidade ou a `fonte` da relação."""
+    return bool(fontes_de(valor))
 
 
 def ler_jsonl(path: Path, campos: set, erros: list) -> list:
@@ -106,8 +120,12 @@ class Grafo:
                         f"relacoes.jsonl: aresta órfã — {ponta} '{r[ponta]}' não resolve "
                         f"para entidade (relação {i}: {r['origem']} --[{r['predicado']}]--> {r['destino']})"
                     )
-            if not r.get("fonte"):
+            if not tem_fonte(r.get("fonte")):
                 erros.append(f"relacoes.jsonl: relação {i} sem fonte")
+        # Proveniência por linha (ADR-0009): `"fontes": []` tem o campo e nenhuma fonte.
+        for e in self.entidades:
+            if not tem_fonte(e.get("fontes")):
+                erros.append(f"entidades.jsonl: entidade '{e['nome']}' sem fontes")
         vistos = Counter(e["nome"] for e in self.entidades)
         for nome, qtd in vistos.items():
             if qtd > 1:
@@ -158,6 +176,13 @@ def cmd_validar(g: Grafo) -> int:
         print(f"❌ {len(erros)} erro(s) de contrato em {g.dir}:")
         for e in erros:
             print(f"  - {e}")
+        return 1
+    if not g.entidades:
+        # Zero entidades não é contrato ok: é grafo nenhum. Quem pontua pelo exit 0 (o
+        # /auditar) não pode dar pontos a um grafo que não existe — e a camada de código
+        # (`codigo.jsonl`) sozinha não é o grafo de conhecimento.
+        print(f"Sem grafo de conhecimento em {g.dir}: nenhuma entidade em entidades.jsonl, "
+              f"nada validado. Rode /kairos-forge:mapear-conhecimento construir.")
         return 1
     print(f"✅ Contrato ok: {len(g.entidades)} entidades, {len(g.relacoes)} relações, {len(g.aliases)} aliases.")
     return 0
@@ -272,7 +297,7 @@ def cmd_amostrar(g: Grafo) -> int:
     nome = ent["nome"]
     print(f"# Amostra humana — {nome} ({ent['tipo']})")
     print(f"Descrição: {ent['descricao']}")
-    print(f"Fontes: {', '.join(ent.get('fontes', []))}")
+    print(f"Fontes: {', '.join(fontes_de(ent.get('fontes')))}")
     perfil = g.dir / "perfis" / f"{slug(nome)}.md"
     print(f"Perfil: {perfil if perfil.exists() else '(sem perfil)'}")
     print("Arestas:")
@@ -640,7 +665,7 @@ def cmd_contexto(diretorio: Path, arquivo: str, saltos: int, como_json: bool) ->
     entidades = ler_jsonl(diretorio / "entidades.jsonl", CAMPOS_ENTIDADE, erros)
     r["entidades_de_conhecimento"] = sorted(
         e["nome"] for e in entidades
-        if any(alvo == _normalizar(Path(str(f))) or str(f).endswith(alvo) for f in (e.get("fontes") or [])))
+        if any(alvo == _normalizar(Path(f)) or f.endswith(alvo) for f in fontes_de(e.get("fontes"))))
     meta_p = diretorio / "codigo.meta.json"
     if meta_p.is_file():
         try:

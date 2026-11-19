@@ -83,7 +83,7 @@ CONTRATO_VERSAO = "1.3"   # 1.1: `incompletos` na revisão (ADR-0046)
                           # 1.2: `sem_evidencia` na validação; `achados` e `anteriores`
                           #      na revisão (ADR-0048)
                           # 1.3: `incompletos` sustenta `bloqueado` com criticos=0, também
-                          #      com `examinado` vazio (ADR-0046)
+                          #      com `examinado` vazio (ADR-0046/0061)
 
 # Teto de itens nas listas de cobertura. Existe para o parser não virar vetor de
 # payload absurdo, não porque 200 seja um número especial.

@@ -54,7 +54,7 @@ try:
 except Exception:
     carregar = metricas = por_sessao = None  # type: ignore[assignment]
 try:
-    from quadro import vista_publica
+    from quadro import gate_pulado, lacunas_declaradas, vista_publica
 except Exception:  # quadro ausente nunca derruba o painel
     vista_publica = None  # type: ignore[assignment]
 try:
@@ -126,7 +126,8 @@ def ler_spec(caminho: Path) -> dict | None:
     except Exception:
         return None
     reqs = []
-    for linha in texto.splitlines():
+    # A linha de um exemplo cercado não é requisito: o `verificado:` dele iria para o shell.
+    for linha in _fora_de_cerca(texto).splitlines():
         cels = _celulas(linha)
         if len(cels) < 5:
             continue
@@ -174,10 +175,33 @@ def ler_spec(caminho: Path) -> dict | None:
 
 SECAO = re.compile(r"^## +(.+?)[ \t]*$", re.M)
 SEM_VALOR = {"", "—", "-", "?"}
+CERCA = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
+
+
+def _fora_de_cerca(texto: str) -> str:
+    """O texto sem os blocos de código cercados (``` ou ~~~). Título, item e linha de tabela
+    de um exemplo não são da SPEC — e o comando da matriz de exemplo iria para o shell. A
+    regra da cerca é a do CommonMark, a mesma do `pronto.py`: fecha com o mesmo caractere,
+    ao menos o mesmo tamanho e nada depois; a que não fecha vai até o fim."""
+    fora: list[str] = []
+    aberta = None
+    for linha in texto.splitlines():
+        m = CERCA.match(linha)
+        if aberta is None:
+            if m:
+                aberta = m.group(1)
+            else:
+                fora.append(linha)
+        elif m and m.group(1)[0] == aberta[0] and len(m.group(1)) >= len(aberta) \
+                and not linha.strip()[len(m.group(1)):].strip():
+            aberta = None
+    return "\n".join(fora)
 
 
 def _secao(texto: str, titulo: str) -> str | None:
-    """O corpo da seção `## <titulo>` (pelo começo do título, sem caixa), ou None."""
+    """O corpo da seção `## <titulo>` (pelo começo do título, sem caixa), ou None. O que
+    está dentro de bloco de código não abre, não fecha e não entra na seção."""
+    texto = _fora_de_cerca(texto)
     marcas = list(SECAO.finditer(texto))
     for i, m in enumerate(marcas):
         if m.group(1).lower().startswith(titulo.lower()):
@@ -201,7 +225,7 @@ def intencao_da_spec(texto: str) -> dict:
     """O mapa de intenção: de onde veio cada requisito. `tem_mapa` False é SPEC sem a
     seção; `sem_origem` são os ids que a seção não cobre ou cobre sem fonte; `inferidos`,
     os que a fábrica deduziu, e que a pessoa confirma na aprovação (ADR-0015)."""
-    ids = [r[0] for r in map(_celulas, texto.splitlines())
+    ids = [r[0] for r in map(_celulas, _fora_de_cerca(texto).splitlines())
            if len(r) >= 5 and any(c.lower() in PESO for c in r)]
     corpo = _secao(texto, "Mapa de intenção")
     mapa: dict[str, str] = {}
@@ -279,7 +303,13 @@ def ler_quadros(raiz: Path) -> list[dict]:
     saida = []
     for p in sorted(pasta.glob("*.json")):
         try:
-            v = vista_publica(json.loads(p.read_text(encoding="utf-8")))
+            cru = json.loads(p.read_text(encoding="utf-8"))
+            v = vista_publica(cru)
+            # A concluída com o gate pulado e sem lacuna declarada é o que falta para encerrar
+            # (ADR-0036): pela regra do quadro.py, sem refazer a conta aqui.
+            cobertas = lacunas_declaradas(cru)
+            v["gate_pulado"] = [tid for tid, t in cru["tasks"].items()
+                                if gate_pulado(t) and tid not in cobertas]
         except Exception:
             continue
         v.pop("tasks", None)          # o painel mostra o placar, não a tabela inteira
@@ -358,7 +388,8 @@ GATES_HUMANOS = {
     "aguardando_aprovacao": "gate 3/3 — aprovar a SPEC",
 }
 ICONE_CAIXA = {"gate": "🚦", "escalado": "🧯", "spec_alterada": "✍️ ", "bloqueada": "⛔",
-               "vencida": "⏰", "falta_informacao": "❓", "pr_da_fabrica": "🔀"}
+               "vencida": "⏰", "gate_pulado": "🚧", "falta_informacao": "❓",
+               "pr_da_fabrica": "🔀"}
 
 
 def caixa_github(raiz: Path) -> tuple[dict, list[dict]]:
@@ -411,6 +442,11 @@ def caixa(raiz: Path, github: bool = False) -> dict:
             itens.append({"tipo": "vencida", "onde": q["slug"],
                           "o_que": f"tarefa {tid} passou do tempo limite",
                           "como": f"quadro.py varrer {q['slug']} — o worker pode ter morrido"})
+        for tid in q.get("gate_pulado") or []:
+            itens.append({"tipo": "gate_pulado", "onde": q["slug"],
+                          "o_que": f"tarefa {tid} concluída com o gate pulado",
+                          "como": f"declare a lacuna ao encerrar: quadro.py encerrar {q['slug']} "
+                                  f"--lacuna \"{tid}: gate pulado — <motivo>\""})
     gh = {"estado": "nao_consultado"}
     if github:
         gh, extras = caixa_github(raiz)
@@ -515,6 +551,8 @@ def render_terminal(d: dict) -> str:
                 partes.append("bloqueadas: " + ", ".join(q["bloqueadas"]))
             if q.get("vencidas"):     # em voo além do prazo — segura a onda (ADR-0036)
                 partes.append("⏱️ vencidas: " + ", ".join(q["vencidas"]))
+            if q.get("gate_pulado") and not q["encerrado"]:
+                partes.append("🚧 gate pulado, sem lacuna: " + ", ".join(q["gate_pulado"]))
             if partes:
                 L.append("       " + " | ".join(partes))
             for texto in q["lacunas"]:
@@ -688,6 +726,9 @@ def render_html(d: dict) -> str:
         if q.get("vencidas"):   # em voo além do prazo — segura a onda (ADR-0036)
             linhas.append(f'<p class="l warn">⏱️ Vencidas: {_chips(q["vencidas"])} — '
                           "<code>quadro.py varrer</code> devolve a vaga</p>")
+        if q.get("gate_pulado") and not q["encerrado"]:
+            linhas.append(f'<p class="l warn">🚧 Gate pulado, sem lacuna: {_chips(q["gate_pulado"])} — '
+                          "rode o gate ou declare no <code>encerrar --lacuna</code></p>")
         for texto in q["lacunas"]:
             linhas.append(f'<p class="l warn">⚠ Lacuna: {_e(texto)}</p>')
         if not q["encerrado"] and q["completo"]:

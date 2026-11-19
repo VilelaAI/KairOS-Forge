@@ -25,7 +25,7 @@ Sete casos com a mesma causa são **um** problema, não sete. Corrigir caso a ca
 ```markdown
 # Eval — <comportamento> — YYYY-MM-DD
 
-**Veredicto:** acima / abaixo do limiar · dentro / acima do teto de custo
+**Veredicto:** acima / abaixo do limiar · dentro / acima do teto de custo / não medido
 **Limiar:** <número + o que ele protege> · **Teto de custo:** <+N% de tokens novos por caso>
 **Baseline → atual:** <n>% → <n>%
 **Visível:** <n>% (<N> casos) · **Selado:** <n>% (<N> casos) · **Divergência:** <n> pts
@@ -40,8 +40,13 @@ Sete casos com a mesma causa são **um** problema, não sete. Corrigir caso a ca
 
 (A saída do `telemetria.py custo-eval evals/<slug>/execucoes --teto N`: mediana por caso de
 tokens novos, cache lido, turnos e duração de cada versão, e a variação contra a baseline.
-Caso sem `usage` é "não medido". Acima do teto, o porquê de o ganho pagar o custo, ou a
-mudança volta.)
+A baseline é a subpasta `baseline/` ou a que o `--baseline NOME` disser, nunca a primeira
+subpasta; sem `baseline/` e sem o flag, o comando recusa. Caso sem `usage` é "não medido".
+Com `--json`, a saída lista em `acima_do_teto` a versão que passou do teto e em
+`nao_medido_no_teto` a que não tem variação medida, sem caso medido nela ou na baseline; no
+texto, cada uma vem num aviso ⚠️. As duas reprovam o teto (sai 1): não medido não fica
+dentro do teto (ADR-0061). Acima do teto, o porquê de o ganho pagar o custo, ou a mudança
+volta.)
 
 ## Falhas agrupadas por causa raiz
 ## Ações recomendadas (e para quem)

@@ -42,6 +42,7 @@ export const ICONE_CAIXA: Record<string, string> = {
   spec_alterada: '✍️',
   bloqueada: '⛔',
   vencida: '⏰',
+  gate_pulado: '🚧',
   falta_informacao: '❓',
   pr_da_fabrica: '🔀',
 }
@@ -128,6 +129,7 @@ function quadro(x: unknown): QuadroDoPainel {
     emVoo: textos(q.em_voo),
     bloqueadas: textos(q.bloqueadas),
     vencidas: textos(q.vencidas),
+    gatePulado: textos(q.gate_pulado),
     lacunas: textos(q.lacunas),
   }
 }
@@ -247,6 +249,7 @@ export function linhasDoQuadro(q: QuadroDoPainel): string[] {
   if (q.emVoo.length) linhas.push(`em voo: ${q.emVoo.join(', ')}`)
   if (q.bloqueadas.length) linhas.push(`bloqueadas: ${q.bloqueadas.join(', ')}`)
   if (q.vencidas.length) linhas.push(`⏱️ vencidas: ${q.vencidas.join(', ')}`)
+  if (q.gatePulado.length && !q.encerrado) linhas.push(`🚧 gate pulado, sem lacuna: ${q.gatePulado.join(', ')}`)
   return linhas
 }
 

@@ -445,8 +445,8 @@ def caixa(raiz: Path, github: bool = False) -> dict:
         for tid in q.get("gate_pulado") or []:
             itens.append({"tipo": "gate_pulado", "onde": q["slug"],
                           "o_que": f"tarefa {tid} concluída com o gate pulado",
-                          "como": f"decida: rodar o gate, ou declarar a lacuna com quadro.py encerrar "
-                                  f"{q['slug']} --lacuna \"{tid}: <motivo>\""})
+                          "como": f"declare a lacuna ao encerrar: quadro.py encerrar {q['slug']} "
+                                  f"--lacuna \"{tid}: gate pulado — <motivo>\""})
     gh = {"estado": "nao_consultado"}
     if github:
         gh, extras = caixa_github(raiz)

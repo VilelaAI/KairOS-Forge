@@ -37,7 +37,9 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ciclo.py estado          # qual o passo ag
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ciclo.py registrar <res> # o que aconteceu
 ```
 
-- **O orçamento é fato.** Esgotou, `registrar` devolve `escalado`.
+- **O orçamento é fato.** Esgotou, `registrar` devolve `escalado`. Se a falha que o esgota é a terceira
+  seguida sem progresso, o ciclo passa antes por `atacando_premissa_*`, e a premissa escrita segue no
+  `motivo_escalacao` (ADR-0061).
 - **Correção de revisão reabre a validação.** `corrigindo_revisao` só sai para `validando`.
 - **Veredicto vem do artefato.** `registrar aprovado` sem relatório em `docs/specs/validacoes/` é recusado;
   com relatório dizendo bloqueado, também. Vale igual para `docs/specs/criticas/` e `docs/specs/revisoes/`.
@@ -123,8 +125,11 @@ aguardando_aprovacao ─▶ construindo ─▶ validando ──┐
 
 Orçamento esgotado em qualquer dos **três** gates (`criticar`, `validar`, `revisar`) → `escalado`, terminal
 até o usuário destravar. Os nomes são os estados reais do `ciclo.py`. Na terceira falha seguida do mesmo
-gate sem baixar os achados, o ciclo passa por `atacando_premissa_*` antes da correção (ADR-0045): escreva a
-suposição que as duas correções frustradas compartilharam e `registrar premissa_escrita --nota "<premissa>"`.
+gate sem baixar os achados, o ciclo passa por `atacando_premissa_*` (ADR-0045): escreva a suposição que as
+duas correções frustradas compartilharam e `registrar premissa_escrita --nota "<premissa>"`. Com orçamento
+sobrando, a premissa abre a correção seguinte. Com o orçamento padrão (2), a terceira falha é a que esgota o
+orçamento: a premissa escrita leva a `escalado`, no `motivo_escalacao`, e não há terceira correção (ADR-0061).
+A falha que bate o teto absoluto escala direto, sem premissa.
 
 ### 1. `enquadrando` → `aguardando_entendimento` — gate humano 1/3
 
@@ -172,16 +177,19 @@ falta antes de mexer no código. Quantas rodadas cabem não é decisão sua. Det
 ### 7. `revisando` / `corrigindo_revisao` — o segundo loop
 
 `/kairos-forge:revisar`; pelo relatório (`kairos-revisao`): `registrar limpo` (zero 🔴) ou `registrar critico`.
-🟠 e 🟡 viram follow-up no corpo do PR. Correção de segurança **nunca vira workaround** — sem caminho,
-`ciclo.py escalar --motivo "..."`. Depois de corrigir, `registrar pronto` leva a **`validando`**, não a `revisando`.
-Na revisão seguinte, cada 🔴 pendente (`pendentes_revisao` no estado) é marcado em `anteriores`; sem isso
-o `limpo` é recusado (ADR-0048).
+Revisor sem parecer (`incompletos`) deixa a revisão `bloqueado` mesmo sem 🔴: é `critico`, e a rodada queima
+ficha (ADR-0061). 🟠 e 🟡 viram follow-up no corpo do PR. Correção de segurança **nunca vira workaround** —
+sem caminho, `ciclo.py escalar --motivo "..."`. Depois de corrigir, `registrar pronto` leva a **`validando`**,
+não a `revisando`. Na revisão seguinte, cada 🔴 pendente (`pendentes_revisao` no estado) é marcado em
+`anteriores`; sem isso o `limpo` é recusado (ADR-0048).
 
 ### 7.5. Evidência proporcional à faixa (ADR-0031)
 
 O `/revisar` classifica o diff em faixa de raio de explosão. **Faixa 1**: gates verdes. **Faixa 2**: gates
 verdes **e** trajetória limpa (`telemetria.py`). **Faixa 3**: para e pergunta — `ciclo.py escalar --motivo
-"faixa 3: <o que é irreversível>"`, mesma fronteira do ADR-0024. A faixa sai no topo do corpo do PR.
+"faixa 3: <o que é irreversível>"`, mesma fronteira do ADR-0024. O `ciclo.py` recusa o `registrar limpo`
+quando o bloco `kairos-revisao` diz `faixa` 3 (ADR-0061); a faixa escrita só na prosa ele não lê, e ali escalar
+é com você. A faixa sai no topo do corpo do PR.
 Na execução também (ADR-0052): no Claude Code, a chamada que um revert não desfaz (`terraform apply`, deploy,
 `npm publish`, migration em banco remoto, merge pelo MCP) para por uma pessoa enquanto o ciclo está aberto.
 Parada ou recusada, **não contorne**: nada de outro comando, script que a embrulhe ou permissão escalada.
@@ -193,13 +201,19 @@ Só com P1 sem bloqueio e revisão sem 🔴. Título `<tipo>(<escopo>): <o que m
 `painel.py --pr SPEC-NNN > corpo.md`: em cima, numa tela, a SPEC apontada, a origem, a faixa e o que a pessoa
 decide; embaixo, recolhida, a evidência tirada dos arquivos. Você completa só o que pede julgamento e abre
 com `gh pr create --body-file corpo.md` — formato em `references/relatorio-de-entrega.md`. **Nunca** faça
-merge — `gh pr merge` fica bloqueado durante ciclo aberto. Depois: `ciclo.py registrar pr_aberto`.
+merge — `gh pr merge` fica bloqueado durante ciclo aberto.
+
+Depois: `ciclo.py registrar pr_aberto SPEC-NNN --pr <URL que o gh pr create imprimiu>`. O `--pr` é obrigatório:
+sem ele, ou com algo que não é PR, o registro sai 1 e o ciclo não encerra (ADR-0061). Com o `gh`, o PR é
+conferido, e o que não existe ou foi fechado sem merge é recusado. Sem o `gh`, ou sem resposta dele, o ciclo
+encerra com `pr_conferido: false` no `historico`: o PR não foi conferido, e você diz isso à pessoa.
 
 ### 9. Encerrar e registrar
 
 Salve `docs/specs/entregas/ENTREGA-<SPEC-NNN>-YYYY-MM-DD.md` com desfecho, linhagem de rodadas (do `historico`
 em `ciclo.py estado --json`, **inclusive as que falharam**), evidência, ressalvas e o que ficou de fora —
-modelo em `references/relatorio-de-entrega.md`. Ao final, `ciclo.py encerrar --motivo "PR #N aberto"`.
+modelo em `references/relatorio-de-entrega.md`. Não há `ciclo.py encerrar` a rodar: o `pr_aberto` já encerrou
+o ciclo, com o PR no `historico`.
 
 ## Escalação
 
@@ -223,8 +237,8 @@ Etapa isolada (chame a skill direto); deploy (`/kairos-forge:lancar`); exploraç
 
 - Os gates 1/3, 2/3 e 3/3 que o arco percorreu (o 3/3 com o que a crítica achou), cada Pare e Pergunte e a SPEC alterada aceita com `ciclo.py reaprovar` foram decisão da pessoa, e merge e deploy ficaram com ela; com `--spec-aprovada`, a SPEC já vinha aprovada (gate humano).
 - Com PR: a validação mais recente, `docs/specs/validacoes/VALIDACAO-SPEC-NNN-*.md`, passa em `contrato.py validar` com `bloqueios` 0, e `guardrail.py verificar docs/specs/SPEC-NNN-<slug>.md` não acusa requisito Concluído sem `verificado:`.
-- Com PR: a revisão mais recente, `docs/specs/revisoes/REVISAO-SPEC-NNN-*.md`, passa em `contrato.py revisar` com `criticos` 0 e, na re-revisão, cada crítico da rodada anterior está em `anteriores` como `resolvido`.
-- Com PR: título `<tipo>(<escopo>): <o que muda>`, corpo de `painel.py --pr SPEC-NNN` com os altos e médios da revisão como follow-up, e `ciclo.py estado --json` em `encerrado`, com `pr_aberto` no `historico` e `spec_alterada` diferente de `true`.
+- Com PR: a revisão mais recente, `docs/specs/revisoes/REVISAO-SPEC-NNN-*.md`, passa em `contrato.py revisar` com `criticos` 0 e `incompletos` vazio e, na re-revisão, cada crítico da rodada anterior está em `anteriores` como `resolvido`.
+- Com PR: título `<tipo>(<escopo>): <o que muda>`, corpo de `painel.py --pr SPEC-NNN` com os 🟠 e 🟡 da revisão como follow-up, e `ciclo.py estado --json` em `encerrado`, com `pr` e `pr_conferido` no evento `pr_aberto` (`false` dito à pessoa) e `spec_alterada` diferente de `true`.
 - Sem PR por escalação (orçamento, teto, faixa 3, pausa recusada que você não contornou, ou à mão): `ciclo.py estado --json` mostra `escalado`, a pessoa recebeu a mensagem de `references/escalacao.md` e só ela destrava (gate humano).
 - Sem PR por outra saída: a SPEC recusada no 3/3 deixa `ciclo.py estado --json` em `encerrado` com `recusada` no `historico`; git sujo ou branch `main` no Passo 0 não abre ciclo, e a pessoa ouviu o que falta.
 - Com PR ou escalado, `docs/specs/entregas/ENTREGA-SPEC-NNN-YYYY-MM-DD.md` traz desfecho, rodadas do `historico` inclusive as que falharam, evidência, ressalvas e o que ficou de fora; sem `ciclo.py`, a pessoa soube que o orçamento foi contado por você.

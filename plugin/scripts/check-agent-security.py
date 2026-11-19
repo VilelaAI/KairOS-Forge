@@ -14,7 +14,9 @@ Verifica três classes de risco:
 
   2. Injeção em hooks
      Hooks rodam comandos de shell. Sinaliza padrões perigosos em comandos de hook
-     (download-e-executa, `eval` de entrada não confiável).
+     (download-e-executa, `eval` de entrada não confiável): em `hooks/hooks.json`,
+     `.codex/hooks.json`, `.cursor/hooks.json` e no bloco `hooks` de
+     `.claude/settings.json` e `.claude/settings.local.json`.
 
   3. Segredos hardcoded
      Varre os arquivos versionados do plugin atrás de chaves/tokens/credenciais
@@ -35,6 +37,7 @@ qualquer achado de severidade ALTA — pronto para CI ou pre-commit.
 """
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -120,15 +123,53 @@ PADROES_HOOK = [
 ]
 
 
+SETTINGS_DO_CLAUDE = ("settings.json", "settings.local.json")
+
+
+def arquivos_de_hook(raiz: Path) -> list[tuple[Path, bool]]:
+    """Cada arquivo que liga comando de shell a um evento, e se só o bloco `hooks` dele conta.
+
+    `hooks/hooks.json` (plugin), `.codex/hooks.json` e `.cursor/hooks.json` são inteiros de
+    hook. Num `.claude/settings*.json`, só o bloco `hooks` roda como hook: o resto é
+    permissão e variável, e um `deny` de `curl | sh` é proteção, não risco. Apontado para o
+    `.claude` de um projeto, olha os settings ali e o Codex e o Cursor da pasta do projeto."""
+    inteiros = [raiz / "hooks" / "hooks.json", raiz / ".codex" / "hooks.json",
+                raiz / ".cursor" / "hooks.json"]
+    settings = [raiz / ".claude" / nome for nome in SETTINGS_DO_CLAUDE]
+    if raiz.name == ".claude":                       # `check-agent-security.py .claude`
+        inteiros += [raiz.parent / ".codex" / "hooks.json", raiz.parent / ".cursor" / "hooks.json"]
+        settings += [raiz / nome for nome in SETTINGS_DO_CLAUDE]
+    return [(arq, False) for arq in inteiros] + [(arq, True) for arq in settings]
+
+
+def texto_de_hook(arq: Path, so_o_bloco: bool) -> str | None:
+    """O texto em que os padrões são procurados; None num settings sem bloco `hooks`.
+    Settings ilegível é varrido inteiro: melhor um achado a mais que um hook sem olhar. Byte
+    fora de UTF-8 vira U+FFFD, como o Claude Code lê, em vez de derrubar a auditoria. O bloco
+    volta com um item por linha, como o arquivo gravado com indentação: os padrões param no fim
+    da linha, e o `curl` de um comando não se junta ao `| sh` de outro."""
+    texto = arq.read_text(encoding="utf-8", errors="replace")
+    if not so_o_bloco:
+        return texto
+    try:
+        cfg = json.loads(texto)
+    except ValueError:
+        return texto
+    if not isinstance(cfg, dict):
+        return texto
+    bloco = cfg.get("hooks")
+    return json.dumps(bloco, ensure_ascii=False, indent=2) if bloco else None
+
+
 def checar_hooks(raiz: Path) -> int:
     n = 0
-    candidatos = [raiz / "hooks" / "hooks.json", raiz / ".codex" / "hooks.json",
-                  raiz / ".cursor" / "hooks.json"]
-    for arq in candidatos:
+    for arq, so_o_bloco in arquivos_de_hook(raiz):
         if not arq.is_file():
             continue
+        texto = texto_de_hook(arq, so_o_bloco)
+        if texto is None:
+            continue
         n += 1
-        texto = arq.read_text(encoding="utf-8")
         nome = rel(raiz, arq)
         for regex, descricao in PADROES_HOOK:
             if regex.search(texto):

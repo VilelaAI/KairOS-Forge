@@ -190,10 +190,19 @@ da nota do topo.
   repositório, diz que não há o que proteger e sai 0 — pode ficar ligado desde já.
 - **Opcional (ADR-0039).** `prova.py testes-alterados` sai 1 quando teste existente perde
   asserção ou caso, ganha `skip` ou é apagado — a versão dura do aviso do `verificar`.
-  `prova.py pre-patch` roda cada teste novo contra a base num worktree descartável e sai
-  1 se ele passar lá, porque então não prova a mudança. Precisa das dependências do
-  projeto instaladas, como no seu job de testes: sem elas o teste falha na base por falta
-  de dependência e conta como `falhou_na_base`, um verde falso.
+  `prova.py pre-patch` leva o lado de teste do diff (testes, auxiliares das pastas de teste
+  e `conftest.py` novos ou mudados; no Go, o `_test.go` novo entra na sua vez e o mudado
+  fica como está na base) para a base, num worktree descartável, roda lá cada teste novo e
+  sai 1 se algum passar, porque então não prova a mudança. Precisa das dependências do
+  projeto instaladas, como no seu job de testes: sem elas, o teste que importa o que falta
+  nem carrega na base e sai `erro_na_base`, com o que falta no motivo (ADR-0061). O
+  `erro_na_base` não reprova o passo, mas esse teste não prova nada; o mesmo vale para o
+  erro de sintaxe no teste e a fixture de um plugin que não está instalado. Só é
+  `falhou_na_base` o teste que não carrega por falta do que o diff acrescenta em produção
+  (o módulo novo, o nome novo) e a falha comum, mesmo quando a mensagem cita `SyntaxError`
+  ou `No module named`, ou vem do `ast.parse` ou do `JSON.parse` do que a base devolve. O
+  comando que nem roda (o `--comando` com um programa que não está instalado, exit 127, ou
+  sem permissão, 126) sai `nao_executado`, e não `falhou_na_base` (ADR-0061).
 
 ```yaml
 name: kairos-forge — gates sem modelo
@@ -213,16 +222,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          persist-credentials: false
           fetch-depth: 0 # o diff contra a base precisa de histórico
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
 
       - name: Baixar a fábrica
-        run: git clone --depth 1 https://github.com/VilelaAI/kairos-forge /tmp/forge
+        env:
+          # Como nos gatilhos (ADR-0057): uma tag de versão ou o commit que você revisou, nunca a `main`.
+          FORGE_REF: ${{ vars.FORGE_REF || 'v0.54.0' }}
+        run: |
+          git init -q /tmp/forge
+          git -C /tmp/forge fetch -q --depth 1 https://github.com/VilelaAI/kairos-forge "$FORGE_REF"
+          git -C /tmp/forge checkout -q FETCH_HEAD
 
       - name: Guardrail
         run: python3 /tmp/forge/scripts/guardrail.py verificar .

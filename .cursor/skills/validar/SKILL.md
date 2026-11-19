@@ -131,6 +131,18 @@ Para cada requisito com Status **Concluído**, extraia o comando citado na célu
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/telemetria.py corroborar "<comando citado no verificado:>"
 ```
 
+**Só conta a execução que roda o comando citado** (ADR-0061): as palavras dele inteiras, em
+sequência, e o comando acaba ali. Depois, só o que não muda o que rodou: redirecionamento,
+pipe ou outro comando (`2>&1 | tail`, `&& echo ok`). Não corrobora o comando mais curto, o
+mais estreito (`-k um`, `::test_um`, `--grep`), o que tem um flag a mais no fim nem a palavra
+pela metade (`tests/test_x` não casa `tests/test_x_outro.py`): por isso o `verificado:` cita o
+comando exatamente como rodou. Cada linha de um comando em várias linhas conta como um
+comando, e a linha continuada com `\` é uma só. O comentário (`# pytest tests/`), o corpo de
+um heredoc e o `git commit -m "verificado: pytest tests/"` não corroboram `pytest tests/`. O
+que vem antes não é conferido: passa o que prepara (`cd x &&`, `timeout 60`, `python3 -m`,
+`FOO=1`), mas também o `echo pytest tests/`. Leia o comando de cada execução listada antes de
+aceitar.
+
 Os quatro veredictos e o que cada um faz com a linha da matriz:
 
 | Veredicto | Significado | Efeito na validação |
@@ -138,7 +150,7 @@ Os quatro veredictos e o que cada um faz com a linha da matriz:
 | `corroborado` | O comando rodou e passou | Evidência confirmada — o mais forte que existe aqui |
 | `corroborado_com_falha` | Rodou e **falhou** em todas as execuções registradas | **Bloqueia.** A SPEC afirma verificado sobre um gate vermelho |
 | `corroborado_indeterminado` | Rodou, saída não permite afirmar resultado | Vale como "gate executado", mas cite a incerteza na ressalva |
-| `nao_corroborado` | Nenhuma execução registrada daquele comando | **Evidência não corroborada** — trata como "sem evidência" para P1 |
+| `nao_corroborado` | Nenhuma execução registrada que rode aquele comando | **Evidência não corroborada** — trata como "sem evidência" para P1 |
 
 Regras:
 
@@ -156,12 +168,27 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prova.py pre-patch          # teste novo r
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prova.py testes-alterados   # teste existente modificado ou removido no diff
 ```
 
+O `pre-patch` leva para a base, antes de rodar qualquer teste, o lado de teste do diff: os
+testes, os auxiliares das pastas de teste e os `conftest.py` novos ou mudados (ADR-0061). No
+Go, cada `_test.go` novo entra na sua vez, e o mudado fica como está na base.
+
 | Resultado | O que significa | Efeito no veredicto |
 |---|---|---|
-| `falhou_na_base` | O teste novo depende da mudança | Evidência confirmada |
+| `falhou_na_base` | O teste novo depende da mudança. O que nem carrega na base só conta aqui quando o que falta é o que o diff acrescenta em produção: o módulo novo, o nome novo, o pacote Go novo | Evidência confirmada |
 | `passou_na_base` | O teste novo passa sem a mudança — não prova o que o patch fez | Requisito coberto só por esse teste = **sem evidência**. Exceção declarada pelo autor no relatório: regressão de bug que a base já corrigia |
-| `nao_executado` | Ecossistema sem comando conhecido, ou nada coletado | Registre; passe `--comando "<gate> {arquivo}"` se o projeto tiver o comando |
+| `erro_na_base` | O teste novo nem carrega na base, por algo que o diff não acrescenta: dependência não instalada, erro de sintaxe no teste, auxiliar de fora do diff, fixture de um plugin ausente, ou causa que o script não reconhece. O motivo diz o que falta | Não prova. Requisito coberto só por esse teste = **sem evidência** até rodar de novo com o ambiente ou o teste corrigido. Não reprova o passo: dos veredictos, só o `passou_na_base` faz o `pre-patch` sair 1 |
+| `nao_executado` | Ecossistema sem comando conhecido, nada coletado, ou o comando do teste nem rodou (exit 126 ou 127: programa que não existe ou sem permissão) | Registre; confira o ambiente ou passe `--comando "<gate> {arquivo}"` se o projeto tiver o comando |
 | Teste existente **com sinal** (asserção removida, caso pulado, arquivo apagado) | A prova do comportamento anterior mudou junto com o código | Liste arquivo a arquivo e cobre a justificativa. Sem justificativa, **bloqueia** em P1: suite verde afrouxada é evidência contra, não a favor |
+
+A falha comum continua `falhou_na_base`, também quando a mensagem só cita o texto de uma falta:
+a asserção que espera `SyntaxError` ou cita `No module named`, e o `ast.parse` ou o
+`JSON.parse` do que a base devolve. O script lê o código de saída, não a intenção: o serviço
+externo fora do ar também sai `falhou_na_base`, e as últimas linhas da saída, que vêm no
+resultado, mostram qual foi. O comando que nem roda (exit 126 ou 127) sai `nao_executado`. E o
+`conftest.py` do diff que importa código novo não carrega na base, mas isso não vira prova
+para todo teste da pasta: o teste roda de novo com os conftests da base e, se passar, é
+`passou_na_base`; se faltar uma fixture que o conftest do diff define, continua prova; senão,
+vale o que a nova rodada mostrar.
 
 Refactor legítimo também muda teste. O que separa refactor de afrouxamento é a justificativa escrita — é isso que você cobra, não a ausência de mudança. A trajetória ajuda: o guardrail registra toda edição em teste existente (`classe: teste`), então "não mexi em teste" é verificável.
 
@@ -298,7 +325,7 @@ compra rodada que você não ganhou.
 
 **`sem_evidencia` separa falta de prova de falha (ADR-0048).** Dos `bloqueios`, quantos são
 requisito "sem evidência" na matriz — nenhum comando provou, `nao_corroborado`,
-`passou_na_base` ou critério de `fachada` — e não falha mostrada. Nunca passa de `bloqueios`. Quando todos os
+`passou_na_base`, `erro_na_base` ou critério de `fachada` — e não falha mostrada. Nunca passa de `bloqueios`. Quando todos os
 bloqueios são falta de prova, o `ciclo.py` não manda o construtor mexer no código: vai para
 `provando`, onde se roda a checagem que falta (ou o Ricardo escreve o teste) antes de
 qualquer correção. Se a prova falhar, a validação seguinte mostra a falha. Contar falha
@@ -342,8 +369,8 @@ Próximo passo: <corrigir com agente X | rodar /kairos-forge:revisar>.
 
 - O relatório está em `docs/specs/validacoes/VALIDACAO-<SPEC-NNN>-YYYY-MM-DD.md`, `contrato.py validar <relatório>` sai 0 com qualquer veredicto, inclusive `bloqueado`, e o `git diff` de código e de teste é o de antes da validação: ela não corrige, nomeia quem corrige.
 - A seção "Decisões posteriores à aprovação" traz `prova.py decisoes SPEC-NNN`, cada decisão ligada citada por `arquivo:linha` como segue, contradiz ou não toca a entrega; a que contradiz bloqueia, e escolher entre ela e a SPEC fica com uma pessoa.
-- A matriz tem uma linha por requisito, com a coluna Corroboração por `telemetria.py corroborar "<comando>"` quando há `.agents/execucoes/`; P1 sem prova (Concluído sem `verificado:`, `nao_corroborado`, `passou_na_base`, `fachada`) é "sem evidência" e conta em `sem_evidencia`.
+- A matriz tem uma linha por requisito e a coluna Corroboração por `telemetria.py corroborar "<comando>"` com `.agents/execucoes/`; P1 sem prova (Concluído sem `verificado:`, `nao_corroborado`, `passou_na_base`, `erro_na_base`, `fachada`) conta em `sem_evidencia`.
 - Cada teste `planejado:` do `## Confiado, não provado` rodou nesta validação, e a linha sem teste ou com teste que não roda e o requisito sem origem no `## Mapa de intenção` estão no relatório como pendência.
-- Com `.agents/grafo/`, a "Fundamentação no grafo" traz a data da construção e as afirmações "sem aresta" escaladas à pessoa; com `codigo.jsonl`, o relatório diz quantos importadores fora do diff o `grafo.py contexto <arquivo>` dá por arquivo de produção e se algum gate os cobre.
+- Com `.agents/grafo/entidades.jsonl`, a "Fundamentação no grafo" traz a data da construção e as afirmações "sem aresta" escaladas à pessoa; com `codigo.jsonl`, o relatório diz os importadores fora do diff que `grafo.py contexto <arquivo>` dá e se algum gate os cobre.
 - A seção "Prova negativa dos testes" traz a saída de `prova.py pre-patch` e `prova.py testes-alterados`: os testes novos por veredicto e cada teste existente alterado com a justificativa aceita ou "sem justificativa".
 - Cada gate está no relatório como passou, falhou ou "não executado" com o motivo; com os do projeto verdes, também `qualidade.py duplicacao`, `qualidade.py crap`, `qualidade.py mutacao` e `qualidade.py criterios SPEC-NNN`, e mutante sem critério é ressalva, não requisito novo.

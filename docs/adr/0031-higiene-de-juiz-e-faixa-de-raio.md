@@ -181,3 +181,11 @@ que decidimos é não **embarcar** isso ligado.
 | Fazer o `diagnostico.py` classificar a faixa automaticamente | Classificação é julgamento com contexto de negócio. Script que julga dá aparência de objetividade a escolha subjetiva — mesma regra do ADR-0030 |
 | Aumentar o teto de tempo da suíte para caber 500 casos | Suíte lenta não roda. Preferimos o conflito declarado ao teto que ninguém respeita |
 | Colocar os cinco comportamentos como assertions no `guardrail.py` | Três deles são semânticos; guardrail determinístico não alcança. Os que alcançam **já estão lá** — o eval verifica que o guardrail funciona, não o substitui |
+
+## Emenda (v0.54.0): a faixa 3 cobrada pelo `ciclo.py`
+
+"Faixa 3 chama `ciclo.py escalar`" era instrução ao `/entregar`, e o `ciclo.py` aceitava
+`registrar limpo` com `faixa` 3 no bloco `kairos-revisao`, o que levava o arco ao PR. Agora
+esse `limpo` sai 1, o estado não muda, e a mensagem manda escalar com `ciclo.py escalar
+--motivo "faixa 3: …"` (ADR-0061). A faixa 3 escrita só na prosa de um relatório sem bloco
+continua sem ser lida.

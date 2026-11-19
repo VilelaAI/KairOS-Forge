@@ -132,6 +132,34 @@ class Matriz(unittest.TestCase):
             "## Matriz de testes\n\n| Requisito | Tipo |\n|---|---|\n| A-01 | unit |\n"), {})
         self.assertEqual(qualidade.comandos_da_matriz("## Matriz de testes\n\nnada\n"), {})
 
+    def test_matriz_de_exemplo_dentro_de_bloco_de_codigo_nao_roda(self) -> None:
+        # O comando entre crases vai para o shell: a matriz do exemplo cercado não é a da SPEC.
+        exemplo = textwrap.dedent("""\
+            ## Objetivo
+
+            ```markdown
+            ## Matriz de testes
+
+            | Requisito | Comando/gate |
+            |---|---|
+            | LOG-01 | `rm -rf build` |
+            ```
+            """)
+        self.assertEqual(qualidade.comandos_da_matriz(exemplo), {})
+        real = textwrap.dedent("""\
+            ## Matriz de testes
+
+            ```text
+            | Comando/gate | Requisito |
+            ```
+
+            | Requisito | Comando/gate |
+            |---|---|
+            | LOG-01 | `pytest -k login` |
+            """)
+        self.assertEqual(qualidade.comandos_da_matriz(exemplo + real),
+                         {"LOG-01": ["pytest -k login"]})
+
 
 class CriteriosDaSpec(unittest.TestCase):
     def setUp(self) -> None:
@@ -166,6 +194,25 @@ class CriteriosDaSpec(unittest.TestCase):
     def test_gates_juntam_criterios_do_mesmo_comando(self) -> None:
         gates = qualidade._gates(qualidade.criterios_da_spec(self.arquivo, None))
         self.assertEqual([g["ids"] for g in gates], [["IDA-01", "IDA-03"], ["IDA-02"], ["IDA-06"]])
+
+    def test_requisito_de_exemplo_dentro_de_bloco_de_codigo_nao_roda(self) -> None:
+        # O `verificado:` com comando entre crases também vai para o shell: a linha de
+        # requisito de um exemplo cercado não é critério da SPEC, nem conta no progresso.
+        exemplo = textwrap.dedent("""\
+
+            ## Como escrever um requisito
+
+            ```markdown
+            | ID | Requisito | Prioridade | Critério de aceite | Status | Verificação |
+            |---|---|---|---|---|---|
+            | EX-01 | Exemplo | P1 | WHEN a THEN b | Concluído | verificado: `rm -rf build` (05/11) |
+            ```
+            """)
+        self.arquivo.write_text(SPEC + exemplo, encoding="utf-8")
+        ids = [c["id"] for c in qualidade.criterios_da_spec(self.arquivo, None)]
+        self.assertNotIn("EX-01", ids)
+        self.assertEqual(ids, ["IDA-01", "IDA-02", "IDA-03", "IDA-04", "IDA-05", "IDA-06"])
+        self.assertEqual(qualidade.painel.ler_spec(self.arquivo)["total"], 6)
 
 
 class Motor(unittest.TestCase):

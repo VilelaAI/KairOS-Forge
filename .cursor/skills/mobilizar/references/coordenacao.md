@@ -21,10 +21,16 @@ ninguém lê.
 
 ```bash
 git worktree add .worktrees/<teammate> -b forge/<slug>-<teammate>
+quadro.py iniciar forge-<slug> T1 --agente <teammate> --checkout .worktrees/<teammate>
 # ... teammate trabalha e commita só ali ...
+quadro.py concluir forge-<slug> T1 --evidencia "..." --gate-ok   # antes de remover
 git merge --no-ff forge/<slug>-<teammate>     # Laura integra, uma de cada vez
 git worktree remove .worktrees/<teammate>
 ```
+
+Conclua antes do `git worktree remove`. O `concluir` compara a foto do worktree no
+`iniciar` com a de agora; worktree removido não tem foto, o `concluir` recusa e só passa
+com `--sem-foto "motivo"`, sem conferir a posse (ADR-0061).
 
 Conflito deixa de ser violação de disciplina e vira **impossibilidade física**. O custo
 é real (setup por teammate, merges sequenciais, `.worktrees/` no `.gitignore`) e por
@@ -71,7 +77,24 @@ estrutural do *shared memory* no padrão orquestrador–workers (ADR-0009):
    Sem evidência, ou sem dizer o que houve com o gate (`--gate-ok` ou
    `--gate-pulado "motivo"`), o quadro recusa. Concluir em silêncio sobre o gate é
    exatamente o resumo fluente por cima de resultado parcial que ele existe para impedir.
-   Ao concluir, ele já diz o que a conclusão liberou — essa é a sua próxima onda.
+   O motivo do pulo não pode ser vazio, e `--gate-ok` com `--gate-pulado` recusa: o gate
+   rodou e passou, ou não rodou. Ao concluir, ele já diz o que a conclusão liberou — essa
+   é a sua próxima onda.
+
+   Concluída com o gate pulado não conta como pronta (ADR-0061). Ela fica fora de
+   `completo`, sai no `estado` com `⚠gate pulado` e, para o `encerrar`, conta como aberta:
+   pede `--lacuna "T1: gate pulado — motivo"`. Rode o gate antes de concluir; pule só
+   quando não der, e o pulo entra no relatório como lacuna. A exceção é a tarefa
+   `--leitura` sem gate declarado: não há gate a pular, ela conclui com
+   `--gate-pulado "motivo"`, e esse pulo não vira lacuna.
+
+   O `concluir` também confere no git o que a tarefa mudou desde a foto do `iniciar`:
+   arquivo fora da posse dela e das que trabalhavam junto recusa, salvo
+   `--fora-da-posse "motivo"`. Quando falta uma das fotos — a do `iniciar` ou a de agora
+   (fora do git, checkout sujo demais, worktree já removido) —, não há o que comparar, e
+   concluir calado aceitaria qualquer arquivo. O `concluir` recusa até receber
+   `--sem-foto "motivo"`: confira à mão (`git status`, `git diff`) antes. Os dois motivos
+   ficam na tarefa e aparecem no `quadro.py ledger`.
 
 2. **Worker que não responde tem prazo.** Antes de cada onda nova, varra:
 
@@ -117,31 +140,38 @@ estrutural do *shared memory* no padrão orquestrador–workers (ADR-0009):
    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/quadro.py estado forge-<slug>
    ```
 
-   O quadro é **renderização do estado canônico**, nunca estado paralelo. Card só entra
-   em "Pronto" com gate rodado — os cards andam porque os agentes construíram e
-   provaram, não porque alguém arrastou.
+   O quadro é **renderização do estado canônico**, nunca estado paralelo. Card só conta
+   como pronto com gate rodado — os cards andam porque os agentes construíram e
+   provaram, não porque alguém arrastou. Até o `encerrar`, o painel mostra a concluída
+   com o gate pulado em `🚧 gate pulado, sem lacuna`, e a `--caixa` a traz como item que
+   espera uma pessoa, com o comando da lacuna (ADR-0061).
 
 6. **Fan-in em camadas.** Com mais de ~6 teammates, não consolide todos os outputs crus
    de uma vez. Agrupe por domínio, resuma cada grupo, e sintetize **os resumos**.
 
-7. **Encerramento.** Quando o quadro disser completo:
+7. **Encerramento.** Quando o quadro disser completo — toda tarefa concluída com o gate
+   rodado, ou sem gate a rodar (ADR-0061):
 
    ```bash
    quadro.py ledger forge-<slug>       # a tabela do relatório, montada do estado
    quadro.py encerrar forge-<slug>
    ```
 
-   `encerrar` **recusa** quadro com tarefa aberta sem lacuna declarada
-   (`--lacuna "T7: motivo"`). Em cadeia, uma falha para tudo e todo mundo vê; em grafo,
-   o nó que falhou some num relatório que parece completo — é esse relatório que a
-   recusa impede. Depois, encerre os workers (`shutdown_request` / `close_agent`) e
+   `encerrar` **recusa** quadro com tarefa aberta, ou concluída com o gate pulado, sem
+   lacuna declarada (`--lacuna "T7: motivo"`). Em cadeia, uma falha para tudo e todo
+   mundo vê; em grafo, o nó que falhou some num relatório que parece completo — é esse
+   relatório que a recusa impede. Pelo mesmo motivo, recusa o quadro sem nenhuma tarefa:
+   "0 de 0, sem lacuna" é uma mobilização que não entregou nada com cara de completa. A
+   saída para uma mobilização abandonada é adicionar as tarefas do plano e declarar cada
+   uma como lacuna. Depois, encerre os workers (`shutdown_request` / `close_agent`) e
    reporte:
 
    ```
    ✅ Time forge-<slug>: N de N tarefas planejadas concluídas em M ondas.
    (Se N < planejado: liste cada tarefa faltante e por quê — nunca omita lacuna.)
+   (Se houve gate pulado: liste cada tarefa e o motivo — concluída com o gate pulado é lacuna.)
 
-   📋 Quadro final: Pronto: N ✓gate | Em progresso: N | A fazer: N (NN%)
+   📋 Quadro final: Pronto: N ✓gate, N ⚠gate pulado | Em progresso: N | A fazer: N (NN%)
    💳 Ledger: <saída de `quadro.py ledger`>
 
    Resumo:

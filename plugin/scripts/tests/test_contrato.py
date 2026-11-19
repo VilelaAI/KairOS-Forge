@@ -40,6 +40,33 @@ class CompletudeDaRevisao(unittest.TestCase):
         self.assertTrue(r.ok, r.erro)
         self.assertEqual(r.dados["incompletos"], ["Vinícius"])
 
+    def test_incompleta_sem_critico_e_bloqueada(self) -> None:
+        # O ADR-0046 manda registrar a revisão incompleta como `bloqueado`. Sem 🔴 de quem
+        # rodou, a coerência recusava justamente isso, e o único bloco aceito era o que
+        # apagava o `incompletos` e aprovava com um revisor a menos.
+        r = contrato.ler_revisao(revisao(veredicto="bloqueado", incompletos=["Patrícia"]))
+        self.assertTrue(r.ok, r.erro)
+        self.assertEqual((r.dados["criticos"], r.dados["incompletos"]), (0, ["Patrícia"]))
+
+    def test_incompleta_sem_nenhum_revisor_que_rodou_e_bloqueada(self) -> None:
+        # Quando nenhum revisor rodou, `examinado` honesto é vazio. A cobertura existe para
+        # o veredicto limpo ("lista vazia com veredicto limpo é ausência de busca"); exigir
+        # a lista aqui deixava a revisão incompleta sem bloco válido de novo, ou empurrava o
+        # agente a inventar o que foi lido.
+        r = contrato.ler_revisao(revisao(veredicto="bloqueado", examinado=[],
+                                         incompletos=["Helena", "Patrícia"]))
+        self.assertTrue(r.ok, r.erro)
+        self.assertEqual(r.dados["examinado"], [])
+        # Sem `incompletos`, a lista vazia continua sem cobertura, e o veredicto limpo com
+        # revisor faltando continua recusado.
+        r = contrato.ler_revisao(revisao(examinado=[], incompletos=["Helena"]))
+        self.assertEqual(r.codigo, contrato.SEM_COBERTURA)
+        r = contrato.ler_revisao(revisao(examinado=[]))
+        self.assertEqual(r.codigo, contrato.SEM_COBERTURA)
+        # O esquema publicado diz o mesmo que o parser cobra.
+        regras = contrato.contrato_publico()["relatorios"]["revisao"]["regras"]
+        self.assertTrue(any(r.startswith("cobertura:") and "incompleta" in r for r in regras))
+
     def test_incompletos_que_nao_e_lista_e_estrutural(self) -> None:
         r = contrato.ler_revisao(revisao(incompletos="Patrícia"))
         self.assertEqual(r.codigo, contrato.ESTRUTURAL)
@@ -55,7 +82,9 @@ class CompletudeDaRevisao(unittest.TestCase):
 
     def test_esquema_publica_o_campo_e_a_versao(self) -> None:
         c = contrato.contrato_publico()
-        self.assertEqual(c["versao"], "1.2")
+        self.assertEqual(c["versao"], "1.3")
+        self.assertTrue(any("incompletos" in r and "criticos=0" in r
+                            for r in c["relatorios"]["revisao"]["regras"]))
         self.assertEqual(c["relatorios"]["revisao"]["opcionais"],
                          {"incompletos": "string[]", "achados": "string[]",
                           "anteriores": "object<string,resolvido|nao_resolvido>"})

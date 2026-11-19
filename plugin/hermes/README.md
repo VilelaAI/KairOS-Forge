@@ -103,7 +103,8 @@ mensagem só) é de sessão interativa (ADR-0038).
 
 Se o orçamento esgotar ou a fábrica precisar de decisão fora da SPEC, ela **para
 e pergunta** em vez de insistir — a pergunta chega ao chat com o que já foi
-tentado.
+tentado. Quando a terceira falha seguida esgota o orçamento, chega também a
+premissa que as correções compartilharam, em uma frase (ADR-0061).
 
 Também funciona sob demanda: "migra esse monólito com a fábrica" (Ivan,
 `/migrar`), "roda a revisão de segurança da fábrica nesse diff" (`/revisar`),
@@ -125,7 +126,7 @@ python3 <plugin>/scripts/ciclo.py estado SPEC-NNN --json
 | `gate` | Qual loop está em jogo: `criticar`, `validar` ou `revisar` |
 | `resultados_validos` | O que o `registrar` aceita agora — a resposta do fundador vira um destes |
 | `spec_alterada` | A SPEC mudou depois da aprovação; resultado verde fica recusado até você aceitar a versão nova |
-| `motivo_escalacao` | Por que escalou: orçamento, teto ou a decisão que falta |
+| `motivo_escalacao` | Por que escalou: orçamento, teto ou a decisão que falta; no orçamento esgotado depois de uma premissa escrita, também a premissa das correções |
 
 O bot decide por esses campos, não comparando nome de estado — só para dizer como
 um ciclo terminal acabou ele lê o `estado`. `<plugin>` é o diretório do plugin

@@ -154,3 +154,13 @@ lê só o `result` pelo mapa embaralhado, e o custo vem do script, sem passar po
 - **A mediana esconde a cauda.** Uma versão que explode em 1 de 10 casos aparece nos casos com
   erro e na leitura caso a caso, não na mediana. O relatório lista os casos, como o passo 5 já
   pede.
+
+## Emenda (v0.54.0): a versão não medida não passa no teto
+
+No `custo-eval --teto`, a versão sem variação medida contava como 0 e passava, contra o "não
+medido, nunca 0" da emenda anterior. Agora ela sai em `nao_medido_no_teto` e reprova o
+`--teto` como a que fica acima dele: sem caso com `usage` nela ou na baseline, não dá para
+provar que ficou dentro (ADR-0061). A baseline também é dita, nunca adivinhada: sem a subpasta
+`baseline/`, o `--baseline NOME` é obrigatório, e antes a primeira subpasta em ordem
+alfabética virava a baseline sem aviso. A pasta vem antes dos flags, porque o comando toma por
+pasta o primeiro argumento que não começa com `--`.

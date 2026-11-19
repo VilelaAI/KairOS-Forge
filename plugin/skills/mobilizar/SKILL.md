@@ -143,13 +143,20 @@ tarefa irreversível, e irreversível para no usuário. O quadro avisa quando fa
 ### Passo 7 — Coordenar como Tech Lead
 
 1. **Registre o que voltar.** Sem evidência, ou sem `--gate-ok` / `--gate-pulado
-   "motivo"`, o quadro recusa. Ao concluir, ele diz o que liberou — a próxima onda.
+   "motivo"`, o quadro recusa; recusa também o motivo vazio e os dois juntos, que se
+   contradizem. Ao concluir, ele diz o que liberou — a próxima onda.
    ```bash
    quadro.py concluir forge-<slug> T1 --evidencia "<arquivos, requisitos, gate>" --gate-ok
    ```
+   Concluída com o gate pulado não conta como pronta: o `encerrar` pede
+   `--lacuna "T1: gate pulado — motivo"`. A tarefa `--leitura` sem gate declarado não tem
+   gate a pular: o `--gate-pulado` dela não vira lacuna (ADR-0061).
    O `concluir` confere no git o que a tarefa mudou: arquivo fora da posse dela (e das que
    trabalhavam junto) recusa. Desfaça o que não era dela ou, se a mudança era necessária,
-   `--fora-da-posse "motivo"` — fica no ledger, com o motivo.
+   `--fora-da-posse "motivo"` — fica no ledger, com o motivo. Sem a foto do `iniciar` ou a
+   de agora (fora do git, checkout sujo demais, worktree já removido), recusa até
+   `--sem-foto "motivo"`: confira à mão o que mudou; o motivo também vai para o ledger.
+   Com worktree, conclua antes do `git worktree remove`.
 2. **Worker que não responde tem prazo.** Antes de cada onda nova, varra: além do tempo
    limite a tarefa vira `bloqueada` e devolve a vaga; ao reabrir, relance ou aumente o `--tempo-limite`.
    ```bash
@@ -167,14 +174,19 @@ tarefa irreversível, e irreversível para no usuário. O quadro avisa quando fa
    com a lacuna declarada. Não existe "mais uma rodadinha".
 5. **Checkpoint ao fim de cada onda** — a onda é a unidade que o quadro já controla
    (`prontas` decide a próxima). Valide alinhamento com a SPEC e renderize; card só
-   entra em "Pronto" com gate rodado:
+   conta como pronto com gate rodado:
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/painel.py SPEC-NNN   # SPEC + ciclo + quadro
    python3 ${CLAUDE_PLUGIN_ROOT}/scripts/quadro.py estado forge-<slug>
    ```
+   No `estado`, a concluída com o gate pulado sai com `⚠gate pulado`. Até o `encerrar`, o
+   painel a mostra em `🚧 gate pulado, sem lacuna`, e a `--caixa` a traz com o comando da
+   lacuna (ADR-0061).
 6. **Fan-in em camadas.** Acima de ~6 teammates, resuma por domínio e sintetize os
    resumos.
-7. **Encerramento.** `encerrar` **recusa** tarefa aberta sem `--lacuna "T7: motivo"`.
+7. **Encerramento.** `encerrar` **recusa** tarefa aberta ou concluída com o gate pulado
+   sem `--lacuna "T7: motivo"`, e quadro sem nenhuma tarefa. Mobilização abandonada não
+   fecha vazia: adicione as tarefas do plano e declare cada uma como lacuna (ADR-0061).
    Encerre os workers (`shutdown_request` / `close_agent`) e reporte no formato de
    `references/coordenacao.md` — nunca omita lacuna; pendências: validar, revisar,
    `mapear-conhecimento atualizar`, PR.
@@ -182,8 +194,9 @@ tarefa irreversível, e irreversível para no usuário. O quadro avisa quando fa
    quadro.py ledger forge-<slug>       # a tabela do relatório, montada do estado
    quadro.py encerrar forge-<slug>
    ```
-   O ledger traz o que saiu da posse e, no Claude Code, os tokens como o transcript
-   registrou: em tarefa concluída, desfeita, em aberto e sem tarefa vinculada (ADR-0048).
+   O ledger traz o gate pulado, o que saiu da posse, a posse não conferida e, no Claude
+   Code, os tokens como o transcript registrou: em tarefa concluída, desfeita, em aberto
+   e sem tarefa vinculada (ADR-0048).
 
 ## Quando NÃO usar mobilizar
 
@@ -198,8 +211,9 @@ Tudo em PT-BR: prompts dos teammates, mensagens aos workers, quadro e relatório
 
 ## Pronto quando
 
-- Encerrado: `quadro.py estado forge-<slug> --json` mostra `encerrado` como `true`, e o `quadro.py encerrar` só fecha com toda tarefa concluída ou com lacuna declarada em `--lacuna "Tn: motivo"`.
-- Cada tarefa concluída tem no `quadro.py estado forge-<slug> --json` evidência, `gate_resultado` (`ok` ou `pulado: motivo`) e `posse_exercida` conferida no git; o que saiu da posse passou com `--fora-da-posse "motivo"` e aparece no `quadro.py ledger forge-<slug>`.
+- Encerrado: `quadro.py estado forge-<slug> --json` mostra `encerrado` como `true`; o `quadro.py encerrar` só fecha quadro com tarefa, e com `--lacuna "Tn: motivo"` para cada tarefa aberta ou concluída com o gate pulado.
+- Cada tarefa concluída tem no `quadro.py estado forge-<slug> --json` evidência e `gate_resultado` `ok`, ou `pulado: motivo` declarado como lacuna no encerrar (a tarefa `--leitura` sem gate declarado não tem gate a pular).
+- A `posse_exercida` de cada concluída veio conferida no git, ou não conferida com `--sem-foto "motivo"`; o que saiu da posse passou com `--fora-da-posse "motivo"`, e os dois motivos aparecem no `quadro.py ledger forge-<slug>`.
 - No fim, os workers foram encerrados e o relatório final segue o modelo de `references/coordenacao.md`: a saída do ledger, cada lacuna com o motivo e as pendências (validar, revisar, `mapear-conhecimento atualizar` e PR).
 - Pausado para a pessoa: a 100% de um limite do orçamento declarado, nada novo foi lançado até ela escolher entre encerrar com lacunas e ampliar, e tarefa sem `--reverter` (o quadro só avisa) esperou o aval dela (gate humano).
 - Sem quadro: parou antes de mobilizar para a pessoa decidir a pergunta aberta que bloqueia requisito P1, ou, num CLI sem lançamento paralelo, ela escolheu o `/kairos-forge:rodar` (gate humano).

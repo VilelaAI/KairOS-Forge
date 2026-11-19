@@ -133,3 +133,13 @@ Tudo é aditivo: relatório e quadro antigos continuam válidos, e a assinatura 
   - os playbooks seriam uma segunda linguagem de plano ao lado do `ciclo.py`;
   - o modo "sempre ligado" é contexto pago em toda interação, que o ADR-0038 cortou;
   - o painel com posições duplica o `rodar debate` (ADR-0018).
+
+## Emenda (v0.54.0): concluir sem a foto
+
+A posse exercida não dizia o que acontece sem foto, e o `concluir` aceitava qualquer arquivo,
+com uma linha de aviso e nada no ledger, quando faltava a foto do `iniciar` (projeto fora do
+git, checkout sujo demais) ou a de agora (worktree removido). Agora ele recusa até receber
+`--sem-foto "motivo"`, no molde do `--fora-da-posse`: o motivo fica na tarefa e aparece no
+ledger (ADR-0061). Por isso o teammate em worktree conclui antes do `git worktree remove`, ou
+perde a conferência. Com o gate pulado que vira lacuna e o quadro sem tarefa que não encerra
+(emenda ao ADR-0036), o contrato do quadro sobe para 1.3.

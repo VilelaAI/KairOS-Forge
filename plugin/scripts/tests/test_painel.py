@@ -92,6 +92,31 @@ class Caixa(unittest.TestCase):
         self.assertIn("gate 1/3", saida)
         self.assertIn("ciclo.py reaprovar SPEC-002", saida)
 
+    def test_gate_pulado_sem_lacuna_espera_por_uma_pessoa(self) -> None:
+        """A tarefa concluída com o gate pulado impede o quadro de se dizer completo
+        (ADR-0036); sem lacuna declarada, o painel e a caixa mostram o que falta decidir."""
+        chamar(quadro, "abrir", "forge-x")
+        for tid in ("T1", "T2"):
+            chamar(quadro, "adicionar", "forge-x", "--id", tid, "--titulo", tid, "--dono",
+                   "carlos-dba", "--posse", f"{tid.lower()}/**", "--pronto-quando", "roda",
+                   "--gate", "npm test")
+            chamar(quadro, "iniciar", "forge-x", tid)
+            chamar(quadro, "concluir", "forge-x", tid, "--evidencia", "migration escrita",
+                   "--sem-foto", "teste", "--gate-pulado", "sem ambiente de banco")
+        (q,) = painel.ler_quadros(Path.cwd())
+        self.assertEqual((q["completo"], q["gate_pulado"]), (False, ["T1", "T2"]))
+        d = painel.caixa(Path.cwd())
+        self.assertEqual(self.tipos(d), {("gate_pulado", "forge-x")})
+        saida = painel.render_caixa(d)
+        self.assertIn("tarefa T1 concluída com o gate pulado", saida)
+        self.assertIn('quadro.py encerrar forge-x --lacuna "T1: gate pulado — <motivo>"', saida)
+        # A lacuna declarada tira a tarefa do que espera; o quadro vira encerrável.
+        q_cru = json.loads(Path(".agents/quadro/forge-x.json").read_text(encoding="utf-8"))
+        q_cru["lacunas"] = ["T1: sem ambiente de banco"]
+        Path(".agents/quadro/forge-x.json").write_text(json.dumps(q_cru), encoding="utf-8")
+        (q,) = painel.ler_quadros(Path.cwd())
+        self.assertEqual(q["gate_pulado"], ["T2"])
+
     def test_github_so_quando_pedido_e_so_pr_da_fabrica(self) -> None:
         issues = [{"number": 9, "title": "Exportar CSV", "url": "u9"}]
         prs = [

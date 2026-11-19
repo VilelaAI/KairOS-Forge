@@ -244,8 +244,85 @@ class CustoPorVersao(unittest.TestCase):
         self.assertIn("nenhuma subpasta", telemetria.custo_por_versao(so_arquivos)["erro"])
         primeira = telemetria.custo_por_versao(self.raiz / "evals" / "x" / "execucoes", None)
         self.assertEqual(primeira["baseline"], "baseline")
+
+    def test_sem_a_pasta_baseline_a_baseline_e_dita_nunca_adivinhada(self) -> None:
+        """Sem `baseline/`, a primeira subpasta em ordem alfabética virava a régua sem
+        aviso, e o --teto media contra a versão errada. Sem ela, a baseline vem do
+        --baseline; sem os dois, o comando recusa e diz as subpastas (emenda ao ADR-0025)."""
+        self.montar()
         (self.pasta / "baseline").rename(self.pasta / "a-antiga")
-        self.assertEqual(telemetria.custo_por_versao(self.pasta)["baseline"], "a-antiga")
+        r = telemetria.custo_por_versao(self.pasta)
+        self.assertNotIn("baseline", r)
+        self.assertIn("--baseline", r["erro"])
+        self.assertIn("a-antiga, candidata", r["erro"])
+        self.assertEqual(telemetria.custo_por_versao(self.pasta, "a-antiga")["baseline"], "a-antiga")
+        antes, argv = os.getcwd(), sys.argv
+        os.chdir(self.raiz)
+        try:
+            for args, esperado in ((["custo-eval", "evals/x/execucoes"], 1),
+                                   (["custo-eval", "evals/x/execucoes", "--teto", "80"], 1),
+                                   (["custo-eval", "evals/x/execucoes", "--baseline", "a-antiga",
+                                     "--teto", "80"], 0)):
+                sys.argv = ["telemetria.py", *args]
+                with contextlib.redirect_stdout(io.StringIO()), \
+                        contextlib.redirect_stderr(io.StringIO()) as err:
+                    self.assertEqual(telemetria.main(), esperado, args)
+                if esperado:
+                    self.assertIn("--baseline", err.getvalue())
+        finally:
+            os.chdir(antes)
+            sys.argv = argv
+
+    def test_versao_sem_caso_medido_e_nao_medido_e_reprova_o_teto(self) -> None:
+        """Sem caso medido não há variação, e sem variação não dá para provar que a versão
+        ficou abaixo da baseline + teto: "não medido", nunca 0 (ADR-0050, emenda ao ADR-0025)."""
+        self.montar()
+        self.caso("vazia", "c1.json", json.dumps({"type": "result", "result": "sem usage"}))
+        antes, argv = os.getcwd(), sys.argv
+        os.chdir(self.raiz)
+        try:
+            for args, esperado in ((["custo-eval", "evals/x/execucoes"], 0),
+                                   (["custo-eval", "evals/x/execucoes", "--teto", "80"], 1)):
+                sys.argv = ["telemetria.py", *args]
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(telemetria.main(), esperado, args)
+            sys.argv = ["telemetria.py", "custo-eval", "evals/x/execucoes", "--teto", "80", "--json"]
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(telemetria.main(), 1)
+            dados = json.loads(out.getvalue())
+            self.assertEqual((dados["acima_do_teto"], dados["nao_medido_no_teto"]), ([], ["vazia"]))
+        finally:
+            os.chdir(antes)
+            sys.argv = argv
+        r = telemetria.custo_por_versao(self.pasta)
+        self.assertIsNone(r["versoes"]["vazia"]["delta_novos_pct"])
+        self.assertEqual(telemetria.acima_do_teto(r, 80), [])           # não está acima: não se sabe
+        self.assertEqual(telemetria.acima_do_teto(r, -10), ["candidata"])   # o não medido não vira 0
+        self.assertEqual(telemetria.nao_medido_no_teto(r, 80), ["vazia"])
+        self.assertEqual(telemetria.nao_medido_no_teto(r, None), [])     # sem teto, sem gate
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            telemetria.imprimir_custo_eval({**r, "pasta": "evals/x/execucoes"}, 80)
+        self.assertIn("vazia: não medido — nenhum caso medido; não dá para provar que ficou "
+                      "dentro da baseline + 80%", out.getvalue())
+
+    def test_baseline_sem_caso_medido_nenhuma_versao_passa_no_teto(self) -> None:
+        self.caso("baseline", "c1.json", "não é json")
+        self.caso("candidata", "c1.json", json.dumps(resultado(1000, 500, 4, 30000)))
+        antes, argv = os.getcwd(), sys.argv
+        os.chdir(self.raiz)
+        try:
+            sys.argv = ["telemetria.py", "custo-eval", "evals/x/execucoes", "--teto", "1000"]
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(telemetria.main(), 1)
+        finally:
+            os.chdir(antes)
+            sys.argv = argv
+        r = telemetria.custo_por_versao(self.pasta)
+        self.assertEqual(telemetria.acima_do_teto(r, 1000) + telemetria.nao_medido_no_teto(r, 1000),
+                         ["candidata"])
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            telemetria.imprimir_custo_eval({**r, "pasta": "evals/x/execucoes"}, 1000)
+        self.assertIn("candidata: não medido — a baseline não tem caso medido", out.getvalue())
 
     def test_cli_sai_1_acima_do_teto_e_com_erro(self) -> None:
         self.montar()
@@ -273,6 +350,105 @@ class CustoPorVersao(unittest.TestCase):
         finally:
             os.chdir(antes)
             sys.argv = argv
+
+
+def gravado(cmd: str, ok: bool | None = True) -> dict:
+    return {"t": "x", "sessao": "s", "tipo": "comando", "cmd": cmd, "ok": ok, "gate": "teste"}
+
+
+class CorroborarSoOQueRodou(unittest.TestCase):
+    """`telemetria.py corroborar`: o gate citado no `verificado:` rodou? (ADR-0021).
+
+    Só corrobora a execução que roda o comando alegado: o alegado inteiro, palavra por
+    palavra, e o comando acaba ali. A comparação por trecho de texto, nos dois sentidos,
+    deixava um comando mais amplo ou mais estreito confirmar a alegação."""
+
+    def veredicto(self, alegado: str, *execucoes: dict) -> str:
+        return telemetria.corroborar(list(execucoes), alegado)["veredicto"]
+
+    def test_comando_mais_curto_que_o_alegado_nao_corrobora(self) -> None:
+        for rodou in ("pytest", "cd scripts", "test", "python3 -m unittest"):
+            self.assertEqual(self.veredicto("cd scripts && python3 -m unittest tests.test_x",
+                                            gravado(rodou)), "nao_corroborado", rodou)
+
+    def test_comando_mais_estreito_que_o_alegado_nao_corrobora(self) -> None:
+        for rodou in ("pytest tests/test_x.py -k um_so", "pytest tests/test_x.py::test_um",
+                      "pytest tests/test_x.py --lf", "npm test -- --grep um_so"):
+            alegado = "npm test" if rodou.startswith("npm") else "pytest tests/test_x.py"
+            self.assertEqual(self.veredicto(alegado, gravado(rodou)), "nao_corroborado", rodou)
+
+    def test_palavra_pela_metade_nao_corrobora(self) -> None:
+        self.assertEqual(self.veredicto("pytest tests/test_x", gravado("pytest tests/test_x_outro.py")),
+                         "nao_corroborado")
+        self.assertEqual(self.veredicto("pytest -k foo", gravado("pytest -k foobar")), "nao_corroborado")
+        self.assertEqual(self.veredicto("make test", gravado("cmake test")), "nao_corroborado")
+        self.assertEqual(self.veredicto("pytest tests/", gravado('git commit -m "verificado: pytest tests/"')),
+                         "nao_corroborado")                 # citar o comando não é rodá-lo
+
+    def test_o_estreito_que_passou_nao_esconde_o_alegado_que_falhou(self) -> None:
+        self.assertEqual(self.veredicto("pytest tests/",
+                                        gravado("pytest tests/ -k um_so", True),
+                                        gravado("pytest tests/", False)), "corroborado_com_falha")
+
+    def test_o_que_prepara_e_o_que_vem_depois_do_comando_nao_atrapalham(self) -> None:
+        for rodou in ("cd scripts && python3 -m unittest tests.test_x",
+                      "CD scripts &&   python3 -m unittest   tests.test_x",
+                      "timeout 60 python3 -m unittest tests.test_x 2>&1 | tail -5",
+                      "python3 -m unittest tests.test_x > saida.txt; echo fim",
+                      "python3 -m unittest tests.test_x 2> /dev/null || true",
+                      "python3 -m unittest tests.test_x&& echo ok",
+                      "python3 -m unittest tests.test_x &> log.txt",
+                      "(cd scripts && python3 -m unittest tests.test_x)",
+                      "python3 -m unittest tests.test_x"):
+            self.assertEqual(self.veredicto("python3 -m unittest tests.test_x", gravado(rodou)),
+                             "corroborado", rodou)
+        self.assertEqual(self.veredicto("cd scripts && python3 -m unittest tests.test_x",
+                                        gravado("cd scripts && python3 -m unittest tests.test_x")),
+                         "corroborado")
+
+    def test_cada_linha_e_um_comando_e_o_que_nao_roda_nao_conta(self) -> None:
+        """O shell roda cada linha como um comando, e a linha continuada com `\\` é uma só.
+        O texto entre aspas, o corpo de heredoc e o comentário não rodam: citar o comando
+        neles não é rodá-lo."""
+        for rodou in ("cd scripts\npython3 -m unittest tests.test_x\necho fim",
+                      'python3 -m unittest tests.test_x\necho "saiu $?"',
+                      "python3 -m unittest \\\n  tests.test_x",
+                      "python3 -m unittest tests.test_x  # a suíte do módulo",
+                      "cat <<EOF > f.txt\nnotas\nEOF\npython3 -m unittest tests.test_x"):
+            self.assertEqual(self.veredicto("python3 -m unittest tests.test_x", gravado(rodou)),
+                             "corroborado", rodou)
+        for citou in ('git commit -m "feat: x\n\nverificado: pytest tests/\n\nfim"',
+                      "git commit -m \"$(cat <<'EOF'\nfeat: x\n\nverificado: pytest tests/\nEOF\n)\"",
+                      "cat > notas.md <<EOF\nverificado: pytest tests/\nEOF\necho ok",
+                      "cat > notas.md <<-'FIM'\n\tpytest tests/\n\tFIM",
+                      "# pytest tests/",
+                      "# pytest tests/\necho pulei",
+                      "echo ok # pytest tests/"):
+            self.assertEqual(self.veredicto("pytest tests/", gravado(citou)), "nao_corroborado", citou)
+        self.assertEqual(self.veredicto("pytest tests/", gravado("pytest tests/ <<< entrada")),
+                         "corroborado")                   # `<<<` é here-string, não heredoc
+
+    def test_alegado_vazio_nao_corrobora_nada(self) -> None:
+        for alegado in ("", "   "):
+            self.assertEqual(self.veredicto(alegado, gravado("pytest")), "nao_corroborado")
+
+    def test_a_cli_sai_1_quando_so_o_mais_amplo_rodou(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="kairos-forge-corroborar-") as tmp:
+            pasta = Path(tmp) / ".agents" / "execucoes"
+            pasta.mkdir(parents=True)
+            agora = datetime.now(timezone.utc).isoformat()
+            (pasta / "s.jsonl").write_text(json.dumps({**gravado("pytest"), "t": agora}) + "\n",
+                                           encoding="utf-8")
+            antes, argv = os.getcwd(), sys.argv
+            os.chdir(tmp)
+            try:
+                for alegado, esperado in (("pytest tests/test_x.py", 1), ("pytest", 0)):
+                    sys.argv = ["telemetria.py", "corroborar", alegado, "--json"]
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        self.assertEqual(telemetria.main(), esperado, alegado)
+            finally:
+                os.chdir(antes)
+                sys.argv = argv
 
 
 if __name__ == "__main__":

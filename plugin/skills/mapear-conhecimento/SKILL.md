@@ -33,7 +33,7 @@ Regra de bolso: se a alternativa é passar documentos inteiros (ou resumos de re
 ```
 .agents/grafo/
 ├── esquema.md         # tipos de entidade e predicados aceitos, com versão
-├── entidades.jsonl    # {"nome", "tipo", "descricao", "fontes": [], "mencoes"}
+├── entidades.jsonl    # {"nome", "tipo", "descricao", "fontes": ["<caminho>"], "mencoes"} — ao menos uma fonte
 ├── relacoes.jsonl     # {"origem", "predicado", "destino", "fonte"}
 ├── aliases.jsonl      # {"alias", "canonico"}
 ├── perfis/<slug>.md   # perfis sintetizados dos hubs (grau ≥ 3)
@@ -112,7 +112,7 @@ Grave o mapa em `aliases.jsonl`. Com mais de ~80 entidades de um tipo, bloque pr
 ### 4. Montar, perfilar e registrar
 
 1. Reescreva os endpoints de toda relação pela forma canônica e grave `entidades.jsonl` (fontes agregadas, menções somadas) e `relacoes.jsonl`.
-2. Rode `grafo.py validar` — precisa sair limpo (sem aresta órfã, sem alias ambíguo).
+2. Rode `grafo.py validar` — precisa sair limpo (sem aresta órfã, alias ambíguo, entidade sem fontes nem relação sem fonte).
 3. Rode `grafo.py diagnosticar` e interprete (ver modo diagnosticar).
 4. **Perfis para hubs:** para cada nó com grau ≥ 3, sintetize um perfil em `perfis/<slug>.md` com o prompt de sumarização das references — 2-3 parágrafos + 3-5 fatos-chave rastreáveis + intervalo temporal. Contradição entre fontes: prefira a afirmação mais específica. Nunca invente fato sem excerto que sustente. Nós de grau < 3 ficam só com a descrição de extração.
 5. Atualize `GRAFO.md`: data, versão do esquema, contagens, resumo do diagnóstico, e o que ficou fora do cap.
@@ -182,7 +182,7 @@ Linguagem fora das três: o import que não resolve é contado, não inventado; 
 ## Regras
 
 - **PT-BR em tudo** — entidades, predicados, descrições, perfis, mensagens.
-- **Proveniência obrigatória.** Aresta sem fonte não entra. Resposta sem citação de aresta não é "fundamentada".
+- **Proveniência obrigatória.** Aresta sem fonte e entidade sem fontes não entram. Resposta sem citação de aresta não é "fundamentada".
 - **Precisão > recall.** Na dúvida entre extrair ou não, não extraia — e registre a dúvida.
 - **Cap por rodada.** 30 documentos. Estourou, prioriza e deixa o resto pro `atualizar`.
 - **Fallback de resolução.** Nome não clusterizado vira cluster unitário. Nunca perca nó em silêncio.
@@ -194,7 +194,7 @@ Linguagem fora das três: o import que não resolve é contado, não inventado; 
 
 ## Pronto quando
 
-- Depois do `construir`, do `atualizar` ou de editar os JSONL à mão, `grafo.py validar` sai 0, sem aresta órfã, alias ambíguo nem relação sem fonte.
+- Depois do `construir`, do `atualizar` ou de editar os JSONL à mão, `grafo.py validar` sai 0, sem aresta órfã, alias ambíguo, entidade sem fontes nem relação sem fonte.
 - No `construir` e no `atualizar` de projeto com Python, JS/TS ou Go, `grafo.py codigo` saiu 0 e `.agents/grafo/codigo.meta.json` traz o `construido_em` desta rodada.
 - No `construir`, cada nó de grau 3 ou mais tem `.agents/grafo/perfis/<slug>.md`, `grafo.py diagnosticar` não marca nenhum dos 5 maiores hubs com "(perfil recomendado)", e a resposta dá, pela saída dele, nós, arestas, componentes, compressão e os 3 maiores hubs.
 - No `construir` e no `atualizar`, `.agents/grafo/GRAFO.md` traz a data da rodada; no `construir`, também a versão de `esquema.md`, as contagens, o resumo do diagnóstico e o que ficou fora do cap de 30 documentos.

@@ -107,3 +107,12 @@ universal para "o código". Adotamos o **princípio** (há uma classe de arquivo
 script escreve) sem o mecanismo que depende de domínio fechado.
 
 **Prompts por regulação (GDPR, HIPAA, PCI, SOX).** ADR-0002: é kairos-ai.
+
+## Emenda (v0.54.0): a marca no cabeçalho
+
+A marca valia em qualquer lugar do conteúdo, e o `guardrail.py verificar` acusava o próprio
+`guardrail.py` como gerado quando ele mudava, porque ele traz a marca como constante, como o
+`sync-multi-cli.py` e o `tucano.py`. Agora a marca só vale no cabeçalho, onde o sync a escreve:
+nas 5 primeiras linhas, ou nas 5 depois do frontmatter YAML (ADR-0061). A rule do Cursor, que
+traz a marca no fim, continua coberta pelo caminho. O `sync-multi-cli.py instalar` ainda
+considera nosso o arquivo com a marca em qualquer lugar.

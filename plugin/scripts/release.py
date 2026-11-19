@@ -229,6 +229,10 @@ def padroes(n, versao):
             (r"FORGE_REF: \$\{\{ vars\.FORGE_REF \|\| 'v\d+\.\d+\.\d+' \}\}",
              f"FORGE_REF: ${{{{ vars.FORGE_REF || 'v{versao}' }}}}"),
         ]) for gatilho in ("auditar", "corrigir", "revisar", "triar")],
+        ("templates/ci/README.md", [
+            (r"FORGE_REF: \$\{\{ vars\.FORGE_REF \|\| 'v\d+\.\d+\.\d+' \}\}",
+             f"FORGE_REF: ${{{{ vars.FORGE_REF || 'v{versao}' }}}}"),
+        ]),
         # Landing page do GitHub Pages: cada número citado leva um data-n.
         ("site/index.html", [
             (r'data-n="agentes">\d+<', f'data-n="agentes">{t}<'),

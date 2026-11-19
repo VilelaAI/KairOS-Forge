@@ -156,7 +156,12 @@ Card → Running. Enquanto roda, a fábrica:
 
 O orçamento é do `ciclo.py`: por padrão 2 rodadas **sem progresso** por gate —
 rodada que baixa a contagem de achados devolve a ficha — e teto absoluto de 6. Não
-negocie rodada no prompt: quem conta é o script.
+negocie rodada no prompt: quem conta é o script. Com o padrão, a terceira falha
+seguida é a que esgota o orçamento: antes de escalar, o ciclo passa por
+`atacando_premissa_*`, a fábrica escreve a premissa que as correções compartilharam,
+e ela chega no `motivo_escalacao` (contrato 1.4, ADR-0061). Se essa falha bate o teto,
+escala direto, sem premissa. O `atacando_premissa_*` não é gate do fundador:
+`aguardando_humano` fica `false`, e se o `claude -p` parar nele, retome.
 
 O relatório final sai em `docs/specs/entregas/ENTREGA-SPEC-NNN-<data>.md`, com a
 linhagem de rodadas. **Use esse arquivo como nota de progresso do card** — ele já
@@ -180,9 +185,9 @@ diz como acabou.
 
 | Desfecho | Card | O que você faz |
 |---|---|---|
-| `encerrado`, `pr_aberto` no `historico` | "aguardando merge" + link | Nada além de avisar o fundador |
+| `encerrado`, `pr_aberto` no `historico` | "aguardando merge" + link: `pr_url` do evento `pr_aberto`, ou o `pr` registrado (URL ou número) quando o `gh` não conferiu (contrato 1.4) | Avise o fundador; com `pr_conferido: false`, diga que o PR não foi conferido |
 | `encerrado`, `recusada` no `historico` | Done — SPEC recusada | Registre na memória o que ele recusou e por quê |
-| `escalado`, `motivo_escalacao` de orçamento ou teto | Blocked | Leve ao chat: o que ficou pronto, o que faltou, o último bloqueio, e a escolha — ampliar orçamento ou fatiar a SPEC |
+| `escalado`, `motivo_escalacao` de orçamento ou teto | Blocked | Leve ao chat: o que ficou pronto, o que faltou, o último bloqueio, a premissa das correções quando o motivo a traz, e a escolha — ampliar orçamento ou fatiar a SPEC |
 | `escalado`, outro motivo | Blocked | Leve a pergunta exata que a fábrica formulou (faixa 3, decisão fora da SPEC, duas falhas iguais, Pare e Pergunte na construção), com o que já foi tentado |
 
 `encerrado` por `ciclo.py encerrar` traz o porquê em `motivo_encerramento`.

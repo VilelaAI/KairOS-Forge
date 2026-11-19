@@ -111,3 +111,14 @@ qual é a raiz continua sendo de quem leu o problema.
 **Timeout como falha dura, encerrando a mobilização.** Descartado por desproporção: o
 caso comum é uma tarefa grande demais para o limite, não o time inteiro travado. Bloquear
 e devolver a vaga deixa o resto da onda seguir.
+
+## Emenda (v0.54.0): pronto só com o gate rodado
+
+A recusa do `encerrar` com tarefa aberta sem lacuna (ADR-0035) deixava passar duas lacunas
+escondidas: a tarefa concluída com `--gate-pulado`, que contava como pronta num "N de N", e o
+quadro sem tarefa nenhuma. Agora a concluída com o gate pulado fica fora de `completo`, e o
+`encerrar` pede `--lacuna "Tn: gate pulado — motivo"`; a tarefa `--leitura` sem gate declarado
+não tem gate a pular (ADR-0061). O `--gate-pulado` exige motivo não vazio e não vale junto com
+`--gate-ok`. O quadro sem tarefa não encerra: a mobilização abandonada adiciona as tarefas do
+plano e as declara como lacuna. Com o `--sem-foto` (emenda ao ADR-0048), o contrato do quadro
+sobe para 1.3.

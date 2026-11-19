@@ -41,7 +41,9 @@ Uso:
     telemetria.py custo-eval <pasta> [--baseline NOME] [--teto PCT] [--json]
                                                   # custo por versão no /avaliar: uma
                                                   # subpasta por versão, um `claude -p
-                                                  # --output-format json` por caso
+                                                  # --output-format json` por caso; sem
+                                                  # `baseline/`, o --baseline é obrigatório,
+                                                  # e versão não medida reprova o --teto
 
 Definições (explícitas de propósito — métrica sem definição é chute com casa decimal):
 
@@ -651,18 +653,97 @@ def normalizar(cmd: str) -> str:
     return " ".join(cmd.lower().split())
 
 
+# As peças de uma linha de shell: separador de comando (o subshell incluso),
+# redirecionamento e palavra.
+_PECA = re.compile(r"&&|\|\||\d*>&\d+|&>>?|\d*>>?|\d*<|[;|&()]|[^\s;|&<>()]+")
+_SEPARADOR = {"&&", "||", ";", "|", "&", "(", ")"}
+_REDIRECIONA = re.compile(r"\d*>&\d+|&>>?|\d*>>?|\d*<")
+_HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\1")
+
+
+def _o_que_o_shell_roda(cmd: str) -> str:
+    """A linha como o shell a lê: a quebra de linha fora de aspas separa comandos (vira
+    `;`), a linha continuada com `\\` é uma só, e o comentário e o corpo de heredoc, que
+    não rodam, saem. Dentro de aspas nada muda; aspa que não fecha (o corte do
+    LIMITE_CMD) deixa o resto como estava."""
+    out, aspa, pendentes, i = [], None, [], 0
+    while i < len(cmd):
+        c = cmd[i]
+        if aspa:
+            passo = 2 if c == "\\" and aspa == '"' else 1
+            aspa = None if c == aspa else aspa
+            out.append(cmd[i:i + passo])
+            i += passo
+            continue
+        if c == "\\":
+            out.append(" " if cmd[i + 1:i + 2] == "\n" else cmd[i:i + 2])
+            i += 2
+            continue
+        heredoc = _HEREDOC.match(cmd, i) if c == "<" and cmd[i - 1:i] != "<" else None
+        if heredoc:                                   # `<<EOF`, `<<-'EOF'`; `<<<` não é
+            pendentes.append(heredoc.group(2))
+            out.append(heredoc.group(0))
+            i = heredoc.end()
+            continue
+        if c == "#" and (not out or out[-1][-1] in " \t;|&()<>"):
+            fim = cmd.find("\n", i)                   # comentário até o fim da linha
+            i = len(cmd) if fim < 0 else fim
+            continue
+        if c == "\n":
+            for delim in pendentes:                   # o corpo do heredoc é dado, não comando
+                while i < len(cmd):
+                    fim = cmd.find("\n", i + 1)
+                    fim = len(cmd) if fim < 0 else fim
+                    linha, i = cmd[i + 1:fim], fim
+                    if linha.strip() == delim:
+                        break
+            pendentes = []
+            out.append(" ; ")
+            i += 1
+            continue
+        if c in "'\"":
+            aspa = c
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _pecas(cmd: str) -> list[str]:
+    return _PECA.findall(normalizar(_o_que_o_shell_roda(cmd)))
+
+
+def _o_comando_acaba(resto: list[str]) -> bool:
+    """Depois do alegado, o comando simples acaba: fim, separador ou só redirecionamento."""
+    i = 0
+    while i < len(resto):
+        if resto[i] in _SEPARADOR:
+            return True
+        if not _REDIRECIONA.fullmatch(resto[i]):
+            return False                       # argumento a mais: `-k um`, `::teste`, `--lf`
+        i += 1 if ">&" in resto[i] else 2      # `2>&1` já traz o alvo; `>` e `2>` levam o seguinte
+    return True
+
+
+def roda_o_alegado(gravado: str, alegado: str) -> bool:
+    """O comando gravado roda o alegado: as palavras do alegado aparecem inteiras e em
+    sequência no gravado, e o comando acaba ali. Antes pode vir o que prepara (`cd x &&`,
+    `timeout 60`, `python3 -m`); depois, só o que não muda o que rodou (`2>&1 | tail`). O
+    gravado mais curto que o alegado nunca o roda, e o mais estreito (`-k um`) também não."""
+    g, a = _pecas(gravado), _pecas(alegado)
+    return bool(a) and any(g[i:i + len(a)] == a and _o_comando_acaba(g[i + len(a):])
+                           for i in range(len(g) - len(a) + 1))
+
+
 def corroborar(eventos: list[dict], alvo: str) -> dict:
-    """O comando alegado em `verificado:` aparece na trajetória? Com que resultado? O
-    alegado passa pela mesma regra de segredo que o comando passou ao ser gravado."""
-    alvo_n = normalizar(ocultar(alvo))
+    """O comando alegado em `verificado:` rodou, segundo a trajetória? Com que resultado?
+    Só conta a execução que roda o alegado (`roda_o_alegado`). O alegado passa pela mesma
+    regra de segredo que o comando passou ao ser gravado."""
+    alvo_o = ocultar(alvo)
     achados = []
     for ev in eventos:
         if ev.get("tipo") != "comando":
             continue
-        cmd_n = normalizar(ev.get("cmd", ""))
-        if not cmd_n:
-            continue
-        if alvo_n in cmd_n or cmd_n in alvo_n:
+        if roda_o_alegado(ev.get("cmd") or "", alvo_o):
             achados.append(
                 {"t": ev.get("t"), "cmd": ev.get("cmd"), "ok": ev.get("ok"),
                  "gate": ev.get("gate"), "sessao": ev.get("sessao")}
@@ -1651,7 +1732,10 @@ def custo_por_versao(pasta: Path, baseline: str | None = None) -> dict:
     nomes = sorted(d.name for d in pasta.iterdir() if d.is_dir()) if pasta.is_dir() else []
     if not nomes:
         return {"erro": f"{pasta}: nenhuma subpasta de versão (ex.: {pasta}/baseline/<caso>.json)"}
-    base = baseline or ("baseline" if "baseline" in nomes else nomes[0])
+    if not baseline and "baseline" not in nomes:            # a régua é dita, nunca adivinhada
+        return {"erro": f"{pasta}: sem a subpasta baseline/ — diga qual versão é a baseline "
+                        f"com --baseline NOME ({', '.join(nomes)})"}
+    base = baseline or "baseline"
     if base not in nomes:
         return {"erro": f"baseline '{base}' não está em {pasta} ({', '.join(nomes)})"}
     versoes = {n: custo_da_versao(pasta / n) for n in nomes}
@@ -1672,7 +1756,26 @@ def acima_do_teto(r: dict, teto: float | None) -> list[str]:
     """Versões que gastam mais tokens novos por caso que a baseline + teto (em %)."""
     if teto is None or r.get("erro"):
         return []
-    return [n for n, v in r["versoes"].items() if (v.get("delta_novos_pct") or 0) > teto]
+    return [n for n, v in r["versoes"].items()
+            if v.get("delta_novos_pct") is not None and v["delta_novos_pct"] > teto]
+
+
+def nao_medido_no_teto(r: dict, teto: float | None) -> list[str]:
+    """Versões sem variação de tokens novos contra a baseline — nenhum caso medido nela ou
+    na baseline. Com `--teto` reprovam: não medido não é 0, e sem a variação não dá para
+    provar que ficaram abaixo da baseline + teto."""
+    if teto is None or r.get("erro"):
+        return []
+    return [n for n, v in r["versoes"].items()
+            if n != r["baseline"] and v.get("delta_novos_pct") is None]
+
+
+def _por_que_nao_medido(r: dict, nome: str) -> str:
+    if not r["versoes"][nome]["medidos"]:
+        return "nenhum caso medido"
+    if not r["versoes"][r["baseline"]]["medidos"]:
+        return "a baseline não tem caso medido"
+    return "sem variação contra a baseline"
 
 
 def _num(x: float | None, sufixo: str = "") -> str:
@@ -1694,6 +1797,9 @@ def imprimir_custo_eval(r: dict, teto: float | None) -> None:
               f"{_variacao(v.get('delta_duracao_pct'))}")
     for nome in acima_do_teto(r, teto):
         print(f"\n   ⚠️  {nome} gasta mais que a baseline + {teto:g}% de tokens novos por caso")
+    for nome in nao_medido_no_teto(r, teto):
+        print(f"\n   ⚠️  {nome}: não medido — {_por_que_nao_medido(r, nome)}; não dá para provar "
+              f"que ficou dentro da baseline + {teto:g}%")
 
 
 def _cmd_custo_eval(comando: str, raiz: Path, dias, args: list[str], como_json: bool) -> int:
@@ -1710,8 +1816,9 @@ def _cmd_custo_eval(comando: str, raiz: Path, dias, args: list[str], como_json: 
         return 1
     r["pasta"] = alvo                                       # como foi pedido, sem o caminho da máquina
     r["acima_do_teto"] = acima_do_teto(r, teto_pct)
+    r["nao_medido_no_teto"] = nao_medido_no_teto(r, teto_pct)
     print(json.dumps(r, ensure_ascii=False, indent=2)) if como_json else imprimir_custo_eval(r, teto_pct)
-    return 1 if r["acima_do_teto"] else 0
+    return 1 if r["acima_do_teto"] or r["nao_medido_no_teto"] else 0
 
 
 def _valor_de(args: list[str], nome: str) -> str | None:

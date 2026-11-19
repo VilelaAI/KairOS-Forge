@@ -153,3 +153,12 @@ o teste daquele requisito.
   qual comando prova qual requisito.
 - **Mutante sem critério reprovando.** Recusado. Um comportamento sem critério pode ser
   legítimo (log, mensagem, ajuste de borda), e a decisão de virar requisito é da pessoa.
+
+## Emenda (v0.54.0): o exemplo cercado não roda
+
+"Texto fora das crases nunca roda no shell" não bastava: o `painel.py`, que o `criterios` usa
+para ler a SPEC, lia o que estava dentro de bloco de código. O comando da matriz de exemplo
+cercada, ou o `verificado:` de um requisito de exemplo, ia para o shell. Agora as seções e os
+requisitos da SPEC são lidos fora dos blocos de código cercados, pela regra de cerca do
+CommonMark, a mesma do `pronto.py` (ADR-0061). Pela mesma leitura, o id do exemplo não vira
+"sem origem" no mapa de intenção (ADR-0053).

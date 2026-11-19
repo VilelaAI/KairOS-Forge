@@ -469,6 +469,12 @@ calc/novo_test.go:6:5: undefined: Dobro
 FAIL	exemplo.com/m/calc [build failed]
 FAIL
 """
+# Com GOPROXY=off e -mod=mod, o go não procura o pacote e diz outra frase (go 1.24).
+GO_SEM_PROXY = """\
+calc/novo_test.go:5:2: cannot find module providing package {pacote}: module lookup disabled by GOPROXY=off
+FAIL	exemplo.com/m/calc [setup failed]
+"""
+
 GO_PACOTE = """\
 # exemplo.com/m/calc
 calc/novo_test.go:5:2: no required module provides package {pacote}; to add it:
@@ -505,6 +511,17 @@ SyntaxError: Unexpected end of JSON input
  ❯ test/json.test.js:4:15
  Test Files  1 failed (1)
 """
+
+
+class ExecutorQueNaoRoda(Repo):
+    """O comando do teste que nem roda na base (exit 127, comando inexistente; 126, sem
+    permissão) não diz nada sobre o teste: nem prova, nem erro do teste."""
+
+    def test_comando_inexistente_e_nao_executado(self) -> None:
+        self.escrever({"tests/test_n.py": teste("from app.calc import soma")})
+        t = self.item(self.pre_patch("comando-de-teste-que-nao-existe {arquivo}"), "tests/test_n.py")
+        self.assertEqual(t["veredicto"], "nao_executado", t["motivo"])
+        self.assertIn("exit 127 na base: o comando do teste nem rodou", t["motivo"])
 
 
 class FaltasNaSaida(unittest.TestCase):
@@ -600,6 +617,11 @@ class FaltasNaSaida(unittest.TestCase):
         self.assertEqual(self.veredicto(GO_PACOTE, {"lib/lib.go": ["package lib"]},
                                         pacote="github.com/fulano/lib"), "erro_na_base")
         self.assertEqual(self.veredicto(GO_SINTAXE, dobro), "erro_na_base")
+        # O pacote novo do diff, com o proxy desligado: prova, e o de fora continua sem prova.
+        self.assertEqual(self.veredicto(GO_SEM_PROXY, {"novo/novo.go": ["package novo"]},
+                                        pacote="exemplo.com/m/novo"), "falhou_na_base")
+        self.assertEqual(self.veredicto(GO_SEM_PROXY, {"novo/novo.go": ["package novo"]},
+                                        pacote="github.com/fulano/lib"), "erro_na_base")
 
 
 GO = shutil.which("go")

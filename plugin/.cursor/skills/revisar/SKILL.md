@@ -117,7 +117,10 @@ Mudança de arquitetura maior que o PR também é observação, não bloqueio.
 **Revisor que não entregou parecer não aprovou** (ADR-0046). Erro, tempo limite ou contexto
 estourado: o nome vai em `incompletos` no bloco do relatório, e o revisor é acionado de novo.
 Com `incompletos` preenchido o contrato recusa veredicto limpo — revisão com uma dimensão a
-menos e "aprovado" no topo é o mesmo texto tranquilizador da lista `examinado` vazia.
+menos e "aprovado" no topo é o mesmo texto tranquilizador da lista `examinado` vazia. Escreva
+`bloqueado`, mesmo com `criticos: 0`: desde o contrato 1.3 o bloco é válido assim, e
+`examinado` pode ficar vazio quando ninguém rodou (ADR-0061). No arco, a contagem de 🔴 dessa
+rodada não vale como progresso: a rodada queima ficha.
 
 ### 4.5. Segunda passada — o revisor relê os próprios achados (ADR-0039)
 
@@ -243,8 +246,9 @@ Era a metade que faltava — agora as duas alimentam o `ciclo.py` do disco (ADR-
 O bloco ` ```kairos-revisao ` é o contrato, com as mesmas três regras do `/validar`:
 **fence própria** (nunca `kairos-validacao` — os dois relatórios têm a linha
 `**Veredicto:**` e sem fences distintas um vira o outro), **coerência**
-(`bloqueado` ⟺ `criticos ≥ 1`) e **prova de cobertura** (`criticos: 0` exige
-`examinado` não-vazio, com arquivo e revisor). O guardrail recusa a escrita se faltar.
+(`bloqueado` ⟺ `criticos ≥ 1` ou `incompletos` não-vazio) e **prova de cobertura**
+(veredicto limpo exige `examinado` não-vazio, com arquivo e revisor; o `bloqueado` da revisão
+incompleta não aprova nada e não exige). O guardrail recusa a escrita se faltar.
 
 **A re-revisão presta contas (ADR-0048).** Cada 🔴 ganha um id (`R1`, `R2`…) na linha e em
 `achados` — um por 🔴, sem repetir. Quando a revisão bloqueia, o `ciclo.py` guarda esses ids
@@ -281,9 +285,10 @@ mais barata que a anterior.
 - **Não suprima achados.** Se Helena marcou 🔴, não suavize pra 🟡 porque o usuário tem pressa.
 - **Não aprove cegamente.** Mesmo PR pequeno passa por Helena + Patrícia.
 - **Faixa 3 nunca fecha por evidência.** Gates verdes e histórico limpo não substituem a
-  decisão humana quando desfazer é caro.
-- **Zero 🔴 exige lista do que foi lido.** Revisão limpa sem `examinado` é recusada pelo
-  contrato — e a recusa está certa (ADR-0032).
+  decisão humana quando desfazer é caro. No arco, o `ciclo.py` recusa `registrar limpo` com
+  `faixa: 3` no bloco, e o caminho é `ciclo.py escalar` (ADR-0061).
+- **Revisão limpa exige lista do que foi lido.** Zero 🔴 sem `examinado` é recusado pelo
+  contrato, salvo no `bloqueado` da revisão incompleta — e a recusa está certa (ADR-0032).
 - **Não sugira workaround pra 🔴.** Sugira correção. Workaround vira dívida.
 - **Não publique achado que não releu.** Falso positivo custa a atenção que o 🔴 verdadeiro
   precisa (ADR-0039); o ruído por revisor é medido e aparece na auditoria.
@@ -301,7 +306,7 @@ mais barata que a anterior.
 - Diff acima de 500 linhas adicionadas em `git diff --stat <base>...HEAD`: parou antes de acionar revisores e recomendou fatiar, sem relatório; os itens abaixo valem para o diff até 500.
 - O relatório está em `docs/specs/revisoes/REVISAO-<SPEC-NNN ou slug da branch>-YYYY-MM-DD.md` (no gatilho de CI, o comentário no PR), com faixa, escopo, revisores acionados e veredicto agregado no topo.
 - Helena e Patrícia deram parecer, mais Vinícius, Marcos, Carlos e Ada conforme as áreas de `git diff --name-only`, e Patrícia rodou `prova.py testes-alterados` e `prova.py atalhos` antes de opinar; a skill não revisa no lugar deles.
-- `contrato.py revisar <relatório>` sai 0: `faixa` de 1 a 3, `bloqueado` se e só se `criticos` passa de 0, `examinado` preenchido sem crítico, `incompletos` só com `bloqueado`; cada crítico tem id na linha e em `achados`, que o contrato só confere preenchido.
+- `contrato.py revisar <relatório>` sai 0: `faixa` de 1 a 3, `bloqueado` se e só se `criticos` passa de 0 ou `incompletos` não está vazio, `examinado` preenchido no veredicto limpo; cada crítico tem id na linha e em `achados`, que o contrato só confere preenchido.
 - `prova.py origem <relatório>` sai 0, com `arquivo:linha` em cada achado crítico, alto e de "Fora deste PR": crítico ou alto numa linha que o PR não tocou traz `· o PR depende:` ou `· o PR piora:`, e nenhuma linha que o PR escreveu está em "Fora deste PR".
 - Na re-revisão, cada crítico da rodada anterior (no arco, `pendentes_revisao` em `ciclo.py estado --json`) está em `anteriores` como `resolvido` ou `nao_resolvido`, este com `bloqueado`, sem alto, médio ou baixo novo em código que já estava no diff da primeira rodada.
 - Na faixa 3, o merge fica com a pessoa mesmo com veredicto `aprovado`, gates verdes e histórico limpo (gate humano).

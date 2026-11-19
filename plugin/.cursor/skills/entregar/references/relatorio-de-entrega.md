@@ -28,7 +28,16 @@ Com validação sem bloqueio em P1 e revisão sem 🔴:
   follow-up em "O que você decide" quando a revisão saiu `aprovado_com_ressalvas`.
 - **Nunca** faça merge — e o guardrail bloqueia `gh pr merge` durante um ciclo
   aberto. A integração é decisão do dono do repositório.
-- Depois: `ciclo.py registrar pr_aberto`.
+- Depois: `ciclo.py registrar pr_aberto SPEC-NNN --pr <URL>`, com a URL que o
+  `gh pr create` imprimiu (o número também serve). O `--pr` é obrigatório: sem ele, ou
+  com algo que não é PR, o registro sai 1 e o ciclo não encerra (ADR-0061).
+  - Com o `gh`, o PR é conferido. O que não existe ou foi fechado sem merge é recusado; o
+    aberto ou mesclado encerra o ciclo com `pr_conferido: true` e a `pr_url` no `historico`.
+  - Sem o `gh`, ou sem resposta dele (sem login, sem rede), o ciclo encerra com
+    `pr_conferido: false` e o motivo em `pr_nao_conferido`. O PR não foi conferido: diga
+    isso à pessoa e no relatório de entrega.
+  - PR que sai de outra branch que não a do ciclo encerra com aviso: confira se é o PR
+    desta entrega.
 
 ### 9. Encerrar e registrar
 
@@ -38,6 +47,7 @@ Salve `docs/specs/entregas/ENTREGA-<SPEC-NNN>-YYYY-MM-DD.md`:
 # Entrega — SPEC-NNN — YYYY-MM-DD
 
 **Desfecho:** PR aberto / encerrado por orçamento / escalado
+**PR:** <`pr_url` do evento `pr_aberto`, ou o `pr` registrado> (conferido pelo gh | não conferido: <pr_nao_conferido>)
 **Modo:** mobilizar | rodar
 **Orçamento:** validar N/2 · revisar N/2
 
@@ -60,4 +70,5 @@ A tabela registra **também as rodadas que falharam** — rodada revertida ou
 escalada é evidência, não vergonha apagada, e é o que impede a próxima entrega de
 repetir a mesma tentativa.
 
-Ao final, `ciclo.py encerrar --motivo "PR #N aberto"`.
+Não rode `ciclo.py encerrar` depois: o `pr_aberto` já encerrou o ciclo, com o PR no
+`historico`, e o `encerrar` só poria outro evento depois dele.

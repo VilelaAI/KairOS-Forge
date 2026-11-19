@@ -131,10 +131,16 @@ Onde o comportamento vive:
   pelo juiz nem pelo modelo:
   ```bash
   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/telemetria.py custo-eval evals/<slug>/execucoes --teto 20
+  # sem a subpasta baseline/, diga qual versão é a régua:
+  python3 ${CLAUDE_PLUGIN_ROOT}/scripts/telemetria.py custo-eval evals/<slug>/execucoes --baseline v1 --teto 20
   ```
   A saída dá, por versão, a mediana por caso de tokens novos, cache lido, turnos e duração,
-  e a variação contra a `baseline`. Sai 1 se uma versão passar do teto. Caso sem `usage`
-  conta como "não medido", nunca 0.
+  e a variação contra a baseline: a subpasta `baseline/`, ou a que o `--baseline NOME` disser.
+  Sem `baseline/`, o `--baseline` é obrigatório e o comando recusa sem ele (ADR-0061). A pasta
+  vem antes dos flags: em `--baseline v1 evals/<slug>/execucoes`, o `v1` é lido como a pasta.
+  Caso sem `usage` conta como "não medido", nunca 0. Com `--teto`, sai 1 se uma versão passar
+  do teto ou não tiver variação medida, sem caso medido nela ou na baseline: não medido não
+  fica dentro do teto (ADR-0061). No `--json`, as duas vêm em `acima_do_teto` e `nao_medido_no_teto`.
 
 Registre **todos** os casos, não só o percentual: o valor está nos casos que falharam.
 
@@ -200,7 +206,7 @@ Falha nova em produção **vira caso no gold set** antes de ser corrigida.
 - `evals/<slug>/RELATORIO-YYYY-MM-DD.md` dá o veredicto do selado contra o limiar com qualquer resultado, inclusive "a mudança volta", baseline → atual, visível, selado e divergência, cada eixo com o N, todos os casos e as falhas agrupadas por causa raiz.
 - O digest no relatório é igual ao de `sha256sum <artefato> | cut -c1-16` agora, e o relatório declara o juiz-LLM com versão pinada, critério escrito e amostra conferida à mão (ou que não houve), de família diferente da do gerador ou com a limitação como piso de confiança.
 - O relatório diz se houve painel, o juiz cego com `evals/<slug>/mapa-YYYY-MM-DD.tsv` ou o porquê de não, e os eixos avaliados e descartados; quem avaliou não construiu o que avaliou, e o sistema com ferramenta de escrita rodou em modo seco.
-- Comparando versões, o relatório traz a saída de `telemetria.py custo-eval evals/<slug>/execucoes --teto N` contra a `baseline/`, com os medidos de cada versão (sem caso medido é "não medido", nunca dentro do teto) e a ressalva do `usage` se houver subagente em segundo plano.
+- Comparando versões, o relatório traz a saída de `telemetria.py custo-eval evals/<slug>/execucoes --teto N` contra a `baseline/` ou o `--baseline`, os medidos de cada versão, o `nao_medido_no_teto` (reprova o teto) e a ressalva do `usage` se houver subagente em segundo plano.
 - Acima do teto de custo, a mudança só segue com a exceção escrita no relatório, com o ganho que paga o custo, e decidida pela pessoa (gate humano).
 
 ## Referências

@@ -369,6 +369,7 @@ FALTAS = (
     ("modulo", "js", re.compile(r'Failed to resolve import "(?P<alvo>[^"]+)"')),
     ("modulo", "js", re.compile(r"Failed to load url (?P<alvo>\S+) \(resolved id")),
     ("modulo", "go", re.compile(r"no required module provides package (?P<alvo>[^\s;]+)")),
+    ("modulo", "go", re.compile(r"cannot find module providing package (?P<alvo>[^\s:;]+)")),
     ("modulo", "go", re.compile(r'cannot find package "(?P<alvo>[^"]+)"')),
     ("modulo", "go", re.compile(r"package (?P<alvo>\S+) is not in (?:std|GOROOT)")),
     ("nome", "go", re.compile(r"\.go:\d+:\d+: undefined: (?:\w+\.)?(?P<alvo>\w+)")),
@@ -640,6 +641,11 @@ def pre_patch(raiz: Path, base: str | None, template: str | None,
             if codigo == 0:
                 item["veredicto"] = "passou_na_base"
                 item["motivo"] = "passa sem a mudança — não prova a mudança"
+                continue
+            if codigo in (126, 127):   # o executor nem rodou: comando inexistente ou sem permissão
+                item["motivo"] = (f"exit {codigo} na base: o comando do teste nem rodou — "
+                                  "confira o ambiente ou passe --comando")
+                item["ultimas_linhas"] = [l for l in saida.strip().splitlines() if l.strip()][-3:]
                 continue
             item["veredicto"], item["motivo"] = veredicto_da_falha(
                 saida, codigo, acrescentado, raiz, worktree)

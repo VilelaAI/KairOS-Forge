@@ -95,6 +95,7 @@ JS/TS, `go test` para `_test.go`. Ecossistema que ele não reconhece sai como
 
     falhou_na_base   ✅ o teste depende da mudança — prova algo
     passou_na_base   ❌ o teste passa sem a mudança — não prova a mudança
+    erro_na_base     ⚠️  o teste nem carrega na base, por algo que o diff não acrescenta
     nao_executado    ⚠️  sem comando conhecido, sem coleta, ou estourou o tempo
 
 Exit 1 se houver `passou_na_base`; 0 caso contrário. `testes-alterados` sai 1 se houver
@@ -102,12 +103,22 @@ sinal de afrouxamento — usável em CI e pre-commit, mas o veredicto é de quem
 
 ## Como o pre-patch roda
 
-Cria um worktree descartável na base do diff, copia só os testes novos para dentro e
-roda o gate lá — o worktree é removido ao final. `node_modules`, `.venv`, `venv` e
+Cria um worktree descartável na base do diff, copia para dentro o lado de teste do diff
+(os testes e os `conftest.py` novos ou mudados, antes de rodar qualquer um; no Go, que
+compila o pacote junto, cada `_test.go` novo entra na sua vez) e roda o gate de cada teste
+novo lá — o worktree é removido ao final. `node_modules`, `.venv`, `venv` e
 `vendor` da raiz são ligados por symlink no worktree quando existem, para que "faltou
-dependência" não se disfarce de "falhou na base". Limite declarado: teste que falha na
-base por motivo alheio ao patch (fixture ausente, serviço externo) conta como
-`falhou_na_base` — o script lê exit code, não intenção.
+dependência" não se disfarce de "falhou na base".
+
+O teste que nem carrega na base (import, sintaxe, coleta do pytest, suíte do jest ou do
+vitest, `[setup failed]` do Go) só é `falhou_na_base` quando o que falta é o que o diff
+acrescenta em código de produção: o módulo novo, o nome novo num módulo que já existia, o
+pacote Go novo. O teste de um símbolo novo não carrega na base porque o símbolo ainda não
+existia — é prova. A dependência que não está instalada, o erro de sintaxe no teste, o
+auxiliar de fora do diff e a fixture de um plugin ausente saem `erro_na_base`. A falha comum
+(asserção, exceção, tipo errado do Go, e a asserção que só cita `SyntaxError` ou `No module
+named`, ou o `JSON.parse` do que a base devolve) continua `falhou_na_base` — o script lê exit
+code, não intenção: o serviço externo fora do ar é um limite declarado.
 
 ## Como o selado é comparado
 
@@ -315,6 +326,265 @@ def ligar_dependencias(raiz: Path, worktree: Path) -> list[str]:
     return ligadas
 
 
+def eh_suporte_de_teste(rel: str) -> bool:
+    """Teste, ou o que o pytest carrega para ele (`conftest.py`): o lado de teste do diff."""
+    return eh_teste(rel) or Path(rel).name == "conftest.py"
+
+
+def suporte_do_diff(raiz: Path, ponto: str) -> list[str]:
+    """Teste e suporte de teste novos ou mudados no diff. Vão todos para a base antes de rodar
+    qualquer teste: o auxiliar ou o `conftest.py` que ficasse para trás faria o teste não
+    carregar lá, e isso pareceria falha na base. Menos o `_test.go`: o Go compila o pacote
+    inteiro, e o teste novo herdaria a falha de compilação de outro teste do mesmo pacote;
+    o novo entra na base na sua vez, e o mudado não entra."""
+    nomes = [c for s, c in _diff_sem_renomear(raiz, ponto)
+             if s in ("A", "M") and eh_suporte_de_teste(c)]
+    nomes += [c for c in nao_rastreados(raiz) if eh_suporte_de_teste(c)]
+    return sorted(c for c in dict.fromkeys(nomes) if not c.endswith("_test.go"))
+
+
+# --- o que não carregou na base ----------------------------------------------------
+# O teste que nem carrega na base (import, sintaxe, coleta) sai diferente de 0 como o que
+# falha na asserção, e só às vezes é prova. O teste de um símbolo novo não carrega porque o
+# símbolo ainda não existe: é prova, o comportamento não existia. A dependência que não está
+# instalada, o teste com erro de sintaxe e o auxiliar de fora do diff também não carregam, e
+# nada disso vem do diff. A regra é o que o diff acrescenta em código de produção: a falta que
+# ele explica é prova; a que ele não explica sai `erro_na_base`.
+
+# (tipo, língua, regex); a primeira que casa na linha vale. `alvo` é o que falta, `de` é onde.
+# No Python, a linha é a da exceção (`ModuleNotFoundError: No module named`, `SyntaxError:` no
+# começo da linha): a asserção que só cita esse texto (`assertRaises(SyntaxError)`, a mensagem
+# que menciona o módulo) é falha comum, e o teste carregou.
+FALTAS = (
+    ("nome", "js", re.compile(r"The requested module '(?P<de>[^']+)' does not provide an export "
+                              r"named '(?P<alvo>[\w$]+)'")),
+    ("modulo", "py", re.compile(r"(?:ModuleNotFoundError|ImportError): No module named "
+                                r"'(?P<alvo>[\w.]+)'")),
+    ("nome", "py", re.compile(r"ImportError: cannot import name '(?P<alvo>\w+)'(?: from (?:partially "
+                              r"initialized module )?'(?P<de>[\w.]+)')?")),
+    ("nome", "py", re.compile(r"AttributeError: (?:partially initialized )?module '(?P<de>[\w.]+)' "
+                              r"has no attribute '(?P<alvo>\w+)'")),
+    ("fixture", "py", re.compile(r"fixture '(?P<alvo>\w+)' not found")),
+    ("modulo", "js", re.compile(r"Cannot find (?:module|package) '(?P<alvo>[^']+)'")),
+    ("modulo", "js", re.compile(r'Failed to resolve import "(?P<alvo>[^"]+)"')),
+    ("modulo", "js", re.compile(r"Failed to load url (?P<alvo>\S+) \(resolved id")),
+    ("modulo", "go", re.compile(r"no required module provides package (?P<alvo>[^\s;]+)")),
+    ("modulo", "go", re.compile(r"cannot find module providing package (?P<alvo>[^\s:;]+)")),
+    ("modulo", "go", re.compile(r'cannot find package "(?P<alvo>[^"]+)"')),
+    ("modulo", "go", re.compile(r"package (?P<alvo>\S+) is not in (?:std|GOROOT)")),
+    ("nome", "go", re.compile(r"\.go:\d+:\d+: undefined: (?:\w+\.)?(?P<alvo>\w+)")),
+    ("nome", "go", re.compile(r"has no field or method (?P<alvo>\w+)")),
+    ("sintaxe", "py", re.compile(r"^\s*(?:E\s+)?(?:SyntaxError|IndentationError|TabError):")),
+)
+ARQUIVO_PY = re.compile(r'File "(?P<arquivo>[^"]+)", line \d+')
+# O arquivo de teste não carregou, sem causa que as linhas acima reconheçam: pytest, unittest,
+# jest, vitest e `go test` (o `[build failed]` fica de fora: tipo errado é falha comum, como o
+# TypeError do Python).
+CARGA = re.compile(r"ERROR collecting|errors? during collection|Failed to import test module"
+                   r"|ImportError while loading conftest|Test suite failed to run|Failed Suites"
+                   r"|\[setup failed\]")
+EXT_LINGUA = {"py": {".py"}, "go": {".go"},
+              "js": {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts"}}
+
+
+def _relativo(caminho: str, worktree: Path | None) -> str:
+    """O caminho dentro do worktree da base, como o diff o chama; os outros ficam como vieram."""
+    for raiz in ({worktree, worktree.resolve()} if worktree else ()):
+        try:
+            return Path(caminho).relative_to(raiz).as_posix()
+        except ValueError:
+            continue
+    return caminho
+
+
+def faltas_na_carga(saida: str, worktree: Path | None) -> list[dict]:
+    """O que a base não conseguiu carregar, lido da saída do runner, uma vez cada."""
+    faltas, ultimo_arquivo = {}, None
+    for linha in saida.splitlines():
+        arquivo = ARQUIVO_PY.search(linha)
+        if arquivo:
+            ultimo_arquivo = _relativo(arquivo.group("arquivo"), worktree)
+        for tipo, lingua, rx in FALTAS:
+            m = rx.search(linha)
+            if not m:
+                continue
+            campos = m.groupdict()
+            alvo = ultimo_arquivo if tipo == "sintaxe" else campos.get("alvo")
+            if tipo == "sintaxe" and (not alvo or alvo.startswith("<") or Path(alvo).is_absolute()):
+                break   # código montado em tempo de teste (`ast.parse`, `JSON.parse`): falha comum
+            falta = {"tipo": tipo, "lingua": lingua, "alvo": alvo, "de": campos.get("de")}
+            faltas.setdefault((tipo, lingua, alvo, falta["de"]), falta)
+            break
+    if not faltas and CARGA.search(saida):
+        return [{"tipo": "carga", "lingua": None, "alvo": None, "de": None}]
+    return list(faltas.values())
+
+
+def _sem_extensao(rel: str) -> str:
+    suf = Path(rel).suffix
+    return rel[: -len(suf)] if suf in EXT_LINGUA["js"] | EXT_LINGUA["py"] | {".json"} else rel
+
+
+def _termina_em(caminho: str, fim: str) -> bool:
+    return caminho == fim or caminho.endswith("/" + fim)
+
+
+def _modulo_py(rel: str, nome: str) -> bool:
+    """`rel` é o módulo `nome` (`a/b.py`, `src/a/b.py`) ou está dentro do pacote dele."""
+    p = nome.replace(".", "/")
+    return rel.endswith(".py") and (_termina_em(_sem_extensao(rel), p) or f"/{p}/" in f"/{rel}")
+
+
+def _modulo_js(rel: str, spec: str, worktree: Path | None) -> bool:
+    """`spec` (relativo, absoluto no worktree ou com alias `@/`) aponta para `rel`."""
+    p = re.sub(r"^(?:\.{1,2}/)+|^[@~#]/", "", _relativo(spec, worktree))
+    if not p or p.startswith("/"):
+        return False
+    nomes = {rel, _sem_extensao(rel)}
+    if Path(_sem_extensao(rel)).name == "index":
+        nomes.add(Path(rel).parent.as_posix())
+    return any(_termina_em(n, alvo) for n in nomes for alvo in {p, _sem_extensao(p)})
+
+
+def _pacote_go(raiz: Path, rel: str) -> str | None:
+    """O import path do pacote de `rel`, pelo `go.mod` mais próximo."""
+    pasta = Path(rel).parent
+    for acima in (pasta, *pasta.parents):
+        try:
+            texto = (raiz / acima / "go.mod").read_text(encoding="utf-8")
+        except OSError:
+            continue
+        m = re.search(r"^module\s+(\S+)", texto, re.M)
+        if not m:
+            return None
+        resto = pasta.relative_to(acima).as_posix()
+        return m.group(1) if resto == "." else f"{m.group(1)}/{resto}"
+    return None
+
+
+def explicada(falta: dict, acrescentado: dict[str, list[str]], raiz: Path,
+              worktree: Path | None) -> bool:
+    """A falta é o que o diff acrescenta em código de produção (não em teste nem no suporte)."""
+    tipo, lingua, alvo, de = falta["tipo"], falta["lingua"], falta["alvo"], falta["de"]
+    codigo = [f for f in acrescentado if not eh_suporte_de_teste(f)]
+    if not alvo:
+        return False
+    if tipo == "sintaxe":
+        return alvo in codigo
+    da_lingua = [f for f in codigo if Path(f).suffix in EXT_LINGUA[lingua]]
+    if tipo == "modulo":
+        if lingua == "py":
+            return any(_modulo_py(f, alvo) for f in da_lingua)
+        if lingua == "js":
+            return any(_modulo_js(f, alvo, worktree) for f in da_lingua)
+        return any(_pacote_go(raiz, f) == alvo for f in da_lingua)
+    if tipo == "fixture":
+        # A fixture é suporte de teste: a palavra citada em produção não a explica (a do plugin
+        # que não está instalado, como `settings`, é palavra comum); só a que o diff define lá.
+        define = re.compile(rf"^\s*(?:async\s+)?def\s+{re.escape(alvo)}\s*\("
+                            rf"|\bname\s*=\s*['\"]{re.escape(alvo)}['\"]")
+        return any(define.search(linha) for f in da_lingua for linha in acrescentado[f])
+    if lingua == "py" and de:
+        if any(_modulo_py(f, f"{de}.{alvo}") for f in da_lingua):
+            return True                       # `from app import novo`, o submódulo novo
+        da_lingua = [f for f in da_lingua if _modulo_py(f, de)]
+    palavra = re.compile(rf"(?<![\w$]){re.escape(alvo)}(?![\w$])")
+    return any(palavra.search(linha) for f in da_lingua for linha in acrescentado[f])
+
+
+def _o_que_falta(falta: dict) -> str:
+    tipo, alvo, de = falta["tipo"], falta["alvo"], falta["de"]
+    if tipo == "modulo":
+        return f"falta o módulo `{alvo}`"
+    if tipo == "nome":
+        return f"falta o nome `{alvo}`" + (f" em `{de}`" if de else "")
+    if tipo == "fixture":
+        return f"falta a fixture `{alvo}`"
+    if tipo == "sintaxe":
+        return f"erro de sintaxe em `{alvo}`" if alvo else "erro de sintaxe"
+    return "o arquivo de teste não carregou"
+
+
+def veredicto_da_falha(saida: str, codigo: int, acrescentado, raiz: Path,
+                       worktree: Path | None) -> tuple[str, str]:
+    """(veredicto, motivo) do teste que saiu diferente de 0 na base. `acrescentado` é chamada só
+    quando há o que explicar e devolve {arquivo do diff: linhas que ele acrescenta}."""
+    faltas = faltas_na_carga(saida, worktree)
+    if not faltas:
+        return "falhou_na_base", f"exit {codigo} na base"
+    arquivos = acrescentado()
+    soltas = [f for f in faltas if not explicada(f, arquivos, raiz, worktree)]
+    if soltas:
+        pronome = "a" if soltas[0]["tipo"] == "fixture" else "o"
+        return "erro_na_base", (f"não carregou na base: {_o_que_falta(soltas[0])}, e o diff não "
+                                f"{pronome} acrescenta — não prova a mudança")
+    return "falhou_na_base", (f"exit {codigo} na base: "
+                              + "; ".join(_o_que_falta(f) for f in faltas) + ", que o diff acrescenta")
+
+
+# O pytest que não carrega um `conftest.py` não roda nenhum teste da árvore dele. O conftest
+# do diff que importa código novo não carrega na base, e todo teste novo dali falharia lá, até
+# o que não usa nada do diff: prova falsa. Nesse caso o teste roda de novo com os conftests da
+# base. Se passar, não prova a mudança; se faltar uma fixture que o conftest do diff define, o
+# teste depende dela e, por ela, do código novo.
+CONFTEST_QUEBRADO = re.compile(r"Error while loading conftest\b")
+FIXTURE_AUSENTE = re.compile(r"fixture '(\w+)' not found")
+
+
+def _rodar_na_base(cmd: str, cwd: str, worktree: Path, tempo_limite: int) -> tuple[int, str] | None:
+    """(código de saída, saída) do gate no worktree da base; None se estourou o tempo."""
+    try:
+        p = subprocess.run(cmd, shell=True, cwd=str(worktree / cwd), capture_output=True,
+                           text=True, timeout=tempo_limite)
+    except subprocess.TimeoutExpired:
+        return None
+    return p.returncode, (p.stdout or "") + (p.stderr or "")
+
+
+def _conftests_da_base(worktree: Path, ponto: str, conftests: list[str]) -> None:
+    """O `conftest.py` mudado volta à versão da base, e o novo sai."""
+    for rel in conftests:
+        if git(worktree, "cat-file", "-e", f"{ponto}:{rel}").returncode == 0:
+            git(worktree, "checkout", ponto, "--", rel)
+        else:
+            (worktree / rel).unlink(missing_ok=True)
+
+
+def sem_o_conftest_do_diff(raiz: Path, worktree: Path, ponto: str, conftests: list[str],
+                           par: tuple[str, str], tempo_limite: int,
+                           acrescentado) -> tuple[str, str] | None:
+    """O veredicto do teste rodado de novo sem os conftests do diff; None quando a nova rodada
+    não diz nada (estourou, nada coletado) e vale o veredicto da primeira."""
+    _conftests_da_base(worktree, ponto, conftests)
+    try:
+        rodada = _rodar_na_base(*par, worktree, tempo_limite)
+    finally:
+        _copiar(raiz, worktree, conftests)   # o próximo teste roda com o diff inteiro
+    if rodada is None or rodada[0] == 5 or SEM_COLETA.search(rodada[1]):
+        return None
+    codigo, saida = rodada
+    if codigo == 0:
+        return "passou_na_base", ("passa sem a mudança quando o conftest.py do diff sai da base "
+                                  "— não prova a mudança")
+    definidas = "\n".join((raiz / c).read_text(encoding="utf-8", errors="replace")
+                          for c in conftests if (raiz / c).is_file())
+    for nome in FIXTURE_AUSENTE.findall(saida):
+        if re.search(rf"^\s*def {re.escape(nome)}\(", definidas, re.M):
+            return "falhou_na_base", (f"usa a fixture `{nome}` do conftest.py do diff, que não "
+                                      f"carrega sem a mudança")
+    return veredicto_da_falha(saida, codigo, acrescentado, raiz, worktree)
+
+
+def acrescentado_no_diff(raiz: Path, ponto: str) -> dict[str, list[str]]:
+    """Arquivo que o diff acrescenta ou muda → as linhas que ele acrescenta."""
+    arquivos = {c: [] for s, c in diff_nomes(raiz, ponto) if s != "D"}
+    arquivos.update({c: [] for c in nao_rastreados(raiz)})
+    for rel, _, linha in linhas_acrescentadas(raiz, ponto):
+        if rel in arquivos:
+            arquivos[rel].append(linha)
+    return arquivos
+
+
 def pre_patch(raiz: Path, base: str | None, template: str | None,
               tempo_limite: int) -> dict:
     base = base or base_padrao(raiz)
@@ -338,40 +608,53 @@ def pre_patch(raiz: Path, base: str | None, template: str | None,
             return {"erro": f"não consegui criar worktree na base: {r.stderr.strip()[:200]}",
                     "testes": []}
         resultado["ligadas"] = ligar_dependencias(raiz, worktree)
+        copiados = set(_copiar(raiz, worktree, suporte_do_diff(raiz, ponto)))
+        conftests = sorted(c for c in copiados if Path(c).name == "conftest.py")
+        cache: dict = {}
+
+        def acrescentado() -> dict[str, list[str]]:
+            if "arquivos" not in cache:
+                cache["arquivos"] = acrescentado_no_diff(raiz, ponto)
+            return cache["arquivos"]
+
         for rel in novos:
             item = {"arquivo": rel, "veredicto": "nao_executado", "motivo": "", "comando": ""}
             resultado["testes"].append(item)
-            origem = raiz / rel
-            destino = worktree / rel
-            try:
-                destino.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(origem, destino)
-            except OSError as e:
-                item["motivo"] = f"não copiei o teste para o worktree: {e}"
+            if rel not in copiados:   # o `_test.go` novo, na sua vez
+                copiados.update(_copiar(raiz, worktree, [rel]))
+            if rel not in copiados:
+                item["motivo"] = "não copiei o teste para o worktree"
                 continue
             par = comando_para(raiz, rel, template)
             if par is None:
                 item["motivo"] = "ecossistema sem comando conhecido — passe --comando"
                 continue
-            cmd, cwd = par
-            item["comando"] = cmd
-            try:
-                p = subprocess.run(cmd, shell=True, cwd=str(worktree / cwd),
-                                   capture_output=True, text=True, timeout=tempo_limite)
-            except subprocess.TimeoutExpired:
+            item["comando"] = par[0]
+            rodada = _rodar_na_base(*par, worktree, tempo_limite)
+            if rodada is None:
                 item["motivo"] = f"estourou {tempo_limite}s"
                 continue
-            saida = (p.stdout or "") + (p.stderr or "")
-            if SEM_COLETA.search(saida) or p.returncode == 5:  # 5 = pytest sem coleta
+            codigo, saida = rodada
+            if SEM_COLETA.search(saida) or codigo == 5:  # 5 = pytest sem coleta
                 item["motivo"] = "nenhum teste coletado no worktree da base"
                 continue
-            if p.returncode == 0:
+            if codigo == 0:
                 item["veredicto"] = "passou_na_base"
                 item["motivo"] = "passa sem a mudança — não prova a mudança"
-            else:
-                item["veredicto"] = "falhou_na_base"
-                item["motivo"] = f"exit {p.returncode} na base"
+                continue
+            if codigo in (126, 127):   # o executor nem rodou: comando inexistente ou sem permissão
+                item["motivo"] = (f"exit {codigo} na base: o comando do teste nem rodou — "
+                                  "confira o ambiente ou passe --comando")
                 item["ultimas_linhas"] = [l for l in saida.strip().splitlines() if l.strip()][-3:]
+                continue
+            item["veredicto"], item["motivo"] = veredicto_da_falha(
+                saida, codigo, acrescentado, raiz, worktree)
+            item["ultimas_linhas"] = [l for l in saida.strip().splitlines() if l.strip()][-3:]
+            if item["veredicto"] == "falhou_na_base" and conftests and CONFTEST_QUEBRADO.search(saida):
+                outra = sem_o_conftest_do_diff(raiz, worktree, ponto, conftests, par, tempo_limite,
+                                               acrescentado)
+                if outra:
+                    item["veredicto"], item["motivo"] = outra
     finally:
         git(raiz, "worktree", "remove", "--force", str(worktree), timeout=60)
         git(raiz, "worktree", "prune")
@@ -1559,6 +1842,7 @@ def colher(raiz: Path, dias: int | None, saida: str | None, validar: bool,
 ROTULO = {
     "falhou_na_base": "✅ falhou na base",
     "passou_na_base": "❌ PASSOU na base",
+    "erro_na_base": "⚠️  erro na base",
     "nao_executado": "⚠️  não executado",
 }
 
@@ -1578,6 +1862,11 @@ def imprimir_pre_patch(r: dict) -> None:
         print(f"      {t['motivo']}")
         for l in t.get("ultimas_linhas", []):
             print(f"      │ {l[:110]}")
+    sem_carga = [t for t in r["testes"] if t["veredicto"] == "erro_na_base"]
+    if sem_carga:
+        print(f"\n   {len(sem_carga)} teste(s) novo(s) não carregaram na base por algo que o diff "
+              "não acrescenta\n   (dependência, sintaxe, auxiliar): não provam a mudança. "
+              "Corrija o ambiente ou o teste e rode de novo.")
     ruins = [t for t in r["testes"] if t["veredicto"] == "passou_na_base"]
     if ruins:
         print(f"\n   {len(ruins)} teste(s) novo(s) passam sem a mudança. Ou o teste não exercita "

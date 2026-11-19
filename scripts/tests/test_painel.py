@@ -109,7 +109,7 @@ class Caixa(unittest.TestCase):
         self.assertEqual(self.tipos(d), {("gate_pulado", "forge-x")})
         saida = painel.render_caixa(d)
         self.assertIn("tarefa T1 concluída com o gate pulado", saida)
-        self.assertIn('quadro.py encerrar forge-x --lacuna "T1: <motivo>"', saida)
+        self.assertIn('quadro.py encerrar forge-x --lacuna "T1: gate pulado — <motivo>"', saida)
         # A lacuna declarada tira a tarefa do que espera; o quadro vira encerrável.
         q_cru = json.loads(Path(".agents/quadro/forge-x.json").read_text(encoding="utf-8"))
         q_cru["lacunas"] = ["T1: sem ambiente de banco"]

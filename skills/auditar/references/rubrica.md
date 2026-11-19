@@ -44,7 +44,7 @@ Material de apoio da skill `auditar`. Leia ao pontuar cada dimensão: tabelas cr
 | `.agents/memory/MEMORY.md` existe (índice de memórias de incidente — ADR-E003) | 2 |
 | Memórias de incidente em `.agents/memory/<slug>.md` com frontmatter `name`/`description` (escala): 1-2 = 2 pts, 3+ = 4 pts | 0-4 |
 | Pelo menos 1 ADR explicando decisão arquitetural não-óbvia | 2 |
-| Grafo de conhecimento (ADR-0009), em escala: `.agents/grafo/` com `entidades.jsonl` + `relacoes.jsonl` + `esquema.md` versionado = 2 pts; `grafo.py validar` sai limpo = +2 pts; construção/atualização ≤ 30 dias registrada em `GRAFO.md` = +1 pt | 0-5 |
+| Grafo de conhecimento (ADR-0009), em escala: `.agents/grafo/` com `entidades.jsonl` + `relacoes.jsonl` + `esquema.md` versionado = 2 pts; `grafo.py validar` sai limpo = +2 pts (sem entidade, ele sai 1 e não pontua); construção/atualização ≤ 30 dias registrada em `GRAFO.md` = +1 pt | 0-5 |
 
 ### Estrutura (20 pts)
 

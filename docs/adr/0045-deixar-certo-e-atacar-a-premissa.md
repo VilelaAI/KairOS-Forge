@@ -164,3 +164,15 @@ muda, então o roteamento da Laura também não.
   que o ADR-0029 tirou do orçamento. Em código, a sequência é contada pelo `ciclo.py`.
 - **Exigir a premissa desde a segunda falha.** Recusada: uma correção frustrada é normal; a
   regra do ub-mode é sobre duas, e antecipar faria o agente escrever premissa como ritual.
+
+## Emenda (v0.54.0): a premissa com o orçamento padrão
+
+A frase "os estados novos aparecem com `--orcamento-<gate>` de 3 ou mais — o caso típico de
+runner headless" estava errada: o `/entregar` e a ponte Hermes abrem com o padrão 2, e com ele
+o ataque à premissa nunca acontecia. Agora, quando a falha que esgota o orçamento é a terceira
+seguida sem progresso e a sequência ainda não tem premissa, o ciclo passa por
+`atacando_premissa_*` sem gastar ficha. A premissa escrita segue para `escalado`, no
+`motivo_escalacao`, em vez de abrir uma terceira correção; com qualquer orçamento, a escalação
+por orçamento esgotado leva a última premissa atacada na sequência (a do teto absoluto não
+leva). Por isso o destino de `premissa_escrita` passa a ser calculado, e o contrato do ciclo
+sobe para 1.4 (ADR-0061).

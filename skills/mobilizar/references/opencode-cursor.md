@@ -103,7 +103,9 @@ Na prática, o laço do mobilizar vira:
 2. Descreva a onda inteira **de uma vez**, nomeando o subagent de cada tarefa e a posse
    de arquivo dela. Descrever uma tarefa por vez é o que faz o Cursor serializar.
 3. `quadro.py iniciar` para cada uma.
-4. Conforme os subagents respondem, `quadro.py concluir` / `bloquear`.
+4. Conforme os subagents respondem, `quadro.py concluir` / `bloquear`. Gate pulado vira
+   lacuna no `encerrar`, menos o da tarefa `--leitura` sem gate declarado; sem a foto do
+   checkout no `iniciar` ou agora, o `concluir` pede `--sem-foto "motivo"` (ADR-0061).
 
 ### O limite que muda o fluxo
 

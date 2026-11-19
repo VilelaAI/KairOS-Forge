@@ -58,7 +58,9 @@ o conteúdo chega como notificação. Então o laço é:
 2. `quadro.py iniciar <slug> <T> --agente <task_name>` para cada uma.
 3. `spawn_agent` para cada uma (todas antes de esperar — senão você serializou o time).
 4. `wait_agent` até alguém terminar.
-5. Leia o resultado, registre com `quadro.py concluir` (ou `bloquear`).
+5. Leia o resultado, registre com `quadro.py concluir` (ou `bloquear`). Gate pulado vira
+   lacuna no `encerrar`, menos o da tarefa `--leitura` sem gate declarado; sem a foto do
+   checkout no `iniciar` ou agora, o `concluir` pede `--sem-foto "motivo"` (ADR-0061).
 6. `close_agent` em quem terminou. **Agente concluído continua ocupando vaga de
    concorrência até ser fechado** — esquecer isso trava a próxima onda com um erro que
    parece do teto de onda mas é seu.

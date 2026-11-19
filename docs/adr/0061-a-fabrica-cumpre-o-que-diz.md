@@ -24,7 +24,7 @@ skill ou o ADR o anunciava, e o código falhava sem avisar:
   o erro de sintaxe e o auxiliar de teste que ficou para trás.
 - **`quadro.py`:**
   - a tarefa concluída com `--gate-pulado` contava como pronta e sumia num "N de N";
-  - sem a foto do checkout no `iniciar`, o `concluir` aceitava qualquer arquivo em silêncio;
+  - sem a foto do checkout no `iniciar`, o `concluir` aceitava qualquer arquivo, com um aviso só;
   - o quadro sem tarefa podia ser encerrado.
 - **`telemetria.py`:**
   - no `custo-eval --teto`, a versão sem caso medido contava como variação 0 e passava, contra
@@ -32,8 +32,9 @@ skill ou o ADR o anunciava, e o código falhava sem avisar:
   - sem `baseline/`, a primeira subpasta em ordem alfabética virava a baseline;
   - o `corroborar` comparava por trecho nos dois sentidos. O comando mais amplo, o mais estreito
     e o só citado corroboravam a alegação.
-- **`check-agent-security.py`:** não lia o bloco `hooks` de `.claude/settings*.json`. Apontado
-  para `.claude`, como o `/auditar` faz, não lia arquivo de hook nenhum.
+- **`check-agent-security.py`:** não lia o bloco `hooks` de `.claude/settings*.json`, nem,
+  apontado para `.claude` como o `/auditar` faz, o `.codex/hooks.json` e o `.cursor/hooks.json`
+  do projeto.
 - **Menores:**
   - o `grafo.py validar` saía 0 sem grafo e aceitava entidade sem fonte;
   - o `painel.py` lia título e requisito dentro de bloco de código;
@@ -52,8 +53,8 @@ que cumpre o que o ADR de origem promete.
   `atacando_premissa_*` sem gastar ficha. A premissa escrita segue para `escalado` e vai no
   `motivo_escalacao`. As duas regras do ADR-0045 continuam: a premissa vem na terceira falha, e
   o orçamento é fato. Por isso o destino de `premissa_escrita` passa a ser calculado, e o
-  contrato do ciclo sobe para 1.4. Com qualquer orçamento, a escalação leva a última premissa
-  atacada.
+  contrato do ciclo sobe para 1.4. Com qualquer orçamento, a escalação por orçamento esgotado
+  leva a última premissa atacada na sequência; a do teto absoluto, não.
 - **`pr_aberto` exige `--pr <URL ou número>`.**
   - Sem ele, ou com algo que não é PR, `registrar` sai 1 e o estado não muda.
   - Com o `gh`, o PR é conferido: o que não existe ou foi fechado sem merge é recusado.
@@ -80,8 +81,11 @@ que cumpre o que o ADR de origem promete.
   - O que o diff não explica sai `erro_na_base` e não prova nada: dependência ausente, fixture
     de plugin não instalado, sintaxe, auxiliar de fora do diff.
   - A asserção que só cita `SyntaxError` ou `No module named` continua falha comum.
-- **O suporte de teste do diff vai para a base antes de rodar.** Entram o auxiliar e o
-  `conftest.py`, novos ou mudados. Fica de fora o `_test.go`, que entra só na sua vez.
+  - O comando que nem roda (exit 126 ou 127) sai `nao_executado`, e não prova.
+  - No Go com o proxy desligado, o pacote novo que não se acha também é lido como falta.
+- **O suporte de teste do diff vai para a base antes de rodar.** Entram os arquivos de
+  teste novos ou mudados que o `eh_teste` reconhece (as pastas de teste, o `conftest.py`, o
+  auxiliar nelas). Fica de fora o `_test.go`, que entra só na sua vez.
 - **O `conftest.py` do diff que não carrega na base.** Ele faria todo teste novo da árvore sair
   `falhou_na_base`. Quando o pytest diz que não carregou o conftest e a regra normal deu prova,
   o teste roda de novo com os conftests da base.
@@ -96,7 +100,7 @@ que cumpre o que o ADR de origem promete.
   - A concluída com o gate pulado não conta como pronta: o quadro não se diz `completo`, e o
     `encerrar` pede `--lacuna "Tn: gate pulado — motivo"`.
   - A tarefa `--leitura` sem gate declarado não tem gate a pular.
-  - O painel, o mod e a caixa mostram "🚧 gate pulado, sem lacuna" até a pessoa decidir.
+  - O painel, o mod e a caixa mostram "🚧 gate pulado, sem lacuna" até a lacuna ser declarada.
 - **Sem foto.** Sem a foto do checkout, o `concluir` recusa até receber `--sem-foto "motivo"`,
   no molde do `--fora-da-posse`, e o ledger registra.
 - **Quadro vazio.** O quadro sem tarefa não encerra.
@@ -128,6 +132,8 @@ Apontado para `.claude`, varre também o `.codex/hooks.json` e o `.cursor/hooks.
   cercada não roda no `qualidade.py criterios`, e o id do exemplo não vira "sem origem".
 - **`guardrail.py`:** a marca de gerado só vale no cabeçalho: nas 5 primeiras linhas, ou nas 5
   depois do frontmatter.
+- **`release.py`:** o `FORGE_REF` do exemplo em `templates/ci/README.md` passa a ser reescrito
+  pelo `bump` e cobrado pelo `check`, como o dos quatro gatilhos.
 
 ### Versão
 
@@ -186,6 +192,9 @@ sai 1. O `proximo_passo` do `estado --json` já diz o comando com o `--pr`.
     base. Quando falta, é tomado por produção do diff, como antes.
   - A nova rodada sem o conftest é só do pytest: o setup do jest em `__tests__/` que importa
     produção nova ainda faz todo teste novo da árvore contar como prova.
+  - A exceção no import do módulo de teste sai `falhou_na_base` no unittest e `erro_na_base` no
+    pytest, que a chama de erro de coleta: o mesmo teste ganha veredictos diferentes nos dois
+    executores.
 - **`corroborar`.**
   - O prefixo é livre: `echo pytest tests/` sem aspas corrobora.
   - Um `;` dentro de aspas conta como separador.

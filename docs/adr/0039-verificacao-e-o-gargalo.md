@@ -262,3 +262,18 @@ reação é do comentário inteiro.
   do `github-actions[bot]`, conforme a identidade configurada. Uma pessoa que cole o mesmo
   cabeçalho entra na conta.
 - **Os últimos 200 PRs.** Projeto com mais PRs que isso na janela fica com a conta parcial.
+
+## Emenda (v0.54.0): o teste que nem carrega na base
+
+O `pre-patch` contava como `falhou_na_base` qualquer saída diferente de 0 na base, até a
+dependência não instalada e o erro de sintaxe no teste (ADR-0061). Agora ele copia para a base,
+antes de rodar, os testes, o que está em pasta de teste e os `conftest.py` novos ou mudados do
+diff; o `_test.go` novo entra só na sua vez, e o mudado não entra. O teste que nem carrega na
+base só prova quando o que falta é o que o diff acrescenta em produção, como o módulo novo ou o
+`__init__.py` que só existe na feature; a dependência ausente, o erro de sintaxe no teste, o
+auxiliar de fora do diff e a fixture de plugin não instalado saem `erro_na_base`, o quarto
+veredicto, que não prova nada. A asserção que só cita `SyntaxError` ou `No module named`, e o
+`SyntaxError` do `ast.parse` ou do `JSON.parse` em tempo de teste, continuam falha comum; o
+`conftest.py` do diff que não carrega na base faz o teste rodar de novo com os da base. Do
+limite "lê exit code, não intenção" resta a falha comum de runtime, como o serviço externo fora
+do ar; os outros limites que sobram estão no ADR-0061.

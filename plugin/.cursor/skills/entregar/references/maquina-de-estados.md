@@ -26,10 +26,12 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ciclo.py estado          # qual o passo ag
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ciclo.py registrar <res> # o que aconteceu
 ```
 
-Três coisas deixam de depender da sua disciplina:
+O que deixa de depender da sua disciplina:
 
 - **O orçamento é fato.** Esgotou, `registrar` devolve `escalado` — não existe
-  "mais uma rodada, dessa vez vai".
+  "mais uma rodada, dessa vez vai". Se a falha que esgota é a terceira seguida sem
+  progresso, o ciclo passa antes por `atacando_premissa_*`, sem ficha a mais, e a
+  premissa escrita segue no `motivo_escalacao` (ADR-0061).
 - **Correção de revisão reabre a validação.** Você não escolhe voltar pra
   revisão: o script só tem essa aresta.
 - **Veredicto vem do artefato.** `registrar aprovado` sem relatório em
@@ -51,7 +53,8 @@ Três coisas deixam de depender da sua disciplina:
   de rodadas segue valendo por cima — progresso não compra rodada infinita.
 
 E o `gh pr create` fica **bloqueado pelo guardrail** enquanto o estado não for
-`pronto_para_pr` (ADR-0022). Não é sugestão.
+`pronto_para_pr` (ADR-0022). Não é sugestão. O `ciclo.py` também recusa o `limpo`
+da revisão com `faixa` 3 no bloco `kairos-revisao` e o `pr_aberto` sem `--pr` (ADR-0061).
 
 Se o `ciclo.py` não estiver disponível (CLI sem os scripts do plugin), conduza o
 arco pela prosa abaixo e **diga ao usuário** que o orçamento está sendo contado

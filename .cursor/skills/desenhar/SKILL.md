@@ -121,3 +121,13 @@ documento acompanha a realidade, nunca o contrário em silêncio.
 
 Toda interação em PT-BR. Isabela, Pablo e Ada se apresentam em primeira
 pessoa e mantêm a persona.
+
+## Pronto quando
+
+- Modo padrão: o DESIGN está em `docs/design/DESIGN-NNN-<slug>.md` com as seções do modelo, e a tabela de estados tem as cinco colunas preenchidas em toda view, com uma ação de saída no estado vazio.
+- Cada critério V-NN do DESIGN tem "como verificar" preenchido e está em `docs/specs/SPEC-<NNN>-<slug>.md` como requisito rastreável, para o /validar cobrar.
+- O `DESIGN.md` da raiz existe antes do DESIGN-NNN, extraído do código por Pablo ou gerado pela pessoa.
+- Componente novo tem justificativa na seção Componentes do DESIGN-NNN e só entra no `DESIGN.md` da raiz depois que a pessoa o aprova (gate humano).
+- Toda escolha por default recomendado está em Premissas assumidas de `docs/design/DESIGN-NNN-<slug>.md` com o porquê, e todo texto sem fonte está marcado `[texto: Celina]`.
+- Modo verificar: cada view, estado, critério de acessibilidade, breakpoint e token do DESIGN.md tem parecer conforme, divergente ou estado ausente, e nenhum estado ausente segue para o /revisar (gate humano).
+- Divergência intencional achada no modo verificar está escrita em `docs/design/DESIGN-NNN-<slug>.md`, que acompanha a implementação.

@@ -218,3 +218,13 @@ Próximos passos sugeridos:
 - **PT-BR em tudo gerado.** Verifique acentuação antes de salvar.
 - **Não rode `git init` sem perguntar.** Alguns projetos já estão em monorepo.
 - **Não modifique `.gitignore` existente.** Apenas anexe as linhas que faltarem: `.env` e `.agents/execucoes/` (a trajetória bruta é local e descartável; o que sobe de camada são os números da auditoria — ADR-0021).
+
+## Pronto quando
+
+- Se já havia `CLAUDE.md`, a pessoa escolheu substituir, fazer merge ou cancelar; cancelado, o onboarding termina aí, sem criar nem alterar arquivo (gate humano).
+- O `CLAUDE.md` na raiz, feito a partir de `templates/CLAUDE.md.template` ou em merge com o existente, traz as 7 respostas, colhidas uma por vez, com `<a preencher>` no que a pessoa não soube; se o time usa Codex, Cursor ou OpenCode, `AGENTS.md` ao lado com o mesmo conteúdo.
+- O `contextos/testes.md` tem a tabela de gates e a política, com os comandos da resposta 7 ou `<a preencher>`, junto de `contextos/sobre-o-projeto.md`, `contextos/stack.md`, `contextos/convencoes.md` e `contextos/restricoes.md`.
+- O `decisoes/log.md` tem a entrada datada da adoção da fábrica, e o `decisoes/estado-operacional.md` tem as quatro seções do modelo.
+- Existem `.agents/memory/MEMORY.md`, `.agents/grafo/GRAFO.md`, `.agents/grafo/esquema.md` no modelo da seção 2 do playbook do grafo, na versão 1, e as pastas `docs/specs/criticas/`, `docs/specs/validacoes/`, `docs/specs/revisoes/` e `docs/adr/`.
+- O `.gitignore` existente só ganhou as linhas que faltavam de `.env` e `.agents/execucoes/`, e `git init` só rodou se a pessoa disse sim (gate humano).
+- A pessoa recebeu o `Onboarding concluído.` do passo 9, com o que foi criado e os próximos passos, e soube se a memória de sessão (`memory_*`) está ativa ou é opcional.

@@ -219,6 +219,16 @@ Etapa isolada (chame a skill direto); deploy (`/kairos-forge:lancar`); exploraç
 - **Falha volta ao agente, não ao usuário**; **só os agentes dos achados** corrigem. **Toda rodada entra na linhagem.**
 - **Nunca faça merge nem deploy. Nunca abra PR com P1 bloqueado ou 🔴 aberto. PT-BR em tudo.**
 
+## Pronto quando
+
+- A pessoa confirmou o entendimento, escolheu a abordagem e respondeu SIM à SPEC nos gates 1/3, 2/3 e 3/3, e nenhum deles foi respondido por você (gate humano).
+- `ciclo.py estado --json` mostra `spec_alterada` como `false`: o contrato da SPEC não mudou desde a aprovação, ou a pessoa aceitou a versão nova com `ciclo.py reaprovar`.
+- O relatório de validação mais recente em `docs/specs/validacoes/` passa em `contrato.py validar <relatório>` com `bloqueios` 0, e `guardrail.py verificar` não acusa requisito Concluído sem `verificado:`.
+- O relatório de revisão mais recente em `docs/specs/revisoes/` passa em `contrato.py revisar <relatório>` com `criticos` 0 e nada em `incompletos`, e `ciclo.py estado --json` mostra `pendentes_revisao` vazio.
+- O PR foi aberto com o corpo de `painel.py --pr SPEC-NNN` e registrado com `ciclo.py registrar pr_aberto`; o merge fica com a pessoa (gate humano).
+- O relatório de entrega está em `docs/specs/entregas/ENTREGA-SPEC-NNN-YYYY-MM-DD.md`, com desfecho, evidência, ressalvas e as rodadas do `historico` do ciclo, inclusive as que falharam.
+- Se o arco parou antes do PR (orçamento esgotado ou escalação manual), `ciclo.py estado --json` mostra `escalado`, nenhum PR foi aberto e quem destrava é a pessoa (gate humano).
+
 ## Referências
 
 | Arquivo | Leia quando |

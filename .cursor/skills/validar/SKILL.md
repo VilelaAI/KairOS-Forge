@@ -326,3 +326,13 @@ Próximo passo: <corrigir com agente X | rodar /kairos-forge:revisar>.
 - **Evidência auto-relatada vale menos que evidência corroborada.** Quando houver trajetória, o `verificado:` é uma alegação a conferir, não um fato a aceitar. Alegação sem lastro na trajetória é "não corroborada" — e em P1 isso bloqueia.
 - **Régua de rastreabilidade (ADR-0012).** Toda saída importante precisa rastrear a cadeia completa: requisito da SPEC → artefato/diff → fonte (gate executado, e aresta do grafo quando houver) → decisão de avaliador. Elo quebrado em requisito P1 = veredicto no máximo "aprovado com ressalvas", nunca "aprovado". É essa cadeia que separa validação de opinião.
 - **PT-BR em tudo.**
+
+## Pronto quando
+
+- O relatório está em `docs/specs/validacoes/VALIDACAO-<SPEC-NNN>-YYYY-MM-DD.md` e `contrato.py validar <relatório>` sai 0 com qualquer veredicto, inclusive `bloqueado`.
+- A seção "Prova negativa dos testes" traz a saída de `prova.py pre-patch` e `prova.py testes-alterados`: requisito provado só por teste `passou_na_base` está como sem evidência, e cada teste existente alterado tem a justificativa aceita ou "sem justificativa".
+- A seção "Decisões posteriores à aprovação" traz a saída de `prova.py decisoes SPEC-NNN`, com cada decisão ligada citada por `arquivo:linha` e o que ela pede: segue, contradiz ou não toca a entrega.
+- Com `.agents/execucoes/` no projeto, o comando de cada `verificado:` de requisito Concluído passou por `telemetria.py corroborar "<comando>"`, e o veredicto está na coluna Corroboração da matriz.
+- Cada gate do projeto está no relatório como passou, falhou ou "não executado" com o motivo e, com eles verdes, o mesmo vale para `qualidade.py duplicacao`, `qualidade.py crap`, `qualidade.py mutacao` e `qualidade.py criterios SPEC-NNN`.
+- Com `.agents/grafo/codigo.jsonl` no projeto, o relatório diz, para cada arquivo de produção do diff, quantos importadores fora do diff o `grafo.py contexto <arquivo>` aponta e se algum gate rodado os cobre.
+- Decisão posterior que contradiz a entrega, afirmação sem aresta no grafo e mutante que nenhum critério percebe estão no relatório, e a escolha fica com a pessoa (gate humano).

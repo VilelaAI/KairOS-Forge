@@ -117,3 +117,13 @@ não grava arquivo de progresso.
 - Escolher a melhoria da semana é o `/kairos-forge:evoluir`.
 - O plano e os marcos são da Iara; os riscos, do Breno; o lançamento, da Sofia. A Talita cita
   os artefatos deles quando existem e não os inventa.
+
+## Pronto quando
+
+- Cada número tem ao lado o comando da tabela que o gerou, e a variação entre períodos é a que `telemetria.py periodo --dias N` calculou, sem conta feita à mão; no status do período, a seção "Fontes" lista cada comando rodado, com a data.
+- Onde `telemetria.py periodo` ou `telemetria.py comparar` escreveu "não medido", "amostra pequena" ou "não comparável", a resposta diz o mesmo, com os N, sem 0, estimativa nem conclusão.
+- O custo vem de `telemetria.py por-spec --dias N`, `telemetria.py tokens` ou `quadro.py ledger <slug>`, em tokens e nunca em dinheiro, e fica "não medido" onde não há hook.
+- Requisito só aparece como entregue com `verificado:`, e o que o `painel.py --json` lista em `sem_prova` aparece em andamento.
+- No status do período, o que o `painel.py --caixa` mostra esperando alguém está em "Esperando alguém", antes de "Entregue", e nenhuma seção do modelo foi removida: a que não tem dado traz uma linha dizendo isso.
+- Toda decisão citada traz `arquivo:linha` de `docs/adr/`, `decisoes/` ou `docs/specs/`, achado pelo grep da tabela ou por `grafo.py subgrafo <entidade>`; sem registro, a resposta diz "decisão não registrada" e sugere um ADR.
+- O arquivo `decisoes/gestao/STATUS-<slug>-AAAA-MM-DD.md` só existe se a pessoa pediu o relatório, e o `painel.py --caixa --github` só rodou com o `gh` autorizado por ela (gate humano).

@@ -185,6 +185,16 @@ NÃO pule pra:
 - **Todo item de implementação precisa de gate.** Pode ser teste automatizado, build, lint ou validação manual explícita.
 - **Status "Concluído" exige célula Verificação iniciando com `verificado:`.** A regra existe para impedir o anti-padrão de marcar pronto sem rodar nada. Inspirada no checklist do Replit-Orchestrator (`briefing.md`): só vale verificado depois que o agente rodou o comando, abriu a URL ou executou o teste. Confiança em "escrevi o código, deve funcionar" não conta.
 
+## Pronto quando
+
+- Na feature Trivial, nada foi criado em `docs/specs/` e a resposta diz por que a SPEC não compensa.
+- A pessoa confirmou o entendimento em 3 bullets com o Working Backwards e escolheu a abordagem, numa mensagem só na feature Pequena; a mudança Complexa, de 2+ times ou de reversibilidade baixa passou antes por `docs/rfcs/RFC-<NNN>-<slug>.md` (gate humano).
+- A SPEC está em `docs/specs/SPEC-<NNN>-<slug>.md` com as seções obrigatórias de `references/modelo-spec.md`, e cada P1 tem critério de aceite com valor, nos dois sentidos ou com o porquê de um só, e comando entre crases na Matriz de testes ou `<a definir>`.
+- Cada requisito tem origem no `## Mapa de intenção`, com o deduzido marcado `inferido`, e `painel.py --json SPEC-<NNN>` dá `intencao.sem_origem` vazio.
+- A crítica mais recente está em `docs/specs/criticas/CRITICA-SPEC-<NNN>-YYYY-MM-DD.md`, `contrato.py criticar <relatório>` sai 0, com dois críticos distintos em `criticado_por`, e o veredicto não é `bloqueado`.
+- Cada achado da crítica foi corrigido ou tem na SPEC o porquê de não, e a pessoa aprovou a SPEC no gate 3/3 depois de ver os `inferido`, `## Confiado, não provado` e `## Não prometido` (gate humano).
+- No arco, depois de `ciclo.py registrar aprovada`, `ciclo.py estado --json SPEC-<NNN>` mostra `construindo` com `spec_digest` preenchido.
+
 ## Referências
 
 Leia sob demanda, na etapa correspondente — caminho completo `${CLAUDE_PLUGIN_ROOT}/skills/especificar/references/<arquivo>`:

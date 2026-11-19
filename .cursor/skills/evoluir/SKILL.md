@@ -240,3 +240,12 @@ Outros candidatos ficaram registrados para os próximos ciclos.
 - **Recomende UM item.** Mesmo que apareçam 5 candidatos. Disciplina é o que faz a fábrica evoluir consistentemente.
 - **Não puxe respostas.** Se o usuário disser "nenhum prompt repetido esta semana", aceite. Próxima pergunta.
 - **Salve o registro mesmo se nada novo emergir.** Padrão "esta semana sem novidade" é informação útil — talvez a fábrica esteja madura, talvez você não tenha trabalhado o suficiente, ambas hipóteses interessantes.
+
+## Pronto quando
+
+- A evidência da entrevista saiu de `telemetria.py resumo --dias 7` e `telemetria.py prs --correcoes --dias 30`, rodados antes da primeira pergunta, e a falta de trajetória ou o aviso de squash da fonte git foram ditos à pessoa, sem tendência inventada.
+- O registro está em `decisoes/evolucoes/EVOL-YYYY-MM-DD.md`, também na semana sem novidade, com as seções do passo 3, no máximo um item escolhido e os candidatos descartados com o motivo.
+- A "Linha de base" do EVOL traz o número medido hoje por `telemetria.py resumo` ou `telemetria.py prs --correcoes`, uma contagem ou uma ocorrência, ou diz como vai observar sem trajetória, e o "Critério de pronto" diz o que muda em relação a ela.
+- O "Veredicto da evolução anterior" em `decisoes/evolucoes/EVOL-YYYY-MM-DD.md` traz `ajudou`, `piorou`, `sem efeito observado` ou `confundido` com o contraste da linha de base para agora, ou diz que não havia EVOL anterior com linha de base.
+- A lição está em `.agents/memory/<slug>.md`, com os quatro campos, só quando o veredicto é `ajudou` ou `piorou` com contraste; nos outros casos, o EVOL diz "sem lição".
+- A pessoa escolheu o item da semana entre os candidatos, ou nenhum, e confirmou o escopo de qualquer fonte nova a ligar; nada foi construído nesta execução, e o próximo passo é o /kairos-forge:especificar (gate humano).

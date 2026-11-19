@@ -102,7 +102,10 @@ Código de produção passa por duas metades, nesta ordem.
 **Deixar certo**
 
 - **Causa, não sintoma.** Reproduza e corrija a causa; guarda que só esconde a queda não é
-  correção.
+  correção. Causa desconhecida: `/kairos-forge:investigar` — laço que mostra o problema,
+  uma hipótese por vez, causa escrita antes do conserto, e o `prova.py reproduzir` mostrando
+  a falha na base e a passagem agora (ADR-0060). Log de depuração com `forge-depura-<id>`,
+  apagado antes do commit (`prova.py marcas`).
 - **Teste de comportamento.** O teste chama o código como quem usa e confere o que quem usa
   veria. Se ele passaria com a função devolvendo nada, jogue fora.
 - **Os três números do diff.** `qualidade.py crap` abaixo de 10 em toda função que você tocou

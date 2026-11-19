@@ -220,3 +220,13 @@ Próximo passo: <atualizar SPEC-NNN | abrir SPEC | aceitar risco>.
 - **PT-BR.**
 - **Read-only.** Nada de patch, nada de migration, nada de mudar config.
 - **Se a feature tiver SPEC, este modelo referencia a SPEC e vira insumo para revisão.** Não duplique a SPEC.
+
+## Pronto quando
+
+- Sem modelo: em feature trivial (cor, label) ou com o código já escrito, nenhum `docs/seguranca/AMEACAS-*.md` é criado, e a resposta diz por quê e aponta o `/kairos-forge:revisar` para o código já escrito.
+- Com modelo: ele está em `docs/seguranca/AMEACAS-<feature-slug>-YYYY-MM-DD.md`, com o cabeçalho (quem coordenou, a SPEC ou "não há ainda", o escopo dado pela pessoa no passo 1) e todas as seções do template, de "Resumo executivo" a "Próximo passo".
+- No modelo em `docs/seguranca/AMEACAS-*.md`, cada um dos 2 a 3 perfis de atacante tem um AP-NN com objetivo, caminho em passos numerados, ativos atingidos, controle atual e severidade, e o de controle parcial ou inexistente tem mitigação com camada que não é a UI e ação concreta.
+- Nenhum risco levantado some: o que não terá mitigação está em "Decisões aceitas" de `docs/seguranca/AMEACAS-*.md`, aceito explicitamente, com data e justificativa.
+- O "Próximo passo" de `docs/seguranca/AMEACAS-*.md` diz que mitigação vira tarefa na SPEC (ou que é preciso abrir uma, quando não há), qual vai como ressalva no `/kairos-forge:revisar` e os gatilhos para reavaliar o modelo.
+- Com modelo, a resposta dá o caminho `docs/seguranca/AMEACAS-<slug>-YYYY-MM-DD.md`, a ameaça principal, as três mitigações de maior alavancagem e o próximo passo sugerido: atualizar a SPEC, abrir uma SPEC ou aceitar o risco.
+- Nas duas saídas, nada além do `docs/seguranca/AMEACAS-*.md` foi criado ou alterado, sem patch, migration ou mudança de config, o que o `git status --short` mostra.

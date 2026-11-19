@@ -218,3 +218,13 @@ Próximos passos sugeridos:
 - **PT-BR em tudo gerado.** Verifique acentuação antes de salvar.
 - **Não rode `git init` sem perguntar.** Alguns projetos já estão em monorepo.
 - **Não modifique `.gitignore` existente.** Apenas anexe as linhas que faltarem: `.env` e `.agents/execucoes/` (a trajetória bruta é local e descartável; o que sobe de camada são os números da auditoria — ADR-0021).
+
+## Pronto quando
+
+- A pessoa respondeu às 7 perguntas, uma por vez, e, se já havia `CLAUDE.md`, escolheu entre substituir, fazer merge ou cancelar (gate humano).
+- O `CLAUDE.md` está na raiz, preenchido a partir de `templates/CLAUDE.md.template` com as respostas, e o que a pessoa não soube ficou `<a preencher>`; `AGENTS.md` também, com o mesmo conteúdo, se o time usa Codex, Cursor ou OpenCode.
+- O `contextos/testes.md` tem a tabela de gates e a política, com os comandos da resposta 7 ou `<a preencher>`, ao lado de `contextos/sobre-o-projeto.md`, `contextos/stack.md`, `contextos/convencoes.md` e `contextos/restricoes.md`.
+- O `decisoes/log.md` tem a entrada datada da adoção da fábrica, e `decisoes/estado-operacional.md` existe com as quatro seções do modelo.
+- Existem `.agents/memory/MEMORY.md`, `.agents/grafo/GRAFO.md` e `.agents/grafo/esquema.md` com `versão: 1`, junto com `docs/specs/criticas/`, `docs/specs/validacoes/`, `docs/specs/revisoes/` e `docs/adr/`.
+- O `.gitignore` existente só ganhou as linhas que faltavam de `.env` e `.agents/execucoes/`, e `git init` só rodou se a pessoa disse sim (gate humano).
+- A pessoa recebeu a confirmação do passo 9, com o que foi criado e os próximos passos, o primeiro deles revisar o `CLAUDE.md` gerado (gate humano).

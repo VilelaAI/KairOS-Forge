@@ -145,6 +145,15 @@ Template completo em `references/relatorio.md`. Seções, nesta ordem:
 - **Não suavize.** A primeira auditoria de quem nunca fez isso costuma dar 30/100 ou menos. Isso é normal e útil.
 - **Salve o relatório.** Mesmo se o usuário não pedir explicitamente. É como você mede progresso ao longo do tempo.
 
+## Pronto quando
+
+- O relatório está em `decisoes/auditorias/AUDIT-YYYY-MM-DD.md`, com as cinco seções de "Formato do relatório" na ordem, o total NN/120 (NN%) e a dimensão que limita marcada, com os cruzamentos verdadeiros abaixo.
+- A segurança do setup e o grafo contam pelo código de saída de `check-agent-security.py .claude` e `grafo.py validar`, e o critério que não se verificou vale 0 com "não foi possível verificar".
+- A Autonomia sai de `telemetria.py resumo --dias 30`, com −2 por sessão com produção sem gate; sem telemetria, vale 0 e cada linha diz "não medida", sem estimativa.
+- Autonomia de PR, espera e entrega da fábrica × humana vêm de `telemetria.py prs --dias 30`, `telemetria.py espera --dias 30` e `telemetria.py comparar --dias 90`, ou dizem "não medida" ou "não comparável" com o N de cada grupo.
+- O Histórico lista as auditorias anteriores de `decisoes/auditorias/` e compara pelo percentual, com as de antes da v0.17 (total /100) marcadas.
+- A pessoa confirmou a raiz auditada no passo 1 e recebeu o relatório com as 3 lacunas ranqueadas por alavancagem, cada uma com dimensão, esforço e como fechar (gate humano).
+
 ## Referências
 
 | Arquivo | Quando ler |

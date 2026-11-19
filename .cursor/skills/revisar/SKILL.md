@@ -293,3 +293,12 @@ mais barata que a anterior.
 - Code review humano em PR de outro dev → use ferramentas do GitHub/GitLab
 - Auditoria de segurança da aplicação inteira (escopo maior) → invoque Helena diretamente com escopo amplo
 - Discussão sobre design antes de codar → use `/kairos-forge:especificar`
+
+## Pronto quando
+
+- O relatório está em `docs/specs/revisoes/REVISAO-<SPEC-NNN ou slug da branch>-YYYY-MM-DD.md`, com faixa, escopo, revisores acionados e veredicto agregado no topo; no gatilho de CI, é o comentário no PR.
+- `contrato.py revisar <relatório>` sai 0: `faixa` de 1 a 3, `bloqueado` se e só se `criticos` passa de 0, `examinado` preenchido sem crítico, um id por crítico em `achados` e, com `incompletos` preenchido, veredicto `bloqueado`.
+- Helena e Patrícia deram parecer, com Vinícius, Marcos, Carlos e Ada conforme as áreas que o diff toca (gate humano).
+- `prova.py origem <relatório>` sai 0: crítico ou alto numa linha que o PR não tocou traz `· o PR depende:` ou `· o PR piora:`, e nenhuma linha que o PR escreveu está em "Fora deste PR".
+- Na re-revisão, cada crítico pendente está em `anteriores` como `resolvido` ou `nao_resolvido`, e no arco o `ciclo.py registrar limpo` recusa enquanto algum não estiver `resolvido`.
+- Na faixa 3, o merge fica com a pessoa mesmo com veredicto `aprovado`, gates verdes e histórico limpo (gate humano).

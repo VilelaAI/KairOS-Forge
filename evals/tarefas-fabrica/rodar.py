@@ -49,7 +49,7 @@ sys.path.insert(0, str(RAIZ_REPO / "scripts"))
 import contrato  # noqa: E402
 
 TIPOS = ("corrigir", "construir", "verificar", "perguntar")
-CHECAGENS = ("arquivo", "contrato", "ciclo", "intocado", "resposta", "bloqueios")
+CHECAGENS = ("arquivo", "ausente", "contrato", "ciclo", "intocado", "resposta", "bloqueios")
 DELEGACAO = ("Agent", "Task")       # ferramentas que abrem subagente no Claude Code
 
 
@@ -202,6 +202,13 @@ def _checar_arquivo(c: dict, ws: Path, ref: str, resposta: str) -> tuple[bool, s
     return False, f"nenhum {c['glob']} com {c.get('regex', [])}"
 
 
+def _checar_ausente(c: dict, ws: Path, ref: str, resposta: str) -> tuple[bool, str]:
+    """Nenhum arquivo do glob casa com a regex: o que não podia sobrar (ADR-0060)."""
+    com = [str(a.relative_to(ws)) for a in _arquivos(ws, c["glob"])
+           if re.search(c["regex"], a.read_text(encoding="utf-8", errors="replace"))]
+    return not com, f"sobrou em: {com}" if com else "ausente"
+
+
 def _checar_contrato(c: dict, ws: Path, ref: str, resposta: str) -> tuple[bool, str]:
     arqs = _arquivos(ws, c["glob"])
     if not arqs:
@@ -236,7 +243,8 @@ def _checar_resposta(c: dict, ws: Path, ref: str, resposta: str) -> tuple[bool, 
 
 
 # Uma função por tipo de checagem: o `checar` só despacha.
-CHECADORES = {"arquivo": _checar_arquivo, "contrato": _checar_contrato, "ciclo": _checar_ciclo,
+CHECADORES = {"arquivo": _checar_arquivo, "ausente": _checar_ausente,
+              "contrato": _checar_contrato, "ciclo": _checar_ciclo,
               "intocado": _checar_intocado, "resposta": _checar_resposta,
               "bloqueios": lambda c, ws, ref, resposta: _checar_bloqueios(c, ws)}
 

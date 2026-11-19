@@ -137,6 +137,15 @@ class Checagens(unittest.TestCase):
         (self.ws / "r3.md").write_text("servidor.py tem path TRAVERSAL\n", encoding="utf-8")
         self.assertTrue(self.checar(c))
 
+    def test_ausente_reprova_o_que_sobrou(self) -> None:
+        c = {"tipo": "ausente", "glob": "**/*.py", "regex": "forge-" + "depura-"}
+        (self.ws / "vendas").mkdir(exist_ok=True)
+        (self.ws / "vendas" / "a.py").write_text("x = 1\n", encoding="utf-8")
+        self.assertTrue(self.checar(c))
+        (self.ws / "vendas" / "b.py").write_text("print('[forge-" + "depura-1a2b]')\n",
+                                                 encoding="utf-8")
+        self.assertFalse(self.checar(c))
+
     def test_ciclo_e_resposta(self) -> None:
         self.assertFalse(self.checar({"tipo": "ciclo", "estados": ["pronto_para_pr"]}))
         (self.ws / ".agents" / "ciclo").mkdir(parents=True)

@@ -164,3 +164,13 @@ documento vê o estrangulamento acontecendo.
 
 Toda interação em PT-BR. Ivan se apresenta em primeira pessoa e mantém a
 persona durante todo o programa.
+
+## Pronto quando
+
+- Antes de fatiar, existe o ADR do porquê, a pessoa respondeu dor, invariante de operação e apetite, e o degrau da escada de prontidão está declarado com evidência, sem pular degrau (gate humano).
+- O documento do programa está em `docs/migracoes/MIGRACAO-<slug>.md` com o diagrama Mermaid do estado atual (`grafo.py mermaid "<sistema legado>" --saltos 2` quando há grafo), as capacidades, as dependências, os pontos de entrada e os não-objetivos.
+- Cada fatia tem a SPEC em `docs/specs/SPEC-<NNN>-<slug>.md` com a rota de corte e o rollback como P1, o bug antigo que a pessoa mandou corrigir como mudança intencional e, sem sombra possível, a ausência declarada.
+- Os testes de caracterização da fatia passaram no legado antes de a rota mudar e passam contra a rota nova, e preservar ou corrigir cada bug antigo que eles reproduzem foi decisão da pessoa (gate humano).
+- A rota nova só recebeu tráfego real com o rollback já ensaiado, o ensaio de restauração testado se a migração de dados é irreversível e, com sombra, divergência zero pelo tempo declarado na fatia, cada divergência decidida pela pessoa ou com fonte (gate humano).
+- O quadro em `docs/migracoes/MIGRACAO-<slug>.md` tem no máximo uma fatia em corte, cada fatia encerrada marcada como mantida ou revertida e o diagrama antes e depois de cada fatia mantida.
+- Na fatia mantida, o código morto foi removido e a rota antiga foi desligada (gate humano).

@@ -193,6 +193,16 @@ Falha nova em produção **vira caso no gold set** antes de ser corrigida.
 - **Falha de produção vira caso no gold set** antes da correção.
 - **PT-BR em tudo** — rubrica, relatório, causas, conversa.
 
+## Pronto quando
+
+- O gold set está em `evals/<slug>/gold.jsonl` e o selado em `evals/<slug>/selado.jsonl`, e o relatório diz o N de cada um e se ele dá sinal (~30 casos) ou confiança no agregado (~500).
+- `prova.py selado` sai 0, sem caso selado copiado para prompt, skill, persona, `contextos/`, teste ou doc nem repetido no visível, e o relatório traz esse resultado.
+- Comparando versões de agente ou CLI, `telemetria.py custo-eval evals/<slug>/execucoes --teto N` sai 0 e a saída dele está no relatório, salvo a exceção ao teto decidida pela pessoa.
+- O relatório está em `evals/<slug>/RELATORIO-YYYY-MM-DD.md`, com o veredicto do selado contra o limiar, baseline → atual, visível, selado e divergência, e o digest de `sha256sum <artefato> | cut -c1-16`.
+- O relatório em `evals/<slug>/RELATORIO-YYYY-MM-DD.md` declara o juiz e a versão pinada, a família do gerador, o painel, o juiz cego com `evals/<slug>/mapa-YYYY-MM-DD.tsv` ou o porquê de não, e os eixos avaliados e descartados.
+- O relatório em `evals/<slug>/RELATORIO-YYYY-MM-DD.md` agrupa as falhas por causa raiz, com os casos, a causa provável e a ação de cada grupo.
+- Acima do teto de custo, a mudança só segue com a exceção escrita no relatório, com o ganho que paga o custo, e decidida pela pessoa (gate humano).
+
 ## Referências
 
 Em `${CLAUDE_PLUGIN_ROOT}/skills/avaliar/references/`:

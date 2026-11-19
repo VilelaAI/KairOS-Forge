@@ -366,6 +366,17 @@ def assinar_contratos() -> None:
                           encoding="utf-8")
 
 
+def problemas_do_pronto(raiz: Path = RAIZ) -> list[str]:
+    """Toda skill diz quando terminou (ADR-0060): a forma do `## Pronto quando` num lugar
+    só, o `pronto.py`, que o `guardrail.py conferir` também lê."""
+    sys.path.insert(0, str(raiz / "scripts"))
+    import pronto
+    codigo = {p.name: p.read_text(encoding="utf-8") for p in (raiz / "scripts").glob("*.py")}
+    return [f"{p.relative_to(raiz)}: {problema}"
+            for p in sorted((raiz / "skills").glob("*/SKILL.md"))
+            for problema in pronto.problemas(p.read_text(encoding="utf-8"), codigo)]
+
+
 def checar():
     n = derivar()
     versao = json.loads((RAIZ / ".claude-plugin/plugin.json").read_text())["version"]
@@ -484,6 +495,8 @@ def checar():
                 f"{p.relative_to(RAIZ)}: {n_linhas} linhas, limite {LIMITE_LINHAS_SKILL} "
                 "— material pesado vai em references/ da skill"
             )
+
+    problemas += problemas_do_pronto()
 
     # Gold set do eval de roteamento cita só agentes que existem
     gold = RAIZ / "evals/roteamento-laura/gold.jsonl"

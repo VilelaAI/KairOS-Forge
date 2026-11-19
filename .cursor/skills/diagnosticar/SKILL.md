@@ -269,3 +269,13 @@ cliente, ele também não deveria estar no documento interno.**
 - **Não implemente correção nesta skill.** Diagnóstico produz decisão; a execução
   é `/otimizar`, `/migrar` ou `/especificar`.
 - **PT-BR em tudo.**
+
+## Pronto quando
+
+- O relatório está em `docs/diagnosticos/DIAGNOSTICO-<sistema>-YYYY-MM-DD.md`, com score geral, confiança e nível de evidência no topo, o score como média simples da tabela por dimensão e a rubrica publicada.
+- `diagnostico.py coletar <caminho> --dias 90` e `grafo.py codigo` rodaram, e cada linha de Achados do relatório tem severidade, esforço, evidência e origem "medido", "inferido" ou "não verificável".
+- No relatório em `docs/diagnosticos/DIAGNOSTICO-*.md`, cada linha de Ganho estimado tem faixa e base declarada, ou diz que o ganho não é estimável com o acesso atual.
+- No relatório em `docs/diagnosticos/DIAGNOSTICO-*.md`, a seção "O que não foi possível verificar" existe e não está vazia no nível 1, e a Prontidão para trabalhar com IA declara o degrau com a evidência vista, sem pontuar.
+- Cada achado do relatório em `docs/diagnosticos/DIAGNOSTICO-*.md` tem destino em Encaminhamento: otimizar com métrica e alvo, migrar, especificar ou analisar-ameacas.
+- A pessoa combinou no passo 1 o recorte, o destinatário e o acesso, e o acesso que não veio aparece no relatório como nível rebaixado (gate humano).
+- Na entrega externa, a versão para o cliente traz o mesmo conteúdo do documento interno, sem número que só o interno diga (gate humano).

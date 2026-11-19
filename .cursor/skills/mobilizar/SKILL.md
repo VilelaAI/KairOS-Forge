@@ -196,6 +196,15 @@ tarefa irreversível, e irreversível para no usuário. O quadro avisa quando fa
 
 Tudo em PT-BR: prompts dos teammates, mensagens aos workers, quadro e relatório final.
 
+## Pronto quando
+
+- `quadro.py encerrar forge-<slug>` saiu 0 e `quadro.py estado forge-<slug> --json` mostra `encerrado` como `true`: toda tarefa está concluída ou tem lacuna declarada com `--lacuna "Tn: motivo"`.
+- Cada tarefa entrou por `quadro.py iniciar`, que tirou a foto do checkout, e saiu por `quadro.py concluir` com evidência e o resultado do gate: `--gate-ok` se rodou e passou, ou `--gate-pulado "motivo"`.
+- Nenhuma tarefa concluída mudou arquivo fora da posse sem motivo: o `quadro.py concluir` conferiu no git, e o que saiu dela com `--fora-da-posse "motivo"` aparece no `quadro.py ledger forge-<slug>`.
+- O relatório final segue o modelo de `references/coordenacao.md`, com a saída de `quadro.py ledger forge-<slug>`, cada tarefa aberta como lacuna e o motivo, e as pendências: validar, revisar, `mapear-conhecimento atualizar` e PR.
+- Tarefa sem `--reverter` não rodou sem o aval da pessoa, porque tarefa irreversível para no usuário (gate humano).
+- Com o orçamento esgotado, quando o `quadro.py reabrir` recusa ou um limite chega a 100%, nada novo foi lançado até a pessoa escolher entre encerrar com lacuna e ampliar (gate humano).
+
 ## Referências
 
 Em `${CLAUDE_PLUGIN_ROOT}/skills/mobilizar/references/` — leia só quando o passo pedir.

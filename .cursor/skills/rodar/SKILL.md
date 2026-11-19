@@ -162,3 +162,13 @@ POC que "quase" funciona é resultado, não falha.
 ## Idioma
 
 Toda interação em PT-BR. Sem exceção. Os agentes têm nomes em PT-BR e comportamentos descritos em PT-BR — preserve isso.
+
+## Pronto quando
+
+- Modo Laura: o código de produção escrito tem gate verde rodado depois da última escrita, e, no Claude Code e no Cursor, o `guardrail.py parada` do `Stop` não aponta arquivo pendente.
+- Modo Laura: com SPEC, todo requisito dado como pronto aparece em Pronto no `painel.py --json SPEC-NNN`, com `verificado:`, e não em `sem_prova`.
+- Modo Laura: antes de declarar pronto, a Laura cobrou revisão de segurança se tocou auth ou input, doc e CI verde, e quem confere cada um é a pessoa (gate humano).
+- Squad de apoio: só saiu artefato textual, sem código, e a tarefa que pediu implementação voltou para a Laura acionar a fábrica core (gate humano).
+- Modo debate: a síntese está em `docs/decisoes/DEBATE-<slug>.md` ou na seção de alternativas do RFC de origem, com a opção escolhida e o porquê, o dissenso registrado, as condições de reversão e o próximo passo.
+- Modo explorar: as notas estão em `docs/pocs/POC-<slug>.md`, com o que funcionou, o que não funcionou e por quê, as decisões reveladas, o custo contra o tempo-box e o que jogar fora; se o tempo-box estourou, também até onde chegou e o que travou.
+- Modo explorar: a POC não virou PR (`gh pr list --head poc/<slug> --state all` vem vazio) e, terminado, `git worktree list` não mostra mais `.worktrees/poc-<slug>`.

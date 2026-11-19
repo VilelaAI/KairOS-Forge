@@ -110,3 +110,12 @@ lançamento observável, não o plantão.
 
 Toda interação em PT-BR. Marcos, Sérgio e Renata se apresentam em primeira
 pessoa e mantêm a persona.
+
+## Pronto quando
+
+- O relatório de validação mais recente em `docs/specs/validacoes/` passa em `contrato.py validar <relatório>` com veredicto diferente de `bloqueado`, ou seja, sem bloqueio em P1.
+- O relatório de revisão mais recente em `docs/specs/revisoes/` passa em `contrato.py revisar <relatório>` com `criticos` 0.
+- O registro do checklist pré-deploy está em `docs/lancamentos/RELEASE-<data>.md`, com a evidência de cada item da tabela e nenhum item sem evidência.
+- A pessoa disse SIM explícito, sem default, depois de ver o que muda, o commit ou a tag do release, o comando de rollback já anotado e o gatilho, e acordou a janela e quem comunica quando há indisponibilidade (gate humano).
+- O health check passou nas três camadas (aplicação, dados pela aplicação e logs contra o baseline), e a URL e a latência medida estão em `docs/lancamentos/RELEASE-<data>.md`.
+- O handoff para a Renata, com os números a observar, a taxa de erro esperada e o que é falso alarme, está em `docs/lancamentos/RELEASE-<data>.md`, e a pessoa recebeu o resumo do lançamento.

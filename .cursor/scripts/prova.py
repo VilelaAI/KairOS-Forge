@@ -45,6 +45,19 @@ requisito, a issue de origem ou um arquivo do diff. Com `--github`, os comentár
 issue de origem depois da aprovação também entram. Ligar não é julgar: quem diz se a
 entrega segue ou contradiz a decisão é o `/validar`, por isso sai 0 sempre que leu.
 
+E a correção passa a ter causa (ADR-0060): o `reproduzir` roda o laço que mostra o problema
+na base do diff, com os testes do diff copiados, e na árvore de trabalho; só vale
+`reproduz_e_corrige`, a falha na base com o sintoma e a passagem agora. Com `--antes`, roda
+só aqui, para conferir que o laço mostra o problema antes do conserto. O `investigacao` lê
+a ficha em `docs/investigacoes/` (sintoma, laço, hipóteses, causa, prova e trava), roda a
+reprodução dela e sai 2 com três hipóteses descartadas e nenhuma confirmada: pare e
+pergunte. O `marcas` acha a linha nova com a marca de depuração (`forge-depura-<id>`).
+
+E a fonte fica salva (ADR-0060): o `fontes` confere cada `docs/pesquisa/*.md` (data, resposta,
+cada fato com fonte, versão e data, nenhum segredo) e toda citação a `docs/pesquisa/` que
+aponta para arquivo que não existe; com o id de uma SPEC, lista as pesquisas que ela cita e
+as que mudaram depois da aprovação. Sem rede: confere a forma, não a verdade da fonte.
+
 E a revisão separa o que é do PR do que já existia (ADR-0059): o `origem` lê o relatório
 do `/revisar` e confere cada `arquivo:linha` citado contra o diff. O achado que bloqueia
 (🔴, 🟠) em linha que o diff não tocou precisa dizer como o PR o afeta (`· o PR depende:` ou
@@ -59,6 +72,11 @@ dos dois aparece: a revisão não bloqueia o PR pelo que ele não fez, nem escon
     prova.py atalhos          [--base REF] [--json]
     prova.py decisoes SPEC-NNN [--base REF] [--desde DATA] [--github] [--json]
     prova.py origem   REVISAO.md [--base REF] [--json]
+    prova.py reproduzir --comando "LAÇO" [--sintoma REGEX] [--antes] [--base REF]
+                              [--tempo-limite S] [--json]
+    prova.py marcas           [--base REF] [--json]
+    prova.py investigacao docs/investigacoes/INV-<slug>.md [--base REF] [--json]
+    prova.py fontes   [SPEC-NNN] [--raiz DIR] [--idade-max DIAS] [--json]
     prova.py selado           [--raiz DIR] [--json]
     prova.py colher           [--dias N] [--saida ARQ] [--validar] [--comando "TEMPLATE"]
                               [--fonte gh|git] [--json]
@@ -116,6 +134,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -573,14 +592,14 @@ def _no_diff(achado: dict, trechos: dict, folga: int) -> bool:
                for a, b in trechos.get(achado["arquivo"], []))
 
 
-def _ler_relatorio(relatorio: str | None) -> tuple[str | None, str | None]:
+def _ler_md(caminho: str | None, faltou: str, nome: str) -> tuple[str | None, str | None]:
     """(texto, erro)."""
-    if not relatorio:
-        return None, "diga qual relatório conferir: prova.py origem REVISAO.md"
+    if not caminho:
+        return None, faltou
     try:
-        return Path(relatorio).read_text(encoding="utf-8"), None
+        return Path(caminho).read_text(encoding="utf-8"), None
     except (OSError, UnicodeDecodeError):
-        return None, f"não li o relatório {relatorio}"
+        return None, f"não li {nome} {caminho}"
 
 
 def classificar_origem(achados: list[dict], trechos: dict) -> dict:
@@ -595,7 +614,8 @@ def classificar_origem(achados: list[dict], trechos: dict) -> dict:
 
 
 def origem(raiz: Path, base: str | None, relatorio: str | None) -> dict:
-    texto, erro = _ler_relatorio(relatorio)
+    texto, erro = _ler_md(relatorio, "diga qual relatório conferir: prova.py origem REVISAO.md",
+                          "o relatório")
     if erro:
         return {"erro": erro}
     base = base or base_padrao(raiz)
@@ -604,6 +624,250 @@ def origem(raiz: Path, base: str | None, relatorio: str | None) -> dict:
         return {"erro": f"sem base para o diff ({base or 'nenhuma ref'}) — passe --base"}
     return {"base": base, "ponto": ponto[:12], "relatorio": relatorio,
             **classificar_origem(achados_da_revisao(texto), trechos_do_diff(raiz, ponto))}
+
+
+# --- investigar antes de corrigir (ADR-0060) ----------------------------------------
+# A ideia vem da corno-investiga (corno-skills, sem licença declarada: a ideia, não o
+# texto). Correção sem causa é chute: o sintoma some e a causa fica. A fábrica pede o
+# laço que mostra o problema, a causa escrita antes do conserto e a prova de que o mesmo
+# laço falha na base e passa depois. O `reproduzir` roda o laço nos dois lados, o
+# `investigacao` confere a ficha, e o `marcas` acha o log de depuração que sobrou.
+
+MARCA_DEPURACAO = re.compile(r"forge-depura-[0-9a-z]{3,}", re.I)
+SEM_MARCA = {".md", ".mdx", ".rst"}   # a ficha e a documentação citam a marca de propósito
+CAMPO_MD = re.compile(r"^\s*[-*]?\s*\*\*([^*:]+):\*\*\s*(.*?)\s*$")
+ENTRE_CRASES = re.compile(r"`([^`]+)`")
+MIN_CAUSA = 20          # a mesma régua da premissa do `ciclo.py`
+PARAR_DEPOIS_DE = 3     # hipóteses descartadas sem nenhuma confirmada: pare e pergunte
+SAIDA_DA_FICHA = {"pronta": 0, "pare_e_pergunte": 2}
+
+
+def _rodar(cmd: str, cwd: Path, tempo_limite: int) -> dict:
+    try:
+        p = subprocess.run(cmd, shell=True, cwd=str(cwd), capture_output=True, text=True,
+                           timeout=tempo_limite)
+    except subprocess.TimeoutExpired:
+        return {"exit": None, "saida": f"estourou {tempo_limite}s"}
+    return {"exit": p.returncode, "saida": (p.stdout or "") + (p.stderr or "")}
+
+
+def _final(saida: str) -> list[str]:
+    return [l[:160] for l in saida.strip().splitlines() if l.strip()][-4:]
+
+
+def _estado_do_laco(r: dict, sintoma: re.Pattern | None) -> str:
+    """Uma rodada do laço: `falhou` (com o sintoma, se houver), `sintoma_diferente`,
+    `passou` ou `nao_executado`. O laço mostra o problema saindo diferente de 0."""
+    if r["exit"] is None:
+        return "nao_executado"
+    if r["exit"] == 0:
+        return "passou"
+    return "falhou" if sintoma is None or sintoma.search(r["saida"]) else "sintoma_diferente"
+
+
+def veredicto_da_reproducao(antes: str, depois: str | None) -> str:
+    if antes in ("nao_executado", "sintoma_diferente"):
+        return antes
+    if antes == "passou":
+        return "nao_reproduz"
+    if depois is None:
+        return "reproduz"
+    return {"passou": "reproduz_e_corrige", "nao_executado": "nao_executado"}.get(
+        depois, "nao_corrige")
+
+
+def testes_do_diff(raiz: Path, ponto: str) -> list[str]:
+    """Teste novo ou mudado no diff: a regressão costuma entrar num arquivo que já existe."""
+    nomes = [c for s, c in diff_nomes(raiz, ponto) if s in ("A", "M") and eh_teste(c)]
+    nomes += [c for c in nao_rastreados(raiz) if eh_teste(c)]
+    return sorted(dict.fromkeys(nomes))
+
+
+@contextmanager
+def arvore_na_base(raiz: Path, ponto: str):
+    """Worktree descartável no ponto de partida; None quando o git não o cria."""
+    tmp = Path(tempfile.mkdtemp(prefix="kairos-forge-reproduz-"))
+    worktree = tmp / "base"
+    try:
+        r = git(raiz, "worktree", "add", "--detach", str(worktree), ponto, timeout=120)
+        yield worktree if r.returncode == 0 else None
+    finally:
+        git(raiz, "worktree", "remove", "--force", str(worktree), timeout=60)
+        git(raiz, "worktree", "prune")
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _copiar(raiz: Path, destino: Path, arquivos: list[str]) -> list[str]:
+    copiados = []
+    for rel in arquivos:
+        try:
+            (destino / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(raiz / rel, destino / rel)
+            copiados.append(rel)
+        except OSError:
+            pass
+    return copiados
+
+
+def _sintoma(sintoma: str | None) -> tuple[re.Pattern | None, str | None]:
+    try:
+        return (re.compile(sintoma) if sintoma else None), None
+    except re.error as e:
+        return None, f"o sintoma não é uma regex válida: {e}"
+
+
+def reproduzir(raiz: Path, base: str | None, comando: str | None, sintoma: str | None,
+               tempo_limite: int, antes: bool = False) -> dict:
+    """Roda o laço na base do diff (com os testes do diff copiados) e na árvore de trabalho.
+    Com `antes`, só aqui: é a conferência de que o laço mostra o problema antes do conserto."""
+    rx, erro = _sintoma(sintoma)
+    if erro or not comando:
+        return {"erro": erro or 'diga o laço: --comando "o que mostra o problema"'}
+    r = {"comando": comando, "sintoma": sintoma}
+    if antes:
+        aqui = _rodar(comando, raiz, tempo_limite)
+        return {**r, "veredicto": veredicto_da_reproducao(_estado_do_laco(aqui, rx), None),
+                "antes": _final(aqui["saida"])}
+    base = base or base_padrao(raiz)
+    ponto = ponto_de_partida(raiz, base) if base else None
+    if not ponto:
+        return {"erro": f"sem base para o diff ({base or 'nenhuma ref'}) — passe --base"}
+    with arvore_na_base(raiz, ponto) as worktree:
+        if worktree is None:
+            return {"erro": "não consegui criar o worktree na base"}
+        ligar_dependencias(raiz, worktree)
+        copiados = _copiar(raiz, worktree, testes_do_diff(raiz, ponto))
+        na_base = _rodar(comando, worktree, tempo_limite)
+    depois = _rodar(comando, raiz, tempo_limite)
+    return {**r, "base": base, "ponto": ponto[:12], "copiados": copiados,
+            "veredicto": veredicto_da_reproducao(_estado_do_laco(na_base, rx),
+                                                 _estado_do_laco(depois, rx)),
+            "antes": _final(na_base["saida"]), "depois": _final(depois["saida"])}
+
+
+def gerados(raiz: Path, rels: list[str]) -> set[str]:
+    """Arquivos marcados `linguist-generated` ou `linguist-vendored` no `.gitattributes`:
+    cópia espelhada, código gerado, biblioteca de terceiro, fixture escrito errado de
+    propósito. Ninguém os edita à mão aqui."""
+    marcados: set[str] = set()
+    for i in range(0, len(rels), 200):
+        r = git(raiz, "check-attr", "linguist-generated", "linguist-vendored", "--",
+                *rels[i:i + 200], timeout=60)
+        for linha in r.stdout.splitlines():
+            atributo, _, valor = linha.rpartition(": ")
+            if valor.strip() in ("true", "set"):
+                marcados.add(atributo.rsplit(": ", 1)[0])
+    return marcados
+
+
+def marcas(raiz: Path, base: str | None) -> dict:
+    """Linha nova com a marca de depuração: log que era para sair antes de terminar. O que
+    o `.gitattributes` marca como gerado ou de terceiro fica de fora."""
+    base = base or base_padrao(raiz)
+    ponto = ponto_de_partida(raiz, base) if base else None
+    if not ponto:
+        return {"erro": f"sem base para o diff ({base or 'nenhuma ref'}) — passe --base",
+                "marcas": []}
+    com_marca = [(rel, n, linha) for rel, n, linha in linhas_acrescentadas(raiz, ponto)
+                 if Path(rel).suffix.lower() not in SEM_MARCA and MARCA_DEPURACAO.search(linha)]
+    fora = gerados(raiz, sorted({rel for rel, _, _ in com_marca}))
+    return {"base": base, "ponto": ponto[:12],
+            "marcas": [{"arquivo": rel, "linha": n, "trecho": linha.strip()[:160]}
+                       for rel, n, linha in com_marca if rel not in fora]}
+
+
+def secoes_md(texto: str) -> dict[str, str]:
+    """Título de `## ` (minúsculo) → corpo. Título dentro de bloco de código não abre seção."""
+    secoes: dict[str, str] = {}
+    atual, em_bloco = None, False
+    for linha in texto.splitlines():
+        if linha.lstrip().startswith("```"):
+            em_bloco = not em_bloco
+        m = None if em_bloco else SECAO_MD.match(linha)
+        if m:
+            atual = m.group(1).strip().casefold()
+            secoes[atual] = ""
+        elif atual is not None:
+            secoes[atual] += linha + "\n"
+    return secoes
+
+
+def campos_md(texto: str) -> dict[str, str]:
+    """`**Nome:** valor` (com ou sem marcador de lista) → {nome minúsculo: valor}."""
+    campos: dict[str, str] = {}
+    for linha in texto.splitlines():
+        m = CAMPO_MD.match(linha)
+        if m:
+            campos.setdefault(m.group(1).strip().casefold(), m.group(2).strip())
+    return campos
+
+
+def linhas_da_tabela(corpo: str) -> list[list[str]]:
+    """As linhas de dados de uma tabela, sem o cabeçalho (`#`) e o separador (`---`)."""
+    linhas = []
+    for linha in corpo.splitlines():
+        if not linha.strip().startswith("|"):
+            continue
+        celulas = [c.strip() for c in linha.strip().strip("|").split("|")]
+        if not set(celulas[0]) <= set("-: #"):
+            linhas.append(celulas)
+    return linhas
+
+
+def _preenchido(texto: str | None, minimo: int = 1) -> bool:
+    t = (texto or "").strip()
+    return len(t) >= minimo and not re.fullmatch(r"<[^>]*>\.?", t)
+
+
+def resultado_da_hipotese(celula: str) -> str:
+    c = celula.casefold()
+    return "descartada" if c.startswith("descart") else (
+        "confirmada" if c.startswith("confirm") else "aberta")
+
+
+def ler_ficha(texto: str) -> dict:
+    campos, secoes = campos_md(texto), secoes_md(texto)
+    comando = ENTRE_CRASES.search(campos.get("reprodução", ""))
+    sintoma = ENTRE_CRASES.search(campos.get("sintoma na saída", ""))
+    hip = [resultado_da_hipotese(c[-1]) for c in linhas_da_tabela(secoes.get("hipóteses", ""))]
+    return {"comando": comando.group(1) if comando else None,
+            "sintoma": sintoma.group(1) if sintoma else None,
+            "descartadas": hip.count("descartada"), "confirmadas": hip.count("confirmada"),
+            "abertas": hip.count("aberta"),
+            "problemas": [msg for ok, msg in (
+                (_preenchido(campos.get("sintoma")), "sem **Sintoma:** (o que a pessoa viu)"),
+                (comando, "sem **Reprodução:** com o comando entre crases"),
+                (sintoma, "sem **Sintoma na saída:** com a regex entre crases"),
+                (hip, "sem a tabela de `## Hipóteses`"),
+                (not hip or "confirmada" in hip, "nenhuma hipótese confirmada"),
+                (_preenchido(secoes.get("causa"), MIN_CAUSA),
+                 f"`## Causa` vazia ou com menos de {MIN_CAUSA} caracteres"),
+                (_preenchido(secoes.get("prova")), "`## Prova` vazia: o que liga e desliga o bug"),
+                (_preenchido(secoes.get("trava")),
+                 "`## Trava` vazia: o teste que pega a volta do bug, ou por que não há"),
+            ) if not ok]}
+
+
+def investigacao(raiz: Path, base: str | None, ficha: str | None, tempo_limite: int) -> dict:
+    texto, erro = _ler_md(ficha, "diga qual ficha conferir: prova.py investigacao "
+                                 "docs/investigacoes/INV-<slug>.md", "a ficha")
+    if erro:
+        return {"erro": erro}
+    lida = ler_ficha(texto)
+    r = {"ficha": ficha, **lida}
+    if lida["confirmadas"] == 0 and lida["descartadas"] >= PARAR_DEPOIS_DE:
+        return {**r, "veredicto": "pare_e_pergunte"}
+    repro = (reproduzir(raiz, base, lida["comando"], lida["sintoma"], tempo_limite)
+             if lida["comando"] else {"veredicto": "nao_executado"})
+    sobra = marcas(raiz, base)["marcas"]
+    problemas = lida["problemas"] + [msg for ok, msg in (
+        (not repro.get("erro"), repro.get("erro")),
+        (repro.get("erro") or repro["veredicto"] == "reproduz_e_corrige",
+         f"a reprodução deu `{repro.get('veredicto')}`, não `reproduz_e_corrige`"),
+        (not sobra, f"{len(sobra)} linha(s) nova(s) com a marca de depuração"),
+    ) if not ok]
+    return {**r, "reproducao": repro, "marcas": sobra, "problemas": problemas,
+            "veredicto": "incompleta" if problemas else "pronta"}
 
 
 # --- decisões registradas depois da aprovação da SPEC ------------------------------
@@ -892,6 +1156,144 @@ def selado(raiz: Path) -> dict:
                                             "visivel": visivel.relative_to(raiz).as_posix()})
         r["selados"].append({"arquivo": rel, "casos": len(casos), "curtos": curtos})
     return r
+
+
+# --- fonte primária salva (ADR-0060) ------------------------------------------------
+# A ideia vem da corno-pesquisa (corno-skills, sem licença declarada: a ideia, não o
+# texto). O que a fábrica afirma sobre biblioteca, API ou versão vale o que vale a fonte,
+# e a fonte consultada numa conversa some com ela. A pesquisa fica em
+# `docs/pesquisa/<assunto>.md`, com data, resposta e cada fato com link, versão e data; e
+# quem decide a partir dela cita o caminho. O `fontes` confere a forma dos arquivos e as
+# citações, sem rede: a verdade da fonte é do revisor, a forma é do código.
+
+PASTA_PESQUISA = "docs/pesquisa"
+CITACAO_PESQUISA = re.compile(r"docs/pesquisa/[\w./-]+?\.md\b")
+LINK = re.compile(r"https?://[^\s)>\]]+")
+CAMINHO_NA_FONTE = re.compile(r"([\w.-]+/[\w./-]*[\w-]|[\w-]+\.[A-Za-z0-9]+)(?::\d+(?:-\d+)?)?")
+DATA_DA_FONTE = re.compile(r"^\d{4}-\d{2}(-\d{2})?$")
+TITULO_H1 = re.compile(r"^#\s+\S", re.M)
+NAO_ENCONTRADA = re.compile(r"n[ãa]o encontrad", re.I)
+IDADE_MAX_PADRAO = 180
+try:
+    from segredos import ocultar_segredos
+except Exception:                     # cópia avulsa do script, sem o segredos.py ao lado
+    def ocultar_segredos(texto: str) -> tuple[str, list[str]]:
+        return texto, []
+
+
+def _data(texto: str | None) -> date | None:
+    try:
+        return date.fromisoformat((texto or "").strip("` ")[:10])
+    except ValueError:
+        return None
+
+
+def _fonte_existe(raiz: Path, fonte: str) -> bool:
+    """Um link, ou um caminho do repositório que exista (com `:linha` ou não)."""
+    if LINK.search(fonte):
+        return True
+    return any((raiz / m.group(1)).exists() for m in CAMINHO_NA_FONTE.finditer(fonte))
+
+
+def problemas_do_fato(celulas: list[str], raiz: Path) -> list[str]:
+    n = celulas[0]
+    if len(celulas) < 5:
+        return [f"fato {n}: a linha precisa de fato, fonte, versão e data da fonte"]
+    _, fato, fonte, versao, quando = celulas[:5]
+    return [f"fato {n}: {msg}" for ok, msg in (
+        (fato, "sem o fato"),
+        (_fonte_existe(raiz, fonte), "sem fonte: um link ou um caminho do repositório que exista"),
+        (versao, "sem versão (escreva `sem versão` quando a fonte não tem)"),
+        (DATA_DA_FONTE.match(quando.strip("` ")), "data da fonte fora de AAAA-MM-DD ou AAAA-MM"),
+    ) if not ok]
+
+
+def problemas_da_pesquisa(texto: str, raiz: Path, hoje: date) -> tuple[list[str], date | None]:
+    campos, secoes = campos_md(texto), secoes_md(texto)
+    data = _data(campos.get("data da pesquisa"))
+    resposta = campos.get("resposta")
+    fatos = linhas_da_tabela(secoes.get("fatos", ""))
+    nao_achou = bool(NAO_ENCONTRADA.search(resposta or ""))
+    problemas = [msg for ok, msg in (
+        (TITULO_H1.search(texto), "sem título `# <pergunta>`"),
+        (data, "sem **Data da pesquisa:** AAAA-MM-DD"),
+        (not data or data <= hoje, "data da pesquisa no futuro"),
+        (_preenchido(resposta), "sem **Resposta:**"),
+        (fatos or nao_achou, "`## Fatos` sem nenhuma linha"),
+        (not nao_achou or _preenchido(secoes.get("em aberto")),
+         'resposta "não encontrada" sem `## Em aberto`'),
+        (not ocultar_segredos(texto)[1], "segredo no texto: rode `guardrail.py ocultar <arquivo>`"),
+    ) if not ok]
+    for celulas in fatos:
+        problemas += problemas_do_fato(celulas, raiz)
+    return problemas, data
+
+
+def superficie_md(raiz: Path) -> list[tuple[str, str]]:
+    """(rel, texto) de todo `.md` do repositório, menos dependência, `.git` e trajetória."""
+    achados = []
+    for pasta, subpastas, nomes in os.walk(raiz):
+        subpastas[:] = sorted(d for d in subpastas if d not in DIRS_IGNORADOS_SELADO)
+        for nome in sorted(n for n in nomes if n.endswith(".md")):
+            p = Path(pasta) / nome
+            rel = p.relative_to(raiz).as_posix()
+            if rel.startswith(".agents/execucoes/"):
+                continue
+            try:
+                achados.append((rel, p.read_text(encoding="utf-8")))
+            except (OSError, UnicodeDecodeError):
+                continue
+    return achados
+
+
+def citacoes_quebradas(raiz: Path) -> list[dict]:
+    return [{"arquivo": rel, "linha": n, "alvo": alvo}
+            for rel, texto in superficie_md(raiz)
+            for n, linha in enumerate(texto.splitlines(), 1)
+            for alvo in CITACAO_PESQUISA.findall(linha) if not (raiz / alvo).is_file()]
+
+
+def _mudou_depois(raiz: Path, rel: str, quando: str | None) -> bool | None:
+    if not quando:
+        return None
+    limite = instante(quando)
+    datas = git(raiz, "log", f"--since={quando}", "--format=%cI", "--", rel).stdout.split()
+    pendente = git(raiz, "status", "--porcelain", "--", rel).stdout.strip()
+    if limite is None:
+        return bool(pendente or datas)
+    # O `--since` inclui o próprio commit da aprovação, que traz a versão aprovada.
+    return bool(pendente) or any((instante(d) or limite) > limite for d in datas)
+
+
+def fontes_da_spec(raiz: Path, spec: str) -> dict:
+    """As pesquisas que a SPEC cita, e se alguma mudou depois da aprovação."""
+    arquivo = arquivo_da_spec(raiz, spec)
+    if arquivo is None:
+        return {"spec": spec, "erro": "SPEC não encontrada em docs/specs/"}
+    quando, fonte = momento_da_aprovacao(raiz, spec, arquivo)
+    citadas = sorted(set(CITACAO_PESQUISA.findall(arquivo.read_text(encoding="utf-8"))))
+    return {"spec": spec, "aprovacao": quando, "fonte_da_aprovacao": fonte,
+            "citadas": [{"pesquisa": rel, "existe": (raiz / rel).is_file(),
+                         "mudou_depois": _mudou_depois(raiz, rel, quando)} for rel in citadas]}
+
+
+def fontes(raiz: Path, spec: str | None, idade_max: int, hoje: date | None = None) -> dict:
+    hoje = hoje or date.today()
+    pasta = raiz / PASTA_PESQUISA
+    arquivos = sorted(p for p in pasta.rglob("*.md") if p.name != "README.md") \
+        if pasta.is_dir() else []
+    pesquisas = []
+    for arq in arquivos:
+        texto = arq.read_text(encoding="utf-8", errors="replace")
+        problemas, data = problemas_da_pesquisa(texto, raiz, hoje)
+        velha = data is not None and (hoje - data).days > idade_max
+        pesquisas.append({"arquivo": arq.relative_to(raiz).as_posix(), "data": str(data or ""),
+                          "problemas": problemas,
+                          "avisos": [f"mais de {idade_max} dias: confira se a fonte mudou"]
+                          if velha else []})
+    return {"raiz": str(raiz), "pesquisas": pesquisas,
+            "citacoes_quebradas": citacoes_quebradas(raiz),
+            "spec": fontes_da_spec(raiz, spec) if spec else None, "idade_max": idade_max}
 
 
 # --- 4. colher casos do histórico (ADR-0044) --------------------------------------
@@ -1254,10 +1656,98 @@ def imprimir_colher(r: dict) -> None:
           "   e a divisão visível × selado é da Alice (`/kairos-forge:avaliar`).")
 
 
+REPRODUCAO = {
+    "reproduz": "✅ o laço mostra o problema",
+    "reproduz_e_corrige": "✅ falha na base com o sintoma e passa agora",
+    "nao_reproduz": "❌ o laço passa: não mostra o problema",
+    "sintoma_diferente": "❌ o laço falha, mas não com o sintoma: é outro erro",
+    "nao_corrige": "❌ o laço ainda falha depois da correção",
+    "nao_executado": "⚠️  o laço não rodou até o fim",
+}
+
+
+def imprimir_reproduzir(r: dict) -> None:
+    if r.get("erro"):
+        print(f"🚫 {r['erro']}")
+        return
+    onde = f" — base {r['base']} ({r['ponto']})" if r.get("base") else " — antes do conserto"
+    print(f"🔁 Reprodução{onde}\n   laço: {r['comando']}")
+    if r.get("sintoma"):
+        print(f"   sintoma: {r['sintoma']}")
+    if r.get("copiados"):
+        print(f"   testes do diff copiados para a base: {', '.join(r['copiados'])}")
+    print(f"   {REPRODUCAO[r['veredicto']]}")
+    for lado in ("antes", "depois"):
+        for linha in r.get(lado, []):
+            print(f"      {lado:6} │ {linha[:110]}")
+
+
+def imprimir_marcas(r: dict) -> None:
+    if r.get("erro"):
+        print(f"🚫 {r['erro']}")
+        return
+    print(f"🧹 Marca de depuração no diff contra {r['base']} ({r['ponto']}): {len(r['marcas'])}")
+    for m in r["marcas"]:
+        print(f"   {m['arquivo']}:{m['linha']}\t{m['trecho'][:100]}")
+    if r["marcas"]:
+        print("   Log de depuração sai antes de dizer que terminou.")
+
+
+FICHA = {
+    "pronta": "✅ ficha pronta: a causa está escrita e o laço falha na base e passa agora",
+    "pare_e_pergunte": (f"✋ {PARAR_DEPOIS_DE} ou mais hipóteses descartadas e nenhuma confirmada:"
+                        " pare de mexer e peça à pessoa o que falta (ambiente, dado, passo exato)"),
+    "incompleta": "❌ ficha incompleta",
+}
+
+
+def imprimir_investigacao(r: dict) -> None:
+    if r.get("erro"):
+        print(f"🚫 {r['erro']}")
+        return
+    print(f"🔎 Investigação — {r['ficha']}")
+    print(f"   hipóteses: {r['confirmadas']} confirmada(s), {r['descartadas']} descartada(s),"
+          f" {r['abertas']} aberta(s)")
+    if r.get("reproducao", {}).get("veredicto"):
+        print(f"   reprodução: {REPRODUCAO[r['reproducao']['veredicto']]}")
+    print(f"   {FICHA[r['veredicto']]}")
+    for problema in r.get("problemas", []):
+        print(f"     ✗ {problema}")
+
+
+def imprimir_fontes(r: dict) -> None:
+    pesquisas, quebradas = r["pesquisas"], r["citacoes_quebradas"]
+    print(f"📚 Fontes salvas — {len(pesquisas)} pesquisa(s) em {PASTA_PESQUISA}/")
+    for p in pesquisas:
+        marca = "❌" if p["problemas"] else ("⚠️ " if p["avisos"] else "✅")
+        print(f"   {marca} {p['arquivo']} ({p['data'] or 'sem data'})")
+        for item in p["problemas"] + p["avisos"]:
+            print(f"      · {item}")
+    for c in quebradas:
+        print(f"   ❌ {c['arquivo']}:{c['linha']} cita {c['alvo']}, que não existe")
+    spec = r.get("spec")
+    if spec:
+        _imprimir_fontes_da_spec(spec)
+    if not pesquisas and not quebradas:
+        print("   nada a conferir")
+
+
+def _imprimir_fontes_da_spec(spec: dict) -> None:
+    if spec.get("erro"):
+        print(f"   🚫 {spec['spec']}: {spec['erro']}")
+        return
+    print(f"   {spec['spec']} cita {len(spec['citadas'])} pesquisa(s); aprovação: "
+          f"{spec['aprovacao'] or 'não encontrada'}")
+    for c in spec["citadas"]:
+        mudou = {True: " — mudou depois da aprovação", False: "", None: ""}[c["mudou_depois"]]
+        print(f"      {'✅' if c['existe'] else '❌'} {c['pesquisa']}{mudou}")
+
+
 def main() -> int:
     args = sys.argv[1:]
     if not args or args[0] not in ("pre-patch", "testes-alterados", "atalhos", "decisoes",
-                                   "origem", "selado", "colher"):
+                                   "origem", "selado", "colher", "reproduzir", "marcas",
+                                   "investigacao", "fontes"):
         print(__doc__.strip())
         return 1
     comando = args[0]
@@ -1301,6 +1791,18 @@ def main() -> int:
             imprimir_colher(r)
         return 0
 
+    if comando == "fontes":
+        alvo = opcao("--raiz")
+        raiz = Path(alvo).resolve() if alvo else (raiz_git() or Path.cwd())
+        try:
+            idade = int(opcao("--idade-max") or IDADE_MAX_PADRAO)
+        except ValueError:
+            print("erro: --idade-max precisa de um número de dias", file=sys.stderr)
+            return 1
+        r = fontes(raiz, next((a for a in args[1:] if ID_SPEC.match(a)), None), idade)
+        print(json.dumps(r, ensure_ascii=False, indent=2)) if como_json else imprimir_fontes(r)
+        return 1 if r["citacoes_quebradas"] or any(p["problemas"] for p in r["pesquisas"]) else 0
+
     if comando == "selado":
         alvo = opcao("--raiz")
         raiz = Path(alvo).resolve() if alvo else (raiz_git() or Path.cwd())
@@ -1321,7 +1823,7 @@ def main() -> int:
         print(json.dumps(r, ensure_ascii=False, indent=2))
     else:
         imprimir(r)
-    return 1 if r.get("erro") or reprova(r) else 0
+    return 1 if r.get("erro") else int(reprova(r))
 
 
 # Os comandos que medem o diff contra a base: (calcular, imprimir, sai 1 quando).
@@ -1344,6 +1846,17 @@ SOBRE_O_DIFF = {
                    (a for a in args[1:] if a.endswith(".md")), None)),
                lambda r: imprimir_origem(r),
                lambda r: any(r[chave] for chave in FORA_DO_LUGAR)),
+    "reproduzir": (lambda raiz, base, comando, tempo, args: reproduzir(
+                       raiz, base, comando, _valor(args, "--sintoma"), tempo, "--antes" in args),
+                   lambda r: imprimir_reproduzir(r),
+                   lambda r: r["veredicto"] not in ("reproduz", "reproduz_e_corrige")),
+    "marcas": (lambda raiz, base, *_: marcas(raiz, base),
+               lambda r: imprimir_marcas(r),
+               lambda r: bool(r["marcas"])),
+    "investigacao": (lambda raiz, base, _t, tempo, args: investigacao(
+                         raiz, base, next((a for a in args[1:] if a.endswith(".md")), None), tempo),
+                     lambda r: imprimir_investigacao(r),
+                     lambda r: SAIDA_DA_FICHA.get(r["veredicto"], 1)),
 }
 
 

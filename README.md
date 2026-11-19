@@ -201,6 +201,8 @@ Sob demanda:
 /kairos-forge:otimizar <métrica>      # ciclo de catraca: 1 mudança por rodada, manter ou reverter
 /kairos-forge:migrar <legado>         # modernização por estrangulamento, fatia por fatia (Ivan)
 /kairos-forge:relatar [dias|SPEC]     # o que entregamos, por que e quanto custou, com a fonte (Talita)
+/kairos-forge:investigar <sintoma>    # a causa antes do conserto: laço que reproduz, hipóteses, trava (Ricardo)
+/kairos-forge:pesquisar <pergunta>    # o que a fonte primária diz, salvo em docs/pesquisa/ (Rafael)
 ```
 
 Documentação completa em [`plugin/README.md`](plugin/README.md).

@@ -234,3 +234,13 @@ Próximo passo sugerido: <ADR / SPEC / nada por agora>.
 - **PT-BR.**
 - **Não rode comandos destrutivos.** Nada de `git clean`, `rm`, migrations. Inspeção apenas.
 - **Pare cedo se o escopo não foi delimitado.** Mapear repo de 200k linhas sem foco vira ruído.
+
+## Pronto quando
+
+- A pessoa delimitou no passo 1 o escopo, as áreas fora e a hipótese, e acima de 50 mil linhas a skill não segue sem escopo (gate humano).
+- O mapa está em `docs/arquitetura/MAPA-YYYY-MM-DD.md` com as seções do modelo do passo 5, o escopo combinado e a base analisada com branch ou commit.
+- O `grafo.py codigo` rodou, e o acoplamento dos módulos grandes saiu de `grafo.py contexto <arquivo>` ou de grep nas linguagens que a camada não cobre, com os pares bidirecionais na tabela de imports do mapa.
+- Cada afirmação do mapa em `docs/arquitetura/MAPA-*.md` traz arquivo:linha, comando rodado ou métrica, e o que não foi medido está marcado como hipótese a validar, ou como indício na duplicação sem ferramenta.
+- O mapa em `docs/arquitetura/MAPA-*.md` tem de 3 a 7 bounded contexts, cada movimento do plano tem pré-condição, critério de sucesso e rollback, e reescrita só aparece em ADRs sugeridas.
+- Nenhum código foi editado, movido ou apagado, e nenhum comando destrutivo rodou durante o mapa (gate humano).
+- A resposta dá em até 10 linhas o caminho do mapa, os achados principais, o movimento mais barato, o maior risco e o próximo passo sugerido entre ADR, SPEC ou nada por agora (gate humano).

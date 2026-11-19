@@ -220,3 +220,12 @@ Próximo passo: <atualizar SPEC-NNN | abrir SPEC | aceitar risco>.
 - **PT-BR.**
 - **Read-only.** Nada de patch, nada de migration, nada de mudar config.
 - **Se a feature tiver SPEC, este modelo referencia a SPEC e vira insumo para revisão.** Não duplique a SPEC.
+
+## Pronto quando
+
+- O modelo está salvo em `docs/seguranca/AMEACAS-<feature-slug>-YYYY-MM-DD.md`, com o cabeçalho que diz quem coordenou, a SPEC relacionada (ou "não há ainda") e o escopo.
+- O modelo em `docs/seguranca/AMEACAS-*.md` tem todas as seções do template, de "Resumo executivo" a "Próximo passo", com 2 a 3 perfis de atacante relevantes para a feature.
+- Cada abuse path AP-NN do modelo em `docs/seguranca/AMEACAS-*.md` traz os ativos atingidos, o controle atual e a severidade, e o de controle parcial ou inexistente tem mitigação numa camada que não é a UI.
+- Todo risco que fica sem mitigação está em "Decisões aceitas" do modelo em `docs/seguranca/AMEACAS-*.md`, com data e justificativa.
+- O "Próximo passo" do modelo em `docs/seguranca/AMEACAS-*.md` diz o que vira tarefa na SPEC, o que vai como ressalva na revisão e os gatilhos para reavaliar o modelo.
+- A resposta dá o caminho do modelo, a ameaça principal e as três mitigações de maior alavancagem, e a pessoa escolhe entre atualizar a SPEC, abrir uma SPEC ou aceitar o risco (gate humano).

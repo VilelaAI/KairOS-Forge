@@ -207,7 +207,7 @@ class ArgumentosQueOShellEntrega(unittest.TestCase):
     def test_gate_e_diff_chegam_expandidos(self) -> None:
         argv = self.argv("corrigir")
         self.assertIn("Bash(npm test *)", self.opcao(argv, "--allowedTools").split(","))
-        self.assertIn("rode o gate (npm test)", argv[1])
+        self.assertIn("o gate (npm test) é o laço", argv[1])
         self.assertIn("aaa111 e bbb222", self.argv("revisar")[1])
 
 
@@ -284,16 +284,37 @@ class CorpoDoPRDaCorrecao(unittest.TestCase):
         self.assertIn("**O que você decide:** se a correção está certa, mescle na `main`", topo)
         self.assertIn("**O que mudou:** 2 files changed", topo)
         self.assertIn("- `src/x.py`\n- `tests/test_x.py`\n", topo)
-        self.assertNotIn("Causa:", topo)
         self.assertNotIn("falha.log", corpo)
+        self.assertNotIn("gate-antes.log", corpo)
         self.assertNotIn(".claude", corpo)
         self.assertIn("Causa: x valia 1.", recolhido)
+
+    def test_a_causa_em_cima_e_no_commit(self) -> None:
+        """ADR-0060: a causa que o agente escreveu é o que deixa a pessoa decidir."""
+        corpo = self.abrir_pr()
+        topo = corpo.split("<details>")[0]
+        self.assertIn("**Causa:** x valia 1.\n\n**Prova:** com x = 1 o teste falha, com 2 passa.", topo)
+        self.assertIn("**Reprodução:** o gate falhou aqui antes da correção e passa depois.", topo)
+        self.assertLess(topo.index("**Causa:**"), topo.index("**O que você decide:**"))
+        self.assertIn("\nCausa: x valia 1.\n", self.mensagem)
+        self.assertIn("Fabrica: kairos-forge", self.mensagem)
+
+    def test_causa_em_negrito_tambem_e_lida(self) -> None:
+        topo = self.abrir_pr(diagnostico="Mudei x.\n**Causa:** a conta usava x.\n").split("<details>")[0]
+        self.assertIn("**Causa:** a conta usava x.", topo)
+        self.assertNotIn("**Prova:**", topo)
+
+    def test_sem_causa_o_pr_avisa(self) -> None:
+        topo = self.abrir_pr(diagnostico="Mudei x e passou.\n").split("<details>")[0]
+        self.assertIn("O agente não declarou a causa: a correção pode tratar só o sintoma", topo)
+        self.assertIn("\nCausa: não declarada pelo agente\n", self.mensagem)
 
     def test_com_o_token_do_workflow_avisa_que_o_ci_nao_dispara_e_com_o_app_nao(self) -> None:
         self.assertIn("o GitHub não dispara o CI em PR aberto por ele", self.abrir_pr())
         self.assertNotIn("não dispara o CI", self.abrir_pr(IDENTIDADE="app"))
 
-    def abrir_pr(self, **extra: str) -> str:
+    def abrir_pr(self, diagnostico: str = "Causa: x valia 1.\nProva: com x = 1 o teste falha, com 2 passa.\n",
+                 **extra: str) -> str:
         (script,) = [s for _, s in blocos_run(ler("corrigir")) if "gh pr create" in s]
         script = script.replace("${{ github.event.workflow_run.id }}", "123")
         with tempfile.TemporaryDirectory() as tmp:
@@ -314,7 +335,9 @@ class CorpoDoPRDaCorrecao(unittest.TestCase):
             (raiz / "tests").mkdir()
             (raiz / "tests/test_x.py").write_text("assert True\n", encoding="utf-8")
             (raiz / "falha.log").write_text("FAIL test_x\n", encoding="utf-8")
-            (raiz / "diagnostico.md").write_text("Causa: x valia 1.\nEvidência: pytest passa.\n", encoding="utf-8")
+            (raiz / "diagnostico.md").write_text(diagnostico, encoding="utf-8")
+            (raiz / "gate-antes.log").write_text("FAIL\n", encoding="utf-8")
+            (raiz / "gate-depois.log").write_text("ok\n", encoding="utf-8")
             (raiz / ".claude/skills").mkdir(parents=True)
             (raiz / ".claude/skills/a.md").write_text("fábrica\n", encoding="utf-8")
             (Path(tmp) / "gh").write_text('#!/bin/sh\nif [ "$1" = auth ]; then echo "$*" >> ../gh-auth; exit 0; fi\n'
@@ -327,7 +350,63 @@ class CorpoDoPRDaCorrecao(unittest.TestCase):
                    **extra}
             subprocess.run(["bash", "-e", "-c", script], cwd=raiz, env=env, check=True,
                            capture_output=True, text=True)
+            self.mensagem = subprocess.run(["git", "log", "-1", "--format=%B"], cwd=raiz, check=True,
+                                           capture_output=True, text=True).stdout
+            arquivos = subprocess.run(["git", "show", "--name-only", "--format=", "HEAD"], cwd=raiz,
+                                      check=True, capture_output=True, text=True).stdout.split()
+            self.assertNotIn("gate-antes.log", arquivos)
+            self.assertNotIn("gate-depois.log", arquivos)
             return (Path(tmp) / "corpo-do-pr.md").read_text(encoding="utf-8")
+
+
+def passo(nome: str, texto: str) -> str:
+    """O bloco YAML do passo cujo nome começa com `nome`, até o próximo passo."""
+    ini = texto.index(f"- name: {nome}")
+    fim = texto.find("\n      - ", ini + 1)
+    return texto[ini:fim if fim != -1 else None]
+
+
+class OGateAntesEDepois(unittest.TestCase):
+    """ADR-0060: o gate é o laço. Sem reproduzir antes, o agente nem roda; ainda vermelho
+    depois, não há PR. Os dois passos rodados de verdade, com o GATE trocado."""
+
+    def rodar(self, nome: str, gate: str) -> str:
+        bloco = passo(nome, ler("corrigir"))
+        ((_, script),) = blocos_run(bloco)
+        with tempfile.TemporaryDirectory() as tmp:
+            saida = Path(tmp) / "saida"
+            saida.write_text("", encoding="utf-8")
+            subprocess.run(["bash", "-e", "-c", script], cwd=tmp, check=True, capture_output=True,
+                           env={**os.environ, "GATE": gate, "GITHUB_OUTPUT": str(saida)})
+            return saida.read_text(encoding="utf-8").strip()
+
+    def test_o_gate_antes(self) -> None:
+        self.assertEqual(self.rodar("Reproduzir a falha", "exit 1"), "reproduz=true")
+        self.assertEqual(self.rodar("Reproduzir a falha", "true"), "reproduz=false")
+
+    def test_o_gate_depois(self) -> None:
+        self.assertEqual(self.rodar("Conferir a correção", "true"), "corrigiu=true")
+        self.assertEqual(self.rodar("Conferir a correção", "echo vermelho; exit 1"), "corrigiu=false")
+
+    def test_a_ordem_e_as_condicoes(self) -> None:
+        texto = ler("corrigir")
+        ordem = [texto.index(f"- name: {n}") for n in ("Baixar o log", "Reproduzir a falha", "Corrigir",
+                                                       "Conferir a correção", "Guardrail antes", "Abrir PR")]
+        self.assertEqual(ordem, sorted(ordem))
+        self.assertIn("if: steps.dedup.outputs.seguir == 'true'", passo("Reproduzir a falha", texto))
+        self.assertIn("if: steps.antes.outputs.reproduz == 'true'", passo("Corrigir", texto))
+        self.assertIn("if: steps.antes.outputs.reproduz == 'true'", passo("Conferir a correção", texto))
+        for nome in ("Guardrail antes", "Abrir PR"):
+            self.assertIn("if: steps.depois.outputs.corrigiu == 'true'", passo(nome, texto))
+        # O gate antes e depois roda sem o segredo da API no ambiente.
+        for nome in ("Reproduzir a falha", "Conferir a correção"):
+            self.assertNotIn("secrets.", passo(nome, texto))
+
+    def test_o_prompt_pede_a_skill_e_a_causa(self) -> None:
+        (cmd,) = comandos_claude(ler("corrigir"))
+        self.assertIn("skill investigar", cmd)
+        self.assertIn("Causa: <a causa em uma frase", cmd)
+        self.assertIn("Prova: <o que liga e desliga a falha>", cmd)
 
 
 class IdentidadeDaFabrica(unittest.TestCase):

@@ -1352,6 +1352,16 @@
     },
     {
       "tipoAtivo": "skill",
+      "chave": "investigar",
+      "versao": "0.52.0",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Acha a causa de um bug, falha intermitente ou lentidão antes de corrigir - laço curto que reproduz, uma hipótese por vez, causa provada e escrita, teste que falha antes e passa depois. Use para \"por que quebrou\", \"debuga\", \"teste intermitente\", \"funcionava ontem\". Causa já conhecida é o rodar."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
       "chave": "lancar",
       "versao": "0.52.0",
       "origem": "in_house",
@@ -1418,6 +1428,16 @@
       "metadata": {
         "tools": [],
         "descricao": "Ciclo de catraca guiado por métrica mensurável por comando: uma mudança por rodada, medir, manter ou reverter via git. Exige métrica honesta, git limpo e arquivos delimitados. Sem métrica é o revisar."
+      }
+    },
+    {
+      "tipoAtivo": "skill",
+      "chave": "pesquisar",
+      "versao": "0.52.0",
+      "origem": "in_house",
+      "metadata": {
+        "tools": [],
+        "descricao": "Responde pelo que a fonte primária diz (doc oficial, código, changelog, especificação), com versão e data de cada fato, e salva em docs/pesquisa/ para a SPEC ou o ADR citar. Use para \"o que a doc diz\", \"qual versão suporta\", \"isso ainda funciona assim?\". Ler o próprio código é o mapear-arquitetura."
       }
     },
     {

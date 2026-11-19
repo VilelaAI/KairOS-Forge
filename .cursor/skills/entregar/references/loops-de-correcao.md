@@ -28,7 +28,10 @@ Em `corrigindo_validacao`, **não devolva o problema ao usuário**:
 1. Para cada achado bloqueante, identifique o agente que o relatório indicou (o
    `/validar` já nomeia: Ricardo em cobertura, Helena em segurança, Carlos em
    dados, e assim por diante).
-2. Acione **só os agentes dos achados** — corrigir é cirurgia, não mutirão.
+2. Acione **só os agentes dos achados** — corrigir é cirurgia, não mutirão. Achado com
+   `arquivo:linha` e causa dita se corrige direto. Gate vermelho sem lugar apontado é
+   causa desconhecida: a correção passa pela skill `investigar` (ADR-0060), que monta o
+   laço, prova a causa e trava com o `prova.py reproduzir`.
 3. Rode o gate do requisito afetado e atualize a célula `verificado:`.
 4. `registrar pronto` — o script devolve `validando`.
 
@@ -53,6 +56,9 @@ premissa que as duas correções compartilharam ("o saldo vem do cache", "a vali
 no cliente"), diga quais agentes ou componentes sustentam essa suposição e o que muda na
 atribuição. Depois, `registrar premissa_escrita --nota "<a premissa>"`; a correção seguinte
 parte de outra premissa. Premissa repetida na mesma sequência é recusada.
+
+A correção seguinte segue o método da skill `investigar` (ADR-0060): a premissa escrita é a
+hipótese, o laço é o gate que falhou, e só se corrige com a causa provada na ficha.
 
 ### 7. `revisando` / `corrigindo_revisao` — o segundo loop
 

@@ -661,51 +661,96 @@ _REDIRECIONA = re.compile(r"\d*>&\d+|&>>?|\d*>>?|\d*<")
 _HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\1")
 
 
+class _Leitura:
+    """O que já se leu da linha: o texto que fica, a aspa aberta e os delimitadores dos
+    heredocs cujo corpo começa na próxima quebra de linha."""
+
+    def __init__(self, cmd: str) -> None:
+        self.cmd = cmd
+        self.out: list[str] = []
+        self.aspa: str | None = None
+        self.pendentes: list[str] = []
+
+
+def _dentro_de_aspa(lido: _Leitura, i: int) -> int:
+    c = lido.cmd[i]
+    passo = 2 if c == "\\" and lido.aspa == '"' else 1
+    lido.aspa = None if c == lido.aspa else lido.aspa
+    lido.out.append(lido.cmd[i:i + passo])
+    return i + passo
+
+
+def _barra(lido: _Leitura, i: int) -> int:
+    lido.out.append(" " if lido.cmd[i + 1:i + 2] == "\n" else lido.cmd[i:i + 2])
+    return i + 2
+
+
+def _heredoc(lido: _Leitura, i: int) -> int | None:
+    """`<<EOF`, `<<-'EOF'`; `<<<` não é."""
+    achado = None if lido.cmd[i - 1:i] == "<" else _HEREDOC.match(lido.cmd, i)
+    if not achado:
+        return None
+    lido.pendentes.append(achado.group(2))
+    lido.out.append(achado.group(0))
+    return achado.end()
+
+
+def _comentario(lido: _Leitura, i: int) -> int | None:
+    """Só começa comentário o `#` no início de palavra; vai até o fim da linha."""
+    if lido.out and lido.out[-1][-1] not in " \t;|&()<>":
+        return None
+    fim = lido.cmd.find("\n", i)
+    return len(lido.cmd) if fim < 0 else fim
+
+
+def _fim_do_corpo(cmd: str, i: int, delim: str) -> int:
+    while i < len(cmd):
+        fim = cmd.find("\n", i + 1)
+        fim = len(cmd) if fim < 0 else fim
+        linha, i = cmd[i + 1:fim], fim
+        if linha.strip() == delim:
+            break
+    return i
+
+
+def _quebra_de_linha(lido: _Leitura, i: int) -> int:
+    for delim in lido.pendentes:                      # o corpo do heredoc é dado, não comando
+        i = _fim_do_corpo(lido.cmd, i, delim)
+    lido.pendentes = []
+    lido.out.append(" ; ")
+    return i + 1
+
+
+def _caractere(lido: _Leitura, i: int) -> int:
+    c = lido.cmd[i]
+    if c in "'\"":
+        lido.aspa = c
+    lido.out.append(c)
+    return i + 1
+
+
+# Fora de aspas, o que cada caractere especial faz; o que devolve None não era especial
+# ali e segue como caractere comum.
+_ESPECIAIS = {"\\": _barra, "<": _heredoc, "#": _comentario, "\n": _quebra_de_linha}
+
+
+def _passo(lido: _Leitura, i: int) -> int:
+    if lido.aspa:
+        return _dentro_de_aspa(lido, i)
+    especial = _ESPECIAIS.get(lido.cmd[i])
+    fim = especial(lido, i) if especial else None
+    return _caractere(lido, i) if fim is None else fim
+
+
 def _o_que_o_shell_roda(cmd: str) -> str:
     """A linha como o shell a lê: a quebra de linha fora de aspas separa comandos (vira
     `;`), a linha continuada com `\\` é uma só, e o comentário e o corpo de heredoc, que
     não rodam, saem. Dentro de aspas nada muda; aspa que não fecha (o corte do
     LIMITE_CMD) deixa o resto como estava."""
-    out, aspa, pendentes, i = [], None, [], 0
+    lido, i = _Leitura(cmd), 0
     while i < len(cmd):
-        c = cmd[i]
-        if aspa:
-            passo = 2 if c == "\\" and aspa == '"' else 1
-            aspa = None if c == aspa else aspa
-            out.append(cmd[i:i + passo])
-            i += passo
-            continue
-        if c == "\\":
-            out.append(" " if cmd[i + 1:i + 2] == "\n" else cmd[i:i + 2])
-            i += 2
-            continue
-        heredoc = _HEREDOC.match(cmd, i) if c == "<" and cmd[i - 1:i] != "<" else None
-        if heredoc:                                   # `<<EOF`, `<<-'EOF'`; `<<<` não é
-            pendentes.append(heredoc.group(2))
-            out.append(heredoc.group(0))
-            i = heredoc.end()
-            continue
-        if c == "#" and (not out or out[-1][-1] in " \t;|&()<>"):
-            fim = cmd.find("\n", i)                   # comentário até o fim da linha
-            i = len(cmd) if fim < 0 else fim
-            continue
-        if c == "\n":
-            for delim in pendentes:                   # o corpo do heredoc é dado, não comando
-                while i < len(cmd):
-                    fim = cmd.find("\n", i + 1)
-                    fim = len(cmd) if fim < 0 else fim
-                    linha, i = cmd[i + 1:fim], fim
-                    if linha.strip() == delim:
-                        break
-            pendentes = []
-            out.append(" ; ")
-            i += 1
-            continue
-        if c in "'\"":
-            aspa = c
-        out.append(c)
-        i += 1
-    return "".join(out)
+        i = _passo(lido, i)
+    return "".join(lido.out)
 
 
 def _pecas(cmd: str) -> list[str]:
@@ -1728,16 +1773,23 @@ def _delta_pct(v: float | None, base: float | None) -> float | None:
     return round(100 * (v - base) / base, 1) if v is not None and base else None
 
 
+def _erro_da_baseline(pasta: Path, nomes: list[str], baseline: str | None) -> str | None:
+    if not nomes:
+        return f"{pasta}: nenhuma subpasta de versão (ex.: {pasta}/baseline/<caso>.json)"
+    if not baseline and "baseline" not in nomes:            # a régua é dita, nunca adivinhada
+        return (f"{pasta}: sem a subpasta baseline/ — diga qual versão é a baseline "
+                f"com --baseline NOME ({', '.join(nomes)})")
+    if (baseline or "baseline") not in nomes:
+        return f"baseline '{baseline}' não está em {pasta} ({', '.join(nomes)})"
+    return None
+
+
 def custo_por_versao(pasta: Path, baseline: str | None = None) -> dict:
     nomes = sorted(d.name for d in pasta.iterdir() if d.is_dir()) if pasta.is_dir() else []
-    if not nomes:
-        return {"erro": f"{pasta}: nenhuma subpasta de versão (ex.: {pasta}/baseline/<caso>.json)"}
-    if not baseline and "baseline" not in nomes:            # a régua é dita, nunca adivinhada
-        return {"erro": f"{pasta}: sem a subpasta baseline/ — diga qual versão é a baseline "
-                        f"com --baseline NOME ({', '.join(nomes)})"}
+    erro = _erro_da_baseline(pasta, nomes, baseline)
+    if erro:
+        return {"erro": erro}
     base = baseline or "baseline"
-    if base not in nomes:
-        return {"erro": f"baseline '{base}' não está em {pasta} ({', '.join(nomes)})"}
     versoes = {n: custo_da_versao(pasta / n) for n in nomes}
     for n in nomes:
         if n != base:                                      # a baseline não varia contra si

@@ -5,7 +5,9 @@
   pelo exit 0, e um grafo que não existe não pode valer como "contrato ok";
 - entidade com `fontes` vazio (ou só com texto em branco) reprova: proveniência por linha é
   o que o ADR-0009 promete, e a relação sem fonte já reprovava;
-- o grafo com entidades e relações com fonte continua passando.
+- o grafo com entidades e relações com fonte continua passando;
+- o resto do contrato continua: alias para canônico que não existe e entidade duplicada
+  reprovam, e o alias resolve a ponta da relação.
 
 Só stdlib. Cada teste monta o diretório do grafo numa pasta temporária.
 """
@@ -140,6 +142,33 @@ class Proveniencia(Base):
         codigo, saida = self.validar()
         self.assertEqual(codigo, 1)
         self.assertIn("relação 1 sem fonte", saida)
+
+
+class Contrato(Base):
+    def test_alias_para_canonico_inexistente_reprova(self) -> None:
+        self.gravar("entidades.jsonl", [API, BANCO])
+        self.gravar("aliases.jsonl", [{"alias": "PG", "canonico": "Postgres"},
+                                      {"alias": "Postgres 16", "canonico": "PostgreSQL"}])
+        codigo, saida = self.validar()
+        self.assertEqual(codigo, 1)
+        self.assertIn("canônico inexistente 'Postgres' (alias 'PG')", saida)
+        self.assertNotIn("alias 'Postgres 16'", saida)
+
+    def test_alias_resolve_a_ponta_da_relacao(self) -> None:
+        self.gravar("entidades.jsonl", [API, BANCO])
+        self.gravar("aliases.jsonl", [{"alias": "PG", "canonico": "PostgreSQL"}])
+        self.gravar("relacoes.jsonl", [{**ARESTA, "destino": "PG"}])
+        codigo, saida = self.validar()
+        self.assertEqual(codigo, 0, saida)
+
+    def test_entidade_duplicada_reprova_depois_dos_outros_erros(self) -> None:
+        self.gravar("entidades.jsonl", [API, BANCO, BANCO])
+        self.gravar("relacoes.jsonl", [{**ARESTA, "destino": "Redis"}])
+        codigo, saida = self.validar()
+        self.assertEqual(codigo, 1)
+        self.assertIn("entidade duplicada 'PostgreSQL' (2x)", saida)
+        self.assertNotIn("duplicada 'API de relatórios'", saida)
+        self.assertLess(saida.index("aresta órfã"), saida.index("entidade duplicada"))
 
 
 if __name__ == "__main__":

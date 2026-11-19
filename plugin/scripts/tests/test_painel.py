@@ -145,6 +145,80 @@ class Caixa(unittest.TestCase):
             self.assertEqual(avulso.caixa_github(Path.cwd()), ({"estado": "falhou"}, []))
 
 
+class Mobilizacoes(unittest.TestCase):
+    """O quadro no terminal, no HTML e na caixa: as mesmas listas, na mesma ordem, e o
+    quadro encerrado sem o que só cabe no aberto (lançar e cobrar o gate pulado)."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="kairos-forge-mobilizacao-")
+        self._cwd = os.getcwd()
+        os.chdir(self._tmp.name)
+        chamar(quadro, "abrir", "forge-x", "--spec", "SPEC-001", "--cli", "codex")
+        for tid in ("T1", "T2", "T3", "T4", "T5"):
+            chamar(quadro, "adicionar", "forge-x", "--id", tid, "--titulo", tid, "--dono",
+                   "carlos-dba", "--posse", f"{tid.lower()}/**", "--pronto-quando", "roda",
+                   "--gate", "npm test")
+        for tid in ("T1", "T2", "T3", "T4"):
+            chamar(quadro, "iniciar", "forge-x", tid)
+        chamar(quadro, "bloquear", "forge-x", "T2", "--motivo", "falta decidir UUID ou bigint")
+        chamar(quadro, "concluir", "forge-x", "T3", "--evidencia", "migration escrita",
+               "--sem-foto", "teste", "--gate-pulado", "sem ambiente de banco")
+        caminho = Path(".agents/quadro/forge-x.json")
+        cru = json.loads(caminho.read_text(encoding="utf-8"))
+        cru["tasks"]["T4"]["iniciado_em"] = "2026-01-01T00:00:00+00:00"   # passou do prazo
+        caminho.write_text(json.dumps(cru), encoding="utf-8")
+
+    def tearDown(self) -> None:
+        os.chdir(self._cwd)
+        self._tmp.cleanup()
+
+    def test_as_listas_no_terminal_no_html_e_na_caixa(self) -> None:
+        d = painel.coletar(Path.cwd(), None, 14)
+        (q,) = d["quadros"]
+        self.assertEqual(painel.listas_do_quadro(q),
+                         [("em_voo", ["T1", "T4"]), ("prontas", ["T5"]), ("bloqueadas", ["T2"]),
+                          ("vencidas", ["T4"]), ("gate_pulado", ["T3"])])
+        terminal = painel.render_terminal(d)
+        self.assertIn("    🔄 forge-x · SPEC-001 · codex\n", terminal)
+        self.assertIn("       em voo: T1, T4 | pode lançar: T5 | bloqueadas: T2 | "
+                      "⏱️ vencidas: T4 | 🚧 gate pulado, sem lacuna: T3\n", terminal)
+        html = painel.render_html(d)
+        self.assertIn('<p class="l">Em voo: <span class="chip ">T1</span>'
+                      '<span class="chip ">T4</span></p>', html)
+        self.assertIn('<p class="l">Pode lançar: <span class="chip ">T5</span></p>', html)
+        self.assertIn('<p class="l no">⛔ Bloqueadas: <span class="chip ">T2</span></p>', html)
+        self.assertIn('<p class="l warn">⏱️ Vencidas: <span class="chip ">T4</span> — '
+                      "<code>quadro.py varrer</code> devolve a vaga</p>", html)
+        self.assertIn('<p class="l warn">🚧 Gate pulado, sem lacuna: <span class="chip ">T3</span> — '
+                      "rode o gate ou declare no <code>encerrar --lacuna</code></p>", html)
+        itens = painel.caixa(Path.cwd())["itens"]
+        self.assertEqual([(i["tipo"], i["o_que"]) for i in itens],
+                         [("bloqueada", "tarefa T2 bloqueada"),
+                          ("vencida", "tarefa T4 passou do tempo limite"),
+                          ("gate_pulado", "tarefa T3 concluída com o gate pulado")])
+        self.assertEqual(itens[1]["como"], "quadro.py varrer forge-x — o worker pode ter morrido")
+
+    def test_quadro_encerrado_nao_lanca_nem_cobra_o_gate_pulado(self) -> None:
+        caminho = Path(".agents/quadro/forge-x.json")
+        cru = json.loads(caminho.read_text(encoding="utf-8"))
+        cru["encerrado_em"], cru["lacunas"] = "2026-11-19T10:00:00+00:00", ["T2: <decidir> & voltar"]
+        caminho.write_text(json.dumps(cru), encoding="utf-8")
+        d = painel.coletar(Path.cwd(), None, 14)
+        (q,) = d["quadros"]
+        self.assertEqual([lista for lista, _ in painel.listas_do_quadro(q)],
+                         ["em_voo", "bloqueadas", "vencidas"])
+        terminal = painel.render_terminal(d)
+        self.assertIn("    🏁 forge-x · SPEC-001 · codex\n", terminal)
+        self.assertIn("       em voo: T1, T4 | bloqueadas: T2 | ⏱️ vencidas: T4\n", terminal)
+        self.assertNotIn("pode lançar", terminal)
+        self.assertIn("⚠️  lacuna: T2: <decidir> & voltar", terminal)
+        html = painel.render_html(d)
+        self.assertNotIn("Pode lançar", html)
+        self.assertNotIn("Gate pulado", html)
+        self.assertIn('<p class="l warn">⚠ Lacuna: T2: &lt;decidir&gt; &amp; voltar</p>', html)
+        self.assertEqual(painel.caixa(Path.cwd())["itens"], [])
+
+
 class FaseEColunas(unittest.TestCase):
     """O que o `--json` dá pronto para o mod do painel desenhar (ADR-0051)."""
 

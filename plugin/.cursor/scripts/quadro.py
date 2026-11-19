@@ -819,19 +819,14 @@ def cmd_prontas(a) -> int:
                           "teto_onda": q["teto_onda"], "onda": q.get("onda", 0) + 1},
                          ensure_ascii=False, indent=2))
         return 0
-    if not prontas:
-        vista = vista_publica(q)
-        if vista["completo"]:
-            print("✅ nada pronto: todas as tarefas concluídas. Rode `encerrar`.")
-        elif vista["total"] and vista["por_estado"]["concluida"] == vista["total"]:
-            print("✅ nada pronto: todas concluídas, mas nem todas com o gate rodado — o "
-                  "`encerrar` pede a lacuna de cada gate pulado.")
-        else:
-            print("⏸️  nada pronto agora.")
-            for tid, m in motivos.items():
-                if q["tasks"][tid]["estado"] in ("planejada", "bloqueada"):
-                    print(f"   {tid}: {m}")
-        return 0
+    if prontas:
+        anunciar_onda(q, prontas, motivos)
+    else:
+        explicar_nada_pronto(q, motivos)
+    return 0
+
+
+def anunciar_onda(q: dict, prontas: list[str], motivos: dict[str, str]) -> None:
     print(f"🚀 onda {q.get('onda', 0) + 1} — {len(prontas)} de até {q['teto_onda']}:")
     for tid in prontas:
         t = q["tasks"][tid]
@@ -841,7 +836,25 @@ def cmd_prontas(a) -> int:
             if q["tasks"][k]["estado"] == "planejada" and k not in prontas}
     if fora:
         print(f"   ⏳ fora desta onda: " + "; ".join(f"{k} ({v})" for k, v in fora.items()))
-    return 0
+
+
+def explicar_nada_pronto(q: dict, motivos: dict[str, str]) -> None:
+    vista = vista_publica(q)
+    if vista["completo"]:
+        print("✅ nada pronto: todas as tarefas concluídas. Rode `encerrar`.")
+    elif todas_concluidas(vista):
+        print("✅ nada pronto: todas concluídas, mas nem todas com o gate rodado — o "
+              "`encerrar` pede a lacuna de cada gate pulado.")
+    else:
+        print("⏸️  nada pronto agora.")
+        for tid, m in motivos.items():
+            if q["tasks"][tid]["estado"] in ("planejada", "bloqueada"):
+                print(f"   {tid}: {m}")
+
+
+def todas_concluidas(vista: dict) -> bool:
+    """Toda tarefa concluída, com o gate rodado ou não: o `completo` exige também o gate."""
+    return bool(vista["total"]) and vista["por_estado"]["concluida"] == vista["total"]
 
 
 def cmd_iniciar(a) -> int:
@@ -909,16 +922,8 @@ def cmd_concluir(a) -> int:
         print("❌ --evidencia vazia. Concluir sem evidência é exatamente o resumo "
               "fluente por cima de resultado parcial que o quadro existe para impedir.")
         return 1
-    pulado = (a.gate_pulado or "").strip()
-    if a.gate_ok and a.gate_pulado is not None:
-        print("❌ --gate-ok e --gate-pulado juntos se contradizem: o gate rodou e passou, "
-              "ou não rodou. Escolha um.")
-        return 1
-    if not (a.gate_ok or pulado):
-        alvo = t.get("gate") or "(nenhum gate declarado)"
-        print(f"❌ falta o resultado do gate — {alvo}.\n"
-              "   Use --gate-ok se rodou e passou, ou --gate-pulado \"motivo\" (não vazio) "
-              "se não foi possível. Silêncio sobre o gate não é opção.")
+    resultado = resultado_do_gate(a, t)
+    if resultado is None:
         return 1
     exercida = posse_exercida(q, a.task, a.fora_da_posse, a.sem_foto)
     if recusar_sem_foto(a.task, exercida) or recusar_fora_da_posse(a.task, t, exercida):
@@ -927,21 +932,44 @@ def cmd_concluir(a) -> int:
     t["iniciado_em"] = None
     t["concluida_em"] = agora()
     t["evidencia"] = a.evidencia
-    t["gate_resultado"] = "ok" if a.gate_ok else f"pulado: {pulado}"
+    t["gate_resultado"] = resultado
     t["posse_exercida"] = exercida
     registrar(q, "concluiu", task=a.task, gate=t["gate_resultado"],
               fora_da_posse=len(exercida["fora"]), posse_conferida=exercida["conferida"])
     salvar(q)
     caminho_da_foto(q["slug"], a.task).unlink(missing_ok=True)
+    anunciar_conclusao(q, a.task, exercida)
+    return 0
+
+
+def resultado_do_gate(a, t: dict) -> str | None:
+    """O `gate_resultado` que o `concluir` grava, ou None depois de imprimir a recusa."""
+    if a.gate_ok and a.gate_pulado is not None:
+        print("❌ --gate-ok e --gate-pulado juntos se contradizem: o gate rodou e passou, "
+              "ou não rodou. Escolha um.")
+        return None
+    if a.gate_ok:
+        return "ok"
+    pulado = (a.gate_pulado or "").strip()
+    if pulado:
+        return f"pulado: {pulado}"
+    alvo = t.get("gate") or "(nenhum gate declarado)"
+    print(f"❌ falta o resultado do gate — {alvo}.\n"
+          "   Use --gate-ok se rodou e passou, ou --gate-pulado \"motivo\" (não vazio) "
+          "se não foi possível. Silêncio sobre o gate não é opção.")
+    return None
+
+
+def anunciar_conclusao(q: dict, tid: str, exercida: dict) -> None:
+    t = q["tasks"][tid]
     vista = vista_publica(q)
     feitas = vista["por_estado"]["concluida"]
-    print(f"✅ {a.task} concluída ({feitas} de {vista['total']}) · gate: {t['gate_resultado']}")
+    print(f"✅ {tid} concluída ({feitas} de {vista['total']}) · gate: {t['gate_resultado']}")
     if gate_pulado(t):
-        print(f"   ⚠️  gate pulado: {a.task} não conta como pronta. No `encerrar`, declare a "
-              f"lacuna: --lacuna \"{a.task}: gate pulado — {pulado}\"")
+        print(f"   ⚠️  gate pulado: {tid} não conta como pronta. No `encerrar`, declare a "
+              f"lacuna: --lacuna \"{tid}: gate pulado — {motivo_do_pulo(t)}\"")
     print(resumo_da_posse(exercida))
     print(o_que_liberou(vista))
-    return 0
 
 
 def posse_exercida(q: dict, tid: str, motivo: str | None, sem_foto: str | None = None) -> dict:
@@ -994,7 +1022,7 @@ def o_que_liberou(vista: dict) -> str:
         return f"   🔓 liberou: {', '.join(vista['prontas'])}"
     if vista["completo"]:
         return "   🏁 quadro completo — rode `encerrar`."
-    if vista["total"] and vista["por_estado"]["concluida"] == vista["total"]:
+    if todas_concluidas(vista):
         return ("   🏁 todas concluídas, mas nem todas com o gate rodado — o `encerrar` pede "
                 "a lacuna de cada gate pulado.")
     return "   ⏳ nada liberado ainda."
@@ -1205,6 +1233,32 @@ def _barra(feitas: int, total: int, largura: int = 20) -> str:
     return f"[{'█' * cheio}{'·' * (largura - cheio)}] {pct}%"
 
 
+COLUNAS_DO_ESTADO = (("A fazer", "planejada"), ("Em progresso", "em_progresso"),
+                     ("Bloqueadas", "bloqueada"), ("Pronto", "concluida"))
+
+
+def linhas_das_colunas(vista: dict) -> list[str]:
+    """Uma linha por coluna que tem tarefa; coluna vazia não aparece."""
+    linhas = []
+    for rotulo, estado in COLUNAS_DO_ESTADO:
+        itens = [rotulo_da_tarefa(tid, t) for tid, t in vista["tasks"].items()
+                 if t["estado"] == estado]
+        if itens:
+            linhas.append(f"   {rotulo}: {', '.join(itens)}")
+    return linhas
+
+
+def rotulo_da_tarefa(tid: str, t: dict) -> str:
+    quem = f" ({t['agente']})" if t["agente"] and t["estado"] == "em_progresso" else ""
+    return f"{tid}{quem}{marca_do_gate(t)}"
+
+
+def marca_do_gate(t: dict) -> str:
+    if t["gate_resultado"] == "ok":
+        return " ✓gate"
+    return " ⚠gate pulado" if gate_pulado(t) else ""
+
+
 def cmd_estado(a) -> int:
     q = carregar(a.slug)
     vista = vista_publica(q)
@@ -1217,20 +1271,8 @@ def cmd_estado(a) -> int:
           + (" · ENCERRADO" if vista["encerrado"] else ""))
     print(f"   {_barra(pe['concluida'], vista['total'])} "
           f"{pe['concluida']}/{vista['total']} concluídas")
-    colunas = [("A fazer", "planejada"), ("Em progresso", "em_progresso"),
-               ("Bloqueadas", "bloqueada"), ("Pronto", "concluida")]
-    for rotulo, estado in colunas:
-        ids = [tid for tid, t in vista["tasks"].items() if t["estado"] == estado]
-        if not ids:
-            continue
-        itens = []
-        for tid in ids:
-            t = vista["tasks"][tid]
-            marca = (" ✓gate" if t["gate_resultado"] == "ok"
-                     else " ⚠gate pulado" if gate_pulado(t) else "")
-            quem = f" ({t['agente']})" if t["agente"] and estado == "em_progresso" else ""
-            itens.append(f"{tid}{quem}{marca}")
-        print(f"   {rotulo}: {', '.join(itens)}")
+    for linha in linhas_das_colunas(vista):
+        print(linha)
     for tid in vista["bloqueadas"]:
         print(f"   ⛔ {tid}: {vista['tasks'][tid]['bloqueio']}")
     if vista["prontas"]:
@@ -1319,24 +1361,32 @@ def cmd_ledger(a) -> int:
     print(f"\nOrçamento: {total_rodadas} rodadas usadas · teto {teto} por task · "
           f"ondas: {vista['onda']} · teto de onda {vista['teto_onda']}")
     print(f"Entrega: {vista['por_estado']['concluida']} de {vista['total']} tarefas planejadas.")
-    puladas = [f"{tid} ({motivo_do_pulo(t)})" for tid, t in q["tasks"].items() if gate_pulado(t)]
-    if puladas:
-        print(f"Gate pulado: {'; '.join(puladas)} — concluída não é pronta sem o gate.")
-    pendentes = pendencias(q)
-    if pendentes:
-        print(f"Lacunas: {', '.join(pendentes)} — declare cada uma, nunca omita.")
-    excedidas = [f"{tid} ({(t.get('posse_exercida') or {}).get('motivo')})"
-                 for tid, t in q["tasks"].items()
-                 if (t.get("posse_exercida") or {}).get("total_fora")]
-    if excedidas:
-        print(f"Fora da posse, aceito com motivo: {'; '.join(excedidas)}")
-    sem_foto = [f"{tid} ({t['posse_exercida']['sem_foto']})"
-                for tid, t in q["tasks"].items()
-                if (t.get("posse_exercida") or {}).get("sem_foto")]
-    if sem_foto:
-        print(f"Posse não conferida, aceito com motivo: {'; '.join(sem_foto)}")
+    for linha in ressalvas_do_ledger(q):
+        print(linha)
     print(linha_de_tokens(gasto, tel))
     return 0
+
+
+def posse_de(t: dict) -> dict:
+    """A posse exercida gravada no `concluir`; vazia na tarefa que ainda não concluiu."""
+    return t.get("posse_exercida") or {}
+
+
+def ressalvas_do_ledger(q: dict) -> list[str]:
+    """O que o relatório final não pode omitir, na ordem em que o ledger mostra; a ressalva
+    sem nenhuma tarefa não aparece."""
+    tasks = q["tasks"].items()
+    ressalvas = (
+        ([f"{tid} ({motivo_do_pulo(t)})" for tid, t in tasks if gate_pulado(t)],
+         "; ", "Gate pulado: {} — concluída não é pronta sem o gate."),
+        (pendencias(q), ", ", "Lacunas: {} — declare cada uma, nunca omita."),
+        ([f"{tid} ({posse_de(t).get('motivo')})" for tid, t in tasks
+          if posse_de(t).get("total_fora")],
+         "; ", "Fora da posse, aceito com motivo: {}"),
+        ([f"{tid} ({posse_de(t)['sem_foto']})" for tid, t in tasks if posse_de(t).get("sem_foto")],
+         "; ", "Posse não conferida, aceito com motivo: {}"),
+    )
+    return [modelo.format(separador.join(itens)) for itens, separador, modelo in ressalvas if itens]
 
 
 def cmd_encerrar(a) -> int:
@@ -1354,30 +1404,39 @@ def cmd_encerrar(a) -> int:
         q["lacunas"] = list(dict.fromkeys(q.get("lacunas", []) + a.lacuna))
     vista = vista_publica(q)
     if not vista["pode_encerrar"]:
-        cobertas = lacunas_declaradas(q)
-        sem_lacuna = [tid for tid in pendencias(q) if tid not in cobertas]
-        puladas = [tid for tid in sem_lacuna if gate_pulado(q["tasks"][tid])]
-        abertas = [tid for tid in sem_lacuna if tid not in puladas]
-        if abertas:
-            print(f"❌ {len(abertas)} tarefa(s) aberta(s) sem lacuna declarada: "
-                  f"{', '.join(abertas)}")
-        if puladas:
-            print(f"❌ {len(puladas)} tarefa(s) concluída(s) com gate pulado sem lacuna "
-                  "declarada: " + "; ".join(f"{tid} ({motivo_do_pulo(q['tasks'][tid])})"
-                                            for tid in puladas))
-            print("   Pronto só com gate rodado: o que pulou o gate é lacuna, e entra no")
-            print("   relatório como tal.")
-        print("   Em cadeia, uma falha para tudo e todo mundo vê. Em grafo, o nó que")
-        print("   falhou some num relatório que parece completo — é esse relatório que")
-        print("   esta recusa existe para impedir.")
-        primeira = sem_lacuna[0]
-        texto = (f"{primeira}: gate pulado — {motivo_do_pulo(q['tasks'][primeira])}"
-                 if primeira in puladas else f"{primeira}: motivo")
-        print(f"   Declare: quadro.py encerrar {a.slug} --lacuna \"{texto}\"")
+        explicar_recusa_do_encerrar(q, a.slug)
         return 1
     q["encerrado_em"] = agora()
     registrar(q, "encerrou", completo=vista["completo"], lacunas=len(vista["lacunas"]))
     salvar(q)
+    anunciar_encerramento(q, vista)
+    return 0
+
+
+def explicar_recusa_do_encerrar(q: dict, slug: str) -> None:
+    cobertas = lacunas_declaradas(q)
+    sem_lacuna = [tid for tid in pendencias(q) if tid not in cobertas]
+    puladas = [tid for tid in sem_lacuna if gate_pulado(q["tasks"][tid])]
+    abertas = [tid for tid in sem_lacuna if tid not in puladas]
+    if abertas:
+        print(f"❌ {len(abertas)} tarefa(s) aberta(s) sem lacuna declarada: "
+              f"{', '.join(abertas)}")
+    if puladas:
+        print(f"❌ {len(puladas)} tarefa(s) concluída(s) com gate pulado sem lacuna "
+              "declarada: " + "; ".join(f"{tid} ({motivo_do_pulo(q['tasks'][tid])})"
+                                        for tid in puladas))
+        print("   Pronto só com gate rodado: o que pulou o gate é lacuna, e entra no")
+        print("   relatório como tal.")
+    print("   Em cadeia, uma falha para tudo e todo mundo vê. Em grafo, o nó que")
+    print("   falhou some num relatório que parece completo — é esse relatório que")
+    print("   esta recusa existe para impedir.")
+    primeira = sem_lacuna[0]
+    texto = (f"{primeira}: gate pulado — {motivo_do_pulo(q['tasks'][primeira])}"
+             if primeira in puladas else f"{primeira}: motivo")
+    print(f"   Declare: quadro.py encerrar {slug} --lacuna \"{texto}\"")
+
+
+def anunciar_encerramento(q: dict, vista: dict) -> None:
     pe = vista["por_estado"]
     puladas = sum(1 for t in q["tasks"].values() if gate_pulado(t))
     print(f"🏁 {q['slug']} encerrado · {pe['concluida']} de {vista['total']} tarefas "
@@ -1385,7 +1444,6 @@ def cmd_encerrar(a) -> int:
           + (f", {puladas} delas com o gate pulado." if puladas else "."))
     for texto in vista["lacunas"]:
         print(f"   ⚠️  lacuna: {texto}")
-    return 0
 
 
 def cmd_listar(a) -> int:

@@ -428,6 +428,15 @@ class CorroborarSoOQueRodou(unittest.TestCase):
         self.assertEqual(self.veredicto("pytest tests/", gravado("pytest tests/ <<< entrada")),
                          "corroborado")                   # `<<<` é here-string, não heredoc
 
+    def test_cerquilha_no_meio_da_palavra_e_heredoc_sem_fim(self) -> None:
+        """O `#` só abre comentário no começo de uma palavra: `a#b` é palavra, e o que vem
+        depois dela roda. O heredoc cortado antes do delimitador (o corte do LIMITE_CMD) é
+        corpo até o fim: nada nele roda."""
+        self.assertEqual(self.veredicto("pytest tests/", gravado("echo a#b; pytest tests/")),
+                         "corroborado")
+        self.assertEqual(self.veredicto("pytest tests/", gravado("cat <<EOF\npytest tests/")),
+                         "nao_corroborado")
+
     def test_alegado_vazio_nao_corrobora_nada(self) -> None:
         for alegado in ("", "   "):
             self.assertEqual(self.veredicto(alegado, gravado("pytest")), "nao_corroborado")

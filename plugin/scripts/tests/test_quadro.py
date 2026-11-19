@@ -1,6 +1,7 @@
 """Testes do `quadro.py` — a posse exercida, conferida no git, e a recusa de concluir sem
 a foto que a confere (ADR-0048); o gate pulado que não conta como pronto e o quadro vazio
-que não encerra (ADR-0036).
+que não encerra (ADR-0036); e o que `prontas`, `estado`, `ledger`, `concluir` e `encerrar`
+dizem a quem lê o terminal, linha a linha.
 
 Cada teste roda num repositório git de verdade, num diretório temporário, porque o
 `quadro.py` trabalha relativo ao cwd e a conferência lê o `git status` e o HEAD.
@@ -481,6 +482,181 @@ class Encerrar(ComRepositorio):
         self.assertEqual(codigo, 1)
         self.assertIn("T1", saida)
         self.assertEqual(rodar("encerrar", "q", "--lacuna", "T1: fora do apetite")[0], 0)
+
+
+class Prontas(ComRepositorio):
+    def test_onda_lista_quem_entra_e_por_que_cada_planejada_ficou_de_fora(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        self.adicionar("T2", "--posse", "docs/**", "--depende", "T1")
+        self.adicionar("T3", "--posse", "src/**")
+        codigo, saida = rodar("prontas", "q")
+        self.assertEqual(codigo, 0)
+        self.assertIn("🚀 onda 1 — 1 de até 6:", saida)
+        self.assertIn("   T1 · lucas · tier padrao · posse src/**\n       T1\n", saida)
+        self.assertIn("⏳ fora desta onda: T2 (espera T1); T3 (posse ocupada (src/** × src/**))",
+                      saida)
+
+    def test_onda_sem_ninguem_de_fora_nao_diz_fora(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        self.assertNotIn("fora desta onda", rodar("prontas", "q")[1])
+
+    def test_nada_pronto_explica_so_a_planejada_e_a_bloqueada(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        self.adicionar("T2", "--posse", "docs/**", "--depende", "T1")
+        self.adicionar("T3", "--posse", "lib/**", "--depende", "T1")
+        rodar("iniciar", "q", "T1")
+        rodar("bloquear", "q", "T3", "--motivo", "sem rede")
+        codigo, saida = rodar("prontas", "q")
+        self.assertEqual(codigo, 0)
+        self.assertIn("⏸️  nada pronto agora.", saida)
+        self.assertIn("   T2: espera T1", saida)
+        self.assertIn("   T3: ", saida)
+        self.assertNotIn("T1:", saida)                  # em voo não é explicada
+
+    def test_quadro_completo_manda_encerrar(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        rodar("iniciar", "q", "T1")
+        self.concluir("T1")
+        _, saida = rodar("prontas", "q")
+        self.assertEqual(saida.strip(),
+                         "✅ nada pronto: todas as tarefas concluídas. Rode `encerrar`.")
+
+    def test_json_traz_a_proxima_onda(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        dados = json.loads(rodar("prontas", "q", "--json")[1])
+        self.assertEqual(dados, {"prontas": ["T1"], "fora": {}, "teto_onda": 6, "onda": 1})
+
+
+class Concluir(ComRepositorio):
+    def test_recusas_antes_do_gate(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        rodar("iniciar", "q", "T1")
+        codigo, saida = self.concluir("T9")
+        self.assertEqual((codigo, saida.strip()), (1, "❌ tarefa 'T9' não existe."))
+        codigo, saida = rodar("concluir", "q", "T1", "--evidencia", "  ", "--gate-ok")
+        self.assertEqual(codigo, 1)
+        self.assertIn("--evidencia vazia", saida)
+        self.assertEqual(self.tarefa("T1")["estado"], "em_progresso")
+
+    def test_ja_concluida_nao_muda_nada(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        rodar("iniciar", "q", "T1")
+        self.concluir("T1")
+        antes = self.tarefa("T1")
+        codigo, saida = rodar("concluir", "q", "T1", "--evidencia", "outra",
+                              "--gate-pulado", "x")
+        self.assertEqual((codigo, saida.strip()), (0, "⚠️  T1 já estava concluída."))
+        self.assertEqual(self.tarefa("T1"), antes)
+
+    def test_sem_gate_cita_o_gate_declarado(self) -> None:
+        self.adicionar("T1", "--posse", "src/**", "--gate", "pytest -q")
+        rodar("iniciar", "q", "T1")
+        codigo, saida = rodar("concluir", "q", "T1", "--evidencia", "e")
+        self.assertEqual(codigo, 1)
+        self.assertIn("❌ falta o resultado do gate — pytest -q.", saida)
+
+    def test_sem_gate_declarado_diz_que_nao_ha(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        rodar("iniciar", "q", "T1")
+        _, saida = rodar("concluir", "q", "T1", "--evidencia", "e")
+        self.assertIn("— (nenhum gate declarado).", saida)
+
+    def test_gate_ok_grava_ok_e_nao_pede_lacuna(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        rodar("iniciar", "q", "T1")
+        codigo, saida = self.concluir("T1")
+        self.assertEqual(codigo, 0, saida)
+        self.assertIn("✅ T1 concluída (1 de 1) · gate: ok", saida)
+        self.assertNotIn("--lacuna", saida)
+        self.assertEqual(self.tarefa("T1")["gate_resultado"], "ok")
+
+    def test_motivo_do_pulo_vai_sem_espacos_nas_pontas(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        rodar("iniciar", "q", "T1")
+        _, saida = rodar("concluir", "q", "T1", "--evidencia", "e", "--gate-pulado", "  sem banco ")
+        self.assertEqual(self.tarefa("T1")["gate_resultado"], "pulado: sem banco")
+        self.assertIn('--lacuna "T1: gate pulado — sem banco"', saida)
+
+
+class Estado(ComRepositorio):
+    def test_colunas_bloqueio_e_o_que_pode_lancar(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        self.adicionar("T2", "--posse", "docs/**")
+        self.adicionar("T3", "--posse", "lib/**")
+        rodar("iniciar", "q", "T1", "--agente", "ana")
+        rodar("bloquear", "q", "T2", "--motivo", "sem rede")
+        codigo, saida = rodar("estado", "q")
+        self.assertEqual(codigo, 0)
+        linhas = saida.splitlines()
+        self.assertEqual(linhas[0], "📋 q · onda 1 · teto 6")
+        self.assertEqual(linhas[2:], [
+            "   A fazer: T3",
+            "   Em progresso: T1 (ana)",
+            "   Bloqueadas: T2",
+            "   ⛔ T2: sem rede",
+            "   🚀 pode lançar agora: T3",
+        ])
+
+    def test_encerrado_mostra_as_lacunas_e_nao_encerra_de_novo(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        self.adicionar("T2", "--posse", "docs/**")
+        rodar("iniciar", "q", "T1")
+        self.concluir("T1")
+        self.assertEqual(rodar("encerrar", "q", "--lacuna", "T2: fora do apetite")[0], 0)
+        _, saida = rodar("estado", "q")
+        self.assertIn("📋 q · onda 1 · teto 6 · ENCERRADO", saida)
+        self.assertIn("   Pronto: T1 ✓gate", saida)
+        self.assertIn("   ⚠️  lacunas declaradas: T2: fora do apetite", saida)
+        codigo, saida = rodar("encerrar", "q")
+        self.assertEqual((codigo, saida.strip()), (0, "⚠️  quadro já encerrado."))
+
+    def test_rotulo_da_tarefa(self) -> None:
+        def t(estado: str, agente: str | None = None, gate: str | None = None) -> dict:
+            return {"estado": estado, "agente": agente, "gate_resultado": gate}
+        self.assertEqual(quadro.rotulo_da_tarefa("T1", t("em_progresso", "ana")), "T1 (ana)")
+        self.assertEqual(quadro.rotulo_da_tarefa("T1", t("em_progresso")), "T1")
+        self.assertEqual(quadro.rotulo_da_tarefa("T1", t("concluida", "ana", "ok")), "T1 ✓gate")
+        self.assertEqual(quadro.rotulo_da_tarefa("T1", t("concluida", "ana", "pulado: x")),
+                         "T1 ⚠gate pulado")
+        self.assertEqual(quadro.rotulo_da_tarefa("T1", t("planejada")), "T1")
+
+
+class Ledger(ComRepositorio):
+    RESSALVAS = ("Gate pulado:", "Lacunas:", "Fora da posse, aceito com motivo:",
+                 "Posse não conferida, aceito com motivo:")
+
+    def test_sem_ressalva_nao_imprime_nenhuma(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        rodar("iniciar", "q", "T1")
+        self.concluir("T1")
+        _, saida = rodar("ledger", "q")
+        self.assertIn("Entrega: 1 de 1 tarefas planejadas.\nTokens:", saida)
+        for rotulo in self.RESSALVAS:
+            self.assertNotIn(rotulo, saida)
+
+    def test_as_quatro_ressalvas_na_ordem(self) -> None:
+        self.adicionar("T1", "--posse", "src/**")
+        self.adicionar("T2", "--posse", "lib/**")
+        self.adicionar("T3", "--posse", "docs/**")
+        self.adicionar("T4", "--posse", "web/**")
+        rodar("iniciar", "q", "T1")
+        Path("README.md").write_text("# mexido\n", encoding="utf-8")
+        self.concluir("T1", "--fora-da-posse", "instrução de uso nova")
+        rodar("iniciar", "q", "T2")
+        rodar("iniciar", "q", "T3")
+        rodar("concluir", "q", "T2", "--evidencia", "e", "--gate-pulado", "sem banco")
+        quadro.caminho_da_foto("q", "T3").unlink()
+        self.concluir("T3", "--sem-foto", "conferido à mão")
+        _, saida = rodar("ledger", "q")
+        esperado = [
+            "Gate pulado: T2 (sem banco) — concluída não é pronta sem o gate.",
+            "Lacunas: T2, T4 — declare cada uma, nunca omita.",
+            "Fora da posse, aceito com motivo: T1 (instrução de uso nova)",
+            "Posse não conferida, aceito com motivo: T3 (conferido à mão)",
+        ]
+        linhas = saida.splitlines()
+        inicio = linhas.index(esperado[0])
+        self.assertEqual(linhas[inicio:inicio + 4], esperado)
 
 
 class RegexDaPosse(unittest.TestCase):

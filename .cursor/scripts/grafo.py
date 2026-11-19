@@ -122,6 +122,10 @@ class Grafo:
                     )
             if not tem_fonte(r.get("fonte")):
                 erros.append(f"relacoes.jsonl: relação {i} sem fonte")
+        return erros + self._erros_das_entidades()
+
+    def _erros_das_entidades(self) -> list:
+        erros = []
         # Proveniência por linha (ADR-0009): `"fontes": []` tem o campo e nenhuma fonte.
         for e in self.entidades:
             if not tem_fonte(e.get("fontes")):

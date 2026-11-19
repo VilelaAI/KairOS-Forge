@@ -494,6 +494,38 @@ class ArtefatoGerado(ComCommit):
         self.assertTrue(guardrail.carrega_marca_gerado(f"# {guardrail.MARCA_GERADO}\nx = 1\n"))
 
 
+class GeradosModificados(ComCommit):
+    """O modo CLI só observa o estado que o git registra: o espelho puro conta pelo caminho,
+    o resto pela marca, e o que não dá para ler fica de fora em vez de virar achado."""
+
+    def test_espelho_puro_conta_pelo_caminho_mesmo_sem_marca(self) -> None:
+        base = {".agents/laura/AGENT.md": "# Laura\n", ".cursor/skills/x/SKILL.md": "# x\n",
+                "src/app.py": "x = 1\n"}
+        self.commitar(base)
+        for rel, texto in base.items():
+            (self.raiz / rel).write_text(texto + "mais\n", encoding="utf-8")
+        self.assertEqual(guardrail.gerados_modificados(self.raiz),
+                         [".agents/laura/AGENT.md", ".cursor/skills/x/SKILL.md"])
+
+    def test_sem_commit_sem_git_ou_git_que_trava_devolve_vazio(self) -> None:
+        (self.raiz / ".tucano").mkdir()
+        (self.raiz / ".tucano" / "time.md").write_text("x\n", encoding="utf-8")
+        self.assertEqual(guardrail.gerados_modificados(self.raiz), [])
+        for erro in (FileNotFoundError("git"), subprocess.TimeoutExpired("git", 15)):
+            with self.subTest(erro=type(erro).__name__), \
+                    mock.patch.object(guardrail.subprocess, "run", side_effect=erro):
+                self.assertEqual(guardrail.gerados_modificados(self.raiz), [])
+
+    def test_arquivo_que_nao_se_le_fica_de_fora(self) -> None:
+        rel = ".codex/agents/laura.toml"
+        self.commitar({rel: f"# {guardrail.MARCA_GERADO}\nnome = 'laura'\n"})
+        with (self.raiz / rel).open("a", encoding="utf-8") as f:
+            f.write("x = 1\n")
+        self.assertEqual(guardrail.gerados_modificados(self.raiz), [rel])
+        with mock.patch.object(Path, "read_text", side_effect=PermissionError(rel)):
+            self.assertEqual(guardrail.gerados_modificados(self.raiz), [])
+
+
 class Principal(Sandbox):
     """O `main`: uso, `verificar`, modo hook e a falha aberta, no mesmo processo."""
 

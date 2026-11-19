@@ -145,9 +145,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
+from functools import cache
 from pathlib import Path
+from typing import NamedTuple
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -397,6 +400,27 @@ def _relativo(caminho: str, worktree: Path | None) -> str:
     return caminho
 
 
+def _arquivo_do_projeto(caminho: str | None) -> bool:
+    """O arquivo que o worktree tem; `<unknown>` e o caminho absoluto que sobrou são código
+    montado em tempo de teste (`ast.parse`, `JSON.parse`): falha comum."""
+    return bool(caminho) and not caminho.startswith("<") and not Path(caminho).is_absolute()
+
+
+def _falta_na_linha(linha: str, ultimo_arquivo: str | None) -> dict | None:
+    """A falta da primeira linha de `FALTAS` que casa; None sem nenhuma, ou quando o erro de
+    sintaxe não é de um arquivo do projeto."""
+    for tipo, lingua, rx in FALTAS:
+        m = rx.search(linha)
+        if not m:
+            continue
+        campos = m.groupdict()
+        alvo = ultimo_arquivo if tipo == "sintaxe" else campos.get("alvo")
+        if tipo == "sintaxe" and not _arquivo_do_projeto(alvo):
+            return None
+        return {"tipo": tipo, "lingua": lingua, "alvo": alvo, "de": campos.get("de")}
+    return None
+
+
 def faltas_na_carga(saida: str, worktree: Path | None) -> list[dict]:
     """O que a base não conseguiu carregar, lido da saída do runner, uma vez cada."""
     faltas, ultimo_arquivo = {}, None
@@ -404,17 +428,9 @@ def faltas_na_carga(saida: str, worktree: Path | None) -> list[dict]:
         arquivo = ARQUIVO_PY.search(linha)
         if arquivo:
             ultimo_arquivo = _relativo(arquivo.group("arquivo"), worktree)
-        for tipo, lingua, rx in FALTAS:
-            m = rx.search(linha)
-            if not m:
-                continue
-            campos = m.groupdict()
-            alvo = ultimo_arquivo if tipo == "sintaxe" else campos.get("alvo")
-            if tipo == "sintaxe" and (not alvo or alvo.startswith("<") or Path(alvo).is_absolute()):
-                break   # código montado em tempo de teste (`ast.parse`, `JSON.parse`): falha comum
-            falta = {"tipo": tipo, "lingua": lingua, "alvo": alvo, "de": campos.get("de")}
-            faltas.setdefault((tipo, lingua, alvo, falta["de"]), falta)
-            break
+        falta = _falta_na_linha(linha, ultimo_arquivo)
+        if falta:
+            faltas.setdefault(tuple(falta.values()), falta)
     if not faltas and CARGA.search(saida):
         return [{"tipo": "carga", "lingua": None, "alvo": None, "de": None}]
     return list(faltas.values())
@@ -462,34 +478,48 @@ def _pacote_go(raiz: Path, rel: str) -> str | None:
     return None
 
 
-def explicada(falta: dict, acrescentado: dict[str, list[str]], raiz: Path,
-              worktree: Path | None) -> bool:
-    """A falta é o que o diff acrescenta em código de produção (não em teste nem no suporte)."""
-    tipo, lingua, alvo, de = falta["tipo"], falta["lingua"], falta["alvo"], falta["de"]
-    codigo = [f for f in acrescentado if not eh_suporte_de_teste(f)]
-    if not alvo:
-        return False
-    if tipo == "sintaxe":
-        return alvo in codigo
-    da_lingua = [f for f in codigo if Path(f).suffix in EXT_LINGUA[lingua]]
-    if tipo == "modulo":
-        if lingua == "py":
-            return any(_modulo_py(f, alvo) for f in da_lingua)
-        if lingua == "js":
-            return any(_modulo_js(f, alvo, worktree) for f in da_lingua)
-        return any(_pacote_go(raiz, f) == alvo for f in da_lingua)
-    if tipo == "fixture":
-        # A fixture é suporte de teste: a palavra citada em produção não a explica (a do plugin
-        # que não está instalado, como `settings`, é palavra comum); só a que o diff define lá.
-        define = re.compile(rf"^\s*(?:async\s+)?def\s+{re.escape(alvo)}\s*\("
-                            rf"|\bname\s*=\s*['\"]{re.escape(alvo)}['\"]")
-        return any(define.search(linha) for f in da_lingua for linha in acrescentado[f])
+def _modulo_acrescentado(alvo: str, lingua: str, da_lingua: list[str], raiz: Path,
+                         worktree: Path | None) -> bool:
+    if lingua == "py":
+        return any(_modulo_py(f, alvo) for f in da_lingua)
+    if lingua == "js":
+        return any(_modulo_js(f, alvo, worktree) for f in da_lingua)
+    return any(_pacote_go(raiz, f) == alvo for f in da_lingua)
+
+
+def _fixture_definida(alvo: str, da_lingua: list[str], acrescentado: dict[str, list[str]]) -> bool:
+    # A fixture é suporte de teste: a palavra citada em produção não a explica (a do plugin
+    # que não está instalado, como `settings`, é palavra comum); só a que o diff define lá.
+    define = re.compile(rf"^\s*(?:async\s+)?def\s+{re.escape(alvo)}\s*\("
+                        rf"|\bname\s*=\s*['\"]{re.escape(alvo)}['\"]")
+    return any(define.search(linha) for f in da_lingua for linha in acrescentado[f])
+
+
+def _nome_acrescentado(alvo: str, lingua: str, de: str | None, da_lingua: list[str],
+                       acrescentado: dict[str, list[str]]) -> bool:
     if lingua == "py" and de:
         if any(_modulo_py(f, f"{de}.{alvo}") for f in da_lingua):
             return True                       # `from app import novo`, o submódulo novo
         da_lingua = [f for f in da_lingua if _modulo_py(f, de)]
     palavra = re.compile(rf"(?<![\w$]){re.escape(alvo)}(?![\w$])")
     return any(palavra.search(linha) for f in da_lingua for linha in acrescentado[f])
+
+
+def explicada(falta: dict, acrescentado: dict[str, list[str]], raiz: Path,
+              worktree: Path | None) -> bool:
+    """A falta é o que o diff acrescenta em código de produção (não em teste nem no suporte)."""
+    tipo, lingua, alvo, de = falta["tipo"], falta["lingua"], falta["alvo"], falta["de"]
+    if not alvo:
+        return False
+    codigo = [f for f in acrescentado if not eh_suporte_de_teste(f)]
+    if tipo == "sintaxe":
+        return alvo in codigo
+    da_lingua = [f for f in codigo if Path(f).suffix in EXT_LINGUA[lingua]]
+    if tipo == "modulo":
+        return _modulo_acrescentado(alvo, lingua, da_lingua, raiz, worktree)
+    if tipo == "fixture":
+        return _fixture_definida(alvo, da_lingua, acrescentado)
+    return _nome_acrescentado(alvo, lingua, de, da_lingua, acrescentado)
 
 
 def _o_que_falta(falta: dict) -> str:
@@ -585,6 +615,77 @@ def acrescentado_no_diff(raiz: Path, ponto: str) -> dict[str, list[str]]:
     return arquivos
 
 
+class WorktreeDaBase(NamedTuple):
+    """O worktree da base com o lado de teste do diff, onde cada teste novo é julgado."""
+    raiz: Path
+    worktree: Path
+    ponto: str
+    tempo_limite: int
+    conftests: list[str]
+    acrescentado: Callable[[], dict[str, list[str]]]   # lido do diff só quando há falta
+
+
+def _de_novo_sem_o_conftest(wt: WorktreeDaBase, par: tuple[str, str], saida: str,
+                            julgado: tuple[str, str]) -> tuple[str, str] | None:
+    """O veredicto da segunda rodada, quando a prova da primeira pode ser só o conftest do diff
+    que não carrega na base; None quando a primeira vale."""
+    if julgado[0] != "falhou_na_base" or not wt.conftests or not CONFTEST_QUEBRADO.search(saida):
+        return None
+    return sem_o_conftest_do_diff(wt.raiz, wt.worktree, wt.ponto, wt.conftests, par,
+                                  wt.tempo_limite, wt.acrescentado)
+
+
+def veredicto_da_rodada(wt: WorktreeDaBase, par: tuple[str, str], codigo: int,
+                        saida: str) -> dict:
+    """Os campos do item que a saída do teste na base decide."""
+    if SEM_COLETA.search(saida) or codigo == 5:  # 5 = pytest sem coleta
+        return {"motivo": "nenhum teste coletado no worktree da base"}
+    if codigo == 0:
+        return {"veredicto": "passou_na_base", "motivo": "passa sem a mudança — não prova a mudança"}
+    ultimas = [l for l in saida.strip().splitlines() if l.strip()][-3:]
+    if codigo in (126, 127):   # o executor nem rodou: comando inexistente ou sem permissão
+        return {"motivo": (f"exit {codigo} na base: o comando do teste nem rodou — "
+                           "confira o ambiente ou passe --comando"),
+                "ultimas_linhas": ultimas}
+    julgado = veredicto_da_falha(saida, codigo, wt.acrescentado, wt.raiz, wt.worktree)
+    veredicto, motivo = _de_novo_sem_o_conftest(wt, par, saida, julgado) or julgado
+    return {"veredicto": veredicto, "motivo": motivo, "ultimas_linhas": ultimas}
+
+
+def julgar_teste(wt: WorktreeDaBase, rel: str, copiado: bool, template: str | None) -> dict:
+    """Um teste novo rodado na base: o comando, a saída lida e o veredicto."""
+    item = {"arquivo": rel, "veredicto": "nao_executado", "motivo": "", "comando": ""}
+    if not copiado:
+        item["motivo"] = "não copiei o teste para o worktree"
+        return item
+    par = comando_para(wt.raiz, rel, template)
+    if par is None:
+        item["motivo"] = "ecossistema sem comando conhecido — passe --comando"
+        return item
+    item["comando"] = par[0]
+    rodada = _rodar_na_base(*par, wt.worktree, wt.tempo_limite)
+    if rodada is None:
+        item["motivo"] = f"estourou {wt.tempo_limite}s"
+        return item
+    item.update(veredicto_da_rodada(wt, par, *rodada))
+    return item
+
+
+def julgar_na_base(raiz: Path, worktree: Path, ponto: str, novos: list[str],
+                   template: str | None, tempo_limite: int) -> list[dict]:
+    """Cada teste novo julgado no worktree da base, com o suporte de teste do diff já lá."""
+    copiados = set(_copiar(raiz, worktree, suporte_do_diff(raiz, ponto)))
+    wt = WorktreeDaBase(raiz, worktree, ponto, tempo_limite,
+                        conftests=sorted(c for c in copiados if Path(c).name == "conftest.py"),
+                        acrescentado=cache(lambda: acrescentado_no_diff(raiz, ponto)))
+    testes = []
+    for rel in novos:
+        if rel not in copiados:   # o `_test.go` novo, na sua vez
+            copiados.update(_copiar(raiz, worktree, [rel]))
+        testes.append(julgar_teste(wt, rel, rel in copiados, template))
+    return testes
+
+
 def pre_patch(raiz: Path, base: str | None, template: str | None,
               tempo_limite: int) -> dict:
     base = base or base_padrao(raiz)
@@ -608,53 +709,7 @@ def pre_patch(raiz: Path, base: str | None, template: str | None,
             return {"erro": f"não consegui criar worktree na base: {r.stderr.strip()[:200]}",
                     "testes": []}
         resultado["ligadas"] = ligar_dependencias(raiz, worktree)
-        copiados = set(_copiar(raiz, worktree, suporte_do_diff(raiz, ponto)))
-        conftests = sorted(c for c in copiados if Path(c).name == "conftest.py")
-        cache: dict = {}
-
-        def acrescentado() -> dict[str, list[str]]:
-            if "arquivos" not in cache:
-                cache["arquivos"] = acrescentado_no_diff(raiz, ponto)
-            return cache["arquivos"]
-
-        for rel in novos:
-            item = {"arquivo": rel, "veredicto": "nao_executado", "motivo": "", "comando": ""}
-            resultado["testes"].append(item)
-            if rel not in copiados:   # o `_test.go` novo, na sua vez
-                copiados.update(_copiar(raiz, worktree, [rel]))
-            if rel not in copiados:
-                item["motivo"] = "não copiei o teste para o worktree"
-                continue
-            par = comando_para(raiz, rel, template)
-            if par is None:
-                item["motivo"] = "ecossistema sem comando conhecido — passe --comando"
-                continue
-            item["comando"] = par[0]
-            rodada = _rodar_na_base(*par, worktree, tempo_limite)
-            if rodada is None:
-                item["motivo"] = f"estourou {tempo_limite}s"
-                continue
-            codigo, saida = rodada
-            if SEM_COLETA.search(saida) or codigo == 5:  # 5 = pytest sem coleta
-                item["motivo"] = "nenhum teste coletado no worktree da base"
-                continue
-            if codigo == 0:
-                item["veredicto"] = "passou_na_base"
-                item["motivo"] = "passa sem a mudança — não prova a mudança"
-                continue
-            if codigo in (126, 127):   # o executor nem rodou: comando inexistente ou sem permissão
-                item["motivo"] = (f"exit {codigo} na base: o comando do teste nem rodou — "
-                                  "confira o ambiente ou passe --comando")
-                item["ultimas_linhas"] = [l for l in saida.strip().splitlines() if l.strip()][-3:]
-                continue
-            item["veredicto"], item["motivo"] = veredicto_da_falha(
-                saida, codigo, acrescentado, raiz, worktree)
-            item["ultimas_linhas"] = [l for l in saida.strip().splitlines() if l.strip()][-3:]
-            if item["veredicto"] == "falhou_na_base" and conftests and CONFTEST_QUEBRADO.search(saida):
-                outra = sem_o_conftest_do_diff(raiz, worktree, ponto, conftests, par, tempo_limite,
-                                               acrescentado)
-                if outra:
-                    item["veredicto"], item["motivo"] = outra
+        resultado["testes"] = julgar_na_base(raiz, worktree, ponto, novos, template, tempo_limite)
     finally:
         git(raiz, "worktree", "remove", "--force", str(worktree), timeout=60)
         git(raiz, "worktree", "prune")
@@ -1862,12 +1917,16 @@ def imprimir_pre_patch(r: dict) -> None:
         print(f"      {t['motivo']}")
         for l in t.get("ultimas_linhas", []):
             print(f"      │ {l[:110]}")
-    sem_carga = [t for t in r["testes"] if t["veredicto"] == "erro_na_base"]
+    _imprimir_resumo_pre_patch(r["testes"])
+
+
+def _imprimir_resumo_pre_patch(testes: list[dict]) -> None:
+    sem_carga = [t for t in testes if t["veredicto"] == "erro_na_base"]
     if sem_carga:
         print(f"\n   {len(sem_carga)} teste(s) novo(s) não carregaram na base por algo que o diff "
               "não acrescenta\n   (dependência, sintaxe, auxiliar): não provam a mudança. "
               "Corrija o ambiente ou o teste e rode de novo.")
-    ruins = [t for t in r["testes"] if t["veredicto"] == "passou_na_base"]
+    ruins = [t for t in testes if t["veredicto"] == "passou_na_base"]
     if ruins:
         print(f"\n   {len(ruins)} teste(s) novo(s) passam sem a mudança. Ou o teste não exercita "
               "o que o patch fez,\n   ou é regressão de comportamento que a base já tinha — "

@@ -417,6 +417,30 @@ def caixa_github(raiz: Path) -> tuple[dict, list[dict]]:
     return {"estado": "consultado"}, itens
 
 
+# O que um quadro aberto espera de uma pessoa: (lista da vista, tipo do item, o quê, como).
+PENDENCIAS_DO_QUADRO = (
+    ("bloqueadas", "bloqueada", "tarefa {tid} bloqueada",
+     "resolva o bloqueio com a Laura; ela reabre com quadro.py reabrir"),
+    ("vencidas", "vencida", "tarefa {tid} passou do tempo limite",
+     "quadro.py varrer {slug} — o worker pode ter morrido"),
+    ("gate_pulado", "gate_pulado", "tarefa {tid} concluída com o gate pulado",
+     'declare a lacuna ao encerrar: quadro.py encerrar {slug} --lacuna "{tid}: gate pulado — <motivo>"'),
+)
+
+
+def _itens_dos_quadros(raiz: Path) -> list[dict]:
+    """As pendências de cada quadro aberto, na ordem da tabela; o encerrado não espera nada."""
+    itens = []
+    for q in ler_quadros(raiz):
+        if q.get("encerrado"):
+            continue
+        for lista, tipo, o_que, como in PENDENCIAS_DO_QUADRO:
+            itens += [{"tipo": tipo, "onde": q["slug"], "o_que": o_que.format(tid=tid),
+                       "como": como.format(tid=tid, slug=q["slug"])}
+                      for tid in q.get(lista) or []]
+    return itens
+
+
 def caixa(raiz: Path, github: bool = False) -> dict:
     itens = []
     for c in ler_ciclos(raiz):
@@ -432,21 +456,7 @@ def caixa(raiz: Path, github: bool = False) -> dict:
             itens.append({"tipo": "spec_alterada", "onde": spec,
                           "o_que": "a SPEC mudou depois da aprovação",
                           "como": f"aceite com ciclo.py reaprovar {spec}, ou desfaça a mudança"})
-    for q in ler_quadros(raiz):
-        if q.get("encerrado"):
-            continue
-        for tid in q.get("bloqueadas") or []:
-            itens.append({"tipo": "bloqueada", "onde": q["slug"], "o_que": f"tarefa {tid} bloqueada",
-                          "como": "resolva o bloqueio com a Laura; ela reabre com quadro.py reabrir"})
-        for tid in q.get("vencidas") or []:
-            itens.append({"tipo": "vencida", "onde": q["slug"],
-                          "o_que": f"tarefa {tid} passou do tempo limite",
-                          "como": f"quadro.py varrer {q['slug']} — o worker pode ter morrido"})
-        for tid in q.get("gate_pulado") or []:
-            itens.append({"tipo": "gate_pulado", "onde": q["slug"],
-                          "o_que": f"tarefa {tid} concluída com o gate pulado",
-                          "como": f"declare a lacuna ao encerrar: quadro.py encerrar {q['slug']} "
-                                  f"--lacuna \"{tid}: gate pulado — <motivo>\""})
+    itens += _itens_dos_quadros(raiz)
     gh = {"estado": "nao_consultado"}
     if github:
         gh, extras = caixa_github(raiz)
@@ -478,6 +488,22 @@ def render_caixa(d: dict) -> str:
 def barra(pct: int, largura: int = 20) -> str:
     cheio = round(pct * largura / 100)
     return "█" * cheio + "░" * (largura - cheio)
+
+
+def listas_do_quadro(q: dict) -> list[tuple[str, list]]:
+    """As listas de tarefas que o painel mostra de um quadro, na ordem dele e só as que têm
+    tarefa. Quadro fechado não lança nada, e o gate pulado já foi cobrado no `encerrar`."""
+    aberto = not q["encerrado"]
+    pares = (("em_voo", q["em_voo"]),
+             ("prontas", q["prontas"] if aberto else []),
+             ("bloqueadas", q["bloqueadas"]),
+             ("vencidas", q.get("vencidas")),     # em voo além do prazo — segura a onda (ADR-0036)
+             ("gate_pulado", q.get("gate_pulado") if aberto else []))
+    return [(lista, tids) for lista, tids in pares if tids]
+
+
+ROTULO_NO_TERMINAL = {"em_voo": "em voo", "prontas": "pode lançar", "bloqueadas": "bloqueadas",
+                      "vencidas": "⏱️ vencidas", "gate_pulado": "🚧 gate pulado, sem lacuna"}
 
 
 def render_terminal(d: dict) -> str:
@@ -542,17 +568,8 @@ def render_terminal(d: dict) -> str:
             L.append(f"    {marca} {q['slug']}{spec}{cli}")
             L.append(f"       {barra(pct)} {pct}%  {pe['concluida']}/{total} concluídas · "
                      f"onda {q['onda']} (teto {q['teto_onda']})")
-            partes = []
-            if q["em_voo"]:
-                partes.append("em voo: " + ", ".join(q["em_voo"]))
-            if q["prontas"] and not q["encerrado"]:   # quadro fechado não lança nada
-                partes.append("pode lançar: " + ", ".join(q["prontas"]))
-            if q["bloqueadas"]:
-                partes.append("bloqueadas: " + ", ".join(q["bloqueadas"]))
-            if q.get("vencidas"):     # em voo além do prazo — segura a onda (ADR-0036)
-                partes.append("⏱️ vencidas: " + ", ".join(q["vencidas"]))
-            if q.get("gate_pulado") and not q["encerrado"]:
-                partes.append("🚧 gate pulado, sem lacuna: " + ", ".join(q["gate_pulado"]))
+            partes = [f"{ROTULO_NO_TERMINAL[lista]}: {', '.join(tids)}"
+                      for lista, tids in listas_do_quadro(q)]
             if partes:
                 L.append("       " + " | ".join(partes))
             for texto in q["lacunas"]:
@@ -640,6 +657,22 @@ def _chips(itens, extra="") -> str:
     return "".join(f'<span class="chip {extra}">{_e(i)}</span>' for i in itens)
 
 
+# Cada lista do quadro no HTML: (classe, rótulo, o que fazer depois dos ids).
+LISTA_NO_HTML = {
+    "em_voo": ("l", "Em voo", ""),
+    "prontas": ("l", "Pode lançar", ""),
+    "bloqueadas": ("l no", "⛔ Bloqueadas", ""),
+    "vencidas": ("l warn", "⏱️ Vencidas", " — <code>quadro.py varrer</code> devolve a vaga"),
+    "gate_pulado": ("l warn", "🚧 Gate pulado, sem lacuna",
+                    " — rode o gate ou declare no <code>encerrar --lacuna</code>"),
+}
+
+
+def _lista_em_html(lista: str, tids: list) -> str:
+    classe, rotulo, depois = LISTA_NO_HTML[lista]
+    return f'<p class="{classe}">{rotulo}: {_chips(tids)}{depois}</p>'
+
+
 def render_html(d: dict) -> str:
     ciclo_por_spec = {c.get("spec"): c for c in d["ciclos"]}
     corpo = []
@@ -717,18 +750,7 @@ def render_html(d: dict) -> str:
                             for x in (q.get("spec"), q.get("cli")) if x)
         linhas = [f'<p class="l">{barra(pct)} {pct}% · {pe["concluida"]}/{total} '
                   f'concluídas · onda {q["onda"]} (teto {q["teto_onda"]})</p>']
-        if q["em_voo"]:
-            linhas.append(f'<p class="l">Em voo: {_chips(q["em_voo"])}</p>')
-        if q["prontas"] and not q["encerrado"]:
-            linhas.append(f'<p class="l">Pode lançar: {_chips(q["prontas"])}</p>')
-        if q["bloqueadas"]:
-            linhas.append(f'<p class="l no">⛔ Bloqueadas: {_chips(q["bloqueadas"])}</p>')
-        if q.get("vencidas"):   # em voo além do prazo — segura a onda (ADR-0036)
-            linhas.append(f'<p class="l warn">⏱️ Vencidas: {_chips(q["vencidas"])} — '
-                          "<code>quadro.py varrer</code> devolve a vaga</p>")
-        if q.get("gate_pulado") and not q["encerrado"]:
-            linhas.append(f'<p class="l warn">🚧 Gate pulado, sem lacuna: {_chips(q["gate_pulado"])} — '
-                          "rode o gate ou declare no <code>encerrar --lacuna</code></p>")
+        linhas += [_lista_em_html(lista, tids) for lista, tids in listas_do_quadro(q)]
         for texto in q["lacunas"]:
             linhas.append(f'<p class="l warn">⚠ Lacuna: {_e(texto)}</p>')
         if not q["encerrado"] and q["completo"]:

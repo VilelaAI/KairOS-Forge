@@ -245,12 +245,13 @@ export function ciclosSemSpec(p: Painel | null): CicloDoPainel[] {
 }
 
 export function linhasDoQuadro(q: QuadroDoPainel): string[] {
-  const linhas: string[] = []
-  if (q.emVoo.length) linhas.push(`em voo: ${q.emVoo.join(', ')}`)
-  if (q.bloqueadas.length) linhas.push(`bloqueadas: ${q.bloqueadas.join(', ')}`)
-  if (q.vencidas.length) linhas.push(`⏱️ vencidas: ${q.vencidas.join(', ')}`)
-  if (q.gatePulado.length && !q.encerrado) linhas.push(`🚧 gate pulado, sem lacuna: ${q.gatePulado.join(', ')}`)
-  return linhas
+  const listas: [string, string[]][] = [
+    ['em voo', q.emVoo],
+    ['bloqueadas', q.bloqueadas],
+    ['⏱️ vencidas', q.vencidas],
+    ['🚧 gate pulado, sem lacuna', q.encerrado ? [] : q.gatePulado],
+  ]
+  return listas.filter(([, ids]) => ids.length).map(([rotulo, ids]) => `${rotulo}: ${ids.join(', ')}`)
 }
 
 /** `--github` só quando a pessoa pediu; o resto dos argumentos não passa ao script. */

@@ -353,6 +353,118 @@ class Leitor(Repo):
         self.assertEqual(self.rodar()[0], 1)   # o que passa na base continua saindo 1
 
 
+class SemChegarAoTeste(Repo):
+    """O que para antes de o teste rodar na base diz o porquê, e o teste fica `nao_executado`."""
+
+    def test_sem_ref_de_base(self) -> None:
+        with mock.patch.object(prova, "base_padrao", return_value=None):
+            r = prova.pre_patch(self.raiz, None, None, 60)
+        self.assertEqual(r, {"erro": "nenhuma ref de base encontrada — passe --base", "testes": []})
+
+    def test_sem_merge_base(self) -> None:
+        r = prova.pre_patch(self.raiz, "ref-que-nao-existe", None, 60)
+        self.assertEqual(r, {"erro": "sem merge-base entre ref-que-nao-existe e HEAD", "testes": []})
+
+    def test_diff_sem_teste_novo(self) -> None:
+        self.escrever({"app/calc.py": CALC + "\n\ndef dobro(x):\n    return 2 * x\n"})
+        r = self.pre_patch()
+        self.assertEqual((r["testes"], r["ligadas"], r["aviso"]),
+                         ([], [], "nenhum teste novo no diff — nada a provar aqui"))
+
+    def test_worktree_que_nao_se_cria(self) -> None:
+        pasta = tempfile.TemporaryDirectory(prefix="kairos-forge-sem-worktree-")
+        self.addCleanup(pasta.cleanup)
+        ocupada = Path(pasta.name) / "tmp"
+        (ocupada / "base").mkdir(parents=True)
+        (ocupada / "base" / "ocupado").write_text("x", encoding="utf-8")
+        self.escrever({"tests/test_n.py": teste("from app.calc import soma")})
+        with mock.patch.object(prova.tempfile, "mkdtemp", return_value=str(ocupada)):
+            r = prova.pre_patch(self.raiz, "main", None, 60)
+        self.assertTrue(r["erro"].startswith("não consegui criar worktree na base: "), r)
+        self.assertEqual(r["testes"], [])
+        self.assertFalse(ocupada.exists())   # a pasta descartável sai mesmo assim
+
+    def test_teste_que_nao_copia(self) -> None:
+        self.escrever({"tests/test_n.py": teste("from app.calc import soma")})
+        with mock.patch.object(prova, "_copiar", return_value=[]):
+            r = self.pre_patch()
+        self.assertEqual(r["testes"], [{"arquivo": "tests/test_n.py", "veredicto": "nao_executado",
+                                        "motivo": "não copiei o teste para o worktree",
+                                        "comando": ""}])
+
+    def test_ecossistema_sem_comando(self) -> None:
+        self.escrever({"spec/calculo_spec.rb": "describe 'x' do\nend\n"})
+        self.assertEqual(self.item(self.pre_patch(), "spec/calculo_spec.rb"),
+                         {"arquivo": "spec/calculo_spec.rb", "veredicto": "nao_executado",
+                          "motivo": "ecossistema sem comando conhecido — passe --comando",
+                          "comando": ""})
+
+    def test_tempo_estourado(self) -> None:
+        self.escrever({"tests/test_lento.py": teste("")})
+        comando = f"exec {sys.executable} -c 'import time; time.sleep(10)' {{arquivo}}"
+        r = prova.pre_patch(self.raiz, "main", comando, 1)
+        self.assertEqual(self.git("worktree", "list").count("\n"), 1)
+        self.assertEqual(self.item(r, "tests/test_lento.py"),
+                         {"arquivo": "tests/test_lento.py", "veredicto": "nao_executado",
+                          "motivo": "estourou 1s", "comando": comando.replace("{arquivo}",
+                                                                              "tests/test_lento.py")})
+
+    def test_campos_do_item_na_ordem_do_json(self) -> None:
+        self.escrever({"app/novo.py": "def dobro(x):\n    return 2 * x\n",
+                       "tests/test_novo.py": teste("from app.novo import dobro"),
+                       "tests/test_vazio.py": teste("")})
+        r = self.pre_patch()
+        self.assertEqual(list(self.item(r, "tests/test_novo.py")),
+                         ["arquivo", "veredicto", "motivo", "comando", "ultimas_linhas"])
+        self.assertEqual(list(self.item(r, "tests/test_vazio.py")),
+                         ["arquivo", "veredicto", "motivo", "comando"])
+        self.assertEqual(list(r), ["base", "ponto", "testes", "ligadas"])
+
+
+class TextoDoPrePatch(unittest.TestCase):
+    """O texto que a pessoa lê, de cada forma de resultado."""
+
+    def texto(self, r: dict) -> str:
+        saida = io.StringIO()
+        with redirect_stdout(saida):
+            prova.imprimir_pre_patch(r)
+        return saida.getvalue()
+
+    def test_erro(self) -> None:
+        self.assertEqual(self.texto({"erro": "sem merge-base", "testes": []}),
+                         "🚫 prova pré-patch: sem merge-base\n")
+
+    def test_aviso_para_antes_dos_testes(self) -> None:
+        r = {"base": "main", "ponto": "abc123", "testes": [], "ligadas": ["node_modules"],
+             "aviso": "nenhum teste novo no diff — nada a provar aqui"}
+        self.assertEqual(self.texto(r), "🧪 Prova pré-patch — base main (abc123)\n"
+                                        "   nenhum teste novo no diff — nada a provar aqui\n")
+
+    def test_dependencias_ligadas_e_linhas_cortadas(self) -> None:
+        r = {"base": "main", "ponto": "abc123", "ligadas": ["node_modules", ".venv"],
+             "testes": [{"arquivo": "tests/test_a.py", "veredicto": "falhou_na_base",
+                         "motivo": "exit 1 na base", "comando": "x",
+                         "ultimas_linhas": ["A" * 120]}]}
+        self.assertEqual(self.texto(r), (
+            "🧪 Prova pré-patch — base main (abc123)\n"
+            "   dependências ligadas no worktree: node_modules, .venv\n"
+            "   ✅ falhou na base  tests/test_a.py\n"
+            "      exit 1 na base\n"
+            f"      │ {'A' * 110}\n"
+            "\n   Nenhum teste novo passa na base sem a mudança.\n"))
+
+    def test_erro_na_base_e_passou_na_base_juntos(self) -> None:
+        r = {"base": "main", "ponto": "abc123", "ligadas": [],
+             "testes": [{"arquivo": "tests/test_a.py", "veredicto": "erro_na_base",
+                         "motivo": "m", "comando": "x"},
+                        {"arquivo": "tests/test_b.py", "veredicto": "passou_na_base",
+                         "motivo": "m", "comando": "x"}]}
+        texto = self.texto(r)
+        self.assertIn("1 teste(s) novo(s) não carregaram na base", texto)
+        self.assertIn("1 teste(s) novo(s) passam sem a mudança", texto)
+        self.assertNotIn("Nenhum teste novo passa", texto)
+
+
 # --- a saída de cada runner, sem rodar nada ------------------------------------------
 
 WT = Path("/tmp/kairos-forge-prova-x/base")

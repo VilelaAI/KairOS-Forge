@@ -11,12 +11,14 @@
 """
 from __future__ import annotations
 
+import io
 import json
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -82,12 +84,37 @@ class AForma(unittest.TestCase):
             "item 4: 284 caracteres, limite 280",
             "item 5: sem o comando ou o artefato entre crases, e sem `(gate humano)` no fim"])
 
+    def test_o_limite_de_tamanho_e_exato(self) -> None:
+        def item(n: int) -> str:
+            return "- `a` " + "x" * (n - len("`a` "))
+        corpo = "# S\n\n## Pronto quando\n\n" + "\n".join([item(pronto.MAX_CHARS_ITEM), "- `b`", "- `c`"])
+        self.assertEqual(pronto.problemas(corpo, SCRIPTS), [])
+        corpo = corpo.replace(item(pronto.MAX_CHARS_ITEM), item(pronto.MAX_CHARS_ITEM + 1))
+        self.assertEqual(pronto.problemas(corpo, SCRIPTS),
+                         [f"item 1: {pronto.MAX_CHARS_ITEM + 1} caracteres, limite {pronto.MAX_CHARS_ITEM}"])
+
     def test_script_e_subcomando_citados(self) -> None:
         texto = ("## Pronto quando\n\n- `sumiu.py rodar`\n- `ciclo.py inventado`\n"
                  "- `ciclo.py <arquivo>` e `scripts/prova.py fontes SPEC-NNN`\n")
         self.assertEqual(pronto.problemas(texto, SCRIPTS), [
             "item 1: cita `sumiu.py`, que não existe em scripts/",
             "item 2: `ciclo.py inventado` — `inventado` não aparece no ciclo.py"])
+
+    def test_cercas_de_codigo(self) -> None:
+        # `~~~` e cerca de 4 crases contam; o título de exemplo dentro delas não abre seção.
+        exemplo = "# x\n~~~\n## Pronto quando\n- exemplo\n~~~\n````\n```\n## Pronto quando\n````\n"
+        texto = exemplo + "\n## Pronto quando\n\n- `a`\n- `b`\n- `c`\n"
+        self.assertEqual((pronto.problemas(texto, SCRIPTS), pronto.itens(texto)),
+                         ([], ["`a`", "`b`", "`c`"]))
+        dentro = "## Pronto quando\n\n- `a`\n- `b`\n```\n- `c`\n```\n- `d`\n"
+        self.assertEqual(pronto.problemas(dentro, SCRIPTS), ["linha fora da lista: ```"])
+
+    def test_so_o_script_da_fabrica_e_conferido(self) -> None:
+        texto = ("## Pronto quando\n\n- `pytest tests/test_login.py` passa\n"
+                 "- `python3 evals/tarefas-fabrica/rodar.py validar` sai 0\n"
+                 "- ``a `prova.py inventado` b`` e `scripts/ciclo.py estado`\n")
+        self.assertEqual(pronto.problemas(texto, SCRIPTS),
+                         ["item 3: `prova.py inventado` — `inventado` não aparece no prova.py"])
 
     def test_o_titulo_de_mesmo_nivel_fecha_a_secao(self) -> None:
         texto = "## Pronto quando\n\n- `a`\n- `b`\n- `c`\n\n# Outra\n\n- solta\n"
@@ -155,13 +182,29 @@ class AConferencia(unittest.TestCase):
             digitada("<command-name>/outro:validar</command-name>"),
             {"type": "user", "message": {"content": [{"type": "text",
                                                       "text": "<command-name>sem-secao</command-name>"}]}},
+            {"type": "user", "message": {"content": [{"type": "text",
+                                                      "text": "<command-name>/kairos-forge:sem-secao</command-name>"}]}},
             {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash",
                                                            "input": {"skill": "validar"}}]}},
             {"type": "assistant", "message": "texto"}, {"type": "system"}])
         self.addCleanup(os.unlink, caminho)
+        # Sem o prefixo da fábrica não conta: `revisar` e `sem-secao` soltos são de outro dono.
         self.assertEqual(guardrail.skills_da_sessao(caminho, self.pasta),
                          ["revisar", "validar", "sem-secao"])
+        sem_prefixo = transcript([chamada("revisar"), digitada("<command-name>/validar</command-name>")])
+        self.addCleanup(os.unlink, sem_prefixo)
+        self.assertEqual(guardrail.skills_da_sessao(sem_prefixo, self.pasta), [])
         self.assertEqual(guardrail.skills_da_sessao("/nao/existe.jsonl", self.pasta), [])
+
+    def test_o_transcript_gravado_pelo_claude_code(self) -> None:
+        """As duas linhas reais do 2.1.328, salvas como anexo da pesquisa (fato 6)."""
+        anexo = RAIZ.parent / "docs/pesquisa/anexos/claude-code-2.1.328-skill-no-transcript.jsonl"
+        linhas = [json.loads(l) for l in anexo.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([l["type"] for l in linhas], ["assistant", "user"])
+        for linha in linhas:
+            caminho = transcript([linha])
+            self.addCleanup(os.unlink, caminho)
+            self.assertEqual(guardrail.skills_da_sessao(caminho), ["pesquisar"], linha["type"])
 
     def test_os_itens_entram_na_conferencia(self) -> None:
         caminho = transcript([chamada("kairos-forge:revisar"), chamada("kairos-forge:sem-secao")])
@@ -181,10 +224,16 @@ class AConferencia(unittest.TestCase):
         caminho = transcript([chamada(f"kairos-forge:{nome}") for nome in nomes])
         self.addCleanup(os.unlink, caminho)
         texto = guardrail.pronto_das_skills({"transcript_path": caminho}, self.pasta)
-        self.assertTrue(texto.endswith(" […]"))
-        self.assertLess(len(texto), guardrail.MAX_PRONTO + 400)
-        # A conferência inteira cabe no teto do `additionalContext` do Claude Code.
-        self.assertLess(len(guardrail.CONFERENCIA) + len(texto), 10_000)
+        # Blocos inteiros, a skill usada por último primeiro; a que não cabe vai pelo nome.
+        self.assertIn("/seis:\n", texto)
+        self.assertIn("/cinco:\n", texto)
+        self.assertNotIn("/um:\n", texto)
+        self.assertIn("Sem espaço para o `## Pronto quando` de /um", texto)
+        for nome in nomes:
+            if f"/{nome}:\n" in texto:
+                self.assertEqual(texto.count(f"`item 6 "), texto.count(f"`item 0 "))   # nada cortado
+        self.assertLess(len(guardrail.CONFERENCIA) + len(texto), guardrail.TETO_DO_HOOK)
+        self.assertEqual(guardrail.caber_no_teto([("a", "/a:\n- `x`")]), "/a:\n- `x`")
 
     def test_pelo_hook_com_as_skills_da_fabrica(self) -> None:
         caminho = transcript([chamada("kairos-forge:revisar")])
@@ -198,6 +247,31 @@ class AConferencia(unittest.TestCase):
         codigo, out, _ = hook("conferir", {"prompt": "faltou algo?",
                                            "hook_event_name": "UserPromptSubmit"})
         self.assertNotIn("/revisar:", json.loads(out)["hookSpecificOutput"]["additionalContext"])
+
+    def test_linha_malformada_nao_derruba_a_conferencia(self) -> None:
+        caminho = transcript([
+            {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Skill",
+                                                           "input": "kairos-forge:revisar"}]}},
+            {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Skill",
+                                                           "input": ["kairos-forge:revisar"]}]}},
+            chamada("kairos-forge:validar")])
+        with open(caminho, "a", encoding="utf-8") as f:
+            f.write("[" * 200_000 + "\n")   # aninhado demais para o json
+        self.addCleanup(os.unlink, caminho)
+        self.assertEqual(guardrail.skills_da_sessao(caminho, self.pasta), ["validar"])
+        self.assertEqual(guardrail.skills_da_sessao("a\0b", self.pasta), [])
+
+    def test_falha_na_lista_nao_tira_a_conferencia(self) -> None:
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as cwd, \
+                mock.patch.object(guardrail, "pronto_das_skills", side_effect=RuntimeError("x")):
+            codigo, out, _ = hook("conferir", {"prompt": "faltou algo?", "cwd": cwd,
+                                               "hook_event_name": "UserPromptSubmit"})
+            eventos = "".join(p.read_text() for p in Path(cwd).rglob("*.jsonl"))
+        self.assertEqual(codigo, 0)
+        self.assertEqual(json.loads(out)["hookSpecificOutput"]["additionalContext"],
+                         guardrail.CONFERENCIA)
+        self.assertIn("guardrail_erro", eventos)
 
     def test_sem_o_pronto_py_ao_lado(self) -> None:
         caminho = transcript([chamada("kairos-forge:revisar")])
@@ -231,35 +305,53 @@ class OVerificar(unittest.TestCase):
         (self.raiz / "docs" / "nota.md").write_text("Ver docs/pesquisa/sumiu.md.\n", encoding="utf-8")
         (self.raiz / "docs" / "pesquisa").mkdir()
         (self.raiz / "docs" / "pesquisa" / "ruim.md").write_text("# x\n", encoding="utf-8")
-        achados = guardrail.marcas_e_fontes(self.raiz)
-        self.assertIn("a.py:2: marca de depuração que sobrou (forge-depura)", achados)
-        self.assertIn("docs/nota.md:1: cita docs/pesquisa/sumiu.md, que não existe", achados)
-        self.assertIn("docs/pesquisa/ruim.md: sem **Resposta:**", achados)
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        saida = io.StringIO()
+        with redirect_stdout(saida):
+            achados = guardrail.marcas_e_fontes(self.raiz)
+        # A marca é problema; a fonte nasce em aviso, porque olha o repositório inteiro.
+        self.assertEqual(achados, ["a.py:2: marca de depuração que sobrou (forge-depura)"])
+        self.assertIn("docs/nota.md:1: cita docs/pesquisa/sumiu.md, que não existe", saida.getvalue())
+        self.assertIn("docs/pesquisa/ruim.md: sem **Resposta:**", saida.getvalue())
+        (self.raiz / ".agents").mkdir()
+        (self.raiz / ".agents" / "guardrails.json").write_text('{"modos": {"fontes": "bloqueio"}}',
+                                                             encoding="utf-8")
+        with redirect_stdout(io.StringIO()):
+            self.assertIn("docs/pesquisa/ruim.md: sem **Resposta:**", guardrail.marcas_e_fontes(self.raiz))
         r = subprocess.run([sys.executable, "-B", str(RAIZ / "guardrail.py"), "verificar", str(self.raiz)],
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("marca de depuração que sobrou", r.stdout)
 
     def test_limpo_e_sem_base(self) -> None:
-        self.assertEqual(guardrail.marcas_e_fontes(self.raiz), [])
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        with redirect_stdout(io.StringIO()) as saida:
+            self.assertEqual(guardrail.marcas_e_fontes(self.raiz), [])
+        self.assertEqual(saida.getvalue(), "")
         vazio = Path(tempfile.mkdtemp(prefix="kairos-forge-sem-git-"))
         self.addCleanup(lambda: __import__("shutil").rmtree(vazio, ignore_errors=True))
-        self.assertEqual(guardrail.marcas_e_fontes(vazio), [])
+        with redirect_stdout(io.StringIO()) as saida:
+            self.assertEqual(guardrail.marcas_e_fontes(vazio), [])
+        # Sem base para o diff, a marca não foi procurada, e isso aparece.
+        self.assertIn("marca de depuração não conferida", saida.getvalue())
 
 
 class AListaDeSkillsDaTrajetoria(unittest.TestCase):
     def test_toda_skill_da_pasta_e_reconhecida(self) -> None:
         for p in sorted((RAIZ.parent / "skills").glob("*/SKILL.md")):
             with self.subTest(p.parent.name):
-                self.assertEqual(execucao.SKILLS.findall(f"rode /kairos-forge:{p.parent.name} já"),
+                self.assertEqual(execucao.SKILLS.findall(f"/kairos-forge:{p.parent.name} já"),
                                  [p.parent.name])
-                self.assertEqual(execucao.SKILLS.findall(f"/{p.parent.name}"), [p.parent.name])
+                self.assertEqual(execucao.SKILLS.findall(f"  /{p.parent.name}"), [p.parent.name])
+                # Só no começo do prompt, e só o nome inteiro.
+                self.assertEqual(execucao.SKILLS.findall(f"rode /{p.parent.name} já"), [])
+                self.assertEqual(execucao.SKILLS.findall(f"/{p.parent.name}-cpf"), [])
 
     def test_sem_a_pasta_so_com_o_prefixo(self) -> None:
         rx = execucao.regex_das_skills(Path("/nao/existe"))
         self.assertEqual(rx.findall("/kairos-forge:qualquer e /solta"), ["qualquer"])
-        self.assertEqual(execucao.SKILLS.findall("/rodarzinho /mapear-conhecimento"),
-                         ["mapear-conhecimento"])
+        self.assertEqual(rx.findall("/solta"), [])
+        self.assertEqual(execucao.SKILLS.findall("/rodarzinho"), [])
 
 
 if __name__ == "__main__":

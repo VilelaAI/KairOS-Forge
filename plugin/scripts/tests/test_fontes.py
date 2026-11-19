@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from contextlib import redirect_stdout
 from datetime import date
 from pathlib import Path
@@ -88,7 +89,11 @@ class AForma(Pasta):
         texto = PESQUISA.replace("| 2.1.0 | 2026-03 |", "|  | março |")
         self.assertEqual(self.problemas(texto), [
             "fato 1: sem versão (escreva `sem versão` quando a fonte não tem)",
-            "fato 1: data da fonte fora de AAAA-MM-DD ou AAAA-MM"])
+            "fato 1: data da fonte fora de AAAA-MM-DD ou AAAA-MM, ou no futuro"])
+        for data in ("2026-13-45", "2099-01", "2026-02-30"):
+            with self.subTest(data):
+                self.assertEqual(self.problemas(PESQUISA.replace("| 2026-03 |", f"| {data} |")),
+                                 ["fato 1: data da fonte fora de AAAA-MM-DD ou AAAA-MM, ou no futuro"])
 
     def test_linha_curta_e_fato_vazio(self) -> None:
         texto = PESQUISA.replace("| 1 | O leitor aceita o parâmetro `delimiter`. |", "| 1 |  |")
@@ -134,6 +139,24 @@ class AForma(Pasta):
         self.assertEqual(self.problemas(texto), ["`## Fatos` sem nenhuma linha"])
         self.assertEqual(self.problemas(texto.replace("**Resposta:** Sim;", "**Resposta:** Não encontrada;")), [])
 
+    def test_o_fato_do_modelo_e_a_fonte_fora_do_repositorio(self) -> None:
+        modelo = PESQUISA.replace("| 1 | O leitor aceita o parâmetro `delimiter`. | [doc oficial](https://exemplo.org/csv#delimiter) | 2.1.0 |",
+                                  "| 1 | <o fato> | [<título>](https://…) | <v4.2.0 ou sem versão> |")
+        self.assertEqual(self.problemas(modelo), ["fato 1: sem o fato",
+                                                  "fato 1: sem fonte: um link ou um caminho do repositório que exista",
+                                                  "fato 1: sem versão (escreva `sem versão` quando a fonte não tem)"])
+        fora = PESQUISA.replace("`vendas/leitor.py:12`", "`../../../../../../../etc/passwd`")
+        self.assertEqual(self.problemas(fora),
+                         ["fato 2: sem fonte: um link ou um caminho do repositório que exista"])
+        sem_numero = PESQUISA.replace("| 2 | O padrão", "|  | O padrão").replace("| 2026-11-10 |\n\n## Inf", "| ontem |\n\n## Inf")
+        self.assertIn("fato ?: data da fonte fora de AAAA-MM-DD ou AAAA-MM, ou no futuro", self.problemas(sem_numero))
+
+    def test_arquivo_ilegivel_vira_problema(self) -> None:
+        (self.raiz / "docs/pesquisa/pasta.md").mkdir(parents=True)
+        r = self.conferir()
+        self.assertIn({"arquivo": "docs/pesquisa/pasta.md", "data": "",
+                       "problemas": ["ilegível: IsADirectoryError"], "avisos": []}, r["pesquisas"])
+
     def test_segredo_no_texto(self) -> None:
         texto = PESQUISA.replace("- Nada.", f"- O exemplo da doc usa `{TOKEN}`.")
         self.assertEqual(self.problemas(texto),
@@ -167,6 +190,11 @@ class AsCitacoes(Pasta):
             {"arquivo": "contextos/stack.md", "linha": 2, "alvo": "docs/pesquisa/outra/velha.md"},
             {"arquivo": "docs/adr/0001-x.md", "linha": 1, "alvo": "docs/pesquisa/sumiu.md"}])
 
+    def test_citacao_de_outro_repositorio_ou_subprojeto_nao_conta(self) -> None:
+        self.escrever({"README.md": "https://github.com/outro/projeto/blob/main/docs/pesquisa/x.md\n"
+                                    "pacotes/api/docs/pesquisa/y.md\n"})
+        self.assertEqual(self.conferir()["citacoes_quebradas"], [])
+
     def test_md_ilegivel_e_pulado(self) -> None:
         (self.raiz / "binario.md").write_bytes(b"\xff\xfe docs/pesquisa/x.md")
         self.assertEqual(self.conferir()["citacoes_quebradas"], [])
@@ -198,6 +226,13 @@ class NaSpec(Pasta):
         self.assertTrue(prova.fontes(self.raiz, "SPEC-007", 180, HOJE)["spec"]["citadas"][0]["mudou_depois"])
         self.git("commit", "-qam", "pesquisa revista", env={"GIT_COMMITTER_DATE": "2026-11-15T10:00:00Z"})
         self.assertTrue(prova.fontes(self.raiz, "SPEC-007", 180, HOJE)["spec"]["citadas"][0]["mudou_depois"])
+
+    def test_rebase_depois_do_selo_nao_conta_como_mudanca(self) -> None:
+        (self.raiz / ".agents/ciclo").mkdir(parents=True)
+        (self.raiz / ".agents/ciclo/SPEC-007.json").write_text('{"spec_selada_em": "2026-11-12T10:00:00+00:00"}',
+                                                             encoding="utf-8")
+        self.git("commit", "-q", "--amend", "--no-edit", env={"GIT_COMMITTER_DATE": "2026-11-15T10:00:00Z"})
+        self.assertFalse(prova.fontes(self.raiz, "SPEC-007", 180, HOJE)["spec"]["citadas"][0]["mudou_depois"])
 
     def test_spec_que_nao_existe_e_sem_aprovacao(self) -> None:
         self.assertEqual(prova.fontes(self.raiz, "SPEC-099", 180, HOJE)["spec"],
@@ -247,10 +282,53 @@ class AImpressaoEOComando(NaSpec):
         self.assertEqual(self.rodar("--raiz", str(self.raiz)).returncode, 0)
         self.assertEqual(self.rodar("--idade-max", "x").returncode, 1)
         self.assertEqual(self.rodar("SPEC-099").returncode, 1)   # SPEC que não existe não passa calada
+        self.assertEqual(self.rodar("spec-007").returncode, 0)    # o id em minúscula acha a SPEC
         self.escrever({"docs/adr/0001.md": "docs/pesquisa/sumiu.md\n"})
         self.assertEqual(self.rodar().returncode, 1)
         self.escrever({"docs/adr/0001.md": "nada\n", "docs/pesquisa/ruim.md": "# x\n"})
         self.assertEqual(self.rodar().returncode, 1)
+
+
+class OMainNoProcesso(unittest.TestCase):
+    """Os comandos fora do diff (`fontes`, `selado`, `colher`) pelo `main`, no mesmo processo."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="kairos-forge-main-")
+        self.addCleanup(self._tmp.cleanup)
+        self.raiz = Path(self._tmp.name)
+        self._cwd = os.getcwd()
+        os.chdir(self.raiz)
+        self.addCleanup(os.chdir, self._cwd)
+
+    def main(self, *args: str) -> tuple[int, str]:
+        saida, erro = io.StringIO(), io.StringIO()
+        with redirect_stdout(saida), unittest.mock.patch.object(sys, "argv", ["prova.py", *args]), \
+                unittest.mock.patch.object(sys, "stderr", erro):
+            codigo = prova.main()
+        return codigo, saida.getvalue() + erro.getvalue()
+
+    def test_fontes(self) -> None:
+        self.assertEqual(self.main("fontes", "--raiz", str(self.raiz)), (0, f"📚 Fontes salvas — 0 pesquisa(s) em docs/pesquisa/\n   nada a conferir\n"))
+        codigo, texto = self.main("fontes", "--json", "--raiz", str(self.raiz))
+        self.assertEqual((codigo, json.loads(texto)["pesquisas"]), (0, []))
+        self.assertEqual(self.main("fontes", "--idade-max", "x")[0], 1)
+        self.assertEqual(self.main("fontes", "SPEC-001", "--raiz", str(self.raiz))[0], 1)
+
+    def test_selado(self) -> None:
+        self.assertEqual(self.main("selado", "--raiz", str(self.raiz))[0], 0)
+        self.assertIn('"selados": []', self.main("selado", "--json", "--raiz", str(self.raiz))[1])
+
+    def test_colher_e_os_erros_de_argumento(self) -> None:
+        self.assertIn("fora de um repositório git", self.main("colher")[1])
+        subprocess.run(["git", "init", "-q"], cwd=self.raiz, check=True)
+        self.assertEqual(self.main("colher", "--dias", "x")[0], 1)
+        self.assertIn("--fonte é gh ou git", self.main("colher", "--fonte", "svn")[1])
+        self.assertEqual(self.main("colher", "--fonte", "git", "--saida", str(self.raiz / "c.jsonl"))[0], 0)
+        self.assertEqual(self.main("colher", "--json", "--fonte", "git",
+                                   "--saida", str(self.raiz / "c.jsonl"))[0], 0)
+        self.assertEqual(self.main("pre-patch", "--tempo-limite", "x")[0], 1)
+        codigo, texto = self.main("nada")
+        self.assertEqual((codigo, texto.splitlines()[0]), (1, prova.__doc__.strip().splitlines()[0]))
 
 
 if __name__ == "__main__":

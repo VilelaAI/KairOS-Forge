@@ -1,25 +1,28 @@
 ---
 name: investigar
-description: Acha a causa de um bug, falha intermitente ou lentidão antes de corrigir - laço curto que reproduz, uma hipótese por vez, causa provada e escrita, teste que falha antes e passa depois. Use para "por que quebrou", "debuga", "teste intermitente", "funcionava ontem". Causa já conhecida é o rodar.
+description: Acha e prova a causa de um defeito antes do conserto, com ficha em docs/investigacoes/ e o prova.py reproduzir como juiz (falha na base, passa agora). Use em erro sem explicação, falha que vem e vai, quebra depois de um merge ou lentidão nova. Causa já apontada é o rodar.
 ---
 
 # Investigar — a causa antes do conserto
 
-Você está sendo invocado porque algo quebra, falha às vezes ou ficou lento, e ninguém sabe
-por quê. Quem conduz é o **Ricardo [Testes]** (`ricardo-testes`): ele monta o laço que mostra
-o problema e o transforma em teste. Quem escreve o conserto é o dev da área do código. Lentidão
-tem o **Vinícius [Performance]** medindo; incidente em produção, o **Sérgio [SRE]** estanca
+Algo quebra, falha só de vez em quando ou ficou lento, e ninguém sabe dizer onde. O
+**Ricardo [Testes]** (`ricardo-testes`) conduz: transforma o defeito num comando que o mostra
+e, no fim, num teste. O conserto é do dev dono da área. Em lentidão, o **Vinícius
+[Performance]** cuida da medição; em incidente de produção, o **Sérgio [SRE]** contém o estrago
 primeiro, e a investigação vem depois.
 
-**Regra de ouro:** sem laço que mostra o problema, não há conserto; sem causa provada, o
-conserto só esconde o sintoma. A ideia vem do corno-skills (sem licença: a ideia, não o texto).
+**Regra de ouro:** o conserto só começa depois que a causa está escrita na ficha e provada no
+laço. Consertar o que não se reproduz, ou o que não se explica, troca um defeito visível por um
+escondido. O método vem do corno-skills, que não declara licença: aproveitamos a ideia, e o
+texto é nosso.
 
 ## Quando usar e quando não
 
-- **Use** quando a causa é desconhecida: gate vermelho sem achado que aponte o lugar, teste
-  que falha às vezes, "funcionava ontem", erro que só a pessoa viu, o `/entregar` em
-  `atacando_premissa_validacao` ou `atacando_premissa_revisao` (ADR-0045).
-- **Não use** quando o achado já traz `arquivo:linha` e a causa (o `/validar` e o `/revisar`
+- **Use** quando ninguém sabe a causa: gate vermelho sem achado que aponte o lugar, falha que
+  aparece numa rodada e some na outra, comportamento que mudou sem commit suspeito, erro que só
+  a pessoa viu, o `/entregar` em `atacando_premissa_validacao` ou `atacando_premissa_revisao`
+  (ADR-0045).
+- **Não use** quando o achado já traz `arquivo:linha` e o motivo (o `/validar` e o `/revisar`
   costumam trazer): corrija direto pelo `/rodar` ou pelo loop do `/entregar`. Feature nova é
   o `/especificar`; métrica que se melhora em rodadas é o `/otimizar`.
 
@@ -34,83 +37,98 @@ conserto só esconde o sintoma. A ideia vem do corno-skills (sem licença: a ide
 | `prova.py marcas` | nenhuma linha nova com a marca de depuração |
 | `prova.py investigacao docs/investigacoes/INV-<slug>.md` | a ficha inteira: sai 0 pronta, 1 incompleta, 2 pare e pergunte |
 
-## 0. Abra a ficha
+## A ficha conduz
 
-Antes de mexer no código, crie `docs/investigacoes/INV-<slug>.md` no modelo de
-`references/modelo-de-ficha.md`. Ela guarda o que se tentou, e é ela que o `investigacao`
-confere no fim. Escreva o **Sintoma** com as palavras e a saída que a pessoa viu.
+A investigação é preencher `docs/investigacoes/INV-<slug>.md` (modelo em
+`references/modelo-de-ficha.md`) de cima para baixo. Cada seção só se escreve com a anterior
+pronta, e o `prova.py investigacao` confere todas no fim. Abra a ficha antes de tocar no código.
 
-## 1. Monte o laço
+### Sintoma
 
-O laço é um comando que sai diferente de 0 enquanto o problema existe e roda em segundos.
-Escolha o mais barato que mostre o problema de verdade:
+Registre o relato da pessoa como ela o deu: a mensagem de erro, o valor errado, o tempo medido.
+É contra esse registro que o laço vai ser julgado.
 
-- um teste que falha, ou um script que chama só a parte suspeita;
-- a CLI ou o servidor local com uma entrada fixa, comparando a saída com a certa;
-- uma requisição ou um log real gravado em arquivo e repetido;
-- o navegador automatizado (Playwright), quando o problema só aparece na tela;
-- falha intermitente: o mesmo comando repetido muitas vezes, com semente fixa e carga, até
-  falhar quase sempre;
-- regressão entre versões: `git bisect run <laço>`.
+### Reprodução e sintoma na saída
 
-Laço lento ou instável se conserta antes de seguir. Então confira que ele mostra **o problema
-que a pessoa descreveu**, e não um erro vizinho:
+O laço é um comando de poucos segundos cujo código de saída diz se o defeito está presente
+(diferente de 0) ou não (0). Escolha pela situação, do mais barato para o mais caro:
+
+| Situação | Laço |
+|---|---|
+| há teste perto do código | o teste, ou um novo que chama a função suspeita |
+| CLI ou serviço local | a chamada que dispara o defeito, com um `diff` contra o resultado esperado |
+| relato vindo de produção | a requisição ou o trecho de log gravados num arquivo e reenviados |
+| defeito de tela | um roteiro do Playwright |
+| falha que vem e vai | o comando num `for` de centenas de rodadas, com semente fixa e paralelismo, até a taxa de falha ficar alta |
+| regressão | `git bisect run <laço>` a partir do último commit bom |
+
+Na linha **Sintoma na saída**, a regex do sintoma. Antes de seguir, confirme:
 
 ```
 prova.py reproduzir --antes --comando "<laço>" --sintoma "<regex do sintoma>"
 ```
 
-Sai 0 com `reproduz`. Com `sintoma_diferente`, o laço achou outro erro: corrija o laço. Não
-deu para montar o laço? Pare e peça o que falta (os passos exatos, um log, o ambiente, o dado),
-com o que você já tentou escrito na ficha. Conserto sem reprodução é chute.
+`reproduz` quer dizer que o laço falha, e pelo motivo relatado. `sintoma_diferente` quer dizer
+que ele tropeçou em outro defeito: quem se conserta, então, é o laço. Laço demorado ou que oscila
+também se conserta antes de seguir.
 
-## 2. Encolha a reprodução
+Se nenhum laço sai, a investigação para aqui. Registre na ficha as tentativas e peça à pessoa o
+que destrava: o roteiro que ela seguiu, o arquivo de log, a versão, o dado de entrada. Sem
+reprodução, qualquer mudança é aposta.
 
-Com o laço falhando, tire uma coisa por vez (entrada, passo, configuração, dado) e rode de
-novo a cada corte. Pare quando qualquer corte a mais fizer o problema sumir. A reprodução
-mínima deixa menos suspeitos e vira o teste de regressão.
+Com o laço de pé, enxugue-o: retire um ingrediente por rodada (um passo, uma linha da entrada,
+uma opção de configuração) enquanto o defeito continuar aparecendo. O que resta é o mínimo
+necessário, e é dele que sai o teste da trava.
 
-## 3. Uma hipótese por vez
+### Hipóteses
 
-- Na tabela `## Hipóteses` da ficha, de 2 a 4 causas possíveis, cada uma com o que se veria
-  se fosse ela. Teste primeiro a mais barata de descartar, e mude uma coisa por vez.
-- Prefira o depurador ao log. Log de depuração só nas fronteiras que separam as hipóteses, e
-  sempre com a marca `forge-depura-<id>` (um id curto de letras e números), para achar e tirar
-  todos no fim com `prova.py marcas`.
-- **Três descartadas e nenhuma confirmada: pare.** O `prova.py investigacao` sai 2. Mostre à
-  pessoa o laço, o que foi descartado e por quê, e peça a informação que falta. Insistir sem
-  pista nova só gasta o orçamento (o mesmo espírito do ataque à premissa, ADR-0045).
+A tabela `## Hipóteses` tem uma linha por suspeita: a causa candidata, o sinal que a
+confirmaria, o experimento feito e o resultado (`descartada` ou `confirmada`). Comece pelo
+experimento mais rápido. Cada experimento muda uma variável só; com duas, o resultado não diz
+qual delas importou.
 
-## 4. Prove a causa
+Para observar, o depurador vem antes do log. Quando o log for o caminho, poucas linhas, nos
+pontos em que as suspeitas divergem, cada uma marcada com `forge-depura-<id>` (letras minúsculas
+e números): o `prova.py marcas` acha a que ficar para trás.
 
-Confirmada é a hipótese em que mexer na causa liga e desliga o problema no laço. "Parou de
-falhar" sem saber por quê não é causa. Escreva `## Causa` (com `arquivo:linha`) e `## Prova`
-na ficha **antes** do conserto.
+**Três linhas `descartada` e nenhuma `confirmada` encerram a rodada.** O `prova.py
+investigacao` sai 2. Leve à pessoa a ficha como está, com o laço e cada suspeita derrubada pelo
+experimento que a derrubou, e pergunte o que você não sabe sobre o sistema. Uma quarta
+hipótese sem informação nova costuma repetir as três primeiras (a mesma lógica do ataque à
+premissa, ADR-0045).
 
-## 5. Corrija na raiz e trave
+### Causa e prova
 
-- O conserto vai onde a causa está, não onde o sintoma aparece. Guarda em volta do ponto que
-  quebra não é conserto. O `try` vazio o `prova.py atalhos` acha (`erro-engolido`); o valor
-  padrão que esconde o erro nenhum script acha, e quem revisa olha.
-- A reprodução mínima vira teste, no arquivo de teste que já existe se for o caso, e o laço
-  da ficha passa a rodá-lo. Então:
+Uma hipótese vira `confirmada` quando o experimento controla o defeito: com a causa no lugar o
+laço falha, sem ela o laço passa, e isso se repete. Ver o laço passar depois de uma mudança
+qualquer é coincidência até ser explicado. `## Causa` leva o `arquivo:linha`, e `## Prova`
+descreve o experimento. As duas ficam escritas antes da primeira linha do conserto.
+
+### Trava
+
+- O conserto mexe na linha da `## Causa`. Cercar o ponto que estoura com uma condição, um `try`
+  ou um valor padrão apaga o sintoma e mantém o defeito. O `prova.py atalhos` acusa o `try`
+  vazio (`erro-engolido`); o valor padrão que mascara, só quem revisa vê.
+- A reprodução mínima vira teste, no arquivo de teste que já cobre aquele código quando houver,
+  e a **Reprodução** da ficha passa a rodar esse teste. Então:
 
 ```
 prova.py reproduzir --comando "<laço>" --sintoma "<regex do sintoma>"
 ```
 
-  Tem de dar `reproduz_e_corrige`: falha na base do diff com o sintoma e passa agora. Só os
-  testes do diff são copiados para a base antes de rodar, então o laço da ficha é o teste, ou
-  um comando que já existe na base (a CLI, um endpoint). Script novo fora da pasta de testes
-  não existe lá e dá `sintoma_diferente`.
-- Sem lugar certo para o teste (só daria um teste raso demais), isso é um achado: diga na
-  `## Trava` por quê.
+  O resultado tem de ser `reproduz_e_corrige`: o laço falha na base do diff, com o sintoma, e
+  passa na árvore de trabalho. Antes de rodar, só os testes do diff vão para a base; por isso o
+  laço final é o teste, ou um comando que a base já tem (uma CLI, um endpoint). Um script novo
+  fora da pasta de testes não existe na base, e o resultado é `sintoma_diferente`.
+- Quando não há onde pôr um teste que pegue o defeito de verdade, a `## Trava` explica o
+  motivo: isso também é informação para quem revisa.
 
 ## Lentidão
 
-O laço é a medição: o tempo antes, onde o tempo vai (perfil, log com horário) e o tempo depois.
-Ele sai diferente de 0 acima do limite combinado, para o `reproduzir` funcionar igual. Sem
-número antes e depois, não houve melhora. Melhoria contínua por métrica é o `/otimizar`.
+Aqui o laço mede: sai diferente de 0 quando o tempo passa do limite combinado com a pessoa, e o
+`reproduzir` funciona do mesmo jeito. A ficha registra o tempo de partida, o perfil que mostrou
+para onde o tempo vai e o tempo final. Melhora sem os dois números não entra como melhora. Ganho
+incremental guiado por métrica é o `/otimizar`.
 
 ## No arco e no CI
 
@@ -131,21 +149,21 @@ commit, `guardrail.py ocultar <arquivo>` troca pela marca o segredo que a regra 
 
 ## Resposta
 
-Uma linha para cada, nesta forma (o gatilho de CI lê a `Causa:` e a `Prova:`):
+Termine com quatro linhas, nesta ordem (o gatilho de CI procura as duas primeiras):
 
-- **Causa:** em uma frase, com `arquivo:linha`.
-- **Prova:** o que ligava e desligava o problema.
-- **Conserto:** o que mudou e onde.
-- **Trava:** o teste novo e a saída do `prova.py reproduzir` com `reproduz_e_corrige`.
+- **Causa:** uma frase, com `arquivo:linha`.
+- **Prova:** o experimento que controlou o defeito.
+- **Conserto:** os arquivos mexidos e a mudança em cada um.
+- **Trava:** o nome do teste novo e a linha do `prova.py reproduzir` com `reproduz_e_corrige`.
 
 ## Pronto quando
 
 - Com a causa achada, a ficha `docs/investigacoes/INV-<slug>.md` tem sintoma, laço, hipóteses, `## Causa` com `arquivo:linha`, prova e trava, e `prova.py investigacao docs/investigacoes/INV-<slug>.md` sai 0.
-- A resposta dá causa, prova, conserto e trava, com a saída de `prova.py reproduzir --comando "<laço>" --sintoma "<regex>"` em `reproduz_e_corrige`; na lentidão, com o tempo antes e depois.
+- A resposta termina nas linhas de causa, prova, conserto e trava, com a saída de `prova.py reproduzir --comando "<laço>" --sintoma "<regex>"` em `reproduz_e_corrige`; na lentidão, com o tempo antes e depois.
 - O conserto está onde a causa está: nenhum `erro-engolido` de `prova.py atalhos` nas linhas que ele acrescentou, nem valor padrão que esconda o erro.
 - O commit do conserto diz a causa, o que mudou e como foi provado (`git log -1`); no CI, onde o agente não roda o `prova.py`, o `kairos-forge-corrigir.yml` roda o gate antes e depois e a resposta termina nas linhas `Causa:` (com `arquivo:linha`) e `Prova:`.
 - Em qualquer saída, `prova.py marcas` sai 0: nenhum log com a marca `forge-depura-<id>` sobrou no diff.
-- Sem causa, a parada: nenhum laço deu `reproduz` em `prova.py reproduzir --antes`, ou `prova.py investigacao` saiu 2 (três descartadas, nenhuma confirmada); a ficha guarda o que se tentou e a pessoa recebeu o laço tentado, o descartado e por quê, e o pedido do que falta.
+- Sem causa, a parada: nenhum laço deu `reproduz` em `prova.py reproduzir --antes`, ou `prova.py investigacao` saiu 2 (três descartadas, nenhuma confirmada); a pessoa recebeu a ficha com as tentativas e cada suspeita derrubada, e a pergunta sobre o que falta saber.
 
 ## Referências
 

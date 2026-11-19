@@ -19,7 +19,7 @@ Salve em `docs/investigacoes/INV-<slug>.md`, com um `<slug>` curto do que quebra
 
 ## Causa
 
-<a causa em uma ou duas frases, com `arquivo:linha`; no mínimo 20 caracteres>
+<a causa, com `arquivo:linha`; no mínimo 20 caracteres>
 
 ## Prova
 

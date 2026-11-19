@@ -34,7 +34,8 @@ Ajuste em cada arquivo o que for do seu projeto: o nome do workflow de CI que o
 `corrigir` observa (`workflows: ["CI"]`), o comando de teste dele (`GATE: "npm test"`,
 o único comando que a correção pode rodar, e o laço que o workflow roda antes e depois
 do agente; ele precisa rodar no runner, com as dependências instaladas: vermelho por
-ambiente nunca vira PR) e o horário do cron do `auditar`, em UTC.
+ambiente nunca vira PR), o que instala essas dependências (`PREPARO`, por exemplo
+`"npm ci"`; vazio, nada roda) e o horário do cron do `auditar`, em UTC.
 A branch protegida não precisa de ajuste: o `corrigir` compara com a default do
 repositório (`github.event.repository.default_branch`).
 
@@ -97,7 +98,8 @@ seguem, e que você deve manter se editá-los:
    nova —, além de `pull-requests: write` e `actions: read`, para baixar o log da
    execução que falhou. Declarar `permissions:` zera o que não foi declarado, e sem
    `actions: read` o agente recebia "log indisponível" no lugar do erro.
-4. **Timeout em tudo.** 20 min no `revisar` e no `auditar`, 30 no `corrigir`, 15 no
+4. **Timeout em tudo.** 20 min no `revisar` e no `auditar`, 45 no `corrigir` (que
+   roda o `PREPARO` e o `GATE` duas vezes, cada um com o próprio limite), 15 no
    `triar`. Job travado é custo silencioso.
 5. **Guardrail depois do fato — e só o `corrigir` bloqueia nele.** Em CI não existe
    `PreToolUse`, então o contrato do `guardrail.py` roda depois (ADR-0022), e cada
@@ -107,9 +109,15 @@ seguem, e que você deve manter se editá-los:
      guardrail bloqueia. O `verificar` também acusa a marca de depuração que sobrou
      (`forge-depura-`) e a pesquisa em `docs/pesquisa/` fora da forma (ADR-0060).
    - `corrigir`, antes e depois: o `GATE` roda num passo sem segredo antes do agente
-     e de novo depois. Sem reprodução, o agente nem roda; ainda vermelho depois, não há
-     PR. A causa que o agente escreve (`Causa:`) vai no commit e no topo do PR, e o PR
-     avisa quando ela falta (ADR-0060).
+     e de novo depois. Sem reprodução, o agente nem roda; o gate que nem roda (saída
+     124, 126 ou 127) também não conta como reprodução. Ainda vermelho depois, não há
+     PR, e o diagnóstico vai para o resumo do job. A causa que o agente escreve
+     (`Causa:`) vai no commit e no topo do PR como texto inerte, com o rótulo "escrita
+     pelo agente"; o PR avisa quando ela falta e quando a correção muda o que o gate
+     roda (`package.json`, `conftest.py` e afins) (ADR-0060).
+   - O `GATE` roda o código do projeto, que a correção pode ter mudado: sem o segredo,
+     com tempo limite, sem os arquivos de comando do runner (`GITHUB_ENV` e afins), e o
+     git que comita e empurra ignora os hooks e o fsmonitor do repositório.
    - `revisar`: roda antes da revisão, com `|| true`. O resultado fica no log do
      job; não bloqueia e não entra no parecer.
    - `auditar` e `triar`: não chamam o guardrail — não escrevem código.
@@ -145,8 +153,8 @@ seguem, e que você deve manter se editá-los:
      e recusa `bypassPermissions`. O `--tools` diz quais ferramentas existem na sessão
      (o `triar` e o `auditar` nem têm Bash), e o `--permission-mode dontAsk` recusa o
      que não estiver liberado, sem perguntar a ninguém.
-   - O `corrigir` não edita `.github/`, `.claude/` nem `.agents/`: a correção não
-     mexe no próprio CI nem nas travas.
+   - O `corrigir` não edita `.github/`, `.claude/`, `.agents/` nem `.git/`: a correção
+     não mexe no próprio CI, nas travas nem na config do git.
    - O texto de fora entra no agente já sem segredo (`guardrail.py ocultar` na issue e
      no log), porque o que o agente lê vai à API do modelo. O texto que sai publicado
      (o parecer, a triagem, a auditoria, o diagnóstico) passa pela mesma ocultação

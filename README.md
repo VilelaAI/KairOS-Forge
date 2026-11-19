@@ -45,7 +45,7 @@ kairos-forge/                          ← repo = fonte canônica + MARKETPLACE
 │   └── ativos.manifest.json           ← manifesto de ativos (gerado)
 ├── .codex-plugin/plugin.json          ← manifest Codex CLI
 ├── .agents/plugins/marketplace.json   ← catalog Codex CLI (aponta para ./plugin)
-├── agents/, skills/                   ← CANÔNICOS: 71 personas, 19 skills
+├── agents/, skills/                   ← CANÔNICOS: 71 personas, 21 skills
 ├── hooks/, scripts/, templates/, contratos/
 ├── docs/, hermes/
 ├── evals/                             ← gold sets do próprio plugin (não distribuídos)

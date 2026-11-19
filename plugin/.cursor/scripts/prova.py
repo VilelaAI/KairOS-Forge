@@ -199,8 +199,10 @@ def eh_teste(rel: str) -> bool:
 # --- git ---------------------------------------------------------------------------
 
 def git(raiz: Path, *args: str, timeout: int = 30) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", "-C", str(raiz), *args], capture_output=True,
-                          text=True, timeout=timeout)
+    # Caminho com acento sem aspas nem escape, e saída que não é UTF-8 sem derrubar a leitura.
+    return subprocess.run(["git", "-c", "core.quotePath=false", "-C", str(raiz), *args],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace",
+                          timeout=timeout)
 
 
 def raiz_git(inicio: Path | None = None) -> Path | None:
@@ -480,7 +482,8 @@ def linhas_acrescentadas(raiz: Path, ponto: str):
 
 def _linhas_do_diff(raiz: Path, *refs: str):
     arquivo, numero, anterior = None, 0, ""
-    for linha in git(raiz, "diff", "-U0", "--no-color", *refs).stdout.splitlines():
+    for linha in git(raiz, "diff", "-U0", "--no-color", "--src-prefix=a/", "--dst-prefix=b/",
+                     *refs).stdout.splitlines():
         trecho = TRECHO.match(linha)
         if linha.startswith("+++ ") and anterior.startswith("--- "):
             m = CABECALHO.match(linha)
@@ -573,7 +576,8 @@ def trechos_do_diff(raiz: Path, ponto: str) -> dict[str, list[tuple[int, int]]]:
     apagada conta como o ponto onde estava; arquivo novo e não rastreado, inteiro."""
     trechos: dict[str, list[tuple[int, int]]] = {}
     arquivo, anterior = None, ""
-    for linha in git(raiz, "diff", "-U0", "--no-color", ponto).stdout.splitlines():
+    for linha in git(raiz, "diff", "-U0", "--no-color", "--src-prefix=a/", "--dst-prefix=b/",
+                     ponto).stdout.splitlines():
         if linha.startswith("+++ ") and anterior.startswith("--- "):
             m = CABECALHO.match(linha)
             arquivo = m.group(1) if m else None
@@ -633,7 +637,7 @@ def origem(raiz: Path, base: str | None, relatorio: str | None) -> dict:
 # laço falha na base e passa depois. O `reproduzir` roda o laço nos dois lados, o
 # `investigacao` confere a ficha, e o `marcas` acha o log de depuração que sobrou.
 
-MARCA_DEPURACAO = re.compile(r"forge-depura-[0-9a-z]{3,}", re.I)
+MARCA_DEPURACAO = re.compile(r"forge-depura-[0-9a-z]+", re.I)
 SEM_MARCA = {".md", ".mdx", ".rst"}   # a ficha e a documentação citam a marca de propósito
 CAMPO_MD = re.compile(r"^\s*[-*]?\s*\*\*([^*:]+):\*\*\s*(.*?)\s*$")
 ENTRE_CRASES = re.compile(r"`([^`]+)`")
@@ -643,12 +647,23 @@ SAIDA_DA_FICHA = {"pronta": 0, "pare_e_pergunte": 2}
 
 
 def _rodar(cmd: str, cwd: Path, tempo_limite: int) -> dict:
+    """O laço num grupo de processos próprio: no tempo estourado, o grupo inteiro morre."""
+    p = subprocess.Popen(cmd, shell=True, cwd=str(cwd), stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, start_new_session=True)
     try:
-        p = subprocess.run(cmd, shell=True, cwd=str(cwd), capture_output=True, text=True,
-                           timeout=tempo_limite)
+        saida, _ = p.communicate(timeout=tempo_limite)
     except subprocess.TimeoutExpired:
+        _matar_grupo(p)
         return {"exit": None, "saida": f"estourou {tempo_limite}s"}
-    return {"exit": p.returncode, "saida": (p.stdout or "") + (p.stderr or "")}
+    return {"exit": p.returncode, "saida": saida.decode("utf-8", errors="replace")}
+
+
+def _matar_grupo(p: subprocess.Popen) -> None:
+    try:
+        os.killpg(p.pid, 9)
+    except OSError:
+        pass   # o grupo já acabou
+    p.communicate()
 
 
 def _final(saida: str) -> list[str]:
@@ -658,7 +673,7 @@ def _final(saida: str) -> list[str]:
 def _estado_do_laco(r: dict, sintoma: re.Pattern | None) -> str:
     """Uma rodada do laço: `falhou` (com o sintoma, se houver), `sintoma_diferente`,
     `passou` ou `nao_executado`. O laço mostra o problema saindo diferente de 0."""
-    if r["exit"] is None:
+    if r["exit"] is None or r["exit"] in (126, 127):   # estourou, ou o laço nem existe ali
         return "nao_executado"
     if r["exit"] == 0:
         return "passou"
@@ -676,11 +691,23 @@ def veredicto_da_reproducao(antes: str, depois: str | None) -> str:
         depois, "nao_corrige")
 
 
+def _diff_sem_renomear(raiz: Path, ponto: str) -> list[tuple[str, str]]:
+    """(status, caminho), com renomeação como `D` da origem e `A` do destino."""
+    r = git(raiz, "diff", "--name-status", "--no-renames", ponto)
+    return [(l.split("\t")[0][:1], l.split("\t")[-1]) for l in r.stdout.splitlines() if "\t" in l]
+
+
 def testes_do_diff(raiz: Path, ponto: str) -> list[str]:
     """Teste novo ou mudado no diff: a regressão costuma entrar num arquivo que já existe."""
-    nomes = [c for s, c in diff_nomes(raiz, ponto) if s in ("A", "M") and eh_teste(c)]
+    nomes = [c for s, c in _diff_sem_renomear(raiz, ponto) if s in ("A", "M") and eh_teste(c)]
     nomes += [c for c in nao_rastreados(raiz) if eh_teste(c)]
     return sorted(dict.fromkeys(nomes))
+
+
+def testes_que_sairam(raiz: Path, ponto: str) -> list[str]:
+    """Teste que existia na base e não existe agora (apagado ou renomeado): sai da base também,
+    senão apagar o teste que falha pareceria conserto."""
+    return sorted(c for s, c in _diff_sem_renomear(raiz, ponto) if s == "D" and eh_teste(c))
 
 
 @contextmanager
@@ -705,6 +732,8 @@ def _copiar(raiz: Path, destino: Path, arquivos: list[str]) -> list[str]:
             shutil.copy2(raiz / rel, destino / rel)
             copiados.append(rel)
         except OSError:
+            # Quem não copia fica fora de `copiados`, que vai no resultado: a falta aparece ali,
+            # e o laço na base diz o resto (`sintoma_diferente` ou `nao_reproduz`).
             pass
     return copiados
 
@@ -737,6 +766,8 @@ def _na_base(raiz: Path, ponto: str, comando: str, tempo_limite: int) -> tuple[d
             return None, []
         ligar_dependencias(raiz, worktree)
         copiados = _copiar(raiz, worktree, testes_do_diff(raiz, ponto))
+        for rel in testes_que_sairam(raiz, ponto):
+            (worktree / rel).unlink(missing_ok=True)
         return _rodar(comando, worktree, tempo_limite), copiados
 
 
@@ -785,7 +816,8 @@ def marcas(raiz: Path, base: str | None) -> dict:
     if erro:
         return {"erro": erro, "marcas": []}
     com_marca = [(rel, n, linha) for rel, n, linha in linhas_acrescentadas(raiz, ponto)
-                 if Path(rel).suffix.lower() not in SEM_MARCA and MARCA_DEPURACAO.search(linha)]
+                 if Path(rel).suffix.lower() not in SEM_MARCA
+                 and not rel.startswith(".agents/execucoes/") and MARCA_DEPURACAO.search(linha)]
     fora = gerados(raiz, sorted({rel for rel, _, _ in com_marca}))
     return {"base": base, "ponto": ponto[:12],
             "marcas": [{"arquivo": rel, "linha": n, "trecho": linha.strip()[:160]}
@@ -818,15 +850,22 @@ def campos_md(texto: str) -> dict[str, str]:
     return campos
 
 
+CELULA_SEPARADORA = re.compile(r"^:?-+:?$")
+
+
 def linhas_da_tabela(corpo: str) -> list[list[str]]:
-    """As linhas de dados de uma tabela, sem o cabeçalho (`#`) e o separador (`---`)."""
-    linhas = []
+    """As linhas de dados de uma tabela: sem o cabeçalho (a linha antes do separador) e sem o
+    separador. Célula vazia na primeira coluna não tira a linha da conta."""
+    linhas: list[list[str]] = []
     for linha in corpo.splitlines():
         if not linha.strip().startswith("|"):
             continue
         celulas = [c.strip() for c in linha.strip().strip("|").split("|")]
-        if not set(celulas[0]) <= set("-: #"):
-            linhas.append(celulas)
+        if all(CELULA_SEPARADORA.match(c) for c in celulas):
+            if linhas:
+                linhas.pop()    # a linha de cima era o cabeçalho
+            continue
+        linhas.append(celulas)
     return linhas
 
 
@@ -840,7 +879,7 @@ def _preenchido(texto: str | None, minimo: int = 1) -> bool:
 
 
 def resultado_da_hipotese(celula: str) -> str:
-    c = celula.casefold()
+    c = re.sub(r"^[^\w<]+", "", celula).casefold()   # `**confirmada**`, `✅ confirmada`
     return "descartada" if c.startswith("descart") else (
         "confirmada" if c.startswith("confirm") else "aberta")
 
@@ -849,7 +888,8 @@ def ler_ficha(texto: str) -> dict:
     campos, secoes = campos_md(texto), secoes_md(texto)
     comando = ENTRE_CRASES.search(campos.get("reprodução", ""))
     sintoma = ENTRE_CRASES.search(campos.get("sintoma na saída", ""))
-    hip = [resultado_da_hipotese(c[-1]) for c in linhas_da_tabela(secoes.get("hipóteses", ""))]
+    hip = [resultado_da_hipotese(c[-1]) for c in linhas_da_tabela(secoes.get("hipóteses", ""))
+           if len(c) > 1 and _preenchido(c[1])]   # a linha do modelo, `<causa possível>`, não conta
     return {"comando": comando.group(1) if comando else None,
             "sintoma": sintoma.group(1) if sintoma else None,
             "descartadas": hip.count("descartada"), "confirmadas": hip.count("confirmada"),
@@ -864,7 +904,7 @@ def ler_ficha(texto: str) -> dict:
                  f"`## Causa` vazia ou com menos de {MIN_CAUSA} caracteres"),
                 (_preenchido(secoes.get("prova")), "`## Prova` vazia: o que liga e desliga o bug"),
                 (_preenchido(secoes.get("trava")),
-                 "`## Trava` vazia: o teste que pega a volta do bug, ou por que não há"),
+                 "`## Trava` vazia: o teste que impede o problema de voltar, ou por que não há"),
             ) if not ok]}
 
 
@@ -1187,10 +1227,11 @@ def selado(raiz: Path) -> dict:
 # citações, sem rede: a verdade da fonte é do revisor, a forma é do código.
 
 PASTA_PESQUISA = "docs/pesquisa"
-CITACAO_PESQUISA = re.compile(r"docs/pesquisa/[\w./-]+?\.md\b")
+CITACAO_PESQUISA = re.compile(r"(?<![\w/.:-])docs/pesquisa/[\w./-]+?\.md\b")
 LINK = re.compile(r"https?://[^\s)>\]]+")
 CAMINHO_NA_FONTE = re.compile(r"([\w.-]+/[\w./-]*[\w-]|[\w-]+\.[A-Za-z0-9]+)(?::\d+(?:-\d+)?)?")
 DATA_DA_FONTE = re.compile(r"^\d{4}-\d{2}(-\d{2})?$")
+MARCADOR_NA_CELULA = re.compile(r"<[^>]+>")
 TITULO_H1 = re.compile(r"^#\s+\S", re.M)
 NAO_ENCONTRADA = re.compile(r"^\W*n[ãa]o encontrad", re.I)   # a resposta é essa, não a cita
 IDADE_MAX_PADRAO = 180
@@ -1212,19 +1253,35 @@ def _fonte_existe(raiz: Path, fonte: str) -> bool:
     """Um link, ou um caminho do repositório que exista (com `:linha` ou não)."""
     if LINK.search(fonte):
         return True
-    return any((raiz / m.group(1)).exists() for m in CAMINHO_NA_FONTE.finditer(fonte))
+    dentro = raiz.resolve()
+    return any((raiz / m.group(1)).resolve().is_relative_to(dentro) and (raiz / m.group(1)).exists()
+               for m in CAMINHO_NA_FONTE.finditer(fonte))
 
 
-def problemas_do_fato(celulas: list[str], raiz: Path) -> list[str]:
-    n = celulas[0]
+def _data_da_fonte(texto: str, hoje: date) -> bool:
+    """AAAA-MM-DD ou AAAA-MM de verdade, e não no futuro."""
+    t = texto.strip("` ")
+    if not DATA_DA_FONTE.match(t):
+        return False
+    try:
+        dia = date.fromisoformat(t if len(t) == 10 else f"{t}-01")
+    except ValueError:
+        return False
+    return dia <= hoje
+
+
+def problemas_do_fato(celulas: list[str], raiz: Path, hoje: date | None = None) -> list[str]:
+    n = celulas[0] or "?"
     if len(celulas) < 5:
         return [f"fato {n}: a linha precisa de fato, fonte, versão e data da fonte"]
     _, fato, fonte, versao, quando = celulas[:5]
     return [f"fato {n}: {msg}" for ok, msg in (
-        (fato, "sem o fato"),
-        (_fonte_existe(raiz, fonte), "sem fonte: um link ou um caminho do repositório que exista"),
-        (versao, "sem versão (escreva `sem versão` quando a fonte não tem)"),
-        (DATA_DA_FONTE.match(quando.strip("` ")), "data da fonte fora de AAAA-MM-DD ou AAAA-MM"),
+        (_preenchido(fato), "sem o fato"),
+        (_fonte_existe(raiz, fonte) and not MARCADOR_NA_CELULA.search(fonte),
+         "sem fonte: um link ou um caminho do repositório que exista"),
+        (_preenchido(versao), "sem versão (escreva `sem versão` quando a fonte não tem)"),
+        (_data_da_fonte(quando, hoje or date.today()),
+         "data da fonte fora de AAAA-MM-DD ou AAAA-MM, ou no futuro"),
     ) if not ok]
 
 
@@ -1245,24 +1302,33 @@ def problemas_da_pesquisa(texto: str, raiz: Path, hoje: date) -> tuple[list[str]
         (not ocultar_segredos(texto)[1], "segredo no texto: rode `guardrail.py ocultar <arquivo>`"),
     ) if not ok]
     for celulas in fatos:
-        problemas += problemas_do_fato(celulas, raiz)
+        problemas += problemas_do_fato(celulas, raiz, hoje)
     return problemas, data
+
+
+def _mds(raiz: Path) -> list[str]:
+    """Os `.md` do repositório pelo git (respeita o `.gitignore` e não entra em worktree
+    aninhado, como os `.worktrees/` do `/mobilizar`); fora de git, pela árvore."""
+    r = git(raiz, "ls-files", "-co", "--exclude-standard", "-z", "--", "*.md")
+    if r.returncode == 0:
+        return sorted(x for x in r.stdout.split("\0") if x)
+    rels = []
+    for pasta, subpastas, nomes in os.walk(raiz):
+        subpastas[:] = sorted(d for d in subpastas if d not in DIRS_IGNORADOS_SELADO)
+        rels += [(Path(pasta) / n).relative_to(raiz).as_posix() for n in nomes if n.endswith(".md")]
+    return sorted(rels)
 
 
 def superficie_md(raiz: Path) -> list[tuple[str, str]]:
     """(rel, texto) de todo `.md` do repositório, menos dependência, `.git` e trajetória."""
     achados = []
-    for pasta, subpastas, nomes in os.walk(raiz):
-        subpastas[:] = sorted(d for d in subpastas if d not in DIRS_IGNORADOS_SELADO)
-        for nome in sorted(n for n in nomes if n.endswith(".md")):
-            p = Path(pasta) / nome
-            rel = p.relative_to(raiz).as_posix()
-            if rel.startswith(".agents/execucoes/"):
-                continue
-            try:
-                achados.append((rel, p.read_text(encoding="utf-8")))
-            except (OSError, UnicodeDecodeError):
-                continue
+    for rel in _mds(raiz):
+        if rel.startswith(".agents/execucoes/"):
+            continue
+        try:
+            achados.append((rel, (raiz / rel).read_text(encoding="utf-8")))
+        except (OSError, UnicodeDecodeError):
+            continue
     return achados
 
 
@@ -1277,7 +1343,8 @@ def _mudou_depois(raiz: Path, rel: str, quando: str | None) -> bool | None:
     if not quando:
         return None
     limite = instante(quando)
-    datas = git(raiz, "log", f"--since={quando}", "--format=%cI", "--", rel).stdout.split()
+    # A data de autor: o rebase depois do selo muda a de commit, não a de quem escreveu.
+    datas = git(raiz, "log", "--format=%aI", "--", rel).stdout.split()
     pendente = git(raiz, "status", "--porcelain", "--", rel).stdout.strip()
     if limite is None:
         return bool(pendente or datas)
@@ -1297,20 +1364,25 @@ def fontes_da_spec(raiz: Path, spec: str) -> dict:
                          "mudou_depois": _mudou_depois(raiz, rel, quando)} for rel in citadas]}
 
 
+def _pesquisa(arq: Path, raiz: Path, hoje: date, idade_max: int) -> dict:
+    rel = arq.relative_to(raiz).as_posix()
+    try:
+        texto = arq.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:   # link quebrado, pasta com nome .md, sem permissão
+        return {"arquivo": rel, "data": "", "problemas": [f"ilegível: {type(e).__name__}"],
+                "avisos": []}
+    problemas, data = problemas_da_pesquisa(texto, raiz, hoje)
+    velha = data is not None and (hoje - data).days > idade_max
+    return {"arquivo": rel, "data": str(data or ""), "problemas": problemas,
+            "avisos": [f"mais de {idade_max} dias: confira se a fonte mudou"] if velha else []}
+
+
 def fontes(raiz: Path, spec: str | None, idade_max: int, hoje: date | None = None) -> dict:
     hoje = hoje or date.today()
     pasta = raiz / PASTA_PESQUISA
     arquivos = sorted(p for p in pasta.rglob("*.md") if p.name != "README.md") \
         if pasta.is_dir() else []
-    pesquisas = []
-    for arq in arquivos:
-        texto = arq.read_text(encoding="utf-8", errors="replace")
-        problemas, data = problemas_da_pesquisa(texto, raiz, hoje)
-        velha = data is not None and (hoje - data).days > idade_max
-        pesquisas.append({"arquivo": arq.relative_to(raiz).as_posix(), "data": str(data or ""),
-                          "problemas": problemas,
-                          "avisos": [f"mais de {idade_max} dias: confira se a fonte mudou"]
-                          if velha else []})
+    pesquisas = [_pesquisa(arq, raiz, hoje, idade_max) for arq in arquivos]
     return {"raiz": str(raiz), "pesquisas": pesquisas,
             "citacoes_quebradas": citacoes_quebradas(raiz),
             "spec": fontes_da_spec(raiz, spec) if spec else None, "idade_max": idade_max}
@@ -1678,11 +1750,11 @@ def imprimir_colher(r: dict) -> None:
 
 REPRODUCAO = {
     "reproduz": "✅ o laço mostra o problema",
-    "reproduz_e_corrige": "✅ falha na base com o sintoma e passa agora",
+    "reproduz_e_corrige": "✅ falha na base e passa agora",
     "nao_reproduz": "❌ o laço passa: não mostra o problema",
     "sintoma_diferente": "❌ o laço falha, mas não com o sintoma: é outro erro",
     "nao_corrige": "❌ o laço ainda falha depois da correção",
-    "nao_executado": "⚠️  o laço não rodou até o fim",
+    "nao_executado": "⚠️  o laço não rodou até o fim (tempo estourado, ou o comando não existe ali)",
 }
 
 
@@ -1692,8 +1764,8 @@ def imprimir_reproduzir(r: dict) -> None:
         return
     onde = f" — base {r['base']} ({r['ponto']})" if r.get("base") else " — antes do conserto"
     print(f"🔁 Reprodução{onde}\n   laço: {r['comando']}")
-    if r.get("sintoma"):
-        print(f"   sintoma: {r['sintoma']}")
+    print(f"   sintoma: {r['sintoma']}" if r.get("sintoma") else
+          "   sem --sintoma: qualquer saída diferente de 0 conta como o problema")
     if r.get("copiados"):
         print(f"   testes do diff copiados para a base: {', '.join(r['copiados'])}")
     print(f"   {REPRODUCAO[r['veredicto']]}")
@@ -1715,8 +1787,9 @@ def imprimir_marcas(r: dict) -> None:
 
 FICHA = {
     "pronta": "✅ ficha pronta: a causa está escrita e o laço falha na base e passa agora",
-    "pare_e_pergunte": (f"✋ {PARAR_DEPOIS_DE} ou mais hipóteses descartadas e nenhuma confirmada:"
-                        " pare de mexer e peça à pessoa o que falta (ambiente, dado, passo exato)"),
+    "pare_e_pergunte": (f"✋ {PARAR_DEPOIS_DE} hipóteses ou mais caíram e nenhuma se sustentou:"
+                        " a investigação não avança sem informação nova; leve à pessoa o laço e"
+                        " as hipóteses que caíram"),
     "incompleta": "❌ ficha incompleta",
 }
 
@@ -1804,7 +1877,8 @@ def _cli_fontes(args: list[str], opcao, como_json: bool, *_) -> int:
     except ValueError:
         print("erro: --idade-max precisa de um número de dias", file=sys.stderr)
         return 1
-    r = fontes(_raiz_pedida(opcao), next((a for a in args[1:] if ID_SPEC.match(a)), None), idade)
+    spec = next((a.upper() for a in args[1:] if ID_SPEC.match(a)), None)
+    r = fontes(_raiz_pedida(opcao), spec, idade)
     _mostrar(r, como_json, imprimir_fontes)
     quebrado = r["citacoes_quebradas"] or any(p["problemas"] for p in r["pesquisas"])
     return 1 if quebrado or (r["spec"] or {}).get("erro") else 0

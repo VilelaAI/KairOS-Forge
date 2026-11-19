@@ -1357,7 +1357,7 @@
       "origem": "in_house",
       "metadata": {
         "tools": [],
-        "descricao": "Acha a causa de um bug, falha intermitente ou lentidão antes de corrigir - laço curto que reproduz, uma hipótese por vez, causa provada e escrita, teste que falha antes e passa depois. Use para \"por que quebrou\", \"debuga\", \"teste intermitente\", \"funcionava ontem\". Causa já conhecida é o rodar."
+        "descricao": "Acha e prova a causa de um defeito antes do conserto, com ficha em docs/investigacoes/ e o prova.py reproduzir como juiz (falha na base, passa agora). Use em erro sem explicação, falha que vem e vai, quebra depois de um merge ou lentidão nova. Causa já apontada é o rodar."
       }
     },
     {
@@ -1437,7 +1437,7 @@
       "origem": "in_house",
       "metadata": {
         "tools": [],
-        "descricao": "Responde pelo que a fonte primária diz (doc oficial, código, changelog, especificação), com versão e data de cada fato, e salva em docs/pesquisa/ para a SPEC ou o ADR citar. Use para \"o que a doc diz\", \"qual versão suporta\", \"isso ainda funciona assim?\". Ler o próprio código é o mapear-arquitetura."
+        "descricao": "Lê a fonte primária da versão do projeto (doc oficial, código, changelog, especificação), separa fato de inferência e salva em docs/pesquisa/ para a SPEC ou o ADR citar. Use quando a decisão depende de limite, versão ou comportamento de biblioteca ou API de fora. Código próprio: mapear-arquitetura."
       }
     },
     {

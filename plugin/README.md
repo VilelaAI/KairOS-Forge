@@ -495,7 +495,7 @@ python3 kairos-forge/scripts/sync-multi-cli.py instalar --cli cursor [--escopo g
 
 `mobilizar` roda no Cursor: o agente principal orquestra os subagents de `.cursor/agents/` em paralelo enquanto o `quadro.py` guarda dependências, posse e contagem — sem canal para falar com worker em voo; se faltar contexto, relance com o contexto completo.
 
-O que chega: 71 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 21 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, os dez scripts de suporte em `.cursor/scripts/` (`grafo`, `telemetria`, `execucao`, `guardrail`, `diagnostico`, `ciclo`, `contrato`, `painel`, `quadro`, `prova`), `templates/` e o `hooks.json` que liga telemetria e guardrail aos eventos do Cursor (ADR-0042). Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
+O que chega: 71 subagents em `.cursor/agents/` (agentes consultivos viram `readonly` — o Cursor não tem allow-list por ferramenta), 21 skills no menu `/` (`.cursor/skills/`, padrão Agent Skills), a rule `alwaysApply` com o banner da fábrica e a resolução de `${CLAUDE_PLUGIN_ROOT}`, os 13 scripts de suporte em `.cursor/scripts/` (`grafo`, `telemetria`, `execucao`, `guardrail`, `diagnostico`, `ciclo`, `contrato`, `painel`, `quadro`, `prova`, `qualidade`, `segredos`, `pronto`), `templates/` e o `hooks.json` que liga telemetria e guardrail aos eventos do Cursor (ADR-0042). Instruções de projeto: o Cursor lê `AGENTS.md` — o `/kairos-forge:onboardar` oferece gerá-lo junto do `CLAUDE.md`.
 
 ### Hermes Agent (bot 24/7 — ponte)
 

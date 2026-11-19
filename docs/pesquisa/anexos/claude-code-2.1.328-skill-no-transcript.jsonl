@@ -1,0 +1,2 @@
+{"type": "assistant", "version": "2.1.328", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_00", "name": "Skill", "input": {"skill": "kairos-forge:pesquisar"}}]}}
+{"type": "user", "version": "2.1.328", "message": {"role": "user", "content": "<command-message>kairos-forge:pesquisar</command-message>\n<command-name>/kairos-forge:pesquisar</command-name>\n<command-args>a biblioteca X aceita ponto e vírgula?</command-args>"}}

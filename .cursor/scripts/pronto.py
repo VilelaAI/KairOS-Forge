@@ -25,29 +25,43 @@ import re
 TITULO = re.compile(r"^##\s+Pronto quando\s*$")
 OUTRO_TITULO = re.compile(r"^#{1,2}\s+\S")
 ITEM = re.compile(r"^-\s+(.+?)\s*$")
-CRASES = re.compile(r"`([^`]+)`")
-SCRIPT_CITADO = re.compile(r"\b([a-z][\w-]*\.py)(?:\s+(-{0,2}[a-z][\w-]*))?")
+CRASES = re.compile(r"(`+)(.+?)\1")
+CERCA = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
+# Só o script da fábrica: nome solto (`ciclo.py estado`) ou `scripts/<nome>.py`. O
+# `tests/test_x.py` e o `evals/.../rodar.py` não são conferidos contra `scripts/`.
+SCRIPT_CITADO = re.compile(r"(?:^|(?<=[\s(\"'`]))(?:scripts/)?([a-z][\w-]*\.py)"
+                           r"(?:\s+(-{0,2}[a-z][\w-]*))?")
 GATE_HUMANO = "(gate humano)"
 MIN_ITENS, MAX_ITENS, MAX_CHARS_ITEM = 3, 7, 280
 
 
-def _fora_de_bloco(texto: str):
-    """(número, linha) de cada linha fora de bloco de código cercado."""
-    em_bloco = False
-    for n, linha in enumerate(texto.splitlines(), 1):
-        if linha.lstrip().startswith("```"):
-            em_bloco = not em_bloco
-            continue
-        if not em_bloco:
-            yield n, linha
+def _linhas(texto: str):
+    """(linha, cerca): `cerca` é True na linha que abre, fecha ou está dentro de um bloco de
+    código. A cerca fecha com o mesmo caractere e ao menos o mesmo tamanho (CommonMark)."""
+    aberta = None
+    for linha in texto.splitlines():
+        m = CERCA.match(linha)
+        if aberta is None and m:
+            aberta = m.group(1)
+            yield linha, True
+        elif aberta is not None:
+            if m and m.group(1)[0] == aberta[0] and len(m.group(1)) >= len(aberta) \
+                    and not linha.strip()[len(m.group(1)):].strip():
+                aberta = None
+            yield linha, True
+        else:
+            yield linha, False
 
 
 def secoes(texto: str) -> list[list[str]]:
     """O corpo de cada `## Pronto quando` do texto (normalmente um só)."""
     achadas: list[list[str]] = []
     atual: list[str] | None = None
-    for _, linha in _fora_de_bloco(texto):
-        if TITULO.match(linha):
+    for linha, cerca in _linhas(texto):
+        if cerca:
+            if atual is not None:
+                atual.append(linha)   # bloco de código dentro da seção: linha fora da lista
+        elif TITULO.match(linha):
             atual = []
             achadas.append(atual)
         elif OUTRO_TITULO.match(linha):
@@ -69,7 +83,7 @@ def _problemas_do_item(i: int, item: str, scripts: dict[str, str]) -> list[str]:
     problemas = []
     if len(item) > MAX_CHARS_ITEM:
         problemas.append(f"item {i}: {len(item)} caracteres, limite {MAX_CHARS_ITEM}")
-    spans = CRASES.findall(item)
+    spans = [m.group(2) for m in CRASES.finditer(item)]
     if not spans and not item.rstrip(" .;").endswith(GATE_HUMANO):
         problemas.append(f"item {i}: sem o comando ou o artefato entre crases, e sem "
                          f"`{GATE_HUMANO}` no fim")

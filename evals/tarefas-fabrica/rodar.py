@@ -107,6 +107,9 @@ def preparar(t: dict, ws: Path) -> str:
     git(ws, "init", "-q", "-b", "main")
     git(ws, "add", "-A")
     git(ws, "commit", "-qm", "base")
+    # Como num clone: `origin/main` é a base. Sem ela, depois do primeiro commit do agente o
+    # `prova.py` da fábrica não acha a base do diff e fica cego (ADR-0060).
+    git(ws, "update-ref", "refs/remotes/origin/main", "HEAD")
     if t.get("mudanca"):
         # `"mudanca": true` é o diff de download das primeiras tarefas; um objeto dá o branch e a
         # mensagem, para o revisor ler um histórico que combina com o diff.
@@ -203,9 +206,11 @@ def _checar_arquivo(c: dict, ws: Path, ref: str, resposta: str) -> tuple[bool, s
 
 
 def _checar_ausente(c: dict, ws: Path, ref: str, resposta: str) -> tuple[bool, str]:
-    """Nenhum arquivo do glob casa com a regex: o que não podia sobrar (ADR-0060)."""
+    """Nenhum arquivo do glob casa com nenhuma das regex: o que não podia sobrar (ADR-0060)."""
+    regexes = c["regex"] if isinstance(c["regex"], list) else [c["regex"]]
     com = [str(a.relative_to(ws)) for a in _arquivos(ws, c["glob"])
-           if re.search(c["regex"], a.read_text(encoding="utf-8", errors="replace"))]
+           if any(re.search(rx, a.read_text(encoding="utf-8", errors="replace"), re.I)
+                  for rx in regexes)]
     return not com, f"sobrou em: {com}" if com else "ausente"
 
 

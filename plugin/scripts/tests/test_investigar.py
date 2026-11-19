@@ -155,6 +155,53 @@ class OLacoNosDoisLados(Repo):
         self.assertEqual(prova._copiar(self.raiz, self.raiz / "x", ["nao-existe.py"]), [])
 
 
+class OQueARevisaoAchou(Repo):
+    """Os furos que a revisão adversarial achou no laço (ADR-0060), um teste para cada."""
+
+    def test_apagar_o_teste_que_falha_nao_e_conserto(self) -> None:
+        self.escrever({"test_vazia.py": "import unittest\nfrom conta import media\n\n\n"
+                                        "class T(unittest.TestCase):\n    def test_v(self):\n"
+                                        "        self.assertEqual(media([]), 0)\n"})
+        self.git("add", "-A")
+        self.git("commit", "-qm", "teste que falha")
+        self.git("checkout", "-q", "main")
+        self.git("merge", "-q", "fix/media")
+        self.git("checkout", "-q", "fix/media")
+        laco = f"{sys.executable} -B -m unittest discover -p 'test_*.py'"
+        self.git("rm", "-q", "test_vazia.py")
+        self.assertEqual(self.reproduzir(comando=laco)["veredicto"], "nao_reproduz")
+        self.git("reset", "-q", "--hard")
+        self.git("mv", "test_vazia.py", "test_media_extra.py")
+        (self.raiz / "test_media_extra.py").write_text("x = 1\n", encoding="utf-8")
+        self.assertEqual(self.reproduzir(comando=laco)["veredicto"], "nao_reproduz")
+
+    def test_o_laco_que_nao_existe_na_base_nao_e_reproducao(self) -> None:
+        self.corrigir()
+        r = self.reproduzir(None, comando="./nao-existe.sh")   # 127: o comando não existe ali
+        self.assertEqual(r["veredicto"], "nao_executado")
+
+    def test_saida_que_nao_e_utf8_nao_derruba(self) -> None:
+        self.corrigir()
+        laco = f"{sys.executable} -c 'import sys; sys.stdout.buffer.write(bytes([0xf3])); sys.exit(1)'"
+        self.assertEqual(self.reproduzir(None, comando=laco, antes=True)["veredicto"], "reproduz")
+
+    def test_o_tempo_estourado_mata_o_grupo(self) -> None:
+        import time
+        inicio = time.monotonic()
+        r = prova._rodar("sleep 30; true", self.raiz, 1)
+        self.assertIsNone(r["exit"])
+        self.assertLess(time.monotonic() - inicio, 10)
+
+    def test_marca_de_id_curto_prefixo_do_diff_e_acento(self) -> None:
+        self.escrever({"curta.py": f"print('[{MARCA[:-4]}7]')\n",
+                       "relatório.py": f"# {MARCA}\n",
+                       ".agents/execucoes/s.jsonl": f'{{"cmd": "sed /{MARCA}/d"}}\n'})
+        self.git("config", "diff.mnemonicPrefix", "true")
+        self.git("config", "diff.noprefix", "true")
+        achadas = sorted(m["arquivo"] for m in prova.marcas(self.raiz, "main")["marcas"])
+        self.assertEqual(achadas, ["curta.py", "relatório.py"])
+
+
 class AMarcaDeDepuracao(Repo):
     def test_a_marca_que_sobrou_no_codigo(self) -> None:
         self.escrever({"conta.py": CORRIGIDO + f"print('[{MARCA}]', 1)\n",
@@ -258,8 +305,19 @@ class OLeitorDaFicha(unittest.TestCase):
 
     def test_resultado_da_hipotese(self) -> None:
         self.assertEqual([prova.resultado_da_hipotese(c) for c in
-                          ("Descartada", "confirmada (liga e desliga)", "em teste", "")],
-                         ["descartada", "confirmada", "aberta", "aberta"])
+                          ("Descartada", "confirmada (liga e desliga)", "em teste", "",
+                           "**confirmada**", "✅ confirmada", "~~descartada~~")],
+                         ["descartada", "confirmada", "aberta", "aberta",
+                          "confirmada", "confirmada", "descartada"])
+
+    def test_tabela_pela_posicao_e_o_modelo_sem_preencher(self) -> None:
+        tabela = "| A | B |\n|:-:|---|\n| 1 | x |\n|  | y |\n| - | z |\n"
+        self.assertEqual(prova.linhas_da_tabela(tabela), [["1", "x"], ["", "y"], ["-", "z"]])
+        modelo = FICHA.replace("| 1 | o CSV de janeiro vem vazio |", "| 1 | <causa possível> |") \
+                      .replace("| 2 | a média não trata a lista vazia |", "| 2 | <causa possível> |")
+        f = prova.ler_ficha(modelo.format(laco="x"))
+        self.assertEqual((f["confirmadas"], f["descartadas"]), (0, 0))
+        self.assertIn("sem a tabela de `## Hipóteses`", f["problemas"])
 
     def test_preenchido(self) -> None:
         self.assertFalse(prova._preenchido("<a causa>"))
@@ -278,12 +336,12 @@ class AImpressao(Repo):
     def test_reproducao(self) -> None:
         self.corrigir()
         saida = self.imprimir(prova.imprimir_reproduzir, self.reproduzir())
-        self.assertIn("falha na base com o sintoma e passa agora", saida)
+        self.assertIn("falha na base e passa agora", saida)
         self.assertIn("testes do diff copiados para a base: test_conta.py", saida)
         self.assertIn("antes  │", saida)
         saida = self.imprimir(prova.imprimir_reproduzir, self.reproduzir(None, antes=True))
         self.assertIn("antes do conserto", saida)
-        self.assertNotIn("sintoma:", saida)
+        self.assertIn("sem --sintoma: qualquer saída diferente de 0 conta", saida)
         self.assertIn("🚫", self.imprimir(prova.imprimir_reproduzir, {"erro": "x"}))
 
     def test_marcas_e_ficha(self) -> None:
@@ -294,7 +352,7 @@ class AImpressao(Repo):
         self.assertIn("🚫", self.imprimir(prova.imprimir_marcas, {"erro": "x"}))
         r = {"ficha": "INV.md", "confirmadas": 0, "descartadas": 3, "abertas": 0,
              "veredicto": "pare_e_pergunte"}
-        self.assertIn("pare de mexer", self.imprimir(prova.imprimir_investigacao, r))
+        self.assertIn("não avança sem informação nova", self.imprimir(prova.imprimir_investigacao, r))
         r = {**r, "veredicto": "incompleta", "problemas": ["sem causa"],
              "reproducao": {"veredicto": "nao_corrige"}}
         saida = self.imprimir(prova.imprimir_investigacao, r)

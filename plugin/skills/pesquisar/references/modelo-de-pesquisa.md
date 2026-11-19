@@ -11,7 +11,7 @@ pelo nome, então mantenha os títulos e a ordem das colunas da tabela de fatos.
 - **Para:** <SPEC-NNN, ADR-NNNN, issue ou conversa>
 - **Versão no projeto:** <a versão lida no lockfile ou no manifesto>
 
-**Resposta:** <uma ou duas frases, ou "não encontrada">
+**Resposta:** <a resposta curta à pergunta do título, ou "não encontrada">
 
 ## Fatos
 
@@ -26,7 +26,7 @@ pelo nome, então mantenha os títulos e a ordem das colunas da tabela de fatos.
 
 ## Em aberto
 
-- <o que não deu para confirmar, e onde se procurou>
+- <a dúvida que sobrou e os lugares já consultados>
 ```
 
 ## Como o `prova.py fontes` lê

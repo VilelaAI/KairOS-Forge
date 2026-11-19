@@ -8,12 +8,15 @@
     {
       "tipo": "arquivo",
       "glob": "docs/investigacoes/INV-*.md",
-      "regex": ["(?s)## Causa.*valores\\.py", "(?s)## Hip[oó]teses.*confirmad"]
+      "regex": [
+        "(?ms)^## Causa[^\\n]*\\n(?:(?!^## ).)*?vendas[/.]valores",
+        "(?ms)^## Hip[oó]teses[^\\n]*\\n(?:(?!^## ).)*?^\\|[^\\n]*\\|\\s*confirmad[ao]\\s*\\|\\s*$"
+      ]
     },
     {
       "tipo": "ausente",
       "glob": "**/*.py",
-      "regex": "forge-depura-"
+      "regex": "forge-depura-[0-9a-z]+"
     }
   ],
   "tempo_limite_s": 1200

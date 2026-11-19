@@ -89,14 +89,16 @@ def eh_producao(arquivo: str) -> bool:
     return bool(EXT_PRODUCAO.search(arquivo)) and not EH_TESTE.search(arquivo)
 
 def regex_das_skills(pasta: Path) -> re.Pattern:
-    """As skills citadas no prompt, pelos nomes da pasta `skills/` ao lado dos scripts (a
-    lista escrita à mão ficava para trás a cada skill nova). Sem a pasta, como na cópia do
+    """A skill chamada no começo do prompt, pelos nomes da pasta `skills/` ao lado dos scripts
+    (a lista escrita à mão ficava para trás a cada skill nova). Sem a pasta, como na cópia do
     Tucano, só o nome com o prefixo da fábrica conta."""
-    nomes = sorted((p.parent.name for p in pasta.glob("*/SKILL.md")), key=len, reverse=True) \
-        if pasta.is_dir() else []
+    nomes = sorted(p.parent.name for p in pasta.glob("*/SKILL.md")) if pasta.is_dir() else []
+    # Comando de barra só vale no começo do prompt; `/validar-cpf` não é `/validar`, e a rota
+    # `/pesquisar` citada no meio da frase não é a skill. A ordem dos nomes não importa: o
+    # `(?![\w-])` faz a alternativa curta falhar e a longa ser tentada.
     if not nomes:
-        return re.compile(r"/kairos-forge:([a-z][a-z-]*)\b")
-    return re.compile(r"/(?:kairos-forge:)?(" + "|".join(map(re.escape, nomes)) + r")\b")
+        return re.compile(r"^\s*/kairos-forge:([a-z][a-z-]*)(?![\w-])")
+    return re.compile(r"^\s*/(?:kairos-forge:)?(" + "|".join(map(re.escape, nomes)) + r")(?![\w-])")
 
 
 SKILLS = regex_das_skills(Path(__file__).resolve().parent.parent / "skills")

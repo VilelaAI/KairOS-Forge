@@ -106,6 +106,14 @@ Cada revisor lê o diff **na sua dimensão** e produz parecer em primeira pessoa
 > 🟡 **Médio** — `services/relatorio.ts` adicionou função `gerarPDF` sem teste.
 > 🔵 **Baixo** — `components/RelatorioForm.tsx` tem 3 caminhos de erro mas só 1 tem teste.
 
+**Do PR ou de antes (ADR-0059).** Cada achado diz onde está (`arquivo:linha`). O que as linhas
+do diff introduziram ou pioraram é do PR e entra na gravidade dele. O que já existia antes vai
+para **Fora deste PR**, com onde está e o que fazer em outra tarefa, e não bloqueia: o PR não
+paga pelo que não fez. A exceção é o PR que depende do problema antigo ou o piora (chama o
+código defeituoso num caminho novo, passa a alimentá-lo com dado de fora, amplia o uso) — aí o
+achado fica na gravidade, com ` · o PR depende: <como>` ou ` · o PR piora: <como>` na linha.
+Mudança de arquitetura maior que o PR também é observação, não bloqueio.
+
 **Revisor que não entregou parecer não aprovou** (ADR-0046). Erro, tempo limite ou contexto
 estourado: o nome vai em `incompletos` no bloco do relatório, e o revisor é acionado de novo.
 Com `incompletos` preenchido o contrato recusa veredicto limpo — revisão com uma dimensão a
@@ -176,6 +184,9 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
 ## 🔵 Baixo → comentar e seguir
 - [Patrícia] components/RelatorioForm.tsx — Cobertura parcial de erro.
 
+## Fora deste PR (já existia; não bloqueia)
+- [Helena] lib/exportar.ts:14 — nome do arquivo vindo do usuário sem normalizar, de antes deste PR. Outra tarefa: restringir à pasta de saída.
+
 ## ✅ O que está bom
 - Migrations reversíveis (Carlos aprovou)
 - Acessibilidade preservada (Ada checou contraste e ARIA)
@@ -202,6 +213,18 @@ Ao final, **você (a skill)** consolida os pareceres em um único relatório com
 ```
 
 **Salve o relatório** em `docs/specs/revisoes/REVISAO-<SPEC-NNN ou slug da branch>-YYYY-MM-DD.md`.
+
+**Confira a origem antes de entregar (ADR-0059):**
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prova.py origem docs/specs/revisoes/REVISAO-<...>.md
+```
+
+Ele lê cada `arquivo:linha` do 🔴, do 🟠 e do **Fora deste PR** contra o diff e sai 1 em dois
+casos. Achado que bloqueia numa linha que o PR não tocou, sem ` · o PR depende:` ou
+` · o PR piora:`: é problema antigo, vai para **Fora deste PR** (e sai de `criticos`). E
+observação numa linha que o PR escreveu: é do PR, volta para a gravidade dele. Corrija o
+relatório e rode de novo até sair 0. Achado sem `arquivo:linha` não é conferido; cite a linha.
 
 **Descarte é marcado, não apagado (ADR-0039).** Achado que o humano decide não acatar — ou que
 a rodada de correção contesta e o humano concorda — recebe ` · descartado: <motivo>` **na própria
@@ -246,6 +269,7 @@ mais barata que a anterior.
 ### 6. Regras de bloqueio
 
 - **Qualquer 🔴** de qualquer revisor → veredicto agregado é ❌ bloqueado.
+- **Fora deste PR** nunca bloqueia nem conta entre os 🟠: é o que já existia (ADR-0059).
 - **2+ 🟠** → ⚠️ aprovado com ressalvas, com recomendação forte de corrigir antes.
 - Só 🟡 ou 🔵 → ✅ aprovado.
 

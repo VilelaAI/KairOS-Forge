@@ -45,12 +45,20 @@ requisito, a issue de origem ou um arquivo do diff. Com `--github`, os comentár
 issue de origem depois da aprovação também entram. Ligar não é julgar: quem diz se a
 entrega segue ou contradiz a decisão é o `/validar`, por isso sai 0 sempre que leu.
 
+E a revisão separa o que é do PR do que já existia (ADR-0059): o `origem` lê o relatório
+do `/revisar` e confere cada `arquivo:linha` citado contra o diff. O achado que bloqueia
+(🔴, 🟠) em linha que o diff não tocou precisa dizer como o PR o afeta (`· o PR depende:` ou
+`· o PR piora:`); sem isso, é problema antigo e vai para `## Fora deste PR`, que não bloqueia.
+E a observação de `## Fora deste PR` numa linha que o PR escreveu é do PR. Sai 1 quando um
+dos dois aparece: a revisão não bloqueia o PR pelo que ele não fez, nem esconde o que ele fez.
+
 ## Uso
 
     prova.py pre-patch        [--base REF] [--comando "TEMPLATE"] [--tempo-limite S] [--json]
     prova.py testes-alterados [--base REF] [--json]
     prova.py atalhos          [--base REF] [--json]
     prova.py decisoes SPEC-NNN [--base REF] [--desde DATA] [--github] [--json]
+    prova.py origem   REVISAO.md [--base REF] [--json]
     prova.py selado           [--raiz DIR] [--json]
     prova.py colher           [--dias N] [--saida ARQ] [--validar] [--comando "TEMPLATE"]
                               [--fonte gh|git] [--json]
@@ -427,6 +435,7 @@ EXT_CODIGO = {".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts
               ".rb", ".java", ".kt", ".rs", ".php", ".cs", ".swift", ".scala", ".vue",
               ".svelte"}
 CABECALHO = re.compile(r"^\+\+\+ b/(.+)$")
+TRECHO_COMPLETO = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 TRECHO = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 
 
@@ -494,6 +503,107 @@ def atalhos(raiz: Path, base: str | None) -> dict:
                                "teste": eh_teste(rel), "trecho": trecho[:160]})
         anterior = (rel, n, linha)
     return {"base": base, "ponto": ponto[:12], "candidatos": candidatos}
+
+
+# --- o que é do PR e o que já existia (ADR-0059) ----------------------------------
+# A ideia vem da corno-revisa (corno-skills, sem licença declarada: a ideia, não o texto):
+# o problema que o PR introduziu ou piorou pede ajuste; o que já existia fica anotado para
+# outra tarefa, sem bloquear. A conferência é pela linha citada contra o diff, sem modelo.
+
+SECAO_MD = re.compile(r"^##\s+(.+?)\s*$")
+LOCAL_CITADO = re.compile(r"([\w./@+-]+\.[A-Za-z0-9]+):(\d+)(?:[-–](\d+))?")
+JUSTIFICADO = re.compile(r"·\s*o PR (depende|piora)\b", re.I)
+DESCARTADO = re.compile(r"·\s*descartado:", re.I)
+FOLGA = 3   # o achado que bloqueia pode citar a linha ao lado da que o diff mexeu
+
+
+def _secao_da_revisao(titulo: str) -> str | None:
+    """`bloqueia` para 🔴 e 🟠, `fora` para "Fora deste PR"; o resto não é conferido."""
+    if "fora deste pr" in titulo.casefold():
+        return "fora"
+    return "bloqueia" if titulo.startswith(("🔴", "🟠")) else None
+
+
+def achados_da_revisao(texto: str) -> list[dict]:
+    """Cada achado das seções que importam, com o local citado. Bloco de código e achado
+    descartado (ADR-0039) ficam de fora."""
+    achados, secao, em_bloco = [], None, False
+    for linha in texto.splitlines():
+        if linha.lstrip().startswith("```"):
+            em_bloco = not em_bloco
+            continue
+        titulo = None if em_bloco else SECAO_MD.match(linha)
+        if titulo:
+            secao = _secao_da_revisao(titulo.group(1))
+        elif secao and not em_bloco and linha.lstrip().startswith("- ") and not DESCARTADO.search(linha):
+            achados.append(_achado(secao, linha))
+    return achados
+
+
+def _achado(secao: str, linha: str) -> dict:
+    local = LOCAL_CITADO.search(linha)
+    inicio = int(local.group(2)) if local else None
+    return {"secao": secao, "texto": linha.strip()[2:].strip()[:200],
+            "arquivo": local.group(1) if local else None, "inicio": inicio,
+            "fim": int(local.group(3) or inicio) if local else None,
+            "justificado": bool(JUSTIFICADO.search(linha))}
+
+
+def trechos_do_diff(raiz: Path, ponto: str) -> dict[str, list[tuple[int, int]]]:
+    """arquivo → [(primeira, última)] das linhas que o diff escreveu, na versão nova. Linha
+    apagada conta como o ponto onde estava; arquivo novo e não rastreado, inteiro."""
+    trechos: dict[str, list[tuple[int, int]]] = {}
+    arquivo, anterior = None, ""
+    for linha in git(raiz, "diff", "-U0", "--no-color", ponto).stdout.splitlines():
+        if linha.startswith("+++ ") and anterior.startswith("--- "):
+            m = CABECALHO.match(linha)
+            arquivo = m.group(1) if m else None
+        m = TRECHO_COMPLETO.match(linha)
+        if m and arquivo:
+            inicio, qtd = int(m.group(1)), int(m.group(2) if m.group(2) is not None else 1)
+            trechos.setdefault(arquivo, []).append((inicio, inicio + max(qtd, 1) - 1))
+        anterior = linha
+    for rel in nao_rastreados(raiz):
+        trechos.setdefault(rel, []).append((1, 10 ** 9))
+    return trechos
+
+
+def _no_diff(achado: dict, trechos: dict, folga: int) -> bool:
+    return any(a - folga <= achado["fim"] and achado["inicio"] <= b + folga
+               for a, b in trechos.get(achado["arquivo"], []))
+
+
+def _ler_relatorio(relatorio: str | None) -> tuple[str | None, str | None]:
+    """(texto, erro)."""
+    if not relatorio:
+        return None, "diga qual relatório conferir: prova.py origem REVISAO.md"
+    try:
+        return Path(relatorio).read_text(encoding="utf-8"), None
+    except (OSError, UnicodeDecodeError):
+        return None, f"não li o relatório {relatorio}"
+
+
+def classificar_origem(achados: list[dict], trechos: dict) -> dict:
+    """O que bloqueia precisa ser do PR, ou dizer como o PR o afeta; o que é de fora não pode
+    estar numa linha que o PR escreveu (aí a comparação é exata, sem folga)."""
+    com_local = [a for a in achados if a["arquivo"]]
+    return {"conferidos": len(com_local), "sem_local": [a for a in achados if not a["arquivo"]],
+            "fora_sem_dizer": [a for a in com_local if a["secao"] == "bloqueia"
+                               and not a["justificado"] and not _no_diff(a, trechos, FOLGA)],
+            "do_pr_como_observacao": [a for a in com_local if a["secao"] == "fora"
+                                      and _no_diff(a, trechos, 0)]}
+
+
+def origem(raiz: Path, base: str | None, relatorio: str | None) -> dict:
+    texto, erro = _ler_relatorio(relatorio)
+    if erro:
+        return {"erro": erro}
+    base = base or base_padrao(raiz)
+    ponto = ponto_de_partida(raiz, base) if base else None
+    if not ponto:
+        return {"erro": f"sem base para o diff ({base or 'nenhuma ref'}) — passe --base"}
+    return {"base": base, "ponto": ponto[:12], "relatorio": relatorio,
+            **classificar_origem(achados_da_revisao(texto), trechos_do_diff(raiz, ponto))}
 
 
 # --- decisões registradas depois da aprovação da SPEC ------------------------------
@@ -987,6 +1097,34 @@ def imprimir_pre_patch(r: dict) -> None:
         print("\n   Nenhum teste novo passa na base sem a mudança.")
 
 
+FORA_DO_LUGAR = {
+    "fora_sem_dizer": (
+        "bloqueia numa linha que o PR não tocou, sem dizer como o PR o afeta:",
+        "Se já existia antes, vai para `## Fora deste PR` (não bloqueia). Se o PR depende dele "
+        "ou o piora, marque `· o PR depende: <como>` ou `· o PR piora: <como>`."),
+    "do_pr_como_observacao": (
+        "observação numa linha que o PR escreveu:",
+        "É do PR: volta para a seção da gravidade dele."),
+}
+
+
+def imprimir_origem(r: dict) -> None:
+    if r.get("erro"):
+        print(f"🚫 {r['erro']}")
+        return
+    print(f"🧭 Origem dos achados — {r['relatorio']} contra {r['base']} ({r['ponto']})")
+    sem = f", {len(r['sem_local'])} sem `arquivo:linha` (não conferido)" if r["sem_local"] else ""
+    print(f"   {r['conferidos']} achado(s) com local conferido(s){sem}")
+    for chave, (titulo, dica) in FORA_DO_LUGAR.items():
+        if r[chave]:
+            print(f"\n   ✗ {titulo}")
+            for a in r[chave]:
+                print(f"     · {a['texto'][:140]}")
+            print(f"     {dica}")
+    if not any(r[chave] for chave in FORA_DO_LUGAR):
+        print("   ✅ o que bloqueia é do PR, e o que é de fora não bloqueia")
+
+
 def imprimir_atalhos(r: dict) -> None:
     if r.get("erro"):
         print(f"🚫 {r['erro']}")
@@ -1119,7 +1257,7 @@ def imprimir_colher(r: dict) -> None:
 def main() -> int:
     args = sys.argv[1:]
     if not args or args[0] not in ("pre-patch", "testes-alterados", "atalhos", "decisoes",
-                                   "selado", "colher"):
+                                   "origem", "selado", "colher"):
         print(__doc__.strip())
         return 1
     comando = args[0]
@@ -1202,6 +1340,10 @@ SOBRE_O_DIFF = {
                      _valor(args, "--desde"), "--github" in args),
                  lambda r: imprimir_decisoes(r),
                  lambda r: False),  # ligar não é julgar: quem diz se a entrega segue é o /validar
+    "origem": (lambda raiz, base, _t, _s, args: origem(raiz, base, next(
+                   (a for a in args[1:] if a.endswith(".md")), None)),
+               lambda r: imprimir_origem(r),
+               lambda r: any(r[chave] for chave in FORA_DO_LUGAR)),
 }
 
 

@@ -1,0 +1,39 @@
+{
+  "id": "t12-revisar-defeito-antigo",
+  "tipo": "verificar",
+  "titulo": "Revisão não bloqueia o PR por um defeito que já existia, e o anota fora do PR",
+  "prompt": "/kairos-forge:revisar — revise a branch atual contra a `main` antes do PR e salve o relatório como a skill pede. Só revise: não corrija o código.",
+  "mudanca": {
+    "branch": "feature/maior",
+    "mensagem": "feat: maior venda no relatório"
+  },
+  "oraculo": false,
+  "checagens": [
+    {
+      "tipo": "contrato",
+      "glob": "docs/specs/revisoes/REVISAO-*.md",
+      "leitor": "revisar",
+      "campos": {
+        "veredicto": ["aprovado", "aprovado_com_ressalvas"]
+      }
+    },
+    {
+      "tipo": "bloqueios",
+      "glob": "docs/specs/revisoes/REVISAO-*.md",
+      "proibido": ["consulta\\.py"]
+    },
+    {
+      "tipo": "arquivo",
+      "glob": "docs/specs/revisoes/REVISAO-*.md",
+      "regex": ["(?s)fora deste pr.*consulta\\.py", "sql|inje"]
+    },
+    {
+      "tipo": "intocado",
+      "caminhos": [
+        "vendas/",
+        "tests/"
+      ]
+    }
+  ],
+  "tempo_limite_s": 1200
+}

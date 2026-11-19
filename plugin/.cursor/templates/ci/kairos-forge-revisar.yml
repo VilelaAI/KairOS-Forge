@@ -78,7 +78,7 @@ jobs:
           CLAUDE_CODE_VERSAO: ${{ vars.CLAUDE_CODE_VERSAO || '2.1.318' }}
           # A fábrica roda com o seu segredo. Sem `vars.FORGE_REF`, vem a tag da versão
           # de onde você copiou este arquivo; para fixar num commit revisado, use a variável.
-          FORGE_REF: ${{ vars.FORGE_REF || 'v0.51.0' }}
+          FORGE_REF: ${{ vars.FORGE_REF || 'v0.52.0' }}
         run: |
           npm install -g "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSAO"
           # A fábrica entra como plugin desta sessão (--plugin-dir), não copiada para o
@@ -115,6 +115,17 @@ jobs:
           # O parecer vira comentário público: segredo que o agente repetiu sai antes.
           python3 /tmp/forge/scripts/guardrail.py ocultar revisao.md
 
+      - name: Conferir a origem dos achados
+        # O que já existia antes do PR não bloqueia (ADR-0059). O achado que bloqueia numa linha
+        # que o PR não tocou, sem dizer como o PR o afeta, e a observação numa linha que o PR
+        # escreveu saem apontados no comentário, ao lado do parecer. Só lê; nunca falha o job.
+        if: steps.cred.outputs.ativo == 'true'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python3 /tmp/forge/scripts/prova.py origem revisao.md --base "$BASE" > origem.md || true
+          python3 /tmp/forge/scripts/guardrail.py ocultar origem.md
+
       - name: Identidade da fábrica (GitHub App, opcional)
         # Com o app da fábrica configurado, tudo o que ela faz sai em nome dele: permissões
         # dadas na instalação, revogáveis sem tocar em ninguém, e o PR aberto por ele dispara
@@ -138,6 +149,14 @@ jobs:
             echo "## 🔥 Revisão da fábrica kairos-forge"
             echo
             cat revisao.md
+            if grep -q "✗" origem.md 2>/dev/null; then
+              echo
+              echo "### Conferência da origem dos achados"
+              echo
+              echo '```'
+              cat origem.md
+              echo '```'
+            fi
             echo
             echo "---"
             echo "_Parecer automático — não substitui julgamento humano em decisão de design._"

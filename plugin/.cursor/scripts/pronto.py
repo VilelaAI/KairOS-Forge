@@ -35,22 +35,23 @@ GATE_HUMANO = "(gate humano)"
 MIN_ITENS, MAX_ITENS, MAX_CHARS_ITEM = 3, 7, 280
 
 
+def _fecha(linha: str, cerca: str, aberta: str) -> bool:
+    """A cerca fecha com o mesmo caractere, ao menos o mesmo tamanho e nada depois (CommonMark)."""
+    return cerca[0] == aberta[0] and len(cerca) >= len(aberta) \
+        and not linha.strip()[len(cerca):].strip()
+
+
 def _linhas(texto: str):
     """(linha, cerca): `cerca` é True na linha que abre, fecha ou está dentro de um bloco de
-    código. A cerca fecha com o mesmo caractere e ao menos o mesmo tamanho (CommonMark)."""
+    código."""
     aberta = None
     for linha in texto.splitlines():
         m = CERCA.match(linha)
+        yield linha, aberta is not None or m is not None
         if aberta is None and m:
             aberta = m.group(1)
-            yield linha, True
-        elif aberta is not None:
-            if m and m.group(1)[0] == aberta[0] and len(m.group(1)) >= len(aberta) \
-                    and not linha.strip()[len(m.group(1)):].strip():
-                aberta = None
-            yield linha, True
-        else:
-            yield linha, False
+        elif aberta is not None and m and _fecha(linha, m.group(1), aberta):
+            aberta = None
 
 
 def secoes(texto: str) -> list[list[str]]:

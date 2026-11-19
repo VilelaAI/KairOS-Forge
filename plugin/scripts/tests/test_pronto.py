@@ -109,6 +109,13 @@ class AForma(unittest.TestCase):
         dentro = "## Pronto quando\n\n- `a`\n- `b`\n```\n- `c`\n```\n- `d`\n"
         self.assertEqual(pronto.problemas(dentro, SCRIPTS), ["linha fora da lista: ```"])
 
+    def test_o_bloco_so_fecha_na_cerca_que_o_fecha(self) -> None:
+        """O título de exemplo depois da primeira linha do bloco também fica dentro dele."""
+        exemplo = "# x\n```\nexemplo\n## Pronto quando\n- `z`\n```\n"
+        texto = exemplo + "\n## Pronto quando\n\n- `a`\n- `b`\n- `c`\n"
+        self.assertEqual((pronto.problemas(texto, SCRIPTS), pronto.itens(texto)),
+                         ([], ["`a`", "`b`", "`c`"]))
+
     def test_so_o_script_da_fabrica_e_conferido(self) -> None:
         texto = ("## Pronto quando\n\n- `pytest tests/test_login.py` passa\n"
                  "- `python3 evals/tarefas-fabrica/rodar.py validar` sai 0\n"
@@ -196,6 +203,44 @@ class AConferencia(unittest.TestCase):
         self.assertEqual(guardrail.skills_da_sessao(sem_prefixo, self.pasta), [])
         self.assertEqual(guardrail.skills_da_sessao("/nao/existe.jsonl", self.pasta), [])
 
+    def test_so_a_tool_skill_conta(self) -> None:
+        """Outra ferramenta com `skill` na entrada, ou bloco que não é chamada, não vira skill."""
+        caminho = transcript([
+            {"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "name": "Bash", "input": {"skill": "kairos-forge:revisar"}},
+                {"type": "text", "name": "Skill", "input": {"skill": "kairos-forge:revisar"}}]}},
+            chamada("kairos-forge:validar")])
+        self.addCleanup(os.unlink, caminho)
+        self.assertEqual(guardrail.skills_da_sessao(caminho, self.pasta), ["validar"])
+
+    def test_duas_chamadas_na_mesma_resposta_entram_uma_vez(self) -> None:
+        caminho = transcript([{"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "name": "Skill", "input": {"skill": "kairos-forge:revisar"}},
+            {"type": "tool_use", "name": "Skill", "input": {"skill": "kairos-forge:revisar"}}]}}])
+        self.addCleanup(os.unlink, caminho)
+        self.assertEqual(guardrail.skills_da_sessao(caminho, self.pasta), ["revisar"])
+
+    def test_so_a_pessoa_digita_o_comando(self) -> None:
+        """A marca do comando digitado só conta no texto da pessoa, não em linha de outro tipo."""
+        etiqueta = "command-name"   # a marca que o Claude Code grava quando a pessoa digita o comando
+        caminho = transcript([
+            {"type": "system", "message": {"content": f"<{etiqueta}>/kairos-forge:revisar</{etiqueta}>"}},
+            digitada(f"<{etiqueta}>/kairos-forge:validar</{etiqueta}>")])
+        self.addCleanup(os.unlink, caminho)
+        self.assertEqual(guardrail.skills_da_sessao(caminho, self.pasta), ["validar"])
+
+    def test_o_resultado_de_ferramenta_na_linha_da_pessoa(self) -> None:
+        """A linha `user` com `tool_result`, a mais comum do transcript, não derruba a leitura."""
+        etiqueta = "command-name"
+        caminho = transcript([
+            chamada("kairos-forge:revisar"),
+            {"type": "user", "message": {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "toolu_00",
+                 "content": "Launching skill: kairos-forge:revisar"}]}},
+            digitada(f"<{etiqueta}>/kairos-forge:validar</{etiqueta}>")])
+        self.addCleanup(os.unlink, caminho)
+        self.assertEqual(guardrail.skills_da_sessao(caminho, self.pasta), ["revisar", "validar"])
+
     def test_o_transcript_gravado_pelo_claude_code(self) -> None:
         """As duas linhas reais do 2.1.328, salvas como anexo da pesquisa (fato 6)."""
         anexo = RAIZ.parent / "docs/pesquisa/anexos/claude-code-2.1.328-skill-no-transcript.jsonl"
@@ -234,6 +279,20 @@ class AConferencia(unittest.TestCase):
                 self.assertEqual(texto.count(f"`item 6 "), texto.count(f"`item 0 "))   # nada cortado
         self.assertLess(len(guardrail.CONFERENCIA) + len(texto), guardrail.TETO_DO_HOOK)
         self.assertEqual(guardrail.caber_no_teto([("a", "/a:\n- `x`")]), "/a:\n- `x`")
+
+    def test_o_teto_conta_o_bloco_e_a_separacao(self) -> None:
+        """Cada bloco custa o tamanho dele mais os 2 da separação: o que fecha o espaço cabe,
+        um caractere a mais vai pelo nome."""
+        from unittest import mock
+        reserva = len(guardrail.CONFERENCIA) + len(guardrail.CABECA_DO_PRONTO) + 400
+        with mock.patch.object(guardrail, "TETO_DO_HOOK", reserva + 100):   # 100 de espaço
+            self.assertEqual(guardrail.caber_no_teto([("a", "a" * 98)]), "a" * 98)
+            self.assertNotIn("a" * 99, guardrail.caber_no_teto([("a", "a" * 99)]))
+            self.assertEqual(guardrail.caber_no_teto([("a", "a" * 48), ("b", "b" * 48)]),
+                             "a" * 48 + "\n\n" + "b" * 48)
+            apertado = guardrail.caber_no_teto([("a", "a" * 49), ("b", "b" * 49)])
+            self.assertTrue(apertado.startswith(
+                "b" * 49 + "\n\nSem espaço para o `## Pronto quando` de /a:"), apertado)
 
     def test_pelo_hook_com_as_skills_da_fabrica(self) -> None:
         caminho = transcript([chamada("kairos-forge:revisar")])
@@ -334,6 +393,16 @@ class OVerificar(unittest.TestCase):
             self.assertEqual(guardrail.marcas_e_fontes(vazio), [])
         # Sem base para o diff, a marca não foi procurada, e isso aparece.
         self.assertIn("marca de depuração não conferida", saida.getvalue())
+
+    def test_sem_o_prova_py_ao_lado(self) -> None:
+        """Sem o prova.py importável (a cópia avulsa do guardrail), as duas conferências
+        falham abertas com lista vazia — a soma não quebra o `verificar` — e dizem o que não olharam."""
+        from unittest import mock
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        with mock.patch.dict(sys.modules, {"prova": None}), redirect_stdout(io.StringIO()) as saida:
+            self.assertEqual(guardrail.marcas_e_fontes(self.raiz), [])
+        self.assertIn("marca de depuração não conferida: ModuleNotFoundError", saida.getvalue())
+        self.assertIn("fontes salvas não conferidas: ModuleNotFoundError", saida.getvalue())
 
 
 class AListaDeSkillsDaTrajetoria(unittest.TestCase):

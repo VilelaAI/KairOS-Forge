@@ -95,6 +95,47 @@ class AForma(Pasta):
                 self.assertEqual(self.problemas(PESQUISA.replace("| 2026-03 |", f"| {data} |")),
                                  ["fato 1: data da fonte fora de AAAA-MM-DD ou AAAA-MM, ou no futuro"])
 
+    def test_fato_com_a_data_de_hoje_vale(self) -> None:
+        """A fonte publicada hoje não está no futuro: só o dia seguinte reprova."""
+        self.assertEqual(self.problemas(PESQUISA.replace("| 2026-03 |", "| 2026-11-19 |")), [])
+        self.assertEqual(self.problemas(PESQUISA.replace("| 2026-03 |", "| 2026-11-20 |")),
+                         ["fato 1: data da fonte fora de AAAA-MM-DD ou AAAA-MM, ou no futuro"])
+
+    def test_o_hoje_pedido_manda_na_data_da_fonte(self) -> None:
+        """A data da fonte é julgada contra o `hoje` que se pede, não contra o relógio; sem
+        `hoje`, vale o relógio (aqui parado em 2026-03-31, para o teste não depender do dia)."""
+        self.escrever({"docs/pesquisa/csv.md": PESQUISA.replace("2026-11-10\n-", "2026-03-31\n-")})
+        r = prova.fontes(self.raiz, None, 180, date(2026, 3, 31))
+        self.assertEqual(r["pesquisas"][0]["problemas"],
+                         ["fato 2: data da fonte fora de AAAA-MM-DD ou AAAA-MM, ou no futuro"])
+
+        class Relogio(date):
+            @classmethod
+            def today(cls) -> date:
+                return date(2026, 3, 31)
+
+        fato = ["1", "fato", "https://exemplo.org", "1.0", "2026-11-10"]
+        with unittest.mock.patch.object(prova, "date", Relogio):
+            self.assertEqual(prova.problemas_do_fato(fato, self.raiz),
+                             ["fato 1: data da fonte fora de AAAA-MM-DD ou AAAA-MM, ou no futuro"])
+            self.assertEqual(prova.problemas_do_fato(fato, self.raiz, date(2026, 11, 19)), [])
+
+    def test_copia_avulsa_sem_o_segredos_py_confere_a_forma(self) -> None:
+        """O `prova.py` copiado sozinho, sem o `segredos.py` ao lado, ainda confere a forma das
+        pesquisas: sem a regra, nenhum segredo é procurado, e o comando não quebra."""
+        avulso = Path(tempfile.mkdtemp(prefix="kairos-forge-prova-avulso-"))
+        self.addCleanup(lambda: __import__("shutil").rmtree(avulso, ignore_errors=True))
+        (avulso / "prova.py").write_text((RAIZ / "prova.py").read_text(encoding="utf-8"), encoding="utf-8")
+        self.escrever({"docs/pesquisa/csv.md": PESQUISA,
+                       "docs/pesquisa/ruim.md": PESQUISA.replace("| 2.1.0 |", "|  |")})
+        r = subprocess.run([sys.executable, "-I", "-B", str(avulso / "prova.py"), "fontes", "--json",
+                            "--raiz", str(self.raiz)], cwd=self.raiz, capture_output=True, text=True)
+        self.assertEqual((r.returncode, r.stderr), (1, ""))
+        self.assertEqual({p["arquivo"]: p["problemas"] for p in json.loads(r.stdout)["pesquisas"]},
+                         {"docs/pesquisa/csv.md": [],
+                          "docs/pesquisa/ruim.md": ["fato 1: sem versão (escreva `sem versão` "
+                                                    "quando a fonte não tem)"]})
+
     def test_linha_curta_e_fato_vazio(self) -> None:
         texto = PESQUISA.replace("| 1 | O leitor aceita o parâmetro `delimiter`. |", "| 1 |  |")
         self.assertEqual(self.problemas(texto), ["fato 1: sem o fato"])
@@ -241,6 +282,19 @@ class NaSpec(Pasta):
         # Instante que não se lê: qualquer commit desde ele conta, sem quebrar.
         self.assertIsInstance(prova._mudou_depois(self.raiz, "docs/pesquisa/csv.md", "x"), bool)
 
+    def test_selo_ilegivel_conta_qualquer_commit_ou_mudanca(self) -> None:
+        """Selo que não se lê como instante: a pesquisa com commit ou com mudança pendente conta
+        como mudada depois da aprovação (confere-se à toa, não se deixa passar); a que nunca
+        existiu, não."""
+        (self.raiz / ".agents/ciclo").mkdir(parents=True)
+        (self.raiz / ".agents/ciclo/SPEC-007.json").write_text('{"spec_selada_em": "ontem"}',
+                                                             encoding="utf-8")
+        spec = prova.fontes(self.raiz, "SPEC-007", 180, HOJE)["spec"]
+        self.assertEqual((spec["aprovacao"], spec["citadas"][0]["mudou_depois"]), ("ontem", True))
+        self.escrever({"docs/pesquisa/nova.md": PESQUISA})
+        self.assertTrue(prova._mudou_depois(self.raiz, "docs/pesquisa/nova.md", "ontem"))
+        self.assertFalse(prova._mudou_depois(self.raiz, "docs/pesquisa/sumiu.md", "ontem"))
+
 
 class AImpressaoEOComando(NaSpec):
     def imprimir(self, r: dict) -> str:
@@ -271,6 +325,19 @@ class AImpressaoEOComando(NaSpec):
         self.assertIn("⚠️  docs/pesquisa/csv.md",
                       self.imprimir(prova.fontes(self.raiz, None, 1, HOJE)))
 
+    def test_nada_a_conferir_so_sem_pesquisa_e_sem_citacao_quebrada(self) -> None:
+        """Basta uma pesquisa ou uma citação quebrada para o relatório não dizer "nada a conferir"."""
+        so_pesquisa = prova.fontes(self.raiz, None, 180, HOJE)
+        self.assertEqual((len(so_pesquisa["pesquisas"]), so_pesquisa["citacoes_quebradas"]), (1, []))
+        self.assertNotIn("nada a conferir", self.imprimir(so_pesquisa))
+        vazio = Path(tempfile.mkdtemp(prefix="kairos-forge-fontes-so-citacao-"))
+        self.addCleanup(lambda: __import__("shutil").rmtree(vazio, ignore_errors=True))
+        (vazio / "docs/adr").mkdir(parents=True)
+        (vazio / "docs/adr/0001.md").write_text("docs/pesquisa/sumiu.md\n", encoding="utf-8")
+        so_citacao = prova.fontes(vazio, None, 180, HOJE)
+        self.assertEqual((so_citacao["pesquisas"], len(so_citacao["citacoes_quebradas"])), ([], 1))
+        self.assertNotIn("nada a conferir", self.imprimir(so_citacao))
+
     def rodar(self, *args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run([sys.executable, "-B", str(RAIZ / "prova.py"), "fontes", *args],
                               cwd=self.raiz, capture_output=True, text=True)
@@ -287,6 +354,14 @@ class AImpressaoEOComando(NaSpec):
         self.assertEqual(self.rodar().returncode, 1)
         self.escrever({"docs/adr/0001.md": "nada\n", "docs/pesquisa/ruim.md": "# x\n"})
         self.assertEqual(self.rodar().returncode, 1)
+
+    def test_sem_raiz_numa_subpasta_confere_a_raiz_do_repositorio(self) -> None:
+        """Sem `--raiz`, o comando rodado numa subpasta confere a raiz do git, não a subpasta."""
+        r = subprocess.run([sys.executable, "-B", str(RAIZ / "prova.py"), "fontes", "--json"],
+                           cwd=self.raiz / "vendas", capture_output=True, text=True)
+        saida = json.loads(r.stdout)
+        self.assertEqual((Path(saida["raiz"]).resolve(), [p["arquivo"] for p in saida["pesquisas"]]),
+                         (self.raiz.resolve(), ["docs/pesquisa/csv.md"]), r.stderr)
 
 
 class OMainNoProcesso(unittest.TestCase):
@@ -314,6 +389,21 @@ class OMainNoProcesso(unittest.TestCase):
         self.assertEqual(self.main("fontes", "--idade-max", "x")[0], 1)
         self.assertEqual(self.main("fontes", "SPEC-001", "--raiz", str(self.raiz))[0], 1)
 
+    def test_json_sai_com_o_acento_legivel(self) -> None:
+        """O `--json` sai em UTF-8: o PT-BR do relatório não vira escape unicode para quem lê."""
+        codigo, texto = self.main("fontes", "SPEC-001", "--json", "--raiz", str(self.raiz))
+        self.assertEqual((codigo, json.loads(texto)["spec"]["erro"]),
+                         (1, "SPEC não encontrada em docs/specs/"))
+        self.assertIn('"erro": "SPEC não encontrada em docs/specs/"', texto)
+
+    def test_fora_do_git_sem_raiz_confere_a_pasta_atual(self) -> None:
+        """Fora de um repositório git e sem `--raiz`, `fontes` e `selado` leem a pasta de onde rodam."""
+        (self.raiz / "docs/pesquisa").mkdir(parents=True)
+        (self.raiz / "docs/pesquisa/csv.md").write_text(PESQUISA, encoding="utf-8")
+        _, texto = self.main("fontes", "--json")
+        self.assertEqual([p["arquivo"] for p in json.loads(texto)["pesquisas"]], ["docs/pesquisa/csv.md"])
+        self.assertEqual(self.main("selado")[0], 0)
+
     def test_selado(self) -> None:
         self.assertEqual(self.main("selado", "--raiz", str(self.raiz))[0], 0)
         self.assertIn('"selados": []', self.main("selado", "--json", "--raiz", str(self.raiz))[1])
@@ -329,6 +419,14 @@ class OMainNoProcesso(unittest.TestCase):
         self.assertEqual(self.main("pre-patch", "--tempo-limite", "x")[0], 1)
         codigo, texto = self.main("nada")
         self.assertEqual((codigo, texto.splitlines()[0]), (1, prova.__doc__.strip().splitlines()[0]))
+
+    def test_colher_que_nao_colhe_sai_1(self) -> None:
+        """Fora do git ou com `--fonte` inválida o `colher` sai 1: `sys.exit(None)` diria sucesso ao shell."""
+        codigo, texto = self.main("colher")
+        self.assertEqual((codigo, "fora de um repositório git" in texto), (1, True))
+        subprocess.run(["git", "init", "-q"], cwd=self.raiz, check=True)
+        codigo, texto = self.main("colher", "--fonte", "svn")
+        self.assertEqual((codigo, "--fonte é gh ou git" in texto), (1, True))
 
 
 if __name__ == "__main__":

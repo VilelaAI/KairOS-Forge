@@ -201,7 +201,7 @@ def eh_teste(rel: str) -> bool:
 def git(raiz: Path, *args: str, timeout: int = 30) -> subprocess.CompletedProcess:
     # Caminho com acento sem aspas nem escape, e saída que não é UTF-8 sem derrubar a leitura.
     return subprocess.run(["git", "-c", "core.quotePath=false", "-C", str(raiz), *args],
-                          capture_output=True, text=True, encoding="utf-8", errors="replace",
+                          capture_output=True, encoding="utf-8", errors="replace",
                           timeout=timeout)
 
 
@@ -1261,13 +1261,9 @@ def _fonte_existe(raiz: Path, fonte: str) -> bool:
 def _data_da_fonte(texto: str, hoje: date) -> bool:
     """AAAA-MM-DD ou AAAA-MM de verdade, e não no futuro."""
     t = texto.strip("` ")
-    if not DATA_DA_FONTE.match(t):
-        return False
-    try:
-        dia = date.fromisoformat(t if len(t) == 10 else f"{t}-01")
-    except ValueError:
-        return False
-    return dia <= hoje
+    # O `_data` lê os dez primeiros caracteres: AAAA-MM-DD fica como está, AAAA-MM vale pelo dia 1.
+    dia = _data(f"{t}-01") if DATA_DA_FONTE.fullmatch(t) else None
+    return dia is not None and dia <= hoje
 
 
 def problemas_do_fato(celulas: list[str], raiz: Path, hoje: date | None = None) -> list[str]:

@@ -189,6 +189,18 @@ laço inexistente contado como falha; a saída que não era UTF-8; o filho do la
 ao tempo esgotado; a conferência sem o prefixo da fábrica e cortada no meio de um item; e, no
 `corrigir.yml`, tudo o que o item do CI acima descreve.
 
+**Mutação** nas linhas que o diff tocou: na primeira medição, 182 de 209 mutantes morreram. Os
+27 que sobraram foram triados, cada um por um analista que aplicou o mutante e rodou a suíte
+inteira e por um cético que tentou derrubar o veredicto:
+
+- 6 já morriam em testes de fora da suíte usada na medição;
+- 17 eram teste que faltava, e cada teste novo foi conferido falhando com o mutante e passando
+  sem ele;
+- 4 eram equivalentes: o código foi simplificado, e o sítio sumiu.
+
+No caminho apareceu um defeito: a mesma skill chamada duas vezes numa resposta entrava duas
+vezes na conferência. Foi corrigido, com teste.
+
 **Eval:**
 
 - 13 de 13 tarefas distinguem a base da solução.

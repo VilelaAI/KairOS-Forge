@@ -1684,8 +1684,10 @@ def skills_da_sessao(caminho: str, pasta: Path = PASTA_SKILLS) -> list[str]:
     try:
         with open(caminho, encoding="utf-8", errors="replace") as f:
             for linha in f:
-                vistas += [n for n in _skills_da_linha(linha)
-                           if n not in vistas and (pasta / n / "SKILL.md").is_file()]
+                for nome in _skills_da_linha(linha):
+                    # A mesma skill chamada duas vezes na mesma resposta entra uma vez só.
+                    if nome not in vistas and (pasta / nome / "SKILL.md").is_file():
+                        vistas.append(nome)
     except (OSError, ValueError):   # sem arquivo, ou caminho com NUL
         return []
     return vistas

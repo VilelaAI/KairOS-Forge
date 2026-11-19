@@ -125,6 +125,23 @@ class OLacoNosDoisLados(Repo):
         self.reproduzir()
         self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
 
+    def test_a_pasta_que_ja_sumiu_nao_derruba_a_limpeza(self) -> None:
+        """A limpeza do worktree descartável é de melhor esforço: a pasta temporária que já
+        sumiu quando ela roda não vira exceção para quem chamou, e o worktree não sobra."""
+        import shutil
+        with prova.arvore_na_base(self.raiz, "main") as worktree:
+            self.assertIsNotNone(worktree)
+            shutil.rmtree(worktree.parent)
+        self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
+
+    def test_o_teste_novo_em_pasta_que_a_base_nao_tem(self) -> None:
+        """O teste novo numa pasta de dois níveis que a base não tem também vai para a base:
+        as pastas que faltam são criadas, e o laço mostra o defeito lá."""
+        self.escrever({"conta.py": CORRIGIDO, "testes/regressao/test_vazia.py": REGRESSAO})
+        r = self.reproduzir(comando=f"{sys.executable} -B -m unittest discover -s testes/regressao")
+        self.assertEqual(r["copiados"], ["testes/regressao/test_vazia.py"])
+        self.assertEqual(r["veredicto"], "reproduz_e_corrige")
+
     def test_antes_do_conserto_so_aqui(self) -> None:
         self.escrever({"test_conta.py": REGRESSAO})
         r = self.reproduzir(antes=True)
@@ -174,6 +191,24 @@ class OQueARevisaoAchou(Repo):
         self.git("mv", "test_vazia.py", "test_media_extra.py")
         (self.raiz / "test_media_extra.py").write_text("x = 1\n", encoding="utf-8")
         self.assertEqual(self.reproduzir(comando=laco)["veredicto"], "nao_reproduz")
+
+    @unittest.skipUnless(sys.platform.startswith("linux"),
+                         "só o Linux guarda nome de arquivo fora do UTF-8")
+    def test_apagar_teste_de_nome_fora_do_utf8_nao_derruba(self) -> None:
+        """O teste apagado com nome fora do UTF-8 (Latin-1, de um Windows antigo) não derruba a
+        reprodução: o git o devolve com caractere trocado, e o que não se acha para tirar da
+        base não vira exceção."""
+        velho = os.fsdecode(b"test_relat\xf3rio.py")
+        (self.raiz / velho).write_text("import unittest\n\n\nclass T(unittest.TestCase):\n"
+                                       "    def test_v(self):\n        pass\n", encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "teste velho")
+        self.git("checkout", "-q", "main")
+        self.git("merge", "-q", "fix/media")
+        self.git("checkout", "-q", "fix/media")
+        self.git("rm", "-q", velho)
+        self.corrigir()
+        self.assertEqual(self.reproduzir()["veredicto"], "reproduz_e_corrige")
 
     def test_o_laco_que_nao_existe_na_base_nao_e_reproducao(self) -> None:
         self.corrigir()
@@ -318,6 +353,14 @@ class OLeitorDaFicha(unittest.TestCase):
         f = prova.ler_ficha(modelo.format(laco="x"))
         self.assertEqual((f["confirmadas"], f["descartadas"]), (0, 0))
         self.assertIn("sem a tabela de `## Hipóteses`", f["problemas"])
+
+    def test_linha_de_uma_celula_so_fica_de_fora_sem_derrubar(self) -> None:
+        """A linha começada e não escrita (`| 3 |`, uma célula só) não é hipótese nem derruba a leitura."""
+        texto = FICHA.replace("| confirmada |\n", "| confirmada |\n| 3 |\n", 1)
+        self.assertEqual(prova.linhas_da_tabela(prova.secoes_md(texto)["hipóteses"])[-1], ["3"])
+        f = prova.ler_ficha(texto.format(laco="make teste"))
+        self.assertEqual((f["descartadas"], f["confirmadas"], f["abertas"]), (1, 1, 0))
+        self.assertEqual(f["problemas"], [])
 
     def test_preenchido(self) -> None:
         self.assertFalse(prova._preenchido("<a causa>"))
